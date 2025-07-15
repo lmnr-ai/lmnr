@@ -1,7 +1,7 @@
 import { and, eq, inArray, not, sql } from "drizzle-orm";
 
 import { Operator } from "@/components/ui/datatable-filter/utils";
-import { FilterBuilder, processors } from "@/lib/actions/common/utils";
+import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
@@ -28,7 +28,7 @@ const processAttributeFilter = (filter: FilterDef): FilterDef => {
     case "output_token_count":
       return { ...filter, column: "(attributes ->> 'gen_ai.usage.output_tokens')::int8" };
 
-    case "total_token_count":
+    case "tokens":
       return { ...filter, column: "(attributes ->> 'llm.usage.total_tokens')::int8" };
 
     case "input_cost":
@@ -67,8 +67,8 @@ const processTraceSpanAttributeFilter = (filter: FilterDef): FilterDef => {
   }
 };
 
-export const processSpanFilters = (filters: FilterDef[]) => {
-  const filterBuilder = new FilterBuilder<FilterDef, any>({
+export const processSpanFilters = (filters: FilterDef[]) =>
+  processFilters<FilterDef, any>(filters, {
     processors: processors<FilterDef, any>([
       {
         column: "tags",
@@ -103,11 +103,8 @@ export const processSpanFilters = (filters: FilterDef[]) => {
     },
   });
 
-  return filterBuilder.processFilters(filters);
-};
-
-export const processTraceSpanFilters = (filters: FilterDef[]) => {
-  const filterBuilder = new FilterBuilder<FilterDef, any>({
+export const processTraceSpanFilters = (filters: FilterDef[]) =>
+  processFilters<FilterDef, any>(filters, {
     processors: processors<FilterDef, any>([
       {
         column: "status",
@@ -152,6 +149,3 @@ export const processTraceSpanFilters = (filters: FilterDef[]) => {
       );
     },
   });
-
-  return filterBuilder.processFilters(filters);
-};

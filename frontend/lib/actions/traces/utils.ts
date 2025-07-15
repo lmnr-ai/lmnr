@@ -1,7 +1,7 @@
 import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
 
 import { Operator } from "@/components/ui/datatable-filter/utils";
-import { FilterBuilder, processors } from "@/lib/actions/common/utils";
+import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
@@ -11,8 +11,8 @@ enum AllowedCastType {
   SpanType = "span_type",
 }
 
-export const processTraceFilters = (filters: FilterDef[]) => {
-  const filterBuilder = new FilterBuilder<FilterDef, SQL>({
+export const processTraceFilters = (filters: FilterDef[]) =>
+  processFilters<FilterDef, SQL>(filters, {
     processors: processors<FilterDef, SQL>([
       {
         column: "tags",
@@ -54,6 +54,3 @@ export const processTraceFilters = (filters: FilterDef[]) => {
     ]),
     defaultProcessor: (filter) => filtersToSql([filter], [], {})[0] || null,
   });
-
-  return filterBuilder.processFilters(filters);
-};

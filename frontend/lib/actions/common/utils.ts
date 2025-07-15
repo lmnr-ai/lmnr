@@ -5,35 +5,32 @@ import { DatatableFilter, Operator } from "@/components/ui/datatable-filter/util
 
 export type FilterProcessor<TFilter = DatatableFilter, TResult = any> = (filter: TFilter) => TResult | TResult[] | null;
 
-export interface FilterBuilderConfig<TFilter extends DatatableFilter = DatatableFilter, TResult = any> {
+export interface FilterConfig<TFilter extends DatatableFilter = DatatableFilter, TResult = any> {
   processors?: Map<string, FilterProcessor<TFilter, TResult>>;
   defaultProcessor?: FilterProcessor<TFilter, TResult>;
 }
 
-export class FilterBuilder<TFilter extends DatatableFilter = DatatableFilter, TResult = any> {
-  private readonly processors: Map<string, FilterProcessor<TFilter, TResult>>;
-  private readonly defaultProcessor?: FilterProcessor<TFilter, TResult>;
+export const processFilters = <TFilter extends DatatableFilter = DatatableFilter, TResult = any>(
+  filters: TFilter[],
+  config: FilterConfig<TFilter, TResult> = {}
+): TResult[] => {
+  const processors = config.processors || new Map();
+  const defaultProcessor = config.defaultProcessor;
 
-  constructor(config: FilterBuilderConfig<TFilter, TResult> = {}) {
-    this.processors = config.processors || new Map();
-    this.defaultProcessor = config.defaultProcessor;
-  }
+  return filters.flatMap((filter) => {
+    const processor =
+      processors.get(`${filter.column}:${filter.operator}`) ||
+      processors.get(filter.column) ||
+      defaultProcessor;
 
-  processFilters = (filters: TFilter[]): TResult[] =>
-    filters.flatMap((filter) => {
-      const processor =
-        this.processors.get(`${filter.column}:${filter.operator}`) ||
-        this.processors.get(filter.column) ||
-        this.defaultProcessor;
+    if (!processor) return [];
 
-      if (!processor) return [];
+    const result = processor(filter);
+    if (isNil(result)) return [];
 
-      const result = processor(filter);
-      if (isNil(result)) return [];
-
-      return Array.isArray(result) ? result : [result];
-    });
-}
+    return Array.isArray(result) ? result : [result];
+  });
+};
 
 export const processors = <TFilter extends DatatableFilter, TResult>(
   configs: Array<{

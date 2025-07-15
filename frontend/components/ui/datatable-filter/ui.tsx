@@ -37,11 +37,19 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
   }, [filter, filters, onAddFilter]);
 
   const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
-    setFilter((prev) => ({
-      ...prev,
-      ...(field === "column" ? { value: "" } : {}),
-      [field]: value,
-    }));
+    if (field === "column") {
+      setFilter((prev) => ({
+        ...prev,
+        value: "",
+        operator: Operator.Eq,
+        [field]: value,
+      }));
+    } else {
+      setFilter((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
   }, []);
 
   useEffect(() => {

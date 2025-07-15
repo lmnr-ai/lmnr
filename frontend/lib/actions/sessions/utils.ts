@@ -1,10 +1,7 @@
 import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
 
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
-import { FilterBuilder, processors } from "@/lib/actions/common/utils";
-import { getTraceSpans, GetTraceSpansSchema } from "@/lib/actions/spans";
+import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
@@ -25,48 +22,11 @@ const AGGREGATE_COLUMNS = new Set([
   "duration",
 ]);
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; traceId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const traceId = params.traceId;
-  const search = req.nextUrl.searchParams.get("search");
-  const searchIn = req.nextUrl.searchParams.getAll("searchIn");
-  const filters = req.nextUrl.searchParams.getAll("filter");
-
-  const parseResult = GetTraceSpansSchema.safeParse({
-    projectId,
-    traceId,
-    search,
-    searchIn,
-    filters,
-  });
-
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
-
-  try {
-    const result = await getTraceSpans(parseResult.data);
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch trace spans." },
-      { status: 500 }
-    );
-  }
-}
-
 export const processSessionFilters = (filters: FilterDef[]) => {
   const whereFilters = filters.filter((f) => !AGGREGATE_COLUMNS.has(f.column));
   const havingFilters = filters.filter((f) => AGGREGATE_COLUMNS.has(f.column));
 
-  const whereFilterBuilder = new FilterBuilder<FilterDef, SQL>({
+  const whereFiltersResult = processFilters<FilterDef, SQL>(whereFilters, {
     processors: processors<FilterDef, SQL>([
       {
         column: "tags",
@@ -94,6 +54,12 @@ export const processSessionFilters = (filters: FilterDef[]) => {
         },
       },
       {
+        column: "trace_id",
+        process: (filter) =>
+          // Map trace_id to the actual column name 'id' in the traces table
+          filtersToSql([{ ...filter, column: "id" }], [], {})[0],
+      },
+      {
         column: "traceType",
         process: (filter) => filtersToSql([{ ...filter, castType: AllowedCastType.TraceType }], [], {})[0],
       },
@@ -112,7 +78,7 @@ export const processSessionFilters = (filters: FilterDef[]) => {
       })[0] || null,
   });
 
-  const havingFilterBuilder = new FilterBuilder<FilterDef, SQL>({
+  const havingFiltersResult = processFilters<FilterDef, SQL>(havingFilters, {
     defaultProcessor: (filter) => {
       const aggregateColumnMap: Record<string, SQL> = {
         trace_count: sql`COUNT(id)`,
@@ -136,7 +102,7 @@ export const processSessionFilters = (filters: FilterDef[]) => {
   });
 
   return {
-    whereFilters: whereFilterBuilder.processFilters(whereFilters),
-    havingFilters: havingFilterBuilder.processFilters(havingFilters),
+    whereFilters: whereFiltersResult,
+    havingFilters: havingFiltersResult,
   };
 };
