@@ -11,6 +11,7 @@ import {
   dataTypeOperationsMap,
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
+  Operator,
   STRING_OPERATIONS,
 } from "@/components/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ interface FilterUIProps {
 }
 
 const FilterPopover = ({ columns, className, onAddFilter, filters, children }: PropsWithChildren<FilterUIProps>) => {
-  const [filter, setFilter] = useState<DatatableFilter>({ operator: "", column: "", value: "" });
+  const [filter, setFilter] = useState<DatatableFilter>({ operator: Operator.Eq, column: "", value: "" });
 
   const handleApplyFilters = useCallback(() => {
     if (!filters.some((f) => isEqual(f, filter))) {

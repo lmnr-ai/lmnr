@@ -2,50 +2,17 @@ import { and, desc, eq, getTableColumns, inArray, SQL, sql } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { Evaluation } from "@/lib/evaluation/types";
 
-const FilterDefSchema = z.object({
-  column: z.string(),
-  operator: z.string(),
-  value: z.string(),
-  castType: z.string().optional(),
-});
-
-export const GetEvaluationsSchema = z.object({
+export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
   groupId: z.string().nullable().optional(),
-  pageSize: z
-    .string()
-    .nullable()
-    .default("25")
-    .transform((val) => Number(val) || 25),
-  pageNumber: z
-    .string()
-    .nullable()
-    .default("0")
-    .transform((val) => Number(val) || 0),
   search: z.string().nullable().optional(),
-  filters: z
-    .array(z.string())
-    .default([])
-    .transform((filters, ctx) =>
-      filters.map((filter) => {
-        try {
-          const parsed = JSON.parse(filter);
-          return FilterDefSchema.parse(parsed);
-        } catch (error) {
-          ctx.issues.push({
-            code: "custom",
-            message: `Invalid filter JSON: ${filter}`,
-            input: filter,
-          });
-        }
-      })
-    ),
 });
 
 export const DeleteEvaluationsSchema = z.object({
@@ -54,9 +21,9 @@ export const DeleteEvaluationsSchema = z.object({
 });
 
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
-  const { projectId, groupId, pageSize, pageNumber, search, filters } = input;
+  const { projectId, groupId, pageSize, pageNumber, search, filter } = input;
 
-  const urlParamFilters: FilterDef[] = compact(filters);
+  const urlParamFilters: FilterDef[] = compact(filter);
 
   const baseFilters: SQL[] = [eq(evaluations.projectId, projectId)];
   if (groupId) {
