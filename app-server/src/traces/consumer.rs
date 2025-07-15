@@ -3,6 +3,8 @@
 
 use std::sync::Arc;
 
+use backoff::ExponentialBackoffBuilder;
+
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, process_spans_and_events,
 };
@@ -43,15 +45,37 @@ async fn inner_process_queue_spans(
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
-    // Safe to unwrap because we checked is_feature_enabled above
-    let mut receiver = queue
-        .get_receiver(
-            OBSERVATIONS_QUEUE,
-            OBSERVATIONS_EXCHANGE,
-            OBSERVATIONS_ROUTING_KEY,
-        )
-        .await
-        .unwrap();
+    // Add retry logic with exponential backoff for connection failures
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                OBSERVATIONS_QUEUE,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get receiver from queue: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    };
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(1))
+        .with_max_interval(std::time::Duration::from_secs(60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .build();
+
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Successfully connected to spans queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!("Failed to connect to spans queue after retries: {:?}", e);
+            return;
+        }
+    };
 
     log::info!("Started processing spans from queue");
 

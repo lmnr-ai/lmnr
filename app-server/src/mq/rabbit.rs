@@ -1,3 +1,4 @@
+use backoff::ExponentialBackoffBuilder;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
@@ -22,7 +23,32 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        Ok(self.connection.create_channel().await?)
+        let create_channel = || async {
+            self.connection.create_channel().await.map_err(|e| {
+                log::warn!("Failed to create channel: {:?}", e);
+                backoff::Error::transient(anyhow::Error::from(e))
+            })
+        };
+
+        let backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(std::time::Duration::from_millis(100))
+            .with_max_interval(std::time::Duration::from_secs(5))
+            .with_max_elapsed_time(Some(std::time::Duration::from_secs(30)))
+            .build();
+
+        match backoff::future::retry(backoff, create_channel).await {
+            Ok(channel) => {
+                log::debug!("Successfully created channel");
+                Ok(channel)
+            }
+            Err(e) => {
+                log::error!("Failed to create channel after retries: {:?}", e);
+                Err(anyhow::anyhow!(
+                    "Failed to create channel after retries: {:?}",
+                    e
+                ))
+            }
+        }
     }
 
     async fn recycle(
@@ -33,6 +59,7 @@ impl Manager for RabbitChannelManager {
         if channel.status().connected() {
             Ok(())
         } else {
+            log::debug!("Channel is not connected, marking for recycling");
             Err(RecycleError::Backend(anyhow::anyhow!(
                 "Channel disconnected"
             )))
@@ -41,7 +68,7 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    connection: Arc<Connection>,
+    consumer_connection: Arc<Connection>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
@@ -84,9 +111,13 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 }
 
 impl RabbitMQ {
-    pub fn new(connection: Arc<Connection>, max_channel_pool_size: usize) -> Self {
+    pub fn new(
+        publisher_connection: Arc<Connection>,
+        consumer_connection: Arc<Connection>,
+        max_channel_pool_size: usize,
+    ) -> Self {
         let manager = RabbitChannelManager {
-            connection: Arc::clone(&connection),
+            connection: Arc::clone(&publisher_connection),
         };
 
         let pool = Pool::builder(manager)
@@ -95,7 +126,7 @@ impl RabbitMQ {
             .unwrap();
 
         Self {
-            connection,
+            consumer_connection,
             publisher_channel_pool: pool,
         }
     }
@@ -111,30 +142,73 @@ impl MessageQueueTrait for RabbitMQ {
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<()> {
-        let channel = match self.publisher_channel_pool.get().await {
-            Ok(channel) => channel,
-            Err(PoolError::Backend(e)) => {
-                log::error!("Failed to get channel from pool: {}", e);
-                return Err(anyhow::anyhow!("Failed to get channel from pool: {}", e));
+        let publish_with_retry = || async {
+            let channel = match self.publisher_channel_pool.get().await {
+                Ok(channel) => channel,
+                Err(PoolError::Backend(e)) => {
+                    log::warn!("Failed to get channel from pool: {}", e);
+                    return Err(backoff::Error::transient(anyhow::anyhow!(
+                        "Failed to get channel from pool: {}",
+                        e
+                    )));
+                }
+                Err(e) => {
+                    log::error!("Pool error: {}", e);
+                    return Err(backoff::Error::permanent(anyhow::anyhow!(
+                        "Pool error: {}",
+                        e
+                    )));
+                }
+            };
+
+            // Check if channel is still connected before using it
+            if !channel.status().connected() {
+                log::warn!("Channel is not connected, retrying...");
+                return Err(backoff::Error::transient(anyhow::anyhow!(
+                    "Channel is not connected"
+                )));
             }
-            Err(e) => {
-                log::error!("Pool error: {}", e);
-                return Err(anyhow::anyhow!("Pool error: {}", e));
+
+            match channel
+                .basic_publish(
+                    exchange,
+                    routing_key,
+                    BasicPublishOptions::default(),
+                    message,
+                    BasicProperties::default(),
+                )
+                .await
+            {
+                Ok(promise) => match promise.await {
+                    Ok(_confirmation) => Ok(()),
+                    Err(e) => {
+                        log::warn!("Failed to publish message promise: {:?}", e);
+                        Err(backoff::Error::transient(anyhow::Error::from(e)))
+                    }
+                },
+                Err(e) => {
+                    log::warn!("Failed to get call promise from basic_publish: {:?}", e);
+                    Err(backoff::Error::transient(anyhow::Error::from(e)))
+                }
             }
         };
 
-        channel
-            .basic_publish(
-                exchange,
-                routing_key,
-                BasicPublishOptions::default(),
-                message,
-                BasicProperties::default(),
-            )
-            .await?
-            .await?;
+        let backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(std::time::Duration::from_millis(100))
+            .with_max_interval(std::time::Duration::from_secs(2))
+            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
+            .build();
 
-        Ok(())
+        match backoff::future::retry(backoff, publish_with_retry).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                log::error!("Failed to publish message after retries: {:?}", e);
+                Err(anyhow::anyhow!(
+                    "Failed to publish message after retries: {:?}",
+                    e
+                ))
+            }
+        }
     }
 
     async fn get_receiver(
@@ -143,7 +217,7 @@ impl MessageQueueTrait for RabbitMQ {
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<MessageQueueReceiver> {
-        let channel = self.connection.create_channel().await?;
+        let channel = self.consumer_connection.create_channel().await?;
 
         channel
             .queue_bind(
