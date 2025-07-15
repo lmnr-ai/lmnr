@@ -51,12 +51,12 @@ export const getSpanMetricsOverTime = async (
           ${groupBy},
           ${getMetricColumn(metric, aggregation)}
       ) as value,
-                       ${chRoundTime}(start_time) as time
-                     FROM spans
-                     WHERE
-                       project_id = {projectId: UUID}
-                       AND ${groupBy} != {nullValue: String}
-                       AND span_type in {types: Array(UInt8)}`;
+      ${chRoundTime}(start_time) as time
+    FROM spans
+    WHERE
+      project_id = {projectId: UUID}
+      AND ${groupBy} != {nullValue: String}
+      AND span_type in {types: Array(UInt8)}`;
   const query = addTimeRangeToQuery(baseQuery, timeRange, "time");
 
   let groupByStatement: string;
