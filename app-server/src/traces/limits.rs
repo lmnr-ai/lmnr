@@ -7,10 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     cache::{
-        keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
         Cache, CacheTrait,
+        keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
     },
-    db::{self, projects::Project, stats::WorkspaceLimitsExceeded, DB},
+    db::{self, DB, projects::Project, stats::WorkspaceLimitsExceeded},
 };
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
@@ -74,7 +74,7 @@ async fn get_workspace_id_for_project_id(
         Ok(Some(project)) => Ok(project.workspace_id),
         Ok(None) | Err(_) => {
             let project = db::projects::get_project(&db.pool, &project_id).await?;
-            let _ = cache.insert::<Project>(&cache_key, project.clone()).await?;
+            let _ = cache.insert::<Project>(&cache_key, project.clone()).await;
             Ok(project.workspace_id)
         }
     }
