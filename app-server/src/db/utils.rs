@@ -66,11 +66,6 @@ pub fn span_id_to_uuid(span_id: &[u8]) -> Uuid {
     Uuid::from_slice(&padded_vec).unwrap()
 }
 
-pub fn validate_sql_string(s: &str) -> bool {
-    s.chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
-}
-
 pub fn sanitize_string_for_postgres(input: &str) -> String {
     // Remove Unicode null characters and invalid UTF-8 sequences
     input
