@@ -21,7 +21,13 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   try {
     // Make sure to delete the project api keys first, because they will be
     // cascade deleted from db once we delete the project.
-    await deleteProjectApiKeysFromCache(projectId);
+    const result = await deleteProjectApiKeysFromCache(projectId);
+    if (!result.success) {
+      console.error(
+        "Failed to delete project api keys from cache. Failed keys:",
+        result.failedKeys
+      );
+    }
   } catch (error) {
     console.error("Failed to delete project api keys from cache", error);
   }
@@ -97,10 +103,30 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
     where: eq(projectApiKeys.projectId, projectId),
   });
 
-  await Promise.allSettled(
-    apiKeys.map(apiKey => {
+  const results = await Promise.allSettled(
+    apiKeys.map(async (apiKey) => {
       const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
-      return cache.remove(cacheKey);
+      try {
+        await cache.remove(cacheKey);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
     })
+  );
+
+  return results.reduce<{ success: true } | { success: false; failedKeys: string[] }>(
+    (acc, curr, index) => {
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeys[index].hash}`;
+      if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
+        if ("failedKeys" in acc) {
+          return { success: false, failedKeys: [...acc.failedKeys, cacheKey] };
+        } else {
+          return { success: false, failedKeys: [cacheKey] };
+        }
+      }
+      return acc;
+    },
+    { success: true }
   );
 }
