@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects } from "@/lib/db/migrations/schema";
+import { projectApiKeys, projects } from "@/lib/db/migrations/schema";
 
 export const DeleteProjectSchema = z.object({
   projectId: z.uuid(),
@@ -16,6 +17,16 @@ export const UpdateProjectSchema = z.object({
 
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
+
+  try {
+    // Make sure to delete the project api keys first, because they will be
+    // cascade deleted from db once we delete the project.
+    await deleteProjectApiKeysFromCache(projectId);
+  } catch (error) {
+    // In order to avoid blocking backend requests, we fail this operation
+    // and don't proceed with project deletion.
+    throw new Error("Failed to delete project api keys from cache");
+  }
 
   await db.delete(projects).where(eq(projects.id, projectId));
   const result = await deleteProjectDataFromClickHouse(projectId);
@@ -81,4 +92,15 @@ async function deleteProjectDataFromClickHouse(
     },
     { success: true }
   );
+}
+
+async function deleteProjectApiKeysFromCache(projectId: string) {
+  const apiKeys = await db.query.projectApiKeys.findMany({
+    where: eq(projectApiKeys.projectId, projectId),
+  });
+
+  for (const apiKey of apiKeys) {
+    const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
+    await cache.remove(cacheKey);
+  }
 }
