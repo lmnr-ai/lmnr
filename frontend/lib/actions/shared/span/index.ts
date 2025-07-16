@@ -1,8 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { events, labelClasses, labels, spans, users } from "@/lib/db/migrations/schema";
+import { events, spans } from "@/lib/db/migrations/schema";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
