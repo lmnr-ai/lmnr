@@ -8,11 +8,8 @@ use crate::{
     cache::Cache,
     ch::{self, spans::CHSpan},
     db::{
-        DB,
-        evaluators::get_evaluators_by_path,
-        events::Event,
-        spans::Span,
-        stats::{add_spans_to_project_usage_stats, increment_project_spans_bytes_ingested},
+        DB, evaluators::get_evaluators_by_path, events::Event, spans::Span,
+        stats::increment_project_spans_bytes_ingested,
     },
     evaluators::push_to_evaluators_queue,
     mq::{MessageQueue, MessageQueueAcker},
@@ -140,13 +137,6 @@ pub async fn process_spans_and_events(
                 0
             }
         };
-
-    if let Err(e) = add_spans_to_project_usage_stats(&db.pool, &project_id, 1).await {
-        log::error!(
-            "Failed to add spans and events to project usage stats: {:?}",
-            e
-        );
-    }
 
     let recorded_events_bytes = match record_events(db.clone(), clickhouse.clone(), &events).await {
         Ok(_) => ingested_bytes.events_bytes,
