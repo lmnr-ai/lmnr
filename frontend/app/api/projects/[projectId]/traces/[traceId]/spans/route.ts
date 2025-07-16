@@ -18,7 +18,7 @@ export async function GET(
   );
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
   try {
@@ -26,9 +26,9 @@ export async function GET(
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
-    return Response.json(
+    return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch trace spans." },
       { status: 500 }
     );
