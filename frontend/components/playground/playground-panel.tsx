@@ -77,7 +77,6 @@ export default function PlaygroundPanel({
           signal: abortControllerRef.current.signal,
           method: "POST",
           body: JSON.stringify({
-            projectId: params?.projectId,
             playgroundId: id,
             model: form.model,
             maxTokens: form.maxTokens,
