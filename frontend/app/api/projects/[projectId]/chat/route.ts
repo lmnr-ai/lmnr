@@ -1,8 +1,14 @@
 import { handleChatGeneration, PlaygroundParamsSchema } from "@/lib/actions/chat";
 
-export async function POST(req: Request) {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
   try {
-    const params = await req.json();
+    const body = await req.json();
+    const { projectId } = await props.params;
+
+    const params = {
+      ...body,
+      projectId,
+    }
 
     const parseResult = PlaygroundParamsSchema.safeParse(params);
 
