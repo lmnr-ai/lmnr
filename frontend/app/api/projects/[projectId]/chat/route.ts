@@ -8,7 +8,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const params = {
       ...body,
       projectId,
-    }
+    };
 
     const parseResult = PlaygroundParamsSchema.safeParse(params);
 
