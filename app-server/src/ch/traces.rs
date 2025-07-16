@@ -19,7 +19,7 @@ pub async fn search_spans_for_trace_ids(
     params: &SearchTracesParams,
 ) -> Result<Option<HashSet<Uuid>>, Box<dyn std::error::Error + Send + Sync>> {
     let search_fields = params.search_in();
-    
+
     let mut search_conditions = Vec::new();
     for field in &search_fields {
         match field.as_str() {
@@ -31,7 +31,6 @@ pub async fn search_spans_for_trace_ids(
 
     let search_condition = search_conditions.join(" OR ");
 
-    // Use chrono_to_nanoseconds for consistency with how data is stored
     let start_time_ns = chrono_to_nanoseconds(params.start_time());
     let end_time_ns = chrono_to_nanoseconds(params.end_time());
 

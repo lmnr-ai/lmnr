@@ -40,7 +40,6 @@ impl ResponseError for Error {
     }
 }
 
-// ... existing From implementations ...
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
         Error::InternalAnyhowError(anyhow::anyhow!(err))
