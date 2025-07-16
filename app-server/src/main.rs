@@ -472,6 +472,7 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
+                                .service(api::v1::traces::search_traces)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::metrics::process_metrics)

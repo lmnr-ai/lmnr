@@ -1,6 +1,7 @@
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 use log::error;
+use serde_json::json;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -8,6 +9,8 @@ pub enum Error {
     InternalAnyhowError(#[from] anyhow::Error),
     #[error("{0}")]
     MultipartError(#[from] actix_multipart::MultipartError),
+    #[error("{0}")]
+    BadRequest(String),
 }
 
 impl ResponseError for Error {
@@ -15,15 +18,29 @@ impl ResponseError for Error {
         match &self {
             Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MultipartError(_) => StatusCode::BAD_REQUEST,
+            Self::BadRequest(_) => StatusCode::BAD_REQUEST,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
-        error!("Error: {:?}", self.to_string());
-        HttpResponse::build(self.status_code()).finish()
+        match &self {
+            Self::BadRequest(message) => {
+                error!("Validation error: {}", message);
+                HttpResponse::build(self.status_code())
+                    .json(json!({
+                        "error": "Bad request",
+                        "message": message
+                    }))
+            }
+            _ => {
+                error!("Error: {:?}", self.to_string());
+                HttpResponse::build(self.status_code()).finish()
+            }
+        }
     }
 }
 
+// ... existing From implementations ...
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
         Error::InternalAnyhowError(anyhow::anyhow!(err))

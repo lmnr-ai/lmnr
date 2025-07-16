@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use actix_web::{HttpRequest, HttpResponse, post, web};
+use actix_web::{get, post, web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
-    features::{Feature, is_feature_enabled},
+    db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, traces::{self}, DB},
+    features::{is_feature_enabled, Feature},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
@@ -65,4 +65,33 @@ pub async fn process_traces(
     } else {
         Ok(HttpResponse::Ok().finish())
     }
+}
+
+
+#[derive(Serialize)]
+struct SearchTracesResponse {
+    data: Vec<traces::TraceSearchItem>,
+    count: i64
+}
+
+#[get("/traces")]
+pub async fn search_traces(
+    params: web::Query<traces::SearchTracesParams>,
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+    let clickhouse = clickhouse.into_inner();
+    let query = params.into_inner();
+
+    let (data, count) = traces::search_traces(&db.pool, &clickhouse, project_id, query).await?;
+
+    let response = SearchTracesResponse {
+        data,
+        count
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

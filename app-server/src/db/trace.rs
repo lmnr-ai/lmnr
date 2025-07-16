@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,20 @@ pub enum TraceType {
     EVENT,
     EVALUATION,
     PLAYGROUND,
+}
+
+impl FromStr for TraceType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().trim() {
+            "DEFAULT" => Ok(TraceType::DEFAULT),
+            "EVENT" => Ok(TraceType::EVENT),
+            "EVALUATION" => Ok(TraceType::EVALUATION),
+            "PLAYGROUND" => Ok(TraceType::PLAYGROUND),
+            _ => Err(anyhow::anyhow!("Invalid trace type: {}", s)),
+        }
+    }
 }
 
 #[derive(Serialize, sqlx::FromRow, Clone, Debug)]
