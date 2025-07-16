@@ -1,5 +1,4 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use enum_dispatch::enum_dispatch;
 use uuid::Uuid;
@@ -16,7 +15,6 @@ pub enum Storage {
     S3(S3Storage),
 }
 
-#[async_trait]
 #[enum_dispatch(Storage)]
 pub trait StorageTrait {
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;

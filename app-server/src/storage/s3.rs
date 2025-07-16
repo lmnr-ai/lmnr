@@ -22,7 +22,6 @@ impl S3Storage {
     }
 }
 
-#[async_trait::async_trait]
 impl super::StorageTrait for S3Storage {
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String> {
         // TODO: check the performance of this, and, if needed,

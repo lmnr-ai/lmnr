@@ -696,11 +696,10 @@ impl Span {
                 serde_json::to_writer(&mut data, &self.input)?;
                 if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
-                    let url = storage.store(data.clone(), &key).await?;
+                    let preview = String::from_utf8_lossy(&data).chars().take(100).collect();
+                    let url = storage.store(data, &key).await?;
                     self.input_url = Some(url);
-                    self.input = Some(serde_json::Value::String(
-                        String::from_utf8_lossy(&data).chars().take(100).collect(),
-                    ));
+                    self.input = Some(serde_json::Value::String(preview));
                 }
             }
         }
