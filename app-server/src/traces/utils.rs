@@ -74,19 +74,18 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-pub async fn record_span_to_db(
+pub async fn record_spans_batch(
     db: Arc<DB>,
-    project_id: &Uuid,
-    span: &Span,
-    trace_attributes: &TraceAttributes,
+    spans: &[Span],
+    trace_attributes: Vec<TraceAttributes>,
 ) -> anyhow::Result<()> {
-    let insert_span = || async {
-        db::spans::record_span(&db.pool, &span, project_id)
+    let insert_spans = || async {
+        db::spans::record_spans_batch(&db.pool, spans)
             .await
             .map_err(|e| {
                 log::error!(
-                    "Failed attempt to record span [{}]. Will retry according to backoff policy. Error: {:?}",
-                    span.span_id,
+                    "Failed attempt to record {} spans. Will retry according to backoff policy. Error: {:?}",
+                    spans.len(),
                     e
                 );
                 backoff::Error::Transient {
@@ -105,22 +104,22 @@ pub async fn record_span_to_db(
         .with_randomization_factor(0.5)
         .with_max_elapsed_time(Some(std::time::Duration::from_secs(10)))
         .build();
-    backoff::future::retry(exponential_backoff, insert_span)
+    backoff::future::retry(exponential_backoff, insert_spans)
         .await
         .map_err(|e| {
             log::error!(
-                "Exhausted backoff retries for span [{}]: {:?}",
-                span.span_id,
+                "Exhausted backoff retries for {} spans: {:?}",
+                spans.len(),
                 e
             );
             e
         })?;
 
-    // Insert or update trace only after the span has been successfully inserted
-    if let Err(e) = trace::update_trace_attributes(&db.pool, project_id, &trace_attributes).await {
+    // Insert or update traces in batch after the spans have been successfully inserted
+    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, spans, trace_attributes).await {
         log::error!(
-            "Failed to update trace attributes [{}]: {:?}",
-            span.span_id,
+            "Failed to update trace attributes for {} spans: {:?}",
+            spans.len(),
             e
         );
     }

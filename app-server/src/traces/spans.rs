@@ -436,7 +436,7 @@ impl Span {
     ///
     /// This is called on the producer side of the MQ, i.e. at the OTel ingester
     /// side, so it must be lightweight.
-    pub fn from_otel_span(otel_span: OtelSpan) -> Self {
+    pub fn from_otel_span(otel_span: OtelSpan, project_id: Uuid) -> Self {
         let trace_id = Uuid::from_slice(&otel_span.trace_id).unwrap();
 
         let span_id = span_id_to_uuid(&otel_span.span_id);
@@ -457,6 +457,7 @@ impl Span {
 
         let mut span = Span {
             span_id,
+            project_id,
             trace_id,
             parent_span_id,
             name: otel_span.name,
@@ -1234,6 +1235,7 @@ mod tests {
 
         let mut span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: None,
             name: "openai.chat".to_string(),
@@ -1558,6 +1560,7 @@ mod tests {
 
         let mut span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ChatOpenAI.chat".to_string(),
@@ -1885,6 +1888,7 @@ mod tests {
 
         let mut parent_span = Span {
             span_id: parent_span_id,
+            project_id: Uuid::new_v4(),
             trace_id,
             parent_span_id: None,
             name: "ai.generateText".to_string(),
@@ -1990,6 +1994,7 @@ mod tests {
 
         let mut child_span = Span {
             span_id: child_span_id,
+            project_id: Uuid::new_v4(),
             trace_id,
             parent_span_id: Some(parent_span_id),
             name: "ai.generateText.doGenerate".to_string(),
