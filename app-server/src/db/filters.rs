@@ -131,7 +131,11 @@ impl FieldType {
                 FilterOperator::Eq | FilterOperator::Neq | 
                 FilterOperator::ILike | FilterOperator::NotILike
             ),
-            FieldType::Integer | FieldType::Float => true,
+            FieldType::Integer | FieldType::Float => matches!(operator,
+                FilterOperator::Eq | FilterOperator::Neq |
+                FilterOperator::Gt | FilterOperator::Gte |
+                FilterOperator::Lt | FilterOperator::Lte
+            ),
             FieldType::Boolean | FieldType::Enum | FieldType::Uuid => {
                 matches!(operator, FilterOperator::Eq | FilterOperator::Neq)
             },
