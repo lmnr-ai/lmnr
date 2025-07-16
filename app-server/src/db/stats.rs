@@ -19,29 +19,6 @@ pub async fn create_usage_stats_for_workspace(pool: &PgPool, workspace_id: &Uuid
     Ok(())
 }
 
-pub async fn add_spans_to_project_usage_stats(
-    pool: &PgPool,
-    project_id: &Uuid,
-    spans: i64,
-) -> Result<()> {
-    sqlx::query(
-        "UPDATE workspace_usage
-        SET span_count = span_count + $2,
-            span_count_since_reset = span_count_since_reset + $2
-        WHERE workspace_id = (
-            SELECT workspace_id
-            FROM projects
-            WHERE id = $1
-            LIMIT 1)",
-    )
-    .bind(project_id)
-    .bind(spans)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 pub async fn increment_project_spans_bytes_ingested(
     pool: &PgPool,
     project_id: &Uuid,
