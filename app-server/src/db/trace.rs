@@ -42,16 +42,15 @@ pub struct Trace {
 pub async fn update_trace_attributes_batch(
     pool: &PgPool,
     spans: &[Span],
-    trace_attributes: Vec<TraceAttributes>,
+    traces_attributes: Vec<TraceAttributes>,
 ) -> Result<()> {
-    if trace_attributes.is_empty() {
+    if traces_attributes.is_empty() {
         return Ok(());
     }
 
-    // Group by trace_id and aggregate values in memory
     let mut trace_aggregates: HashMap<Uuid, TraceAttributes> = HashMap::new();
 
-    for attributes in trace_attributes {
+    for attributes in traces_attributes {
         let entry = trace_aggregates
             .entry(attributes.id)
             .or_insert_with(|| TraceAttributes {
