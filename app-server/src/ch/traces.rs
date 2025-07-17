@@ -43,7 +43,8 @@ pub async fn search_spans_for_trace_ids(
            AND start_time <= fromUnixTimestamp64Nano(?)
            AND end_time >= fromUnixTimestamp64Nano(?)
            AND ({})
-         LIMIT 1000",
+         ORDER BY start_time DESC   
+         LIMIT 10000",
         search_condition
     );
 

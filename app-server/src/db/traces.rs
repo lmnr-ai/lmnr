@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     ch::traces::search_spans_for_trace_ids, 
     db::{
-        filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterValue}, 
+        filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterOperator, FilterValue}, 
         trace::TraceType
     }, 
     routes::error::Error
@@ -214,7 +214,7 @@ fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
     configs
 }
 
-fn validate_trace_type(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+fn validate_trace_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
         TraceType::from_str(s)
             .map_err(|_| format!("Invalid trace type: {}. Valid values: DEFAULT, EVENT, EVALUATION, PLAYGROUND", s))?;
@@ -224,7 +224,7 @@ fn validate_trace_type(value: &crate::db::filters::FilterValue) -> Result<(), St
     }
 }
 
-fn validate_status(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+fn validate_status(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
         if s == "error" || s == "success" {
             Ok(())
@@ -259,7 +259,7 @@ fn build_trace_filters<'a>(
 
     let field_configs = create_traces_field_configs();
     for filter in params.filters() {
-        if filter.field == "status" && filter.operator == crate::db::filters::FilterOperator::Eq {
+        if filter.field == "status" && filter.operator == FilterOperator::Eq {
             if let FilterValue::String(status_value) = &filter.value {
                 if status_value == "success" {
                     query_builder.push(" AND t.status IS NULL");
