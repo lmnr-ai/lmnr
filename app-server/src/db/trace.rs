@@ -41,7 +41,7 @@ pub struct Trace {
 
 pub async fn update_trace_attributes_batch(
     pool: &PgPool,
-    trace_attributes_vec: &Vec<TraceAttributes>,
+    trace_attributes_vec: &[TraceAttributes],
 ) -> Result<()> {
     if trace_attributes_vec.is_empty() {
         return Ok(());

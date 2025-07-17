@@ -117,7 +117,7 @@ pub async fn record_spans_batch<'a>(pool: &PgPool, spans: &Vec<&'a Span>) -> Res
     let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).collect();
 
     // Use UNNEST to insert all spans in a single query
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO spans (
             span_id,
@@ -157,23 +157,23 @@ pub async fn record_spans_batch<'a>(pool: &PgPool, spans: &Vec<&'a Span>) -> Res
         )
         ON CONFLICT DO NOTHING
         "#,
-        &span_ids,
-        &trace_ids,
-        &parent_span_ids as &Vec<Option<Uuid>>,
-        &start_times,
-        &end_times,
-        &names,
-        &attributes,
-        &inputs as &Vec<Option<Value>>,
-        &outputs as &Vec<Option<Value>>,
-        &span_types as &Vec<SpanType>,
-        &input_previews as &Vec<Option<String>>,
-        &output_previews as &Vec<Option<String>>,
-        &input_urls as &Vec<Option<String>>,
-        &output_urls as &Vec<Option<String>>,
-        &statuses as &Vec<Option<String>>,
-        &project_ids,
     )
+    .bind(&span_ids)
+    .bind(&trace_ids)
+    .bind(&parent_span_ids)
+    .bind(&start_times)
+    .bind(&end_times)
+    .bind(&names)
+    .bind(&attributes)
+    .bind(&inputs)
+    .bind(&outputs)
+    .bind(&span_types)
+    .bind(&input_previews)
+    .bind(&output_previews)
+    .bind(&input_urls)
+    .bind(&output_urls)
+    .bind(&statuses)
+    .bind(&project_ids)
     .execute(pool)
     .await?;
 
