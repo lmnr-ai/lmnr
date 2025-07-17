@@ -66,6 +66,7 @@ pub enum FilterValue {
     String(String),
     Number(f64),
     Boolean(bool),
+    Uuid(Uuid),
     Json { key: String, value: String },
 }
 
@@ -95,9 +96,9 @@ impl FilterValue {
                 Ok(FilterValue::String(s.to_string()))
             },
             FieldType::Uuid => {
-                Uuid::parse_str(s.trim())
+                let uuid = Uuid::parse_str(s.trim())
                     .map_err(|_| format!("Invalid UUID format: {}", s))?;
-                Ok(FilterValue::String(s.to_string()))
+                Ok(FilterValue::Uuid(uuid))
             },
             FieldType::Json => {
                 // Parse key=value format
@@ -234,6 +235,7 @@ impl Filter {
                 query_builder.push(self.operator.to_sql());
                 query_builder.push(" ");
                 match &self.value {
+                    FilterValue::Uuid(uuid) => query_builder.push_bind(*uuid),
                     FilterValue::String(s) => query_builder.push_bind(s.clone()),
                     FilterValue::Number(n) => {
                         if field_config.field_type == FieldType::Integer {
