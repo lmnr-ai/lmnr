@@ -188,7 +188,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     OBSERVATIONS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -197,7 +200,10 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -208,7 +214,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     BROWSER_SESSIONS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -217,7 +226,10 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -228,7 +240,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     EVALUATORS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -237,7 +252,10 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     EVALUATORS_QUEUE,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -248,7 +266,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     PAYLOADS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -257,7 +278,10 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     PAYLOADS_QUEUE,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
