@@ -29,7 +29,7 @@ use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use storage::{Storage, mock::MockStorage};
+use storage::{Storage, mock::MockStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, process_payloads};
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, consumer::process_queue_spans,
@@ -243,6 +243,26 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.4 Payloads message queue ====
+            channel
+                .exchange_declare(
+                    PAYLOADS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    PAYLOADS_QUEUE,
+                    QueueDeclareOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -266,11 +286,13 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
         // ==== 3.3 Evaluators message queue ====
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
+        // ==== 3.4 Payloads message queue ====
+        queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
 
-    // ==== 3.4 Agent worker message queue ====
+    // ==== 3.5 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -299,6 +321,7 @@ fn main() -> anyhow::Result<()> {
                         s3_client,
                         env::var("S3_TRACE_PAYLOADS_BUCKET")
                             .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
+                        mq_for_http.clone(),
                     );
                     Arc::new(s3_storage.into())
                 } else {
@@ -402,11 +425,18 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(4);
 
+                let num_payload_workers_per_thread =
+                    env::var("NUM_PAYLOAD_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("2"))
+                        .parse::<u8>()
+                        .unwrap_or(2);
+
                 log::info!(
-                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}",
+                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}, Payload workers per thread: {}",
                     num_spans_workers_per_thread,
                     num_browser_events_workers_per_thread,
-                    num_evaluators_workers_per_thread
+                    num_evaluators_workers_per_thread,
+                    num_payload_workers_per_thread
                 );
 
                 HttpServer::new(move || {
@@ -438,6 +468,13 @@ fn main() -> anyhow::Result<()> {
                             mq_for_http.clone(),
                             evaluator_client.clone(),
                             python_online_evaluator_url.clone(),
+                        ));
+                    }
+
+                    for _ in 0..num_payload_workers_per_thread {
+                        tokio::spawn(process_payloads(
+                            storage.clone(),
+                            mq_for_http.clone(),
                         ));
                     }
 
