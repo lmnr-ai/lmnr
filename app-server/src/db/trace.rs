@@ -127,7 +127,7 @@ pub async fn update_trace_attributes_batch(
         if attributes.status.is_some() {
             // Error status takes precedence
             if attributes.status == Some("error".to_string()) || entry.status.is_none() {
-                entry.status = attributes.status
+                entry.status = attributes.status;
             }
         }
         if attributes.user_id.is_some() {

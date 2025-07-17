@@ -78,7 +78,7 @@ pub async fn get_llm_usage_for_span(
 pub async fn record_spans(
     db: Arc<DB>,
     spans: &[Span],
-    trace_attributes: Vec<TraceAttributes>,
+    traces_attributes: Vec<TraceAttributes>,
 ) -> anyhow::Result<()> {
     // batch spans by BATCH_SIZE and record batches in parallel
     let mut futures = Vec::new();
@@ -88,11 +88,14 @@ pub async fn record_spans(
         .parse::<usize>()
         .unwrap_or(25);
 
-    for batch in spans.chunks(batch_size) {
+    for (spans_chunk, traces_attributes_chunk) in spans
+        .chunks(batch_size)
+        .zip(traces_attributes.chunks(batch_size))
+    {
         futures.push(record_spans_batch(
             db.clone(),
-            batch,
-            trace_attributes.clone(),
+            spans_chunk,
+            traces_attributes_chunk.to_vec(),
         ));
     }
 
@@ -113,7 +116,7 @@ pub async fn record_spans(
 pub async fn record_spans_batch(
     db: Arc<DB>,
     spans: &[Span],
-    trace_attributes: Vec<TraceAttributes>,
+    traces_attributes: Vec<TraceAttributes>,
 ) -> anyhow::Result<()> {
     let insert_spans = || async {
         db::spans::record_spans_batch(&db.pool, spans)
@@ -152,7 +155,7 @@ pub async fn record_spans_batch(
         })?;
 
     // Insert or update traces in batch after the spans have been successfully inserted
-    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, spans, trace_attributes).await {
+    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, spans, traces_attributes).await {
         log::error!(
             "Failed to update trace attributes for {} spans: {:?}",
             spans.len(),
