@@ -3,12 +3,12 @@ import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
-import SpanTypeIcon from "@/components/traces/span-type-icon";
+import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Trace } from "@/lib/traces/types";
+import { SpanType, Trace } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
 
 const renderCost = (val: any) => {
@@ -212,7 +212,12 @@ export const filters: ColumnFilter[] = [
   {
     name: "Top level span",
     key: "span_type",
-    dataType: "json",
+    dataType: "enum",
+    options: Object.values(SpanType).map((v) => ({
+      label: v,
+      value: v,
+      icon: createSpanTypeIcon(v, "w-4 h-4", 14),
+    })),
   },
   {
     name: "Top span name",

@@ -1,13 +1,8 @@
-import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { searchSpans } from "@/lib/clickhouse/spans";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { TimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { events, labelClasses, labels, spans } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
-import { createModelFilter } from "@/lib/traces/utils";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import { getTraceSpans, GetTraceSpansSchema } from "@/lib/actions/spans";
 
 export async function GET(
   req: NextRequest,
@@ -16,158 +11,26 @@ export async function GET(
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
-  const searchQuery = req.nextUrl.searchParams.get("search");
-  const searchType = req.nextUrl.searchParams.getAll("searchIn");
 
-  const urlParamFilters = (() => {
-    try {
-      const rawFilters = req.nextUrl.searchParams.getAll("filter").map((f) => {
-        const urlParamFilter = JSON.parse(f) as FilterDef;
-        return {
-          column: urlParamFilter.column,
-          operator: urlParamFilter.operator,
-          value: urlParamFilter.value,
-        };
-      });
-      return Array.isArray(rawFilters) ? rawFilters : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  const statusFilters = urlParamFilters.filter((f) => f.column === "status");
-  const tagsFilters = urlParamFilters.filter((f) => f.column === "tags");
-  const modelFilters = urlParamFilters.filter((f) => f.column === "model");
-  const regularFilters = urlParamFilters.filter((f) => !["status", "tags", "model"].includes(f.column));
-
-  const statusSqlFilters = statusFilters.map((filter) => {
-    if (filter.value === "success") {
-      return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
-    } else if (filter.value === "error") {
-      return filter.operator === "eq" ? sql`status = 'error'` : sql`status != 'error' OR status IS NULL`;
-    }
-    return sql`1=1`;
-  });
-
-  const modelSqlFilters = modelFilters.map(createModelFilter);
-
-  const tagsSqlFilters = tagsFilters.map((filter) => {
-    const name = filter.value;
-    const inArrayFilter = inArray(
-      spans.spanId,
-      db
-        .select({ span_id: spans.spanId })
-        .from(spans)
-        .innerJoin(labels, eq(spans.spanId, labels.spanId))
-        .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-        .where(and(eq(labelClasses.name, name)))
-    );
-    return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
-  });
-
-  const processedFilters = regularFilters.map((filter) => {
-    if (filter.column === "path") {
-      filter.column = "(attributes ->> 'lmnr.span.path')";
-    } else if (filter.column === "tokens") {
-      filter.column = "(attributes ->> 'llm.usage.total_tokens')::int8";
-    } else if (filter.column === "cost") {
-      filter.column = "(attributes ->> 'gen_ai.usage.cost')::float8";
-    }
-    return filter;
-  });
-
-  const sqlFilters = filtersToSql(
-    processedFilters,
-    [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)],
-    {
-      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
-    }
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    GetTraceSpansSchema.omit({ traceId: true, projectId: true })
   );
 
-  let searchSpanIds: string[] = [];
-  if (searchQuery) {
-    const timeRange = { pastHours: "all" } as TimeRange;
-    const searchResult = await searchSpans({
-      projectId,
-      searchQuery,
-      timeRange,
-      traceId,
-      searchType: searchType as SpanSearchType[],
-    });
-
-    searchSpanIds = Array.from(searchResult.spanIds);
+  if (!parseResult.success) {
+    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  const spanEventsQuery = db.$with("span_events").as(
-    db
-      .select({
-        eventSpanId: sql`events.span_id`.as("eventSpanId"),
-        projectId: events.projectId,
-        events: sql`jsonb_agg(jsonb_build_object(
-        'id', events.id,
-        'spanId', events.span_id,
-        'timestamp', events.timestamp,
-        'name', events.name,
-        'attributes', events.attributes
-      ))`.as("events"),
-      })
-      .from(events)
-      .where(
-        and(
-          eq(events.projectId, projectId),
-          // This check may seem redundant because there is a join statement below,
-          // but it makes much wiser use of indexes and is much faster (up to 1000x in theory)
-          inArray(
-            events.spanId,
-            sql`(SELECT span_id FROM spans
-            WHERE project_id = ${projectId} AND trace_id = ${traceId}
-            ${searchSpanIds.length > 0 ? sql`AND span_id IN ${searchSpanIds}` : sql``}
-          )`
-          )
-        )
-      )
-      .groupBy(events.spanId, events.projectId)
-  );
-
-  const spanItems = await db
-    .with(spanEventsQuery)
-    .select({
-      // inputs and outputs are ignored on purpose
-      spanId: spans.spanId,
-      startTime: spans.startTime,
-      endTime: spans.endTime,
-      traceId: spans.traceId,
-      parentSpanId: spans.parentSpanId,
-      name: spans.name,
-      attributes: spans.attributes,
-      spanType: spans.spanType,
-      status: spans.status,
-      events: sql`COALESCE(${spanEventsQuery.events}, '[]'::jsonb)`.as("events"),
-    })
-    .from(spans)
-    .leftJoin(
-      spanEventsQuery,
-      and(eq(spans.spanId, spanEventsQuery.eventSpanId), eq(spans.projectId, spanEventsQuery.projectId))
-    )
-    .where(
-      and(
-        eq(spans.traceId, traceId),
-        eq(spans.projectId, projectId),
-        ...sqlFilters,
-        ...statusSqlFilters,
-        ...modelSqlFilters,
-        ...tagsSqlFilters,
-        ...(searchQuery !== null ? [inArray(spans.spanId, searchSpanIds)] : [])
-      )
-    )
-    .orderBy(asc(spans.startTime));
-
-  // For now we flatten the span tree in the front-end if there is a search query,
-  // so we explicitly set the parentSpanId to null
-  return NextResponse.json(
-    spanItems.map((span) => ({
-      ...span,
-      parentSpanId: searchSpanIds.length > 0 || urlParamFilters.length > 0 ? null : span.parentSpanId,
-    }))
-  );
+  try {
+    const result = await getTraceSpans({ ...parseResult.data, projectId, traceId });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch trace spans." },
+      { status: 500 }
+    );
+  }
 }

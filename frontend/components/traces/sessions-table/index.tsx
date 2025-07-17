@@ -99,6 +99,7 @@ export default function SessionsTable() {
 
       setTotalCount(data.totalCount);
     } catch (error) {
+      console.error(error);
       toast({
         title: "Failed to load sessions. Please try again.",
         variant: "destructive",
