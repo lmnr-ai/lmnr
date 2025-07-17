@@ -102,6 +102,7 @@ pub async fn record_spans(
         .zip(trace_attributes_vec.chunks(batch_size))
     {
         if let Err(e) = record_spans_batch(db.clone(), spans_chunk, trace_attributes_chunk).await {
+            log::error!("Failed to record spans: {:?}", e);
             errors.push(e);
         }
     }
