@@ -147,12 +147,16 @@ pub async fn update_trace_attributes_batch(
         let project_id = spans
             .iter()
             .find(|span| span.trace_id == attributes.id)
-            .map(|span| span.project_id)
-            .unwrap_or_else(|| {
-                // This shouldn't happen in normal operation, but provide a fallback
-                log::warn!("Could not find project_id for trace {}", attributes.id);
-                spans[0].project_id // Use the first span's project_id as fallback
-            });
+            .map(|span| span.project_id);
+
+        let Some(project_id) = project_id else {
+            // This shouldn't happen in normal operation, but provide a fallback
+            log::warn!(
+                "Could not find project_id for trace {}. Ignoring trace.",
+                attributes.id
+            );
+            continue;
+        };
 
         sqlx::query(
             "
