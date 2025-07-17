@@ -23,7 +23,7 @@ use crate::{
     },
     storage::Storage,
     traces::{
-        IngestedBytes,
+        IngestedBytes, SpanAndMetadata,
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
@@ -242,9 +242,7 @@ async fn process_batch(
     acker: MessageQueueAcker,
     _evaluators_queue: Arc<MessageQueue>,
 ) {
-    // Process all spans and prepare for batch operations
-    let mut span_usages = Vec::new();
-    let mut trace_attributes = Vec::new();
+    let mut span_and_metadata_vec: Vec<SpanAndMetadata> = Vec::new();
 
     for span in &mut spans {
         let span_usage =
@@ -279,12 +277,15 @@ async fn process_batch(
         let trace_attrs = prepare_span_for_recording(span, &span_usage, &filtered_events);
         convert_span_to_provider_format(span);
 
-        span_usages.push(span_usage);
-        trace_attributes.push(trace_attrs);
+        span_and_metadata_vec.push(SpanAndMetadata {
+            span,
+            trace_attributes: trace_attrs,
+            span_usage,
+        });
     }
 
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans(db.clone(), &spans, trace_attributes).await {
+    if let Err(e) = record_spans(db.clone(), &span_and_metadata_vec).await {
         log::error!("Failed to record spans batch: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
@@ -298,15 +299,14 @@ async fn process_batch(
     }
 
     // Record spans to clickhouse
-    let ch_spans: Vec<CHSpan> = spans
+    let ch_spans: Vec<CHSpan> = span_and_metadata_vec
         .iter()
-        .zip(span_usages.iter())
         .zip(spans_ingested_bytes.iter())
-        .map(|((span, span_usage), ingested_bytes)| {
+        .map(|(span_and_metadata, ingested_bytes)| {
             CHSpan::from_db_span(
-                span,
-                span_usage,
-                span.project_id,
+                &span_and_metadata.span,
+                &span_and_metadata.span_usage,
+                span_and_metadata.span.project_id,
                 ingested_bytes.span_bytes + ingested_bytes.events_bytes,
             )
         })
@@ -326,6 +326,7 @@ async fn process_batch(
         });
     }
 
+    // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
         .into_iter()
         .map(|span| StrippedSpan {

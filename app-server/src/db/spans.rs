@@ -75,7 +75,7 @@ struct SpanDBValues {
     attributes_value: Value,
 }
 
-pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
+pub async fn record_spans_batch<'a>(pool: &PgPool, spans: &[&'a Span]) -> Result<()> {
     if spans.is_empty() {
         return Ok(());
     }
