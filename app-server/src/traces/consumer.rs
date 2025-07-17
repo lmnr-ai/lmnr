@@ -242,9 +242,9 @@ async fn process_batch(
     acker: MessageQueueAcker,
     _evaluators_queue: Arc<MessageQueue>,
 ) {
-    // Process all spans and prepare for batch operations
-    let mut span_usages = Vec::new();
-    let mut trace_attributes = Vec::new();
+    let mut trace_attributes_vec = Vec::new();
+    let mut span_usage_vec = Vec::new();
+    let mut all_events = Vec::new();
 
     for span in &mut spans {
         let span_usage =
@@ -279,12 +279,13 @@ async fn process_batch(
         let trace_attrs = prepare_span_for_recording(span, &span_usage, &filtered_events);
         convert_span_to_provider_format(span);
 
-        span_usages.push(span_usage);
-        trace_attributes.push(trace_attrs);
+        trace_attributes_vec.push(trace_attrs);
+        span_usage_vec.push(span_usage);
+        all_events.extend(filtered_events);
     }
 
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans(db.clone(), &spans, trace_attributes).await {
+    if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
         log::error!("Failed to record spans batch: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
@@ -300,7 +301,7 @@ async fn process_batch(
     // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
         .iter()
-        .zip(span_usages.iter())
+        .zip(span_usage_vec.iter())
         .zip(spans_ingested_bytes.iter())
         .map(|((span, span_usage), ingested_bytes)| {
             CHSpan::from_db_span(
@@ -341,7 +342,7 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(db.clone(), clickhouse.clone(), &events).await {
+    match record_events(db.clone(), clickhouse.clone(), &all_events).await {
         Ok(_) => {}
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);

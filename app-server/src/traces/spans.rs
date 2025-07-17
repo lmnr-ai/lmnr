@@ -16,7 +16,7 @@ use crate::{
     db::{
         spans::{Span, SpanType},
         trace::TraceType,
-        utils::{convert_any_value_to_json_value, span_id_to_uuid},
+        utils::span_id_to_uuid,
     },
     language_model::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
@@ -26,7 +26,7 @@ use crate::{
     storage::{Storage, StorageTrait},
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
-        utils::serialize_indexmap,
+        utils::{convert_any_value_to_json_value, serialize_indexmap},
     },
     utils::{estimate_json_size, json_value_to_string},
 };

@@ -1,11 +1,13 @@
-use std::{env, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
 
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
+
+use crate::opentelemetry::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
@@ -77,22 +79,33 @@ pub async fn get_llm_usage_for_span(
 
 pub async fn record_spans(
     db: Arc<DB>,
-    spans: &[Span],
-    trace_attributes: Vec<TraceAttributes>,
+    spans: &Vec<Span>,
+    trace_attributes_vec: &Vec<TraceAttributes>,
 ) -> anyhow::Result<()> {
     // batch spans by BATCH_SIZE and record batches in parallel
     let mut futures = Vec::new();
 
     let batch_size = env::var("DB_WRITE_SPAN_BATCH_SIZE")
-        .unwrap_or_else(|_| "25".to_string())
+        .unwrap_or("20".to_string())
         .parse::<usize>()
-        .unwrap_or(25);
+        .unwrap_or(20);
 
-    for batch in spans.chunks(batch_size) {
+    if spans.len() != trace_attributes_vec.len() {
+        log::warn!(
+            "Spans and trace attributes vectors have different lengths: {} != {}",
+            spans.len(),
+            trace_attributes_vec.len()
+        );
+    }
+
+    for (spans_chunk, trace_attributes_chunk) in spans
+        .chunks(batch_size)
+        .zip(trace_attributes_vec.chunks(batch_size))
+    {
         futures.push(record_spans_batch(
             db.clone(),
-            batch,
-            trace_attributes.clone(),
+            spans_chunk,
+            trace_attributes_chunk,
         ));
     }
 
@@ -113,10 +126,10 @@ pub async fn record_spans(
 pub async fn record_spans_batch(
     db: Arc<DB>,
     spans: &[Span],
-    trace_attributes: Vec<TraceAttributes>,
+    trace_attributes_vec: &[TraceAttributes],
 ) -> anyhow::Result<()> {
     let insert_spans = || async {
-        db::spans::record_spans_batch(&db.pool, spans)
+        db::spans::record_spans_batch(&db.pool, &spans)
             .await
             .map_err(|e| {
                 log::error!(
@@ -152,10 +165,10 @@ pub async fn record_spans_batch(
         })?;
 
     // Insert or update traces in batch after the spans have been successfully inserted
-    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, spans, trace_attributes).await {
+    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, &trace_attributes_vec).await {
         log::error!(
             "Failed to update trace attributes for {} spans: {:?}",
-            spans.len(),
+            trace_attributes_vec.len(),
             e
         );
     }
@@ -246,6 +259,7 @@ pub fn prepare_span_for_recording(
     trace_attributes.update_user_id(span.attributes.user_id());
     trace_attributes.update_trace_type(span.attributes.trace_type());
     trace_attributes.set_metadata(span.attributes.metadata());
+    trace_attributes.project_id = span.project_id;
     if let Some(has_browser_session) = span.attributes.has_browser_session() {
         trace_attributes.set_has_browser_session(has_browser_session);
     }
@@ -299,4 +313,53 @@ where
         .collect::<Result<serde_json::Map<String, Value>, _>>()
         .ok()
         .map(Value::Object)
+}
+
+pub fn convert_any_value_to_json_value(
+    any_value: Option<opentelemetry_proto_common_v1::AnyValue>,
+) -> Value {
+    let Some(any_value) = any_value else {
+        return Value::Null;
+    };
+    let Some(value) = any_value.value else {
+        return Value::Null;
+    };
+    match value {
+        opentelemetry_proto_common_v1::any_value::Value::StringValue(val) => {
+            let mut val = val;
+
+            // this is a workaround for cases when json.dumps equivalent is applied multiple times to the same value
+            while let Ok(serde_json::Value::String(v)) =
+                serde_json::from_str::<serde_json::Value>(&val)
+            {
+                val = v;
+            }
+
+            serde_json::Value::String(val)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::BoolValue(val) => {
+            serde_json::Value::Bool(val)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::IntValue(val) => json!(val),
+        opentelemetry_proto_common_v1::any_value::Value::DoubleValue(val) => json!(val),
+        opentelemetry_proto_common_v1::any_value::Value::ArrayValue(val) => {
+            let values: Vec<serde_json::Value> = val
+                .values
+                .into_iter()
+                .map(|v| convert_any_value_to_json_value(Some(v)))
+                .collect();
+            json!(values)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::KvlistValue(val) => {
+            let map: serde_json::Map<String, serde_json::Value> = val
+                .values
+                .into_iter()
+                .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
+                .collect();
+            json!(map)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => String::from_utf8(val)
+            .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+            .unwrap_or_default(),
+    }
 }

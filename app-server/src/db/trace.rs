@@ -7,7 +7,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{db::spans::Span, traces::attributes::TraceAttributes};
+use crate::traces::attributes::TraceAttributes;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "trace_type")]
@@ -41,20 +41,20 @@ pub struct Trace {
 
 pub async fn update_trace_attributes_batch(
     pool: &PgPool,
-    spans: &[Span],
-    traces_attributes: Vec<TraceAttributes>,
+    trace_attributes_vec: &[TraceAttributes],
 ) -> Result<()> {
-    if traces_attributes.is_empty() {
+    if trace_attributes_vec.is_empty() {
         return Ok(());
     }
 
     let mut trace_aggregates: HashMap<Uuid, TraceAttributes> = HashMap::new();
 
-    for attributes in traces_attributes {
+    for attributes in trace_attributes_vec {
         let entry = trace_aggregates
             .entry(attributes.id)
             .or_insert_with(|| TraceAttributes {
                 id: attributes.id,
+                project_id: attributes.project_id,
                 input_token_count: Some(0),
                 output_token_count: Some(0),
                 total_token_count: Some(0),
@@ -110,13 +110,13 @@ pub async fn update_trace_attributes_batch(
 
         // Override with non-null values
         if attributes.session_id.is_some() {
-            entry.session_id = attributes.session_id;
+            entry.session_id = attributes.session_id.clone();
         }
         if attributes.trace_type.is_some() {
-            entry.trace_type = attributes.trace_type;
+            entry.trace_type = attributes.trace_type.clone();
         }
         if attributes.metadata.is_some() {
-            entry.metadata = attributes.metadata;
+            entry.metadata = attributes.metadata.clone();
         }
         if attributes.has_browser_session == Some(true) {
             entry.has_browser_session = attributes.has_browser_session;
@@ -127,11 +127,11 @@ pub async fn update_trace_attributes_batch(
         if attributes.status.is_some() {
             // Error status takes precedence
             if attributes.status == Some("error".to_string()) || entry.status.is_none() {
-                entry.status = attributes.status
+                entry.status = attributes.status.clone();
             }
         }
         if attributes.user_id.is_some() {
-            entry.user_id = attributes.user_id;
+            entry.user_id = attributes.user_id.clone();
         }
     }
 
@@ -141,21 +141,6 @@ pub async fn update_trace_attributes_batch(
             .metadata
             .as_ref()
             .and_then(|m| serde_json::to_value(m).ok());
-
-        // Find the project_id from the first span in this trace
-        let project_id = spans
-            .iter()
-            .find(|span| span.trace_id == attributes.id)
-            .map(|span| span.project_id);
-
-        let Some(project_id) = project_id else {
-            // This shouldn't happen in normal operation, but provide a fallback
-            log::warn!(
-                "Could not find project_id for trace {}. Ignoring trace.",
-                attributes.id
-            );
-            continue;
-        };
 
         sqlx::query(
             "
@@ -218,7 +203,7 @@ pub async fn update_trace_attributes_batch(
             "
         )
         .bind(attributes.id)
-        .bind(project_id)
+        .bind(attributes.project_id)
         .bind(attributes.input_token_count)
         .bind(attributes.output_token_count)
         .bind(attributes.total_token_count)

@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
@@ -80,8 +81,46 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
         return Ok(());
     }
 
-    let mut query_builder = sqlx::QueryBuilder::new(
-        "INSERT INTO spans (
+    // Prepare all span values upfront
+    let span_values: Vec<SpanDBValues> = spans.par_iter().map(prepare_span_db_values).collect();
+
+    // Create arrays for each column
+    let span_ids: Vec<Uuid> = spans.iter().map(|s| s.span_id).collect();
+    let trace_ids: Vec<Uuid> = spans.iter().map(|s| s.trace_id).collect();
+    let parent_span_ids: Vec<Option<Uuid>> = spans.iter().map(|s| s.parent_span_id).collect();
+    let start_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.start_time).collect();
+    let end_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.end_time).collect();
+    let names: Vec<String> = spans.iter().map(|s| s.name.clone()).collect();
+    let attributes: Vec<Value> = span_values
+        .iter()
+        .map(|v| v.attributes_value.clone())
+        .collect();
+    let inputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_input.clone())
+        .collect();
+    let outputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_output.clone())
+        .collect();
+    let span_types: Vec<SpanType> = spans.iter().map(|s| s.span_type.clone()).collect();
+    let input_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.input_preview.clone())
+        .collect();
+    let output_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.output_preview.clone())
+        .collect();
+    let input_urls: Vec<Option<String>> = spans.iter().map(|s| s.input_url.clone()).collect();
+    let output_urls: Vec<Option<String>> = spans.iter().map(|s| s.output_url.clone()).collect();
+    let statuses: Vec<Option<String>> = spans.iter().map(|s| s.status.clone()).collect();
+    let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).collect();
+
+    // Use UNNEST to insert all spans in a single query
+    sqlx::query(
+        r#"
+        INSERT INTO spans (
             span_id,
             trace_id,
             parent_span_id,
@@ -98,34 +137,46 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
             output_url,
             status,
             project_id
-    )",
-    );
-
-    query_builder.push_values(spans, |mut b, span| {
-        let values = prepare_span_db_values(span);
-        b.push_bind(&span.span_id)
-            .push_bind(&span.trace_id)
-            .push_bind(&span.parent_span_id as &Option<Uuid>)
-            .push_bind(&span.start_time)
-            .push_bind(&span.end_time)
-            .push_bind(&span.name)
-            .push_bind(values.attributes_value)
-            .push_bind(values.sanitized_input)
-            .push_bind(values.sanitized_output)
-            .push_bind(&span.span_type as &SpanType)
-            .push_bind(values.input_preview)
-            .push_bind(values.output_preview)
-            .push_bind(&span.input_url as &Option<String>)
-            .push_bind(&span.output_url as &Option<String>)
-            .push_bind(&span.status)
-            .push_bind(&span.project_id);
-    });
-
-    // This shouldn't happen, but if it does, we don't want to overwrite the existing span
-    // neither do we want to fail the entire batch
-    query_builder.push(" ON CONFLICT DO NOTHING");
-
-    query_builder.build().execute(pool).await?;
+        )
+        SELECT * FROM UNNEST(
+            $1::uuid[],
+            $2::uuid[],
+            $3::uuid[],
+            $4::timestamptz[],
+            $5::timestamptz[],
+            $6::text[],
+            $7::jsonb[],
+            $8::jsonb[],
+            $9::jsonb[],
+            $10::span_type[],
+            $11::text[],
+            $12::text[],
+            $13::text[],
+            $14::text[],
+            $15::text[],
+            $16::uuid[]
+        )
+        ON CONFLICT DO NOTHING
+        "#,
+    )
+    .bind(&span_ids)
+    .bind(&trace_ids)
+    .bind(&parent_span_ids)
+    .bind(&start_times)
+    .bind(&end_times)
+    .bind(&names)
+    .bind(&attributes)
+    .bind(&inputs)
+    .bind(&outputs)
+    .bind(&span_types)
+    .bind(&input_previews)
+    .bind(&output_previews)
+    .bind(&input_urls)
+    .bind(&output_urls)
+    .bind(&statuses)
+    .bind(&project_ids)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
