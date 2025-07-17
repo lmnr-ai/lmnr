@@ -11,7 +11,6 @@ pub struct Evaluator {
     pub id: Uuid,
     #[allow(dead_code)]
     pub project_id: Uuid,
-    #[allow(dead_code)]
     pub name: String,
     #[allow(dead_code)]
     pub evaluator_type: String,
@@ -72,8 +71,8 @@ pub async fn get_evaluator(db: &DB, id: Uuid, project_id: Uuid) -> Result<Evalua
     .await
 }
 
-pub async fn get_evaluators_by_path(
-    db: &DB,
+pub async fn get_evaluators_by_path_from_db(
+    pool: &PgPool,
     project_id: Uuid,
     path: Vec<String>,
 ) -> Result<Vec<Evaluator>, sqlx::Error> {
@@ -100,8 +99,30 @@ pub async fn get_evaluators_by_path(
 
     query_builder
         .build_query_as::<Evaluator>()
-        .fetch_all(&db.pool)
+        .fetch_all(pool)
         .await
+}
+
+pub async fn get_evaluators_by_ids_from_db(
+    pool: &PgPool,
+    project_id: Uuid,
+    evaluator_ids: Vec<Uuid>,
+) -> Result<Vec<Evaluator>, sqlx::Error> {
+    if evaluator_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    sqlx::query_as::<_, Evaluator>(
+        r#"
+        SELECT id, project_id, name, evaluator_type, definition, created_at
+        FROM evaluators 
+        WHERE project_id = $1 AND id = ANY($2)
+        "#,
+    )
+    .bind(project_id)
+    .bind(evaluator_ids)
+    .fetch_all(pool)
+    .await
 }
 
 impl ToString for EvaluatorScoreSource {

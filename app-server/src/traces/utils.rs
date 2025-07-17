@@ -77,7 +77,7 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-pub async fn record_spans(
+pub async fn record_spans<'a>(
     db: Arc<DB>,
     spans: &Vec<Span>,
     trace_attributes_vec: &Vec<TraceAttributes>,
@@ -123,13 +123,13 @@ pub async fn record_spans(
     Ok(())
 }
 
-pub async fn record_spans_batch(
+pub async fn record_spans_batch<'a>(
     db: Arc<DB>,
     spans: &[Span],
     trace_attributes_vec: &[TraceAttributes],
 ) -> anyhow::Result<()> {
     let insert_spans = || async {
-        db::spans::record_spans_batch(&db.pool, &spans)
+        db::spans::record_spans_batch(&db.pool, spans)
             .await
             .map_err(|e| {
                 log::error!(
