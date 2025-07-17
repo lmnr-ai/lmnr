@@ -31,7 +31,7 @@ use crate::{
         provider::convert_span_to_provider_format,
         utils::{
             get_llm_usage_for_span, prepare_span_for_recording, record_labels_to_db_and_ch,
-            record_spans_batch,
+            record_spans,
         },
     },
 };
@@ -270,7 +270,7 @@ async fn process_batch(
     }
 
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans_batch(db.clone(), &spans, trace_attributes).await {
+    if let Err(e) = record_spans(db.clone(), &spans, trace_attributes).await {
         log::error!("Failed to record spans batch: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
