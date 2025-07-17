@@ -4,7 +4,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use backoff::ExponentialBackoffBuilder;
+use futures_util::future::join_all;
 use itertools::Itertools;
+use rayon::prelude::*;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -13,11 +15,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{self, spans::CHSpan},
-    db::{
-        DB, evaluators::get_evaluators_by_path, events::Event, spans::Span,
-        stats::increment_project_spans_bytes_ingested,
-    },
-    evaluators::push_to_evaluators_queue,
+    db::{DB, events::Event, spans::Span, stats::increment_project_spans_bytes_ingested},
     features::{Feature, is_feature_enabled},
     mq::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
@@ -144,54 +142,70 @@ async fn process_spans_and_events_batch(
     let mut ingested_bytes_by_project: HashMap<Uuid, IngestedBytes> = HashMap::new();
     let mut spans_ingested_bytes = Vec::new();
 
-    // Process all spans first (heavy processing)
-    for message in messages {
-        let mut span = message.span;
+    // Process all spans in parallel (heavy processing)
+    let processing_results: Vec<_> = messages
+        .into_par_iter()
+        .map(|message| {
+            let mut span = message.span;
 
-        let span_id = span.span_id;
-        let project_id = span.project_id;
+            // Make sure we count the sizes before any processing
+            let span_bytes = span.estimate_size_bytes();
+            let events_bytes = message
+                .events
+                .iter()
+                .map(|e| e.estimate_size_bytes())
+                .sum::<usize>();
 
-        // Make sure we count the sizes before any processing
-        let span_bytes = span.estimate_size_bytes();
-        let events_bytes = message
-            .events
-            .iter()
-            .map(|e| e.estimate_size_bytes())
-            .sum::<usize>();
+            let ingested_bytes = IngestedBytes {
+                span_bytes,
+                events_bytes,
+            };
 
-        spans_ingested_bytes.push(IngestedBytes {
-            span_bytes,
-            events_bytes,
-        });
+            // Parse and enrich span attributes for input/output extraction
+            span.parse_and_enrich_attributes();
 
-        // Parse and enrich span attributes for input/output extraction
-        span.parse_and_enrich_attributes();
+            (span, message.events, ingested_bytes)
+        })
+        .collect();
 
-        // Store payloads if enabled
-        if is_feature_enabled(Feature::Storage) {
-            if let Err(e) = span.store_payloads(&project_id, storage.clone()).await {
-                log::error!(
-                    "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
-                    span_id,
-                    span.project_id,
-                    e
-                );
-            }
-        }
+    // Collect results from parallel processing
+    for (span, events, ingested_bytes) in processing_results {
+        spans_ingested_bytes.push(ingested_bytes.clone());
 
         // Add to collections for batch processing
         ingested_bytes_by_project
             .entry(span.project_id)
-            .and_modify(|ingested_bytes| {
-                ingested_bytes.span_bytes += span_bytes;
-                ingested_bytes.events_bytes += events_bytes;
+            .and_modify(|bytes| {
+                bytes.span_bytes += ingested_bytes.span_bytes;
+                bytes.events_bytes += ingested_bytes.events_bytes;
             })
-            .or_insert(IngestedBytes {
-                span_bytes,
-                events_bytes,
-            });
+            .or_insert(ingested_bytes);
+
         all_spans.push(span);
-        all_events.extend(message.events.into_iter());
+        all_events.extend(events.into_iter());
+    }
+
+    // Store payloads in parallel if enabled
+    if is_feature_enabled(Feature::Storage) {
+        let storage_futures = all_spans
+            .iter_mut()
+            .map(|span| {
+                let project_id = span.project_id;
+                let storage_clone = storage.clone();
+                async move {
+                    if let Err(e) = span.store_payloads(&project_id, storage_clone).await {
+                        log::error!(
+                            "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
+                            span.span_id,
+                            project_id,
+                            e
+                        );
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        join_all(storage_futures).await;
     }
 
     // Process spans and events in batches
@@ -226,7 +240,7 @@ async fn process_batch(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
-    evaluators_queue: Arc<MessageQueue>,
+    _evaluators_queue: Arc<MessageQueue>,
 ) {
     // Process all spans and prepare for batch operations
     let mut span_usages = Vec::new();

@@ -34,6 +34,7 @@ moka = {version = "0.12.10", features = ["sync", "future"]}
 num_cpus = "1.16.0"
 prost = "0.13"
 rand = "0.9.1"
+rayon = "1.10.0"
 redis = {version = "0.32.4", features = ["tokio-comp"]}
 regex = "1.11.1"
 reqwest = {version = "0.12.22", features = ["json"]}
