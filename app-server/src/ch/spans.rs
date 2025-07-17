@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
@@ -5,7 +7,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    db::spans::{Span, SpanType},
+    db::spans::{SearchSpansParams, Span, SpanType},
     traces::spans::SpanUsage,
     utils::json_value_to_string,
 };
@@ -135,5 +137,82 @@ pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Resul
                 e
             ));
         }
+    }
+}
+
+#[derive(Row, Deserialize)]
+pub struct SpanSearchResult {
+    #[serde(with = "clickhouse::serde::uuid")]
+    span_id: Uuid,
+}
+
+pub async fn search_spans_for_span_ids(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    search_query: &str,
+    params: &SearchSpansParams,
+) -> Result<Option<HashSet<Uuid>>, Box<dyn std::error::Error + Send + Sync>> {
+    let search_fields = params.search_in();
+
+    let mut search_conditions = Vec::new();
+    for field in &search_fields {
+        match field.as_str() {
+            "input" => search_conditions.push("lower(input) LIKE lower(?)"),
+            "output" => search_conditions.push("lower(output) LIKE lower(?)"),
+            _ => {}
+        }
+    }
+
+    if search_conditions.is_empty() {
+        return Ok(None);
+    }
+
+    let search_condition = search_conditions.join(" OR ");
+
+    let start_time_ns = chrono_to_nanoseconds(params.start_time());
+    let end_time_ns = chrono_to_nanoseconds(params.end_time());
+
+    let mut query = format!(
+        "SELECT DISTINCT span_id 
+         FROM spans 
+         WHERE project_id = ?
+           AND start_time IS NOT NULL 
+           AND end_time IS NOT NULL
+           AND start_time <= fromUnixTimestamp64Nano(?)
+           AND end_time >= fromUnixTimestamp64Nano(?)
+           AND ({})",
+        search_condition
+    );
+
+    if params.trace_id.is_some() {
+        query.push_str(" AND trace_id = ?");
+    }
+
+    query.push_str(" LIMIT 10000");
+
+    let search_pattern = format!("%{}%", search_query.to_lowercase());
+    
+    let mut query_builder = clickhouse
+        .query(&query)
+        .bind(project_id)
+        .bind(end_time_ns)
+        .bind(start_time_ns);
+
+    for _ in &search_conditions {
+        query_builder = query_builder.bind(&search_pattern);
+    }
+
+    if let Some(trace_id) = params.trace_id {
+        query_builder = query_builder.bind(trace_id);
+    }
+
+    let rows = query_builder.fetch_all::<SpanSearchResult>().await?;
+
+    let span_ids: HashSet<Uuid> = rows.into_iter().map(|row| row.span_id).collect();
+    
+    if span_ids.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(span_ids))
     }
 }

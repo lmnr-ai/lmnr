@@ -7,3 +7,4 @@ pub mod metrics;
 pub mod tag;
 pub mod trace;
 pub mod traces;
+pub mod spans;

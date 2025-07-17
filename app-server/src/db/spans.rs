@@ -1,14 +1,13 @@
-use std::str::FromStr;
+use std::{collections::{HashMap, HashSet}, str::FromStr};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
-use crate::traces::spans::{SpanAttributes, should_keep_attribute};
-
+use crate::{ch::spans::search_spans_for_span_ids, db::filters::{validate_and_convert_filters, deserialize_filters, FieldConfig, FieldType, Filter, FilterValue}, routes::error::Error, traces::spans::{should_keep_attribute, SpanAttributes}};
 use super::utils::sanitize_value;
 
 const PREVIEW_CHARACTERS: usize = 50;
@@ -238,6 +237,366 @@ fn generate_preview(value: &Option<Value>) -> Option<String> {
         ),
         None => None,
     }
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct SpanSearchItem {
+    pub span_id: Uuid,
+    pub trace_id: Uuid,
+    pub parent_span_id: Option<Uuid>,
+    pub name: String,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub span_type: SpanType,
+    pub status: Option<String>,
+    pub latency: Option<f64>,
+    pub input_cost: Option<f64>,
+    pub output_cost: Option<f64>,
+    pub cost: Option<f64>,
+    pub input_token_count: Option<i64>,
+    pub output_token_count: Option<i64>,
+    pub total_token_count: Option<i64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSpansParams {
+    pub page_size: Option<i32>,
+    pub page_number: Option<i32>,
+    pub search: Option<String>,
+    pub search_in: Option<Vec<String>>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub trace_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "deserialize_filters")]
+    pub filters: Vec<Filter>,
+}
+
+impl SearchSpansParams {
+    const MAX_TIME_RANGE_DAYS: i64 = 30;
+    const MAX_PAGE_SIZE: i32 = 50;
+
+    pub fn page_size(&self) -> i32 {
+        self.page_size.unwrap_or(25)
+    }
+    
+    pub fn page_number(&self) -> i32 {
+        self.page_number.unwrap_or(0)
+    }
+    
+    pub fn offset(&self) -> i32 {
+        self.page_number() * self.page_size()
+    }
+
+    pub fn start_time(&self) -> DateTime<Utc> {
+        self.start_time.unwrap_or_else(|| Utc::now() - Duration::hours(24))
+    }
+    
+    pub fn end_time(&self) -> DateTime<Utc> {
+        self.end_time.unwrap_or_else(|| Utc::now())
+    }
+    
+    pub fn search_in(&self) -> Vec<String> {
+        self.search_in.clone().unwrap_or_else(|| vec!["input".to_string(), "output".to_string()])
+    }
+
+    pub fn filters(&self) -> &[Filter] {
+        &self.filters
+    }
+
+    pub fn validate_and_convert_filters(&mut self) -> Result<(), Error> {
+        let field_configs = create_spans_field_configs();
+        self.filters = validate_and_convert_filters(&self.filters, &field_configs)?;
+        Ok(())
+    }
+
+    pub fn validate(&mut self) -> Result<(), Error> {
+        self.validate_time_range()?;
+        self.validate_page_size()?;
+        self.validate_and_convert_filters()?;
+        Ok(())
+    }
+
+    fn validate_time_range(&self) -> Result<(), Error> {
+        let start = self.start_time();
+        let end = self.end_time();
+        
+        if start >= end {
+            return Err(Error::BadRequest(
+                "Start time must be before end time".to_string()
+            ));
+        }
+
+        let time_range = end.signed_duration_since(start);
+        let max_duration = Duration::days(Self::MAX_TIME_RANGE_DAYS);
+        
+        if time_range > max_duration {
+            return Err(Error::BadRequest(
+                format!(
+                    "Time range cannot exceed {} days. Current range: {} days",
+                    Self::MAX_TIME_RANGE_DAYS,
+                    time_range.num_days()
+                )
+            ));
+        }
+        
+        Ok(())
+    }
+
+    fn validate_page_size(&self) -> Result<(), Error> {
+        let page_size = self.page_size();
+        
+        if page_size <= 0 {
+            return Err(Error::BadRequest(
+                "Page size must be greater than 0".to_string()
+            ));
+        }
+
+        if page_size > Self::MAX_PAGE_SIZE {
+            return Err(Error::BadRequest(
+                format!(
+                    "Page size cannot exceed {}. Current page size: {}",
+                    Self::MAX_PAGE_SIZE,
+                    page_size
+                )
+            ));
+        }
+        
+        Ok(())
+    }
+}
+
+fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
+    let mut configs = HashMap::new();
+
+    configs.insert("span_type".to_string(), FieldConfig::new(
+        FieldType::Enum,
+        "s.span_type"
+    ).with_validator(validate_span_type));
+
+    configs.insert("span_id".to_string(), FieldConfig::new(
+        FieldType::Uuid,
+        "s.span_id"
+    ));
+
+    configs.insert("trace_id".to_string(), FieldConfig::new(
+        FieldType::Uuid,
+        "s.trace_id"
+    ));
+
+    configs.insert("parent_span_id".to_string(), FieldConfig::new(
+        FieldType::Uuid,
+        "s.parent_span_id"
+    ));
+
+    configs.insert("name".to_string(), FieldConfig::new(
+        FieldType::String,
+        "s.name"
+    ));
+
+    configs.insert("status".to_string(), FieldConfig::new(
+        FieldType::String,
+        "s.status"
+    ));
+
+    configs.insert("latency".to_string(), FieldConfig::new(
+        FieldType::Float,
+        "CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8)"
+    ));
+
+    configs.insert("input_cost".to_string(), FieldConfig::new(
+        FieldType::Float,
+        "CAST(s.attributes->>'gen_ai.usage.input_cost' AS FLOAT8)"
+    ));
+
+    configs.insert("output_cost".to_string(), FieldConfig::new(
+        FieldType::Float,
+        "CAST(s.attributes->>'gen_ai.usage.output_cost' AS FLOAT8)"
+    ));
+
+    configs.insert("cost".to_string(), FieldConfig::new(
+        FieldType::Float,
+        "CAST(s.attributes->>'gen_ai.usage.cost' AS FLOAT8)"
+    ));
+
+    configs.insert("input_token_count".to_string(), FieldConfig::new(
+        FieldType::Integer,
+        "CAST(s.attributes->>'gen_ai.usage.input_tokens' AS BIGINT)"
+    ));
+
+    configs.insert("output_token_count".to_string(), FieldConfig::new(
+        FieldType::Integer,
+        "CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT)"
+    ));
+
+    configs.insert("total_token_count".to_string(), FieldConfig::new(
+        FieldType::Integer,
+        "CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT)"
+    ));
+
+    configs
+}
+
+fn validate_span_type(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+    if let FilterValue::String(s) = value {
+        SpanType::from_str(s)
+            .map_err(|_| format!("Invalid span type: {}. Valid values: DEFAULT, LLM, PIPELINE, EXECUTOR, EVALUATOR, HUMAN_EVALUATOR, EVALUATION, TOOL", s))?;
+        Ok(())
+    } else {
+        Err("Span type must be a string".to_string())
+    }
+}
+
+fn build_span_filters<'a>(
+    mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
+    project_id: Uuid,
+    span_ids: &'a Option<HashSet<Uuid>>,
+    params: &'a SearchSpansParams,
+) -> Result<QueryBuilder<'a, sqlx::Postgres>, Error> {
+    query_builder.push_bind(project_id);
+
+    if let Some(trace_id) = params.trace_id {
+        query_builder.push(" AND s.trace_id = ");
+        query_builder.push_bind(trace_id);
+    }
+
+    if let Some(span_ids) = span_ids {
+        query_builder.push(" AND s.span_id = ANY(");
+        query_builder.push_bind(span_ids.iter().cloned().collect::<Vec<Uuid>>());
+        query_builder.push(")");
+    }
+
+    query_builder.push(" AND s.start_time >= ");
+    query_builder.push_bind(params.start_time());
+    
+    query_builder.push(" AND s.end_time <= ");
+    query_builder.push_bind(params.end_time());
+
+    let field_configs = create_spans_field_configs();
+    for filter in params.filters() {
+        query_builder = filter.apply_to_query_builder(query_builder, &field_configs)
+            .map_err(|e| Error::BadRequest(e))?;
+    }
+
+    Ok(query_builder)
+}
+
+async fn get_spans(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    params: &SearchSpansParams,
+    span_ids: &Option<HashSet<Uuid>>,
+) -> Result<Vec<SpanSearchItem>, Error> {
+    if let Some(span_ids) = span_ids {
+        if span_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+    }
+
+    let main_query_builder = QueryBuilder::new(
+        "SELECT 
+            s.span_id, 
+            s.trace_id,
+            s.parent_span_id,
+            s.name,
+            s.start_time, 
+            s.end_time, 
+            s.span_type, 
+            s.status,
+            CASE
+                WHEN s.start_time IS NOT NULL AND s.end_time IS NOT NULL 
+                THEN CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8)
+                ELSE NULL 
+            END as latency,
+            CAST(s.attributes->>'gen_ai.usage.input_cost' AS FLOAT8) as input_cost,
+            CAST(s.attributes->>'gen_ai.usage.output_cost' AS FLOAT8) as output_cost,
+            CAST(s.attributes->>'gen_ai.usage.cost' AS FLOAT8) as cost,
+            CAST(s.attributes->>'gen_ai.usage.input_tokens' AS BIGINT) as input_token_count,
+            CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT) as output_token_count,
+            CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT) as total_token_count
+         FROM spans s
+         WHERE s.project_id = "
+    );
+
+    let mut main_query_builder = build_span_filters(main_query_builder, project_id, &span_ids, params)?;
+
+    main_query_builder.push(" ORDER BY s.start_time DESC");
+    
+    if params.page_size() > 0 {
+        main_query_builder.push(" LIMIT ");
+        main_query_builder.push_bind(params.page_size());
+    }
+
+    if params.page_number() > 0 {
+        main_query_builder.push(" OFFSET ");
+        main_query_builder.push_bind(params.offset());
+    }
+
+    main_query_builder
+        .build_query_as::<SpanSearchItem>()
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.into())
+}
+
+async fn count_spans(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    params: &SearchSpansParams,
+    span_ids: &Option<HashSet<Uuid>>,
+) -> Result<i64, Error> {
+    if let Some(span_ids) = span_ids {
+        if span_ids.is_empty() {
+            return Ok(0);
+        }
+    }
+
+    let count_query_builder = QueryBuilder::new(
+        "SELECT COUNT(s.span_id) as count 
+         FROM spans s
+         WHERE s.project_id = "
+    );
+    let mut count_query_builder = build_span_filters(count_query_builder, project_id, &span_ids, params)?;
+
+    let count_result: (i64,) = count_query_builder
+        .build_query_as::<(i64,)>()
+        .fetch_one(pool)
+        .await?;
+
+    Ok(count_result.0)
+}
+
+pub async fn search_spans(
+    pool: &PgPool,
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    mut params: SearchSpansParams,
+) -> Result<(Vec<SpanSearchItem>, i64), Error> {
+    params.validate()?;
+
+    let span_ids = if let Some(search_query) = &params.search {
+        match search_spans_for_span_ids(clickhouse, project_id, search_query, &params)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))? {
+            Some(ids) => Some(ids),
+            None => {
+                return Ok((Vec::new(), 0));
+            }
+            }
+    } else {
+        None
+    };
+
+    let (count_result, spans_result) = tokio::join!(
+        count_spans(&pool, project_id, &params, &span_ids),
+        get_spans(&pool, project_id, &params, &span_ids)
+    );
+
+    let count = count_result?;
+    let data = spans_result?;
+
+    Ok((data, count))
 }
 
 #[cfg(test)]
