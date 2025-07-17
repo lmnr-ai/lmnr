@@ -40,7 +40,7 @@ pub struct SearchTracesParams {
     page_size: Option<i32>,
     page_number: Option<i32>,
     search: Option<String>,
-    search_in: Option<Vec<String>>,
+    search_in: Option<String>,
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
     #[serde(default, deserialize_with = "deserialize_filters")]
@@ -72,7 +72,19 @@ impl SearchTracesParams {
     }
     
     pub fn search_in(&self) -> Vec<String> {
-        self.search_in.clone().unwrap_or_else(|| vec!["input".to_string(), "output".to_string()])
+        let parsed = self.search_in
+            .as_ref()
+            .map(|s| s.split(',').filter_map(|s| {
+                let trimmed = s.trim();
+                if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+            }).collect::<Vec<_>>())
+            .unwrap_or_default();
+        
+        if parsed.is_empty() {
+            vec!["input".to_string(), "output".to_string()]
+        } else {
+            parsed
+        }
     }
 
     pub fn filters(&self) -> &[Filter] {
@@ -194,6 +206,11 @@ fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
         "t.metadata"
     ));
 
+    configs.insert("status".to_string(), FieldConfig::new(
+        FieldType::Enum,
+        "t.status"
+    ).with_validator(validate_status));
+
     configs
 }
 
@@ -206,6 +223,19 @@ fn validate_trace_type(value: &crate::db::filters::FilterValue) -> Result<(), St
         Err("Trace type must be a string".to_string())
     }
 }
+
+fn validate_status(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+    if let FilterValue::String(s) = value {
+        if s == "error" || s == "success" {
+            Ok(())
+        } else {
+            Err("Status filter only supports 'error' or 'success' values".to_string())
+        }
+    } else {
+        Err("Status must be a string".to_string())
+    }
+}
+
 
 fn build_trace_filters<'a>(
     mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
@@ -229,6 +259,15 @@ fn build_trace_filters<'a>(
 
     let field_configs = create_traces_field_configs();
     for filter in params.filters() {
+        if filter.field == "status" && filter.operator == crate::db::filters::FilterOperator::Eq {
+            if let FilterValue::String(status_value) = &filter.value {
+                if status_value == "success" {
+                    query_builder.push(" AND t.status IS NULL");
+                    continue;
+                }
+            }
+        }
+
         query_builder = filter.apply_to_query_builder(query_builder, &field_configs)
             .map_err(|e| Error::BadRequest(e))?;
     }
@@ -269,12 +308,11 @@ async fn get_traces(
             END as latency,
             t.metadata
          FROM traces t
-         WHERE t.project_id = "
+         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
     );
 
     let mut main_query_builder = build_trace_filters(main_query_builder, project_id, &trace_ids, params)?;
 
-    main_query_builder.push(" AND t.start_time IS NOT NULL AND t.end_time IS NOT NULL");
     main_query_builder.push(" ORDER BY t.start_time DESC");
     
     if params.page_size() > 0 {
@@ -309,7 +347,7 @@ async fn count_traces(
     let count_query_builder = QueryBuilder::new(
         "SELECT COUNT(t.id) as count 
          FROM traces t
-         WHERE t.project_id = "
+         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
     );
     let mut count_query_builder = build_trace_filters(count_query_builder, project_id, &trace_ids, params)?;
 
@@ -330,9 +368,14 @@ pub async fn search_traces(
     params.validate()?;
 
     let trace_ids = if let Some(search_query) = &params.search {
-        search_spans_for_trace_ids(clickhouse, project_id, search_query, &params)
+        match search_spans_for_trace_ids(clickhouse, project_id, search_query, &params)
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?
+            .map_err(|e| anyhow::anyhow!("{}", e))? {
+            Some(ids) => Some(ids),
+            None => {
+                return Ok((Vec::new(), 0));
+            }
+        }
     } else {
         None
     };

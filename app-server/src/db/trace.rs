@@ -167,3 +167,38 @@ pub async fn update_trace_type(
 
     Ok(())
 }
+
+    pub async fn get_trace(
+        pool: &PgPool,
+        project_id: &Uuid,
+        trace_id: &Uuid,
+    ) -> Result<Option<Trace>, sqlx::Error> {
+        sqlx::query_as::<_, Trace>(
+            "SELECT 
+                t.id, 
+                t.start_time, 
+                t.end_time, 
+                t.session_id,
+                t.input_token_count, 
+                t.output_token_count, 
+                t.total_token_count,
+                t.input_cost, 
+                t.output_cost, 
+                t.cost, 
+                t.trace_type, 
+                t.status,
+                CASE
+                    WHEN t.start_time IS NOT NULL AND t.end_time IS NOT NULL 
+                    THEN CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8)
+                    ELSE NULL 
+                END as latency,
+                t.metadata,
+                t.project_id
+            FROM traces t
+            WHERE t.id = $1 AND t.project_id = $2"
+        )
+        .bind(trace_id)
+        .bind(project_id)
+        .fetch_optional(pool)
+        .await
+    }
