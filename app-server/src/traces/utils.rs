@@ -1,11 +1,13 @@
-use std::{env, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
 
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
+
+use crate::opentelemetry::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
@@ -298,4 +300,54 @@ where
         .collect::<Result<serde_json::Map<String, Value>, _>>()
         .ok()
         .map(Value::Object)
+}
+
+pub fn convert_any_value_to_json_value(
+    any_value: Option<opentelemetry_proto_common_v1::AnyValue>,
+) -> serde_json::Value {
+    match any_value.unwrap().value.unwrap() {
+        opentelemetry_proto_common_v1::any_value::Value::StringValue(val) => {
+            let mut val = val;
+
+            // this is a workaround for cases when json.dumps equivalent is applied multiple times to the same value
+            while let Ok(serde_json::Value::String(v)) =
+                serde_json::from_str::<serde_json::Value>(&val)
+            {
+                val = v;
+            }
+
+            serde_json::Value::String(val)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::BoolValue(val) => {
+            serde_json::Value::Bool(val)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::IntValue(val) => json!(val),
+        opentelemetry_proto_common_v1::any_value::Value::DoubleValue(val) => {
+            serde_json::Value::Number(serde_json::Number::from_f64(val).unwrap())
+        }
+        opentelemetry_proto_common_v1::any_value::Value::ArrayValue(val) => {
+            let values: Vec<serde_json::Value> = val
+                .values
+                .into_iter()
+                .map(|v| convert_any_value_to_json_value(Some(v)))
+                .collect();
+            json!(values)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::KvlistValue(val) => {
+            let map: serde_json::Map<String, serde_json::Value> = val
+                .values
+                .into_iter()
+                .map(|kv| {
+                    (
+                        kv.key,
+                        convert_any_value_to_json_value(Some(kv.value.unwrap())),
+                    )
+                })
+                .collect();
+            json!(map)
+        }
+        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => {
+            serde_json::Value::from_str(&String::from_utf8(val).unwrap()).unwrap()
+        }
+    }
 }
