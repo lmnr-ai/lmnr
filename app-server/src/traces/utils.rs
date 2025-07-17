@@ -1,6 +1,7 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use backoff::ExponentialBackoffBuilder;
+use futures_util::future::join_all;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::Value;
@@ -72,6 +73,41 @@ pub async fn get_llm_usage_for_span(
         request_model: attributes.request_model().clone(),
         provider_name,
     }
+}
+
+pub async fn record_spans(
+    db: Arc<DB>,
+    spans: &[Span],
+    trace_attributes: Vec<TraceAttributes>,
+) -> anyhow::Result<()> {
+    // batch spans by BATCH_SIZE and record batches in parallel
+    let mut futures = Vec::new();
+
+    let batch_size = env::var("DB_WRITE_SPAN_BATCH_SIZE")
+        .unwrap_or_else(|_| "25".to_string())
+        .parse::<usize>()
+        .unwrap_or(25);
+
+    for batch in spans.chunks(batch_size) {
+        futures.push(record_spans_batch(
+            db.clone(),
+            batch,
+            trace_attributes.clone(),
+        ));
+    }
+
+    let results = join_all(futures).await;
+    let errors: Vec<_> = results
+        .into_iter()
+        .filter_map(|result| result.err())
+        .inspect(|e| log::error!("Failed to record spans: {:?}", e))
+        .collect();
+
+    if !errors.is_empty() {
+        return Err(anyhow::anyhow!("Failed to record some spans: {:?}", errors));
+    }
+
+    Ok(())
 }
 
 pub async fn record_spans_batch(
