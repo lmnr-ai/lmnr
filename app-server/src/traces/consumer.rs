@@ -385,41 +385,42 @@ async fn process_batch(
         }
     }
 
-    for span in stripped_spans {
-        // Push to evaluators queue - get evaluators for this span
-        match get_evaluators_by_path(&db, span.project_id, span.path).await {
-            Ok(evaluators) => {
-                if !evaluators.is_empty() {
-                    let span_output = span.output.clone().unwrap_or(Value::Null);
+    // FIXME: Temporarily commenting this out, while online evaluators cache is not implemented
+    // for span in stripped_spans {
+    //     // Push to evaluators queue - get evaluators for this span
+    //     match get_evaluators_by_path(&db, span.project_id, span.path).await {
+    //         Ok(evaluators) => {
+    //             if !evaluators.is_empty() {
+    //                 let span_output = span.output.clone().unwrap_or(Value::Null);
 
-                    for evaluator in evaluators {
-                        if let Err(e) = push_to_evaluators_queue(
-                            span.span_id,
-                            span.project_id,
-                            evaluator.id,
-                            span_output.clone(),
-                            evaluators_queue.clone(),
-                        )
-                        .await
-                        {
-                            log::error!(
-                                "Failed to push to evaluators queue. span_id [{}], project_id [{}]: {:?}",
-                                span.span_id,
-                                span.project_id,
-                                e
-                            );
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                log::error!(
-                    "Failed to get evaluators by path. span_id [{}], project_id [{}]: {:?}",
-                    span.span_id,
-                    span.project_id,
-                    e
-                );
-            }
-        }
-    }
+    //                 for evaluator in evaluators {
+    //                     if let Err(e) = push_to_evaluators_queue(
+    //                         span.span_id,
+    //                         span.project_id,
+    //                         evaluator.id,
+    //                         span_output.clone(),
+    //                         evaluators_queue.clone(),
+    //                     )
+    //                     .await
+    //                     {
+    //                         log::error!(
+    //                             "Failed to push to evaluators queue. span_id [{}], project_id [{}]: {:?}",
+    //                             span.span_id,
+    //                             span.project_id,
+    //                             e
+    //                         );
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         Err(e) => {
+    //             log::error!(
+    //                 "Failed to get evaluators by path. span_id [{}], project_id [{}]: {:?}",
+    //                 span.span_id,
+    //                 span.project_id,
+    //                 e
+    //             );
+    //         }
+    //     }
+    // }
 }
