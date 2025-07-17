@@ -70,7 +70,7 @@ pub async fn process_traces(
 
 #[derive(Serialize)]
 struct SearchTracesResponse {
-    data: Vec<traces::TraceSearchItem>,
+    data: Vec<traces::TraceInfo>,
     count: i64
 }
 
