@@ -304,8 +304,14 @@ where
 
 pub fn convert_any_value_to_json_value(
     any_value: Option<opentelemetry_proto_common_v1::AnyValue>,
-) -> serde_json::Value {
-    match any_value.unwrap().value.unwrap() {
+) -> Value {
+    let Some(any_value) = any_value else {
+        return Value::Null;
+    };
+    let Some(value) = any_value.value else {
+        return Value::Null;
+    };
+    match value {
         opentelemetry_proto_common_v1::any_value::Value::StringValue(val) => {
             let mut val = val;
 
@@ -322,9 +328,7 @@ pub fn convert_any_value_to_json_value(
             serde_json::Value::Bool(val)
         }
         opentelemetry_proto_common_v1::any_value::Value::IntValue(val) => json!(val),
-        opentelemetry_proto_common_v1::any_value::Value::DoubleValue(val) => {
-            serde_json::Value::Number(serde_json::Number::from_f64(val).unwrap())
-        }
+        opentelemetry_proto_common_v1::any_value::Value::DoubleValue(val) => json!(val),
         opentelemetry_proto_common_v1::any_value::Value::ArrayValue(val) => {
             let values: Vec<serde_json::Value> = val
                 .values
@@ -337,17 +341,12 @@ pub fn convert_any_value_to_json_value(
             let map: serde_json::Map<String, serde_json::Value> = val
                 .values
                 .into_iter()
-                .map(|kv| {
-                    (
-                        kv.key,
-                        convert_any_value_to_json_value(Some(kv.value.unwrap())),
-                    )
-                })
+                .map(|kv| (kv.key, convert_any_value_to_json_value(kv.value)))
                 .collect();
             json!(map)
         }
-        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => {
-            serde_json::Value::from_str(&String::from_utf8(val).unwrap()).unwrap()
-        }
+        opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => String::from_utf8(val)
+            .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+            .unwrap_or_default(),
     }
 }
