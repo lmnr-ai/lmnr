@@ -50,6 +50,7 @@ impl FromStr for SpanType {
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub span_id: Uuid,
+    pub project_id: Uuid,
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
     pub name: String,
@@ -74,17 +75,14 @@ struct SpanDBValues {
     attributes_value: Value,
 }
 
-pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    // Possible further optimization:
-    // clone all small values from the span, e.g. trace_id, parent_span_id, etc.
-    // into local variables here, and then move the `span` into `prepare_span_db_values`
-    // so that inside `prepare_span_db_values` we don't have to clone the attributes,
-    // which are slightly (after filtering) larger.
-    let values = prepare_span_db_values(span);
+pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
 
-    sqlx::query(
-        "INSERT INTO spans
-            (span_id,
+    let mut query_builder = sqlx::QueryBuilder::new(
+        "INSERT INTO spans (
+            span_id,
             trace_id,
             parent_span_id,
             start_time,
@@ -100,59 +98,34 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             output_url,
             status,
             project_id
-        )
-        VALUES(
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10,
-            $11,
-            $12,
-            $13,
-            $14,
-            $15,
-            $16)
-        ON CONFLICT (span_id, project_id) DO UPDATE SET
-            trace_id = EXCLUDED.trace_id,
-            parent_span_id = EXCLUDED.parent_span_id,
-            start_time = EXCLUDED.start_time,
-            end_time = EXCLUDED.end_time,
-            name = EXCLUDED.name,
-            attributes = EXCLUDED.attributes,
-            input = EXCLUDED.input,
-            output = EXCLUDED.output,
-            span_type = EXCLUDED.span_type,
-            input_preview = EXCLUDED.input_preview,
-            output_preview = EXCLUDED.output_preview,
-            input_url = EXCLUDED.input_url,
-            output_url = EXCLUDED.output_url,
-            status = EXCLUDED.status
-    ",
-    )
-    .bind(&span.span_id)
-    .bind(&span.trace_id)
-    .bind(&span.parent_span_id as &Option<Uuid>)
-    .bind(&span.start_time)
-    .bind(&span.end_time)
-    .bind(&span.name)
-    .bind(&values.attributes_value)
-    .bind(&values.sanitized_input as &Option<Value>)
-    .bind(&values.sanitized_output as &Option<Value>)
-    .bind(&span.span_type as &SpanType)
-    .bind(&values.input_preview)
-    .bind(&values.output_preview)
-    .bind(&span.input_url as &Option<String>)
-    .bind(&span.output_url as &Option<String>)
-    .bind(&span.status)
-    .bind(&project_id)
-    .execute(pool)
-    .await?;
+    )",
+    );
+
+    query_builder.push_values(spans, |mut b, span| {
+        let values = prepare_span_db_values(span);
+        b.push_bind(&span.span_id)
+            .push_bind(&span.trace_id)
+            .push_bind(&span.parent_span_id as &Option<Uuid>)
+            .push_bind(&span.start_time)
+            .push_bind(&span.end_time)
+            .push_bind(&span.name)
+            .push_bind(values.attributes_value)
+            .push_bind(values.sanitized_input)
+            .push_bind(values.sanitized_output)
+            .push_bind(&span.span_type as &SpanType)
+            .push_bind(values.input_preview)
+            .push_bind(values.output_preview)
+            .push_bind(&span.input_url as &Option<String>)
+            .push_bind(&span.output_url as &Option<String>)
+            .push_bind(&span.status)
+            .push_bind(&span.project_id);
+    });
+
+    // This shouldn't happen, but if it does, we don't want to overwrite the existing span
+    // neither do we want to fail the entire batch
+    query_builder.push(" ON CONFLICT DO NOTHING");
+
+    query_builder.build().execute(pool).await?;
 
     Ok(())
 }
@@ -308,6 +281,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: None,
             name: "openai.chat".to_string(),
@@ -529,6 +503,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ChatOpenAI.chat".to_string(),
@@ -783,6 +758,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ai.generateText.doGenerate".to_string(),
