@@ -175,7 +175,7 @@ impl MessageQueueTrait for RabbitMQ {
                     routing_key,
                     BasicPublishOptions::default(),
                     message,
-                    BasicProperties::default(),
+                    BasicProperties::default().with_delivery_mode(2),
                 )
                 .await
             {
