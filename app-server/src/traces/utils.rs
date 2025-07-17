@@ -152,8 +152,13 @@ pub async fn record_spans_batch<'a>(
             e
         })?;
 
+    let trace_attributes_vec = span_and_metadata_vec
+        .iter()
+        .map(|s| s.trace_attributes.clone())
+        .collect::<Vec<_>>();
+
     // Insert or update traces in batch after the spans have been successfully inserted
-    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, span_and_metadata_vec).await {
+    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, &trace_attributes_vec).await {
         log::error!(
             "Failed to update trace attributes for {} spans: {:?}",
             span_and_metadata_vec.len(),
@@ -247,6 +252,7 @@ pub fn prepare_span_for_recording(
     trace_attributes.update_user_id(span.attributes.user_id());
     trace_attributes.update_trace_type(span.attributes.trace_type());
     trace_attributes.set_metadata(span.attributes.metadata());
+    trace_attributes.project_id = span.project_id;
     if let Some(has_browser_session) = span.attributes.has_browser_session() {
         trace_attributes.set_has_browser_session(has_browser_session);
     }

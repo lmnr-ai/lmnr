@@ -7,7 +7,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::traces::{SpanAndMetadata, attributes::TraceAttributes};
+use crate::traces::attributes::TraceAttributes;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "trace_type")]
@@ -39,23 +39,22 @@ pub struct Trace {
     status: Option<String>,
 }
 
-pub async fn update_trace_attributes_batch<'a>(
+pub async fn update_trace_attributes_batch(
     pool: &PgPool,
-    span_and_metadata_vec: &[SpanAndMetadata<'a>],
+    trace_attributes_vec: &Vec<TraceAttributes>,
 ) -> Result<()> {
-    if span_and_metadata_vec.is_empty() {
+    if trace_attributes_vec.is_empty() {
         return Ok(());
     }
 
     let mut trace_aggregates: HashMap<Uuid, TraceAttributes> = HashMap::new();
 
-    for span_and_metadata in span_and_metadata_vec {
-        let attributes = &span_and_metadata.trace_attributes;
-
+    for attributes in trace_attributes_vec {
         let entry = trace_aggregates
             .entry(attributes.id)
             .or_insert_with(|| TraceAttributes {
                 id: attributes.id,
+                project_id: attributes.project_id,
                 input_token_count: Some(0),
                 output_token_count: Some(0),
                 total_token_count: Some(0),
@@ -143,21 +142,6 @@ pub async fn update_trace_attributes_batch<'a>(
             .as_ref()
             .and_then(|m| serde_json::to_value(m).ok());
 
-        // Find the project_id from the first span in this trace
-        let project_id = span_and_metadata_vec
-            .iter()
-            .find(|span_and_metadata| span_and_metadata.span.trace_id == attributes.id)
-            .map(|span_and_metadata| span_and_metadata.span.project_id);
-
-        let Some(project_id) = project_id else {
-            // This shouldn't happen in normal operation, but provide a fallback
-            log::warn!(
-                "Could not find project_id for trace {}. Ignoring trace.",
-                attributes.id
-            );
-            continue;
-        };
-
         sqlx::query(
             "
             INSERT INTO traces (
@@ -219,7 +203,7 @@ pub async fn update_trace_attributes_batch<'a>(
             "
         )
         .bind(attributes.id)
-        .bind(project_id)
+        .bind(attributes.project_id)
         .bind(attributes.input_token_count)
         .bind(attributes.output_token_count)
         .bind(attributes.total_token_count)
