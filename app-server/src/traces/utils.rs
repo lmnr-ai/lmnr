@@ -130,10 +130,10 @@ pub async fn record_spans_batch(
 pub async fn record_labels_to_db_and_ch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
-    span: &Span,
+    labels: &[String],
+    span_id: &Uuid,
     project_id: &Uuid,
 ) -> anyhow::Result<()> {
-    let labels = span.attributes.labels();
     if labels.is_empty() {
         return Ok(());
     }
@@ -142,17 +142,17 @@ pub async fn record_labels_to_db_and_ch(
         db::labels::get_label_classes_by_project_id(&db.pool, *project_id, None).await?;
 
     for label_name in labels {
-        let label_class = project_labels.iter().find(|l| l.name == label_name);
+        let label_class = project_labels.iter().find(|l| l.name == *label_name);
         let id = Uuid::new_v4();
         crate::labels::insert_or_update_label(
             &db.pool,
             clickhouse.clone(),
             *project_id,
             id,
-            span.span_id,
+            *span_id,
             label_class.map(|l| l.id),
             None,
-            label_name,
+            label_name.clone(),
             LabelSource::CODE,
         )
         .await?;

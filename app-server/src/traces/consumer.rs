@@ -5,6 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use backoff::ExponentialBackoffBuilder;
 use itertools::Itertools;
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
@@ -26,6 +27,7 @@ use crate::{
     traces::{
         IngestedBytes,
         events::record_events,
+        limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         utils::{
             get_llm_usage_for_span, prepare_span_for_recording, record_labels_to_db_and_ch,
@@ -112,53 +114,9 @@ async fn inner_process_queue_spans(
                 }
             };
 
-        // Group spans by project_id to handle usage limits efficiently
-        let mut project_spans: HashMap<Uuid, Vec<RabbitMqSpanMessage>> = HashMap::new();
-        for message in rabbitmq_span_messages {
-            project_spans
-                .entry(message.span.project_id)
-                .or_insert_with(Vec::new)
-                .push(message);
-        }
-
-        // Check usage limits for each project
-        if is_feature_enabled(Feature::UsageLimit) {
-            let mut filtered_project_spans = HashMap::new();
-            for (project_id, spans) in project_spans {
-                match super::limits::update_workspace_limit_exceeded_by_project_id(
-                    db.clone(),
-                    cache.clone(),
-                    project_id,
-                )
-                .await
-                {
-                    Err(e) => {
-                        log::error!(
-                            "Failed to update workspace limit exceeded by project id: {:?}",
-                            e
-                        );
-                        // Continue processing other projects even if one fails
-                    }
-                    Ok(limits_exceeded) => {
-                        if limits_exceeded.bytes_ingested {
-                            log::info!(
-                                "Dropping {} spans for project {} due to usage limit",
-                                spans.len(),
-                                project_id
-                            );
-                            // Skip this project's spans
-                            continue;
-                        }
-                    }
-                }
-                filtered_project_spans.insert(project_id, spans);
-            }
-            project_spans = filtered_project_spans;
-        }
-
         // Process all spans in the batch
         process_spans_and_events_batch(
-            project_spans.into_values().flatten().collect(),
+            rabbitmq_span_messages,
             db.clone(),
             clickhouse.clone(),
             cache.clone(),
@@ -173,7 +131,7 @@ async fn inner_process_queue_spans(
 }
 
 async fn process_spans_and_events_batch(
-    spans: Vec<RabbitMqSpanMessage>,
+    messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -187,7 +145,7 @@ async fn process_spans_and_events_batch(
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans first (heavy processing)
-    for message in spans {
+    for message in messages {
         let mut span = message.span;
 
         let span_id = span.span_id;
@@ -222,7 +180,6 @@ async fn process_spans_and_events_batch(
         }
 
         // Add to collections for batch processing
-
         ingested_bytes_by_project
             .entry(span.project_id)
             .and_modify(|ingested_bytes| {
@@ -250,6 +207,14 @@ async fn process_spans_and_events_batch(
         queue,
     )
     .await;
+}
+
+struct StrippedSpan {
+    span_id: Uuid,
+    project_id: Uuid,
+    labels: Vec<String>,
+    path: Vec<String>,
+    output: Option<Value>,
 }
 
 async fn process_batch(
@@ -304,68 +269,21 @@ async fn process_batch(
         trace_attributes.push(trace_attrs);
     }
 
-    // Step 1: Record spans and traces to database (batch write)
-    match record_spans_batch(db.clone(), &spans, trace_attributes).await {
-        Ok(_) => {
-            // Step 2: Acknowledge the batch immediately after successful database write
-            let _ = acker.ack().await.map_err(|e| {
-                log::error!("Failed to ack MQ delivery (batch): {:?}", e);
-            });
-        }
-        Err(e) => {
-            log::error!("Failed to record spans batch: {:?}", e);
-            let _ = acker.reject(false).await.map_err(|e| {
-                log::error!("Failed to reject MQ delivery (batch): {:?}", e);
-            });
-            ingested_bytes_by_project
-                .iter_mut()
-                .for_each(|(_, ingested_bytes)| ingested_bytes.span_bytes = 0);
-        }
-    };
-
-    // Step 3: Record events to database and clickhouse
-    match record_events(db.clone(), clickhouse.clone(), &events).await {
-        Ok(_) => {}
-        Err(e) => {
-            log::error!("Failed to record events: {:?}", e);
-            ingested_bytes_by_project
-                .iter_mut()
-                .for_each(|(_, ingested_bytes)| ingested_bytes.events_bytes = 0);
-        }
-    };
-
-    // Step 4: Update usage statistics by project
-    for (project_id, bytes) in ingested_bytes_by_project {
-        if let Err(e) = increment_project_spans_bytes_ingested(
-            &db.pool,
-            &project_id,
-            bytes.span_bytes + bytes.events_bytes,
-        )
-        .await
-        {
+    // Record spans and traces to database (batch write)
+    if let Err(e) = record_spans_batch(db.clone(), &spans, trace_attributes).await {
+        log::error!("Failed to record spans batch: {:?}", e);
+        let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
-                "Failed to increment project data ingested for project [{}]: {:?}",
-                project_id,
+                "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
                 e
             );
-        }
+        });
+        ingested_bytes_by_project
+            .iter_mut()
+            .for_each(|(_, ingested_bytes)| ingested_bytes.span_bytes = 0);
     }
 
-    // Step 5: Record labels to database and clickhouse
-    for span in &spans {
-        if let Err(e) =
-            record_labels_to_db_and_ch(db.clone(), clickhouse.clone(), span, &span.project_id).await
-        {
-            log::error!(
-                "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
-                span.span_id,
-                span.project_id,
-                e
-            );
-        }
-    }
-
-    // Step 6: Record spans to clickhouse (batch write)
+    // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usages.iter())
@@ -386,16 +304,93 @@ async fn process_batch(
             ch_spans.len(),
             e
         );
+        let _ = acker.reject(false).await.map_err(|e| {
+            log::error!(
+                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
+                e
+            );
+        });
     }
 
-    // Step 7: Push to evaluators queue (done after all critical processing)
-    for span in spans {
+    let stripped_spans = spans
+        .into_iter()
+        .map(|span| StrippedSpan {
+            span_id: span.span_id,
+            project_id: span.project_id,
+            labels: span.attributes.labels(),
+            path: span.attributes.path().unwrap_or_default(),
+            output: span.output,
+        })
+        .collect::<Vec<_>>();
+
+    let _ = acker.ack().await.map_err(|e| {
+        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
+    });
+
+    match record_events(db.clone(), clickhouse.clone(), &events).await {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Failed to record events: {:?}", e);
+            ingested_bytes_by_project
+                .iter_mut()
+                .for_each(|(_, ingested_bytes)| ingested_bytes.events_bytes = 0);
+        }
+    };
+
+    for (project_id, bytes) in ingested_bytes_by_project {
+        if let Err(e) = increment_project_spans_bytes_ingested(
+            &db.pool,
+            &project_id,
+            bytes.span_bytes + bytes.events_bytes,
+        )
+        .await
+        {
+            log::error!(
+                "Failed to increment project data ingested for project [{}]: {:?}",
+                project_id,
+                e
+            );
+        }
+
+        if is_feature_enabled(Feature::UsageLimit) {
+            if let Err(e) =
+                update_workspace_limit_exceeded_by_project_id(db.clone(), cache.clone(), project_id)
+                    .await
+            {
+                log::error!(
+                    "Failed to update workspace limit exceeded for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            }
+        }
+    }
+
+    for span in &stripped_spans {
+        if let Err(e) = record_labels_to_db_and_ch(
+            db.clone(),
+            clickhouse.clone(),
+            &span.labels,
+            &span.span_id,
+            &span.project_id,
+        )
+        .await
+        {
+            log::error!(
+                "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
+                span.span_id,
+                span.project_id,
+                e
+            );
+        }
+    }
+
+    for span in stripped_spans {
         // Push to evaluators queue - get evaluators for this span
-        let span_path = span.attributes.path().clone().unwrap_or_default();
-        match get_evaluators_by_path(&db, span.project_id, span_path).await {
+        match get_evaluators_by_path(&db, span.project_id, span.path).await {
             Ok(evaluators) => {
                 if !evaluators.is_empty() {
-                    let span_output = span.output.clone().unwrap_or(serde_json::Value::Null);
+                    let span_output = span.output.clone().unwrap_or(Value::Null);
 
                     for evaluator in evaluators {
                         if let Err(e) = push_to_evaluators_queue(

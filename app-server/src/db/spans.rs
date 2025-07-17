@@ -121,23 +121,9 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
             .push_bind(&span.project_id);
     });
 
-    query_builder.push(
-        " ON CONFLICT (span_id, project_id) DO UPDATE SET
-            trace_id = EXCLUDED.trace_id,
-            parent_span_id = EXCLUDED.parent_span_id,
-            start_time = EXCLUDED.start_time,
-            end_time = EXCLUDED.end_time,
-            name = EXCLUDED.name,
-            attributes = EXCLUDED.attributes,
-            input = EXCLUDED.input,
-            output = EXCLUDED.output,
-            span_type = EXCLUDED.span_type,
-            input_preview = EXCLUDED.input_preview,
-            output_preview = EXCLUDED.output_preview,
-            input_url = EXCLUDED.input_url,
-            output_url = EXCLUDED.output_url,
-            status = EXCLUDED.status",
-    );
+    // This shouldn't happen, but if it does, we don't want to overwrite the existing span
+    // neither do we want to fail the entire batch
+    query_builder.push(" ON CONFLICT DO NOTHING");
 
     query_builder.build().execute(pool).await?;
 
