@@ -1,4 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { capitalize } from "lodash";
+import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
@@ -62,6 +64,15 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
+    name: "Status",
+    dataType: "enum",
+    key: "status",
+    options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
+  },
+  {
     key: "tags",
     name: "Tags",
     dataType: "string",
@@ -74,6 +85,21 @@ export const filters: ColumnFilter[] = [
 ];
 
 export const columns: ColumnDef<Span, any>[] = [
+  {
+    cell: (row) => (
+      <div className="flex h-full justify-center items-center w-10">
+        {row.getValue() ? (
+          <X className="self-center text-destructive" size={18} />
+        ) : (
+          <Check className="text-success" size={18} />
+        )}
+      </div>
+    ),
+    accessorKey: "status",
+    header: "Status",
+    id: "status",
+    size: 70,
+  },
   {
     cell: (row) => <Mono>{row.getValue()}</Mono>,
     header: "ID",
