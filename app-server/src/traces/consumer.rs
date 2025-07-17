@@ -23,7 +23,7 @@ use crate::{
     },
     storage::Storage,
     traces::{
-        IngestedBytes, SpanAndMetadata,
+        IngestedBytes,
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
@@ -242,7 +242,9 @@ async fn process_batch(
     acker: MessageQueueAcker,
     _evaluators_queue: Arc<MessageQueue>,
 ) {
-    let mut span_and_metadata_vec: Vec<SpanAndMetadata> = Vec::new();
+    let mut trace_attributes_vec = Vec::new();
+    let mut span_usage_vec = Vec::new();
+    let mut all_events = Vec::new();
 
     for span in &mut spans {
         let span_usage =
@@ -277,15 +279,13 @@ async fn process_batch(
         let trace_attrs = prepare_span_for_recording(span, &span_usage, &filtered_events);
         convert_span_to_provider_format(span);
 
-        span_and_metadata_vec.push(SpanAndMetadata {
-            span,
-            trace_attributes: trace_attrs,
-            span_usage,
-        });
+        trace_attributes_vec.push(trace_attrs);
+        span_usage_vec.push(span_usage);
+        all_events.extend(filtered_events);
     }
 
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans(db.clone(), &span_and_metadata_vec).await {
+    if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
         log::error!("Failed to record spans batch: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
@@ -299,14 +299,15 @@ async fn process_batch(
     }
 
     // Record spans to clickhouse
-    let ch_spans: Vec<CHSpan> = span_and_metadata_vec
+    let ch_spans: Vec<CHSpan> = spans
         .iter()
+        .zip(span_usage_vec.iter())
         .zip(spans_ingested_bytes.iter())
-        .map(|(span_and_metadata, ingested_bytes)| {
+        .map(|((span, span_usage), ingested_bytes)| {
             CHSpan::from_db_span(
-                &span_and_metadata.span,
-                &span_and_metadata.span_usage,
-                span_and_metadata.span.project_id,
+                span,
+                span_usage,
+                span.project_id,
                 ingested_bytes.span_bytes + ingested_bytes.events_bytes,
             )
         })
@@ -326,7 +327,6 @@ async fn process_batch(
         });
     }
 
-    // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
         .into_iter()
         .map(|span| StrippedSpan {
@@ -342,7 +342,7 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(db.clone(), clickhouse.clone(), &events).await {
+    match record_events(db.clone(), clickhouse.clone(), &all_events).await {
         Ok(_) => {}
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);

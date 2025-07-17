@@ -1,8 +1,3 @@
-use crate::{
-    db::spans::Span,
-    traces::{attributes::TraceAttributes, spans::SpanUsage},
-};
-
 pub mod attributes;
 pub mod consumer;
 pub mod events;
@@ -22,10 +17,4 @@ pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 pub struct IngestedBytes {
     pub span_bytes: usize,
     pub events_bytes: usize,
-}
-
-pub struct SpanAndMetadata<'a> {
-    pub span: &'a Span,
-    pub trace_attributes: TraceAttributes,
-    pub span_usage: SpanUsage,
 }

@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
@@ -75,13 +76,13 @@ struct SpanDBValues {
     attributes_value: Value,
 }
 
-pub async fn record_spans_batch<'a>(pool: &PgPool, spans: &Vec<&'a Span>) -> Result<()> {
+pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
     if spans.is_empty() {
         return Ok(());
     }
 
     // Prepare all span values upfront
-    let span_values: Vec<SpanDBValues> = spans.iter().map(|s| prepare_span_db_values(s)).collect();
+    let span_values: Vec<SpanDBValues> = spans.par_iter().map(prepare_span_db_values).collect();
 
     // Create arrays for each column
     let span_ids: Vec<Uuid> = spans.iter().map(|s| s.span_id).collect();

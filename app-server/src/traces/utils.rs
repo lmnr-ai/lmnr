@@ -19,7 +19,6 @@ use crate::{
         trace,
     },
     language_model::costs::estimate_cost_by_provider_name,
-    traces::SpanAndMetadata,
 };
 
 use super::{
@@ -78,20 +77,36 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-pub async fn record_spans<'a>(
+pub async fn record_spans(
     db: Arc<DB>,
-    span_and_metadata_vec: &Vec<SpanAndMetadata<'a>>,
+    spans: &Vec<Span>,
+    trace_attributes_vec: &Vec<TraceAttributes>,
 ) -> anyhow::Result<()> {
     // batch spans by BATCH_SIZE and record batches in parallel
     let mut futures = Vec::new();
 
     let batch_size = env::var("DB_WRITE_SPAN_BATCH_SIZE")
-        .unwrap_or_else(|_| "25".to_string())
+        .unwrap_or("20".to_string())
         .parse::<usize>()
-        .unwrap_or(25);
+        .unwrap_or(20);
 
-    for chunk in span_and_metadata_vec.chunks(batch_size) {
-        futures.push(record_spans_batch(db.clone(), chunk));
+    if spans.len() != trace_attributes_vec.len() {
+        log::warn!(
+            "Spans and trace attributes vectors have different lengths: {} != {}",
+            spans.len(),
+            trace_attributes_vec.len()
+        );
+    }
+
+    for (spans_chunk, trace_attributes_chunk) in spans
+        .chunks(batch_size)
+        .zip(trace_attributes_vec.chunks(batch_size))
+    {
+        futures.push(record_spans_batch(
+            db.clone(),
+            spans_chunk,
+            trace_attributes_chunk,
+        ));
     }
 
     let results = join_all(futures).await;
@@ -108,21 +123,18 @@ pub async fn record_spans<'a>(
     Ok(())
 }
 
-pub async fn record_spans_batch<'a>(
+pub async fn record_spans_batch(
     db: Arc<DB>,
-    span_and_metadata_vec: &[SpanAndMetadata<'a>],
+    spans: &[Span],
+    trace_attributes_vec: &[TraceAttributes],
 ) -> anyhow::Result<()> {
-    let spans = span_and_metadata_vec
-        .iter()
-        .map(|s| s.span)
-        .collect::<Vec<_>>();
     let insert_spans = || async {
         db::spans::record_spans_batch(&db.pool, &spans)
             .await
             .map_err(|e| {
                 log::error!(
                     "Failed attempt to record {} spans. Will retry according to backoff policy. Error: {:?}",
-                    span_and_metadata_vec.len(),
+                    spans.len(),
                     e
                 );
                 backoff::Error::Transient {
@@ -146,22 +158,17 @@ pub async fn record_spans_batch<'a>(
         .map_err(|e| {
             log::error!(
                 "Exhausted backoff retries for {} spans: {:?}",
-                span_and_metadata_vec.len(),
+                spans.len(),
                 e
             );
             e
         })?;
 
-    let trace_attributes_vec = span_and_metadata_vec
-        .iter()
-        .map(|s| s.trace_attributes.clone())
-        .collect::<Vec<_>>();
-
     // Insert or update traces in batch after the spans have been successfully inserted
     if let Err(e) = trace::update_trace_attributes_batch(&db.pool, &trace_attributes_vec).await {
         log::error!(
             "Failed to update trace attributes for {} spans: {:?}",
-            span_and_metadata_vec.len(),
+            trace_attributes_vec.len(),
             e
         );
     }
