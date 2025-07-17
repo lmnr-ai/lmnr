@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     ch::traces::search_spans_for_trace_ids, 
     db::{
-        filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterValue}, 
+        filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterOperator, FilterValue}, 
         trace::TraceType
     }, 
     routes::error::Error
@@ -17,7 +17,7 @@ use crate::{
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceSearchItem {
+pub struct TraceInfo {
     pub id: Uuid,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
@@ -214,7 +214,7 @@ fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
     configs
 }
 
-fn validate_trace_type(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+fn validate_trace_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
         TraceType::from_str(s)
             .map_err(|_| format!("Invalid trace type: {}. Valid values: DEFAULT, EVENT, EVALUATION, PLAYGROUND", s))?;
@@ -224,7 +224,7 @@ fn validate_trace_type(value: &crate::db::filters::FilterValue) -> Result<(), St
     }
 }
 
-fn validate_status(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+fn validate_status(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
         if s == "error" || s == "success" {
             Ok(())
@@ -259,7 +259,7 @@ fn build_trace_filters<'a>(
 
     let field_configs = create_traces_field_configs();
     for filter in params.filters() {
-        if filter.field == "status" && filter.operator == crate::db::filters::FilterOperator::Eq {
+        if filter.field == "status" && filter.operator == FilterOperator::Eq {
             if let FilterValue::String(status_value) = &filter.value {
                 if status_value == "success" {
                     query_builder.push(" AND t.status IS NULL");
@@ -280,7 +280,7 @@ async fn get_traces(
     project_id: Uuid,
     params: &SearchTracesParams,
     trace_ids: &Option<HashSet<Uuid>>,
-) -> Result<Vec<TraceSearchItem>, Error> {
+) -> Result<Vec<TraceInfo>, Error> {
     if let Some(trace_ids) = trace_ids {
         if trace_ids.is_empty() {
             return Ok(Vec::new());
@@ -326,7 +326,7 @@ async fn get_traces(
     }
 
     main_query_builder
-        .build_query_as::<TraceSearchItem>()
+        .build_query_as::<TraceInfo>()
         .fetch_all(pool)
         .await
         .map_err(|e| e.into())
@@ -364,7 +364,7 @@ pub async fn search_traces(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     mut params: SearchTracesParams,
-) -> Result<(Vec<TraceSearchItem>, i64), Error> {
+) -> Result<(Vec<TraceInfo>, i64), Error> {
     params.validate()?;
 
     let trace_ids = if let Some(search_query) = &params.search {
