@@ -30,7 +30,7 @@ pub struct TraceInfo {
     pub cost: f64,
     pub trace_type: TraceType,
     pub status: Option<String>,
-    pub latency: Option<f64>,
+    pub latency: f64,
     pub metadata: Option<Value>,
 }
 
@@ -301,11 +301,7 @@ async fn get_traces(
             t.cost, 
             t.trace_type, 
             t.status,
-            CASE
-                WHEN t.start_time IS NOT NULL AND t.end_time IS NOT NULL 
-                THEN CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8)
-                ELSE NULL 
-            END as latency,
+            CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8) as latency,
             t.metadata
          FROM traces t
          WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
