@@ -7,7 +7,7 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
-use crate::{ch::spans::search_spans_for_span_ids, db::filters::{validate_and_convert_filters, deserialize_filters, FieldConfig, FieldType, Filter, FilterValue}, routes::error::Error, traces::spans::{should_keep_attribute, SpanAttributes}};
+use crate::{ch::spans::search_spans_for_span_ids, db::filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterOperator, FilterValue}, routes::error::Error, traces::spans::{should_keep_attribute, SpanAttributes}};
 use super::utils::sanitize_value;
 
 const PREVIEW_CHARACTERS: usize = 50;
@@ -250,7 +250,7 @@ pub struct SpanSearchItem {
     pub end_time: DateTime<Utc>,
     pub span_type: SpanType,
     pub status: Option<String>,
-    pub latency: Option<f64>,
+    pub latency: f64,
     pub input_cost: Option<f64>,
     pub output_cost: Option<f64>,
     pub cost: Option<f64>,
@@ -396,9 +396,9 @@ fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
     ));
 
     configs.insert("status".to_string(), FieldConfig::new(
-        FieldType::String,
+        FieldType::Enum,
         "s.status"
-    ));
+    ).with_validator(validate_status));
 
     configs.insert("latency".to_string(), FieldConfig::new(
         FieldType::Float,
@@ -438,13 +438,25 @@ fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
     configs
 }
 
-fn validate_span_type(value: &crate::db::filters::FilterValue) -> Result<(), String> {
+fn validate_span_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
         SpanType::from_str(s)
             .map_err(|_| format!("Invalid span type: {}. Valid values: DEFAULT, LLM, PIPELINE, EXECUTOR, EVALUATOR, HUMAN_EVALUATOR, EVALUATION, TOOL", s))?;
         Ok(())
     } else {
         Err("Span type must be a string".to_string())
+    }
+}
+
+fn validate_status(value: &FilterValue) -> Result<(), String> {
+    if let FilterValue::String(s) = value {
+        if s == "error" || s == "success" {
+            Ok(())
+        } else {
+            Err("Status filter only supports 'error' or 'success' values".to_string())
+        }
+    } else {
+        Err("Status must be a string".to_string())
     }
 }
 
@@ -475,6 +487,15 @@ fn build_span_filters<'a>(
 
     let field_configs = create_spans_field_configs();
     for filter in params.filters() {
+        if filter.field == "status" && filter.operator == FilterOperator::Eq {
+            if let FilterValue::String(status_value) = &filter.value {
+                if status_value == "success" {
+                    query_builder.push(" AND s.status IS NULL");
+                    continue;
+                }
+            }
+        }
+
         query_builder = filter.apply_to_query_builder(query_builder, &field_configs)
             .map_err(|e| Error::BadRequest(e))?;
     }
@@ -504,11 +525,7 @@ async fn get_spans(
             s.end_time, 
             s.span_type, 
             s.status,
-            CASE
-                WHEN s.start_time IS NOT NULL AND s.end_time IS NOT NULL 
-                THEN CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8)
-                ELSE NULL 
-            END as latency,
+            CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8) as latency,
             CAST(s.attributes->>'gen_ai.usage.input_cost' AS FLOAT8) as input_cost,
             CAST(s.attributes->>'gen_ai.usage.output_cost' AS FLOAT8) as output_cost,
             CAST(s.attributes->>'gen_ai.usage.cost' AS FLOAT8) as cost,
@@ -516,7 +533,7 @@ async fn get_spans(
             CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT) as output_token_count,
             CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT) as total_token_count
          FROM spans s
-         WHERE s.project_id = "
+         WHERE s.start_time IS NOT NULL AND s.end_time IS NOT NULL AND s.project_id = "
     );
 
     let mut main_query_builder = build_span_filters(main_query_builder, project_id, &span_ids, params)?;
