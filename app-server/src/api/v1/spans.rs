@@ -3,7 +3,6 @@ use serde::Serialize;
 
 use crate::{db::{project_api_keys::ProjectApiKey, spans, DB}, routes::types::ResponseResult};
 
-
 #[derive(Serialize)]
 struct SearchSpansResponse {
     data: Vec<spans::SpanSearchItem>,

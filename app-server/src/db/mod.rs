@@ -13,6 +13,7 @@ pub mod prices;
 pub mod project_api_keys;
 pub mod projects;
 pub mod provider_api_keys;
+pub mod span;
 pub mod spans;
 pub mod stats;
 pub mod trace;
