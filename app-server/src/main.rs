@@ -182,6 +182,17 @@ fn main() -> anyhow::Result<()> {
     let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
+            
+            // Create arguments for lazy queues
+            let mut lazy_args = FieldTable::default();
+            lazy_args.insert("x-queue-mode".into(), lapin::types::AMQPValue::LongString("lazy".into()));
+            
+            // Lazy queues should be durable
+            let lazy_options = QueueDeclareOptions {
+                durable: true,
+                ..QueueDeclareOptions::default()
+            };
+            
             // Register queues
             // ==== 3.1 Spans message queue ====
             channel
@@ -197,8 +208,8 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    lazy_options,
+                    lazy_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -217,8 +228,8 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    lazy_options,
+                    lazy_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -237,8 +248,8 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     EVALUATORS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    lazy_options,
+                    lazy_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -257,8 +268,8 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     PAYLOADS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    lazy_options,
+                    lazy_args.clone(),
                 )
                 .await
                 .unwrap();
