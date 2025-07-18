@@ -182,6 +182,11 @@ fn main() -> anyhow::Result<()> {
     let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
+            
+            // Create quorum queue arguments (reused for all queues)
+            let mut quorum_queue_args = FieldTable::default();
+            quorum_queue_args.insert("x-queue-type".into(), lapin::types::AMQPValue::LongString("quorum".into()));
+            
             // Register queues
             // ==== 3.1 Spans message queue ====
             channel
@@ -204,7 +209,7 @@ fn main() -> anyhow::Result<()> {
                         durable: true,
                         ..Default::default()
                     },
-                    FieldTable::default(),
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -230,7 +235,7 @@ fn main() -> anyhow::Result<()> {
                         durable: true,
                         ..Default::default()
                     },
-                    FieldTable::default(),
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -256,7 +261,7 @@ fn main() -> anyhow::Result<()> {
                         durable: true,
                         ..Default::default()
                     },
-                    FieldTable::default(),
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -282,7 +287,7 @@ fn main() -> anyhow::Result<()> {
                         durable: true,
                         ..Default::default()
                     },
-                    FieldTable::default(),
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
