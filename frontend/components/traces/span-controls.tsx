@@ -71,9 +71,9 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
                 href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
                 passHref
               >
-                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6">
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
                   <PlayCircle className="mr-1" size={14} />
-                  Open in Playground
+                  Experiment in playground
                 </Button>
               </Link>
             )}

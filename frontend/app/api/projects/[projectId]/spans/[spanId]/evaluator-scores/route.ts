@@ -1,8 +1,7 @@
-import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
+import { prettifyError, z } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { evaluators, evaluatorScores } from "@/lib/db/migrations/schema";
+import { getEvaluatorScores } from "@/lib/actions/evaluator-scores";
 
 export async function GET(
   _req: NextRequest,
@@ -12,22 +11,17 @@ export async function GET(
   const { spanId, projectId } = params;
 
   try {
-    const scores = await db
-      .select({
-        id: evaluatorScores.id,
-        spanId: evaluatorScores.spanId,
-        evaluatorId: evaluatorScores.evaluatorId,
-        score: evaluatorScores.score,
-        createdAt: evaluatorScores.createdAt,
-        evaluatorName: evaluators.name,
-      })
-      .from(evaluatorScores)
-      .leftJoin(evaluators, eq(evaluatorScores.evaluatorId, evaluators.id))
-      .where(and(eq(evaluatorScores.spanId, spanId), eq(evaluatorScores.projectId, projectId)))
-      .orderBy(evaluatorScores.createdAt);
+    const scores = await getEvaluatorScores({ spanId, projectId });
 
     return Response.json(scores);
   } catch (error) {
-    return Response.json({ error: "Failed to fetch evaluator scores" }, { status: 500 });
+    if (error instanceof z.ZodError) {
+      return Response.json({ error: prettifyError(error), details: error.issues }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch evaluator scores" },
+      { status: 500 }
+    );
   }
 }

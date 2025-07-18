@@ -1,74 +1,23 @@
-import { and, eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { z } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { evaluators, evaluatorSpanPaths } from "@/lib/db/migrations/schema";
-
-const querySchema = z.object({
-  spanPath: z.string().min(1, { error: "Span path is required" }),
-});
-
-const spanPathArraySchema = z
-  .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
-  .min(1, { error: "Span path must contain at least one element" });
-
-const parseSpanPath = (
-  spanPathString: string
-): { success: true; data: string[] } | { success: false; error: string } => {
-  try {
-    const parsed = JSON.parse(spanPathString);
-    const result = spanPathArraySchema.safeParse(parsed);
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: `Invalid span path format: ${result.error.issues.map((e) => e.message).join(", ")}`,
-      };
-    }
-
-    return { success: true, data: result.data };
-  } catch (error) {
-    return {
-      success: false,
-      error: "Invalid JSON format. Expected JSON array of strings.",
-    };
-  }
-};
+import { getEvaluatorsBySpanPath } from "@/lib/actions/evaluators/span-path";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   try {
-    const params = await props.params;
-    const { projectId } = params;
+    const { projectId } = await props.params;
+    const spanPath = req.nextUrl.searchParams.get("spanPath");
 
-    const spanPathParam = req.nextUrl.searchParams.get("spanPath");
-
-    const { spanPath: spanPathString } = querySchema.parse({ spanPath: spanPathParam });
-
-    const spanPathResult = parseSpanPath(spanPathString);
-    if (!spanPathResult.success) {
-      return Response.json({ error: spanPathResult.error }, { status: 400 });
+    if (!spanPath) {
+      return Response.json({ error: "Span path is required. " }, { status: 400 });
     }
 
-    const spanPath = spanPathResult.data;
+    const spanPathResult = JSON.parse(spanPath);
 
-    const pathLength = spanPath.length;
-
-    const conditions = [
-      eq(evaluators.projectId, projectId),
-      sql`jsonb_array_length(${evaluatorSpanPaths.spanPath}) = ${pathLength}`,
-      sql`${evaluatorSpanPaths.spanPath} = ${JSON.stringify(spanPath)}`,
-    ];
-
-    const result = await db
-      .select({
-        id: evaluators.id,
-        name: evaluators.name,
-        evaluatorType: evaluators.evaluatorType,
-      })
-      .from(evaluators)
-      .innerJoin(evaluatorSpanPaths, eq(evaluators.id, evaluatorSpanPaths.evaluatorId))
-      .where(and(...conditions));
+    const result = await getEvaluatorsBySpanPath({
+      projectId,
+      spanPath: spanPathResult,
+    });
 
     return Response.json(result);
   } catch (error) {
@@ -76,6 +25,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
 
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }

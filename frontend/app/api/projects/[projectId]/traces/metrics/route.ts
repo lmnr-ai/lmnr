@@ -1,47 +1,51 @@
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { getTraceMetricsAction, getTraceStatusMetricsAction } from "@/lib/actions/dashboard";
+import { GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { AggregationFunction, TraceMetric } from "@/lib/clickhouse/types";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+  try {
+    const params = await props.params;
+    const { projectId } = params;
+    const searchParams = req.nextUrl.searchParams;
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+    const metric: TraceMetric | null = searchParams.get("metric") as TraceMetric;
+    const aggregation: AggregationFunction | null = searchParams.get("aggregation") as AggregationFunction;
+    const groupByInterval: GroupByInterval | null = (searchParams.get("groupByInterval") as GroupByInterval) || "hour";
+    const pastHours = searchParams.get("pastHours");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
 
-  return fetcher(
-    `/projects/${projectId}/traces/metrics?` +
-      req.nextUrl.searchParams.toString(),
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${user.apiKey}`
-      }
+    if (!metric || !aggregation) {
+      return NextResponse.json({ error: "Missing required parameters: metric and aggregation" }, { status: 400 });
     }
-  );
-}
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+    const metrics =
+      metric === TraceMetric.TraceStatus
+        ? await getTraceStatusMetricsAction({
+          projectId,
+          groupByInterval,
+          pastHours,
+          startDate,
+          endDate,
+        })
+        : await getTraceMetricsAction({
+          projectId,
+          metric,
+          aggregation,
+          groupByInterval,
+          pastHours,
+          startDate,
+          endDate,
+        });
 
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
-  const body = await req.json();
-  const res = await fetch(
-    `${process.env.BACKEND_URL}/api/v1/projects/${projectId}/traces/metrics`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.apiKey}`
-      },
-      body: JSON.stringify(body)
+    return NextResponse.json(metrics);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
-  );
-
-  return new Response(res.body, { status: res.status });
+    return NextResponse.json({ error: "Failed to get trace metrics" }, { status: 500 });
+  }
 }

@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +22,6 @@ pub enum Cache {
     Redis(RedisCache),
 }
 
-#[async_trait]
 #[enum_dispatch(Cache)]
 pub trait CacheTrait {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>

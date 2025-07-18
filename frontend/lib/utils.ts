@@ -248,7 +248,19 @@ export const isGroupByIntervalAvailable = (
   return false;
 };
 
-export const toFixedIfFloat = (value: number) => (value % 1 === 0 ? value : parseFloat(`${value}`)?.toFixed(3));
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 3,
+});
+
+export const toFixedIfFloat = (value: number) => {
+  if (value % 1 === 0) {
+    // For integers, show with thousand separators
+    return numberFormatter.format(value);
+  } else {
+    // For decimals, format with up to 3 decimal places and thousand separators
+    return numberFormatter.format(parseFloat(value.toFixed(3)));
+  }
+};
 
 export const isValidJsonObject = (value: any): boolean =>
   value !== null && typeof value === "object" && !Array.isArray(value);

@@ -153,6 +153,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
           props: {
+            showWarning: false,
+            showDebug: false,
             speedOption: speedOptions,
             autoPlay: false,
             skipInactive: false,

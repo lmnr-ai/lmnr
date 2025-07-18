@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { compact, get, sortBy, uniq } from "lodash";
-import { Bolt, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -74,6 +74,25 @@ const ToolsList = ({ tools }: { tools: Tool[] }) => {
             ))}
           </div>
         </ScrollArea>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const StructuredOutputSchema = ({ schema }: { schema: string }) => {
+  if (!schema) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="focus:outline-none flex h-6 w-fit items-center border-tool bg-tool/10 gap-1 text-xs font-mono border rounded-md px-2 text-tool hover:bg-tool/20 transition-colors">
+          <Braces size={12} className="min-w-3" />
+          <span>output schema</span>
+          <ChevronDown size={12} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-w-[600px] p-0" align="end" side="bottom">
+        <CodeHighlighter readOnly value={schema} defaultMode="json" className="max-h-[70vh]" />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -211,6 +230,7 @@ const SpanStatsShields = ({
   const cost = attributes["gen_ai.usage.cost"] ?? 0;
   const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(attributes);
+  const structuredOutputSchema = attributes["gen_ai.request.structured_output_schema"];
 
   return (
     <div className="flex flex-wrap flex-col gap-1.5">
@@ -227,7 +247,7 @@ const SpanStatsShields = ({
       >
         {children}
       </StatsShieldsContent>
-      {(model || tools?.length > 0) && (
+      {(model || tools?.length > 0 || structuredOutputSchema) && (
         <div className="flex flex-wrap gap-2">
           {model && (
             <Label className="h-6 w-fit flex items-center text-xs truncate font-mono border rounded-md px-2 border-llm-foreground bg-llm-foreground/10 text-llm-foreground">
@@ -235,6 +255,7 @@ const SpanStatsShields = ({
             </Label>
           )}
           <ToolsList tools={tools} />
+          <StructuredOutputSchema schema={structuredOutputSchema} />
         </div>
       )}
     </div>

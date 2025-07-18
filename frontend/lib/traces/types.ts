@@ -1,11 +1,6 @@
 import { labelClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
 
-export enum LabelSource {
-  AUTO = "AUTO",
-  MANUAL = "MANUAL",
-}
-
 export type LabelClass = {
   evaluatorRunnableGraph: any;
   pipelineVersionId?: string | null;
@@ -79,12 +74,6 @@ export type Trace = {
   userId: string | null;
 };
 
-export type TraceEvent = {
-  id: string;
-  templateName: string;
-  templateId: string;
-};
-
 export type TracePreview = {
   startTime: string;
   endTime: string;
@@ -101,9 +90,8 @@ export type TracePreview = {
 };
 
 export type TraceMetricDatapoint = {
-  // epoch seconds
-  time: number;
-  value: number;
+  time: string;
+  value: number | string;
 };
 
 export type SessionPreview = {
@@ -118,21 +106,4 @@ export type SessionPreview = {
   inputTokenCount: number;
   outputTokenCount: number;
   totalTokenCount: number;
-};
-
-export enum ExportableSpanColumns {
-  SpanId = "spanId",
-  Name = "name",
-  TraceId = "traceId",
-  StartTime = "startTime",
-  EndTime = "endTime",
-  ParentSpanId = "parentSpanId",
-  Input = "input",
-  Output = "output",
-  SpanType = "spanType",
-}
-
-export type TraceSearchResponse = {
-  traceIds: string[];
-  spanIds: string[];
 };

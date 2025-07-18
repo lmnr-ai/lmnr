@@ -7,9 +7,17 @@ export interface Evaluator {
   createdAt: string;
 }
 
+enum EvaluatorScoreSourceType {
+  Evaluator,
+  SDK,
+}
+
 export interface EvaluatorScore {
   id: string;
-  evaluatorId: string;
+  evaluatorId?: string;
+  name: string;
+  source: EvaluatorScoreSourceType;
+  metadata: Record<string, unknown>;
   spanId: string;
   score: number;
   createdAt: string;

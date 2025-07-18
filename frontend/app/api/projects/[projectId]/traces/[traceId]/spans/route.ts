@@ -21,7 +21,14 @@ export async function GET(
 
   const urlParamFilters = (() => {
     try {
-      const rawFilters = req.nextUrl.searchParams.getAll("filter").map((f) => JSON.parse(f) as FilterDef);
+      const rawFilters = req.nextUrl.searchParams.getAll("filter").map((f) => {
+        const urlParamFilter = JSON.parse(f) as FilterDef;
+        return {
+          column: urlParamFilter.column,
+          operator: urlParamFilter.operator,
+          value: urlParamFilter.value,
+        };
+      });
       return Array.isArray(rawFilters) ? rawFilters : [];
     } catch {
       return [];

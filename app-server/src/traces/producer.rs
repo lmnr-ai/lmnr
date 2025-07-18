@@ -23,40 +23,43 @@ pub async fn push_spans_to_queue(
     project_id: Uuid,
     queue: Arc<MessageQueue>,
 ) -> Result<ExportTraceServiceResponse> {
-    for resource_span in request.resource_spans {
-        for scope_span in resource_span.scope_spans {
-            for otel_span in scope_span.spans {
-                let span_id = span_id_to_uuid(&otel_span.span_id);
+    let messages = request
+        .resource_spans
+        .into_iter()
+        .flat_map(|resource_span| {
+            resource_span
+                .scope_spans
+                .into_iter()
+                .flat_map(|scope_span| {
+                    scope_span.spans.into_iter().filter_map(|otel_span| {
+                        let span_id = span_id_to_uuid(&otel_span.span_id);
 
-                let events = otel_span
-                    .events
-                    .clone()
-                    .into_iter()
-                    .map(|event| Event::from_otel(event, span_id, project_id))
-                    .collect::<Vec<Event>>();
+                        let events = otel_span
+                            .events
+                            .clone()
+                            .into_iter()
+                            .map(|event| Event::from_otel(event, span_id, project_id))
+                            .collect::<Vec<Event>>();
 
-                let span = Span::from_otel_span(otel_span);
+                        let span = Span::from_otel_span(otel_span, project_id);
 
-                if !span.should_save() {
-                    continue;
-                }
+                        if span.should_save() {
+                            Some(RabbitMqSpanMessage { span, events })
+                        } else {
+                            None
+                        }
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
 
-                let rabbitmq_span_message = RabbitMqSpanMessage {
-                    project_id,
-                    span,
-                    events,
-                };
-
-                queue
-                    .publish(
-                        &serde_json::to_vec(&rabbitmq_span_message).unwrap(),
-                        OBSERVATIONS_EXCHANGE,
-                        OBSERVATIONS_ROUTING_KEY,
-                    )
-                    .await?;
-            }
-        }
-    }
+    queue
+        .publish(
+            &serde_json::to_vec(&messages).unwrap(),
+            OBSERVATIONS_EXCHANGE,
+            OBSERVATIONS_ROUTING_KEY,
+        )
+        .await?;
 
     let response = ExportTraceServiceResponse {
         partial_success: None,

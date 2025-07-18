@@ -10,7 +10,7 @@ use crate::{
     utils::estimate_json_size,
 };
 
-use super::utils::convert_any_value_to_json_value;
+use crate::traces::utils::convert_any_value_to_json_value;
 
 #[derive(Deserialize, Serialize, Clone, FromRow, Debug)]
 #[serde(rename_all = "camelCase")]

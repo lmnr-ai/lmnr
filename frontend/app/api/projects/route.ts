@@ -10,9 +10,13 @@ export async function POST(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
+  if (!user) {
+    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
   const body = await req.json();
 
-  if (!isCurrentUserMemberOfWorkspace(body.workspaceId)) {
+  if (!(await isCurrentUserMemberOfWorkspace(body.workspaceId))) {
     return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 

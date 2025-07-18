@@ -56,7 +56,11 @@ export const DeleteEvaluationsSchema = z.object({
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
   const { projectId, groupId, pageSize, pageNumber, search, filters } = input;
 
-  const urlParamFilters: FilterDef[] = compact(filters);
+  const urlParamFilters: FilterDef[] = compact(filters).map((filter) => ({
+    column: filter.column,
+    operator: filter.operator,
+    value: filter.value,
+  }));
 
   const baseFilters: SQL[] = [eq(evaluations.projectId, projectId)];
   if (groupId) {

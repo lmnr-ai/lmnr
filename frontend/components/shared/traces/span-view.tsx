@@ -7,13 +7,12 @@ import SpanInput from "@/components/traces/span-input";
 import SpanOutput from "@/components/traces/span-output";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanStatsShields from "@/components/traces/stats-shields";
-import { Badge } from "@/components/ui/badge";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
-import { Span, SpanLabel } from "@/lib/traces/types";
+import { Span } from "@/lib/traces/types";
 import { ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -25,7 +24,6 @@ interface SpanViewProps {
 export function SpanView({ spanId, traceId }: SpanViewProps) {
   const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
   const { data: events = [] } = useSWR<Event[]>(`/api/shared/traces/${traceId}/spans/${spanId}/events`, swrFetcher);
-  const { data: labels = [] } = useSWR<SpanLabel[]>(`/api/shared/traces/${traceId}/spans/${spanId}/labels`, swrFetcher);
 
   const cleanedEvents = useMemo(
     () =>
@@ -71,14 +69,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               </SpanStatsShields>
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
-            <div className="flex flex-wrap w-fit items-center gap-2">
-              {labels.map((l) => (
-                <Badge key={l.id} className="rounded-3xl" variant="outline">
-                  <div style={{ background: l.color }} className={`w-2 h-2 rounded-full`} />
-                  <span className="ml-1.5">{l.name}</span>
-                </Badge>
-              ))}
-            </div>
           </div>
           <TabsList className="border-none text-sm px-4">
             <TabsTrigger value="span-input" className="z-50">
