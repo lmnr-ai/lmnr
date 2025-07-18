@@ -9,7 +9,7 @@ import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, u
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
-import { fetchBrowserSessionRawData, UrlChange } from "@/components/session-player/utils";
+import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProjectContext } from "@/contexts/project-context";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { ReplayController } from "@/lib/replayer";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
@@ -116,32 +115,20 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const getEvents = useCallback(async () => {
       setIsLoading(true);
       try {
-        // Fetch raw data
-        const rawData = await fetchBrowserSessionRawData(
+        const result = await fetchBrowserSessionEvents(
           `/api/projects/${projectId}/browser-sessions/events?traceId=${traceId}`
         );
 
-        // Step 1: Process using our SessionEventProcessor (decompression, CSS cleaning, etc.)
-        const controller = new ReplayController();
-        const basicResult = controller.processRawSessionData(rawData);
-
-        // Step 2: Apply PostHog-style processing (deduplication, chunking) to the basic events
-        controller.loadProcessedEvents(basicResult.events);
-        const optimizedEvents = controller.getSnapshots();
-
-        // Use optimized events but keep original URL changes and timing
-        setEvents(optimizedEvents);
-        setUrlChanges(basicResult.urlChanges);
-        setTotalDuration(basicResult.duration);
-        setStartTime(basicResult.startTime);
+        setEvents(result.events);
+        setUrlChanges(result.urlChanges);
+        setTotalDuration(result.duration);
+        setStartTime(result.startTime);
         currentUrlIndexRef.current = 0;
 
         // Set initial URL
-        if (basicResult.urlChanges.length > 0) {
-          setCurrentUrl(basicResult.urlChanges[0].url);
+        if (result.urlChanges.length > 0) {
+          setCurrentUrl(result.urlChanges[0].url);
         }
-
-        console.log(`Processed ${basicResult.events.length} → ${optimizedEvents.length} events (PostHog optimization)`);
       } catch (e) {
         console.error("Error processing events:", e);
         setEvents([]);
@@ -159,6 +146,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setIsPlaying(false);
         setCurrentTime(0);
         setTotalDuration(0);
+        // Speed is maintained from localStorage, no need to reset
         setCurrentUrl("");
         setUrlChanges([]);
         currentUrlIndexRef.current = 0;
@@ -186,7 +174,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             speed,
           },
         });
-
         const startTime = events[0].timestamp;
         setStartTime(startTime);
 
