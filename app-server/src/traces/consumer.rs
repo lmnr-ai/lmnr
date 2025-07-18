@@ -16,6 +16,7 @@ use crate::{
     cache::Cache,
     ch::{self, spans::CHSpan},
     db::{DB, events::Event, spans::Span, stats::increment_project_spans_bytes_ingested},
+    evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
     mq::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
@@ -240,7 +241,7 @@ async fn process_batch(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
-    _evaluators_queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
 ) {
     let mut trace_attributes_vec = Vec::new();
     let mut span_usage_vec = Vec::new();
@@ -305,8 +306,8 @@ async fn process_batch(
         .zip(spans_ingested_bytes.iter())
         .map(|((span, span_usage), ingested_bytes)| {
             CHSpan::from_db_span(
-                span,
-                span_usage,
+                &span,
+                &span_usage,
                 span.project_id,
                 ingested_bytes.span_bytes + ingested_bytes.events_bytes,
             )
@@ -327,6 +328,7 @@ async fn process_batch(
         });
     }
 
+    // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
         .into_iter()
         .map(|span| StrippedSpan {
@@ -400,42 +402,41 @@ async fn process_batch(
         }
     }
 
-    // FIXME: Temporarily commenting this out, while online evaluators cache is not implemented
-    // for span in stripped_spans {
-    //     // Push to evaluators queue - get evaluators for this span
-    //     match get_evaluators_by_path(&db, span.project_id, span.path).await {
-    //         Ok(evaluators) => {
-    //             if !evaluators.is_empty() {
-    //                 let span_output = span.output.clone().unwrap_or(Value::Null);
+    for span in stripped_spans {
+        // Push to evaluators queue - get evaluators for this span
+        match get_evaluators_by_path(&db, cache.clone(), span.project_id, span.path).await {
+            Ok(evaluators) => {
+                if !evaluators.is_empty() {
+                    let span_output = span.output.clone().unwrap_or(Value::Null);
 
-    //                 for evaluator in evaluators {
-    //                     if let Err(e) = push_to_evaluators_queue(
-    //                         span.span_id,
-    //                         span.project_id,
-    //                         evaluator.id,
-    //                         span_output.clone(),
-    //                         evaluators_queue.clone(),
-    //                     )
-    //                     .await
-    //                     {
-    //                         log::error!(
-    //                             "Failed to push to evaluators queue. span_id [{}], project_id [{}]: {:?}",
-    //                             span.span_id,
-    //                             span.project_id,
-    //                             e
-    //                         );
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         Err(e) => {
-    //             log::error!(
-    //                 "Failed to get evaluators by path. span_id [{}], project_id [{}]: {:?}",
-    //                 span.span_id,
-    //                 span.project_id,
-    //                 e
-    //             );
-    //         }
-    //     }
-    // }
+                    for evaluator in evaluators {
+                        if let Err(e) = push_to_evaluators_queue(
+                            span.span_id,
+                            span.project_id,
+                            evaluator.id,
+                            span_output.clone(),
+                            evaluators_queue.clone(),
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to push to evaluators queue. span_id [{}], project_id [{}]: {:?}",
+                                span.span_id,
+                                span.project_id,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to get evaluators by path. span_id [{}], project_id [{}]: {:?}",
+                    span.span_id,
+                    span.project_id,
+                    e
+                );
+            }
+        }
+    }
 }

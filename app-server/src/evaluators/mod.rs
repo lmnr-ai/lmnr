@@ -3,10 +3,14 @@ use std::{collections::HashMap, sync::Arc};
 use backoff::ExponentialBackoffBuilder;
 
 use crate::{
+    cache::{Cache, CacheTrait, keys::PROJECT_EVALUATORS_BY_PATH_CACHE_KEY},
     ch::evaluator_scores::insert_evaluator_score_ch,
     db::{
         DB,
-        evaluators::{EvaluatorScoreSource, get_evaluator, insert_evaluator_score},
+        evaluators::{
+            Evaluator, EvaluatorScoreSource, get_evaluator, get_evaluators_by_ids_from_db,
+            get_evaluators_by_path_from_db, insert_evaluator_score,
+        },
     },
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
@@ -260,4 +264,31 @@ pub async fn push_to_evaluators_queue(
         .await?;
 
     Ok(())
+}
+
+pub async fn get_evaluators_by_path(
+    db: &DB,
+    cache: Arc<Cache>,
+    project_id: Uuid,
+    path: Vec<String>,
+) -> anyhow::Result<Vec<Evaluator>> {
+    let cache_key = format!(
+        "{PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:{project_id}:{}",
+        serde_json::to_string(&path)?
+    );
+    match cache.get::<Vec<Uuid>>(&cache_key).await {
+        Ok(Some(evaluator_ids)) => {
+            // Get full evaluator objects from database using cached IDs
+            let evaluators =
+                get_evaluators_by_ids_from_db(&db.pool, project_id, evaluator_ids).await?;
+            Ok(evaluators)
+        }
+        _ => {
+            // Get evaluators from database and cache only their IDs
+            let evaluators = get_evaluators_by_path_from_db(&db.pool, project_id, path).await?;
+            let evaluator_ids: Vec<Uuid> = evaluators.iter().map(|e| e.id).collect();
+            cache.insert(&cache_key, evaluator_ids).await?;
+            Ok(evaluators)
+        }
+    }
 }

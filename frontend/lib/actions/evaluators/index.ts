@@ -5,6 +5,9 @@ import { db } from "@/lib/db/drizzle";
 import { evaluators } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
+import { appendEvaluatorIdToCache, removeEvaluatorIdFromCache } from "../evaluator/cache";
+import { getSpanPath } from "../evaluator/span-path";
+
 export interface Evaluator {
   id: string;
   projectId: string;
@@ -79,6 +82,10 @@ export const createEvaluator = async (input: z.infer<typeof CreateEvaluatorSchem
     throw new Error("Failed to create evaluator");
   }
 
+  const spanPath = await getSpanPath({ projectId, evaluatorId: newEvaluator.id });
+  if (spanPath) {
+    await appendEvaluatorIdToCache(projectId, spanPath, newEvaluator.id);
+  }
   return newEvaluator;
 };
 
@@ -86,4 +93,32 @@ export const deleteEvaluators = async (input: z.infer<typeof DeleteEvaluatorsSch
   const { projectId, evaluatorIds } = DeleteEvaluatorsSchema.parse(input);
 
   await db.delete(evaluators).where(and(inArray(evaluators.id, evaluatorIds), eq(evaluators.projectId, projectId)));
+
+  const cacheRemovalPromises = evaluatorIds.map(async (evaluatorId) => {
+    try {
+      const spanPath = await getSpanPath({ projectId, evaluatorId });
+      if (spanPath) {
+        await removeEvaluatorIdFromCache(projectId, spanPath, evaluatorId);
+      }
+      return { evaluatorId, success: true };
+    } catch (error) {
+      return { evaluatorId, success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  const results = await Promise.allSettled(cacheRemovalPromises);
+
+  const failed = results.reduce<string[]>((failedIds, curr, index) => {
+    const evaluatorId = evaluatorIds[index];
+
+    if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
+      return [...failedIds, evaluatorId];
+    }
+
+    return failedIds;
+  }, []);
+
+  if (failed.length > 0) {
+    console.error(`Failed to remove cache for ${failed.length} evaluators:`, failed);
+  }
 };
