@@ -10,10 +10,7 @@ interface ExportJobRequestBody {
   sqlQuery: string;
 }
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<NextResponse> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<NextResponse> {
   const params = await props.params;
   const projectId = params.projectId;
 
@@ -21,10 +18,7 @@ export async function POST(
   const { datasetId, sqlQuery } = body;
 
   if (!datasetId || !sqlQuery?.trim()) {
-    return NextResponse.json(
-      { error: "Invalid request body. datasetId and sqlQuery are required." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid request body. datasetId and sqlQuery are required." }, { status: 400 });
   }
 
   // Verify the dataset exists and belongs to the project
@@ -41,19 +35,13 @@ export async function POST(
   const result = validator.validateAndTranspile(sqlQuery, projectId);
 
   if (!result.valid || !result.sql) {
-    return NextResponse.json(
-      { error: result.error || "Invalid SQL query" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: result.error || "Invalid SQL query" }, { status: 400 });
   }
 
   try {
     const dataExporterUrl = process.env.DATA_EXPORTER_URL;
     if (!dataExporterUrl) {
-      return NextResponse.json(
-        { error: "Data exporter service is not configured" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Data exporter service is not configured" }, { status: 500 });
     }
 
     // Make the POST call to the external data exporter service
@@ -68,7 +56,8 @@ export async function POST(
         project_id: projectId,
         dataset_id: datasetId,
         config: {
-          batch_size: 25000,
+          batch_size: 1000,
+          clickhouse_batch_size: 1000,
           max_retries: 3,
         },
       }),
