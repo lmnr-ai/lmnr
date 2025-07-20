@@ -23,7 +23,6 @@ export const getDatapoint = async (projectId: string, datapointId: string): Prom
     SELECT 
       id,
       dataset_id,
-      dataset_name,
       project_id,
       created_at,
       data,
@@ -226,9 +225,9 @@ export const createDatapoints = async (
     dataset_id: datasetId,
     project_id: projectId,
     created_at: dp.createdAt,
-    data: dp.data ? (typeof dp.data === 'string' ? dp.data : JSON.stringify(dp.data)) : '<null>',
-    target: dp.target ? (typeof dp.target === 'string' ? dp.target : JSON.stringify(dp.target)) : '<null>',
-    metadata: dp.metadata ? (typeof dp.metadata === 'string' ? dp.metadata : JSON.stringify(dp.metadata)) : '<null>',
+    data: dp.data ? JSON.stringify(dp.data) : '<null>',
+    target: dp.target ? JSON.stringify(dp.target) : '<null>',
+    metadata: dp.metadata ? JSON.stringify(dp.metadata) : '<null>',
   }));
 
   // Use batch insert similar to Rust implementation
