@@ -8,6 +8,11 @@ import { SQLValidator } from "@/lib/sql/transpile";
 interface ExportJobRequestBody {
   datasetId: string;
   sqlQuery: string;
+  config?: {
+    batch_size?: number;
+    clickhouse_batch_size?: number;
+    max_retries?: number;
+  };
 }
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<NextResponse> {
@@ -15,7 +20,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
   const projectId = params.projectId;
 
   const body: ExportJobRequestBody = await req.json();
-  const { datasetId, sqlQuery } = body;
+  const { datasetId, sqlQuery, config } = body;
 
   if (!datasetId || !sqlQuery?.trim()) {
     return NextResponse.json({ error: "Invalid request body. datasetId and sqlQuery are required." }, { status: 400 });
@@ -44,6 +49,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       return NextResponse.json({ error: "Data exporter service is not configured" }, { status: 500 });
     }
 
+    // Merge provided config with defaults
+    const exportConfig = {
+      batch_size: config?.batch_size ?? 1000,
+      clickhouse_batch_size: config?.clickhouse_batch_size ?? 1000,
+      max_retries: config?.max_retries ?? 3,
+    };
+
     // Make the POST call to the external data exporter service
     const exportResponse = await fetch(dataExporterUrl, {
       method: "POST",
@@ -55,11 +67,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
         args: result.args,
         project_id: projectId,
         dataset_id: datasetId,
-        config: {
-          batch_size: 1000,
-          clickhouse_batch_size: 1000,
-          max_retries: 3,
-        },
+        config: exportConfig,
       }),
     });
 
