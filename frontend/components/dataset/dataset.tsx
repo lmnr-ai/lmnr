@@ -89,26 +89,12 @@ export default function Dataset({ dataset }: DatasetProps) {
     swrFetcher
   );
 
-  const { datapoints, totalCount } = useMemo<{ datapoints: Datapoint[]; totalCount: number }>(
+  const { datapoints, totalCount } = useMemo<{ datapoints: Datapoint[] | undefined; totalCount: number }>(
     () => ({
-      datapoints: data?.items || [],
+      datapoints: data?.items || undefined,
       totalCount: data?.totalCount || 0,
     }),
     [data?.items, data?.totalCount]
-  );
-
-  const datapointsToLabel = useMemo(
-    () =>
-      datapoints.map((point, index) => ({
-        createdAt: new Date(Date.now() + index).toISOString(),
-        payload: {
-          data: tryParse(point, "data"),
-          target: tryParse(point, "target"),
-          metadata: tryParse(point, "metadata"),
-        },
-        metadata: { source: "datapoint", id: point.id, datasetId: dataset.id },
-      })),
-    [datapoints, dataset.id]
   );
 
   const pageCount = Math.ceil(totalCount / pageSize);
@@ -202,7 +188,7 @@ export default function Dataset({ dataset }: DatasetProps) {
           />
           <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints.map(({ id }) => id)}>
+          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
               <Pen className="size-3 min-w-3" />
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>

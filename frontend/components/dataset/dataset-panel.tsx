@@ -1,6 +1,6 @@
 import { ChevronsRight, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
@@ -20,8 +20,6 @@ interface DatasetPanelProps {
   onClose: () => void;
 }
 
-const AUTO_SAVE_TIMEOUT_MS = 750;
-
 export default function DatasetPanel({ datasetId, datapointId, onClose }: DatasetPanelProps) {
   const { projectId } = useParams();
   const { data: datapoint, isLoading } = useSWR<Datapoint>(
@@ -38,11 +36,24 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
   const { toast } = useToast();
   const autoSaveFuncTimeoutId = useRef<NodeJS.Timeout | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
-  const [isFirstRender, setIsFirstRender] = useState<boolean>(true);
 
-  const saveChanges = async () => {
+  // Track original values to detect changes
+  const originalDataRef = useRef<Record<string, any> | null>(null);
+  const originalTargetRef = useRef<Record<string, any> | null>(null);
+  const originalMetadataRef = useRef<Record<string, any>>({});
+
+  // Check if current values differ from original values
+  const hasChanges = useCallback(() => {
+    return (
+      JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
+      JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
+      JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
+    );
+  }, [newData, newTarget, newMetadata]);
+
+  const saveChanges = useCallback(async () => {
     // don't do anything if no changes or invalid jsons
-    if (!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
+    if (!hasChanges() || !isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
       return;
     }
     setSaving(true);
@@ -65,19 +76,12 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
       });
       return;
     }
-  };
 
-  useEffect(() => {
-    if (isFirstRender) {
-      setIsFirstRender(false);
-      return;
-    }
-    if (autoSaveFuncTimeoutId.current) {
-      clearTimeout(autoSaveFuncTimeoutId.current);
-    }
-
-    autoSaveFuncTimeoutId.current = setTimeout(async () => await saveChanges(), AUTO_SAVE_TIMEOUT_MS);
-  }, [newData, newTarget, newMetadata]);
+    // Update original values after successful save
+    originalDataRef.current = newData;
+    originalTargetRef.current = newTarget;
+    originalMetadataRef.current = newMetadata;
+  }, [hasChanges, isValidJsonData, isValidJsonTarget, isValidJsonMetadata, newData, newTarget, newMetadata, projectId, datasetId, datapointId, toast]);
 
   useEffect(() => {
     if (!datapoint) return;
@@ -86,7 +90,39 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     if (datapoint?.metadata) {
       setNewMetadata(datapoint?.metadata);
     }
+
+    // Update original values when datapoint changes
+    originalDataRef.current = datapoint.data;
+    originalTargetRef.current = datapoint.target;
+    originalMetadataRef.current = datapoint?.metadata ?? {};
   }, [datapoint]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    // Skip if datapoint is not loaded yet or if values are invalid
+    if (!datapoint || !isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
+      return;
+    }
+
+    // Clear existing timeout
+    if (autoSaveFuncTimeoutId.current) {
+      clearTimeout(autoSaveFuncTimeoutId.current);
+    }
+
+    // Only set timeout if there are changes
+    if (hasChanges()) {
+      autoSaveFuncTimeoutId.current = setTimeout(() => {
+        saveChanges();
+      }, 500);
+    }
+
+    // Cleanup function
+    return () => {
+      if (autoSaveFuncTimeoutId.current) {
+        clearTimeout(autoSaveFuncTimeoutId.current);
+      }
+    };
+  }, [newData, newTarget, newMetadata, hasChanges, saveChanges, datapoint, isValidJsonData, isValidJsonTarget, isValidJsonMetadata]);
 
   if (isLoading) {
     return (
@@ -105,8 +141,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           <Button
             variant="ghost"
             className="px-1"
-            onClick={async () => {
-              await saveChanges();
+            onClick={() => {
               onClose();
             }}
           >

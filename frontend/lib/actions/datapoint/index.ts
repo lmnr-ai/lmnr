@@ -1,15 +1,14 @@
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
-
-import { db } from "@/lib/db/drizzle";
-import { datasetDatapoints } from "@/lib/db/migrations/schema";
+import { getDatapoint as getClickHouseDatapoint, updateDatapoint as updateClickHouseDatapoint } from "@/lib/clickhouse/datapoints";
 
 export const GetDatapointSchema = z.object({
+  projectId: z.string(),
   datapointId: z.string(),
   datasetId: z.string(),
 });
 
 export const UpdateDatapointSchema = z.object({
+  projectId: z.string(),
   datapointId: z.string(),
   datasetId: z.string(),
   data: z.any(),
@@ -17,39 +16,32 @@ export const UpdateDatapointSchema = z.object({
   metadata: z.record(z.string(), z.any()),
 });
 
-export const UpdateDatapointRequestSchema = UpdateDatapointSchema.omit({ datapointId: true, datasetId: true });
+export const UpdateDatapointRequestSchema = UpdateDatapointSchema.omit({ projectId: true, datapointId: true, datasetId: true });
 
 export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
-  const { datapointId, datasetId } = GetDatapointSchema.parse(input);
+  const { projectId, datapointId, datasetId } = GetDatapointSchema.parse(input);
 
-  const datapoint = await db.query.datasetDatapoints.findFirst({
-    where: and(eq(datasetDatapoints.id, datapointId), eq(datasetDatapoints.datasetId, datasetId)),
-  });
+  // Get datapoint from ClickHouse
+  const datapoint = await getClickHouseDatapoint(projectId, datapointId);
 
   if (!datapoint) {
     throw new Error("Datapoint not found");
   }
 
-  return datapoint;
+  // Transform ClickHouse data to match expected format
+  return {
+    id: datapoint.id,
+    datasetId: datapoint.dataset_id,
+    createdAt: datapoint.created_at,
+    data: JSON.parse(datapoint.data),
+    target: datapoint.target ? JSON.parse(datapoint.target) : null,
+    metadata: JSON.parse(datapoint.metadata),
+  };
 }
 
 export async function updateDatapoint(input: z.infer<typeof UpdateDatapointSchema>) {
-  const { datapointId, datasetId, data, target, metadata } = UpdateDatapointSchema.parse(input);
+  const { projectId, datapointId, datasetId, data, target, metadata } = UpdateDatapointSchema.parse(input);
 
-  const [updatedDatapoint] = await db
-    .update(datasetDatapoints)
-    .set({
-      data,
-      target,
-      metadata,
-    })
-
-    .where(and(eq(datasetDatapoints.id, datapointId), eq(datasetDatapoints.datasetId, datasetId)))
-    .returning();
-
-  if (!updatedDatapoint) {
-    throw new Error("Datapoint not found");
-  }
-
-  return updatedDatapoint;
+  // Update in ClickHouse
+  await updateClickHouseDatapoint(projectId, datapointId, data, target, metadata);
 }

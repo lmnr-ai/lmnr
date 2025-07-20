@@ -8,6 +8,7 @@ export async function GET(
 
   try {
     const datapoint = await getDatapoint({
+      projectId: params.projectId,
       datapointId: params.datapointId,
       datasetId: params.datasetId,
     });
@@ -42,7 +43,8 @@ export async function POST(
 
     const { data, target, metadata } = result.data;
 
-    const updatedDatapoint = await updateDatapoint({
+    await updateDatapoint({
+      projectId: params.projectId,
       datapointId: params.datapointId,
       datasetId: params.datasetId,
       data,
@@ -50,7 +52,7 @@ export async function POST(
       metadata,
     });
 
-    return new Response(JSON.stringify(updatedDatapoint), {
+    return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
