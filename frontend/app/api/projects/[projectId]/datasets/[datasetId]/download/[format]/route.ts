@@ -1,8 +1,9 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { json2csv } from 'json-2-csv';
 
+import { getAllDatapointsForDataset } from '@/lib/clickhouse/datapoints';
 import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { datasets } from '@/lib/db/migrations/schema';
 import { DownloadFormat } from '@/lib/types';
 
 export async function GET(
@@ -36,15 +37,15 @@ export async function GET(
     return Response.json({ error: 'Dataset not found' }, { status: 404 });
   }
 
-  const datapoints = await db.query.datasetDatapoints.findMany({
-    where: eq(datasetDatapoints.datasetId, datasetId),
-    orderBy: [asc(datasetDatapoints.indexInBatch)],
-    columns: {
-      data: true,
-      target: true,
-      metadata: true
-    }
-  });
+  // Get datapoints from ClickHouse
+  const chDatapoints = await getAllDatapointsForDataset(projectId, datasetId);
+
+  // Transform ClickHouse data to match expected format
+  const datapoints = chDatapoints.map(dp => ({
+    data: JSON.parse(dp.data),
+    target: dp.target ? JSON.parse(dp.target) : null,
+    metadata: JSON.parse(dp.metadata),
+  }));
 
   // if the format is csv, convert the datapoints to csv
   if (format === 'csv') {

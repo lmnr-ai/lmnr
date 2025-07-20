@@ -11,7 +11,7 @@ export async function POST(
   try {
     const body = await req.json();
 
-    const result = PushDatapointsToQueueSchema.omit({ datasetId: true }).safeParse(body);
+    const result = PushDatapointsToQueueSchema.omit({ projectId: true, datasetId: true }).safeParse(body);
     if (!result.success) {
       return NextResponse.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
     }
@@ -20,6 +20,7 @@ export async function POST(
 
     const queueItems = await pushDatapointsToQueue({
       datapointIds,
+      projectId: params.projectId,
       datasetId: params.datasetId,
       queueId,
     });

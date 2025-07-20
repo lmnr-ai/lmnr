@@ -1,9 +1,11 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{HttpResponse, get, web};
 use serde::Deserialize;
 
 use crate::{
-    db::{datapoints, datasets, project_api_keys::ProjectApiKey, DB},
-    routes::{types::ResponseResult, PaginatedResponse},
+    ch::datapoints as ch_datapoints,
+    datasets::datapoints::Datapoint,
+    db::{self, DB, project_api_keys::ProjectApiKey},
+    routes::{PaginatedResponse, types::ResponseResult},
 };
 
 #[derive(Deserialize)]
@@ -17,27 +19,36 @@ pub struct GetDatapointsRequestParams {
 async fn get_datapoints(
     params: web::Query<GetDatapointsRequestParams>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
     let query = params.into_inner();
 
-    let dataset = datasets::get_dataset_by_name(&db.pool, &query.name, project_id).await?;
+    // Still get dataset metadata from PostgreSQL
+    let dataset_id =
+        db::datasets::get_dataset_id_by_name(&db.pool, &query.name, project_id).await?;
 
-    let Some(dataset) = dataset else {
-        return Ok(HttpResponse::NotFound().body(format!("dataset {} not found", &query.name)));
-    };
-
-    let datapoints = datapoints::get_full_datapoints(
-        &db.pool,
-        dataset.id,
+    // Get datapoints from ClickHouse
+    let ch_datapoints = ch_datapoints::get_datapoints_paginated(
+        clickhouse.clone(),
+        project_id,
+        dataset_id,
         Some(query.limit),
         Some(query.offset),
     )
     .await?;
 
-    let total_count = datapoints::count_datapoints(&db.pool, dataset.id).await?;
+    // Get total count from ClickHouse
+    let total_count = ch_datapoints::count_datapoints(clickhouse, project_id, dataset_id).await?;
+
+    // Convert CHDatapoints to Datapoints
+    let datapoints: Vec<Datapoint> = ch_datapoints
+        .into_iter()
+        .map(|ch_dp| ch_dp.into())
+        .collect();
 
     let response = PaginatedResponse {
         total_count,
