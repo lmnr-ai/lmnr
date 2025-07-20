@@ -43,13 +43,11 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
   const originalMetadataRef = useRef<Record<string, any>>({});
 
   // Check if current values differ from original values
-  const hasChanges = useCallback(() => {
-    return (
-      JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
+  const hasChanges = useCallback(() => (
+    JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
       JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
       JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
-    );
-  }, [newData, newTarget, newMetadata]);
+  ), [newData, newTarget, newMetadata]);
 
   const saveChanges = useCallback(async () => {
     // don't do anything if no changes or invalid jsons

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+
 import { getDatapoint as getClickHouseDatapoint, updateDatapoint as updateClickHouseDatapoint } from "@/lib/clickhouse/datapoints";
 
 export const GetDatapointSchema = z.object({

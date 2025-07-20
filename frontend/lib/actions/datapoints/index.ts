@@ -9,8 +9,8 @@ import {
   getDatapoints as getClickHouseDatapoints,
   getDatapointsByIds,
 } from "@/lib/clickhouse/datapoints";
-import { datapointToSpan } from "@/lib/db/migrations/schema";
 import { db } from "@/lib/db/drizzle";
+import { datapointToSpan } from "@/lib/db/migrations/schema";
 
 export const ListDatapointsSchema = z.object({
   projectId: z.string(),
