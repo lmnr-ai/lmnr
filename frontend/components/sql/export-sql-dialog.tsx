@@ -19,7 +19,12 @@ import ExportJobDialog from "@/components/sql/export-job-dialog";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -29,8 +34,7 @@ interface ExportResultsDialogProps {
   sqlQuery: string;
 }
 
-// Original export dialog component (internal use only)
-function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<ExportResultsDialogProps, 'results'>>) {
+function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<ExportResultsDialogProps, "results">>) {
   const { projectId } = useParams();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -244,12 +248,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
   );
 }
 
-// Main export dropdown component
 export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWithChildren<ExportResultsDialogProps>) {
-  if (!results || results.length === 0) {
-    return null;
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
