@@ -66,6 +66,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
         data: newData,
         target: newTarget,
         metadata: newMetadata,
+        createdAt: datapoint?.createdAt,
       }),
     });
     setSaving(false);

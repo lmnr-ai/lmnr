@@ -244,30 +244,25 @@ export const createDatapoints = async (
 export const updateDatapoint = async (
   projectId: string,
   datapointId: string,
+  datasetId: string,
   data: any,
   target: any,
-  metadata: any
+  metadata: any,
+  createdAt: string
 ): Promise<void> => {
-  // First, get the existing datapoint to preserve non-updated fields
-  const existingDatapoint = await getDatapoint(projectId, datapointId);
-
-  if (!existingDatapoint) {
-    throw new Error(`Datapoint with id ${datapointId} not found`);
-  }
-
   // Delete the existing datapoint
   await deleteDatapoints(projectId, [datapointId]);
 
   // Insert the new datapoint with updated data
   await createDatapoints(
     projectId,
-    existingDatapoint.dataset_id,
+    datasetId,
     [{
       id: datapointId, // Keep the same ID
       data: data,
       target: target,
       metadata: metadata,
-      createdAt: existingDatapoint.created_at, // Preserve original creation time
+      createdAt: createdAt, // Use the passed creation time
     }]
   );
 };

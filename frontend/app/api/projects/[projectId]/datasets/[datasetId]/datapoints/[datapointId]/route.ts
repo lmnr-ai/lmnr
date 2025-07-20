@@ -41,7 +41,7 @@ export async function POST(
       return new Response("Invalid request body", { status: 400 });
     }
 
-    const { data, target, metadata } = result.data;
+    const { data, target, metadata, createdAt } = result.data;
 
     await updateDatapoint({
       projectId: params.projectId,
@@ -50,6 +50,7 @@ export async function POST(
       data,
       target,
       metadata,
+      createdAt,
     });
 
     return new Response(JSON.stringify({ success: true }), {

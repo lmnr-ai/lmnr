@@ -14,6 +14,7 @@ export const UpdateDatapointSchema = z.object({
   data: z.any(),
   target: z.any().nullable(),
   metadata: z.record(z.string(), z.any()),
+  createdAt: z.string(),
 });
 
 export const UpdateDatapointRequestSchema = UpdateDatapointSchema.omit({ projectId: true, datapointId: true, datasetId: true });
@@ -40,8 +41,8 @@ export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
 }
 
 export async function updateDatapoint(input: z.infer<typeof UpdateDatapointSchema>) {
-  const { projectId, datapointId, datasetId, data, target, metadata } = UpdateDatapointSchema.parse(input);
+  const { projectId, datapointId, datasetId, data, target, metadata, createdAt } = UpdateDatapointSchema.parse(input);
 
   // Update in ClickHouse
-  await updateClickHouseDatapoint(projectId, datapointId, data, target, metadata);
+  await updateClickHouseDatapoint(projectId, datapointId, datasetId, data, target, metadata, createdAt);
 }
