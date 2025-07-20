@@ -29,10 +29,7 @@ import {
 import { db } from "@/lib/db/drizzle";
 
 import { getExpressionASTs } from "./expression";
-import {
-  applyAutoJoinRules,
-  qualifyColumnReferences,
-} from "./join";
+import { applyAutoJoinRules, qualifyColumnReferences } from "./join";
 import { applyProjectIdToStatement, findMainTable } from "./project-id-filter";
 import { replaceJsonbFields } from "./replace";
 import { ALLOWED_TABLES, Arg, TranspiledQuery } from "./types";
@@ -59,7 +56,7 @@ class SQLValidator {
   public validateAndTranspile(sqlQuery: string, projectId: string): TranspiledQuery {
     try {
       // Parse the query
-      const ast = this.parser.astify(sqlQuery, { database: 'Postgresql' });
+      const ast = this.parser.astify(sqlQuery, { database: "Postgresql" });
 
       // Validate query type (only SELECT allowed)
       if (!this.isSelectQuery(ast)) {
@@ -67,21 +64,22 @@ class SQLValidator {
           valid: false,
           sql: null,
           args: [],
-          error: 'Only SELECT queries are allowed'
+          error: "Only SELECT queries are allowed",
         };
       }
       const statements = Array.isArray(ast) ? ast : [ast];
       const withAliases = statements
-        .filter(statement => statement.type === 'select')
-        .flatMap(statement => (statement as Select).with?.map(withItem => withItem.name.value));
-      this.withAliases = new Set(withAliases.filter(alias => alias !== undefined));
+        .filter((statement) => statement.type === "select")
+        .flatMap((statement) => (statement as Select).with?.map((withItem) => withItem.name.value));
+      this.withAliases = new Set(withAliases.filter((alias) => alias !== undefined));
 
       try {
-        this.parser.whiteListCheck(sqlQuery,
-          [`(select)::(.*)::(${Array.from(this.allowedTables.union(this.withAliases)).join('|')})`],
+        this.parser.whiteListCheck(
+          sqlQuery,
+          [`(select)::(.*)::(${Array.from(this.allowedTables.union(this.withAliases)).join("|")})`],
           {
-            database: 'Postgresql',
-            type: 'table',
+            database: "Postgresql",
+            type: "table",
           }
         );
       } catch (error) {
@@ -91,9 +89,12 @@ class SQLValidator {
           valid: false,
           sql: null,
           args: [],
-          error: 'Access denied. Only SELECT queries on tables ' +
-            `${Array.from(this.allowedTables).map(table => `'${table}'`).join(', ')}` +
-            ' are allowed.'
+          error:
+            "Access denied. Only SELECT queries on tables " +
+            `${Array.from(this.allowedTables)
+              .map((table) => `'${table}'`)
+              .join(", ")}` +
+            " are allowed.",
         };
       }
       // Transpile the query
@@ -110,7 +111,7 @@ class SQLValidator {
         valid: false,
         sql: null,
         args: [],
-        error: `SQL syntax error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `SQL syntax error: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }
   }
@@ -123,9 +124,9 @@ class SQLValidator {
   private isSelectQuery(ast: AST | AST[]): boolean {
     // Check if it's a single query and it's a SELECT
     if (Array.isArray(ast)) {
-      return ast.every(statement => statement.type === 'select');
+      return ast.every((statement) => statement.type === "select");
     }
-    return ast.type === 'select';
+    return ast.type === "select";
   }
 
   /**
@@ -134,7 +135,10 @@ class SQLValidator {
    * @param {string} projectId - The user's project ID
    * @returns {Object} - { sql: string, params: Arg[] }
    */
-  private transpileQuery(ast: AST | AST[], projectId: string): {
+  private transpileQuery(
+    ast: AST | AST[],
+    projectId: string
+  ): {
     sql: string;
     args: Arg[];
     warnings?: string[];
@@ -143,7 +147,7 @@ class SQLValidator {
     const statements = Array.isArray(ast) ? ast : [ast];
 
     for (const statement of statements) {
-      if (statement.type !== 'select') continue;
+      if (statement.type !== "select") continue;
 
       statement.with = [...(statement.with ?? []), ...ADDITIONAL_WITH_CTES];
 
@@ -151,27 +155,33 @@ class SQLValidator {
 
       if (statement.limit == null || statement.limit.value.length === 0) {
         statement.limit = {
-          seperator: '',
-          value: [{
-            type: 'number',
-            value: 100,
-          }],
+          seperator: "",
+          value: [
+            {
+              type: "number",
+              value: 100,
+            },
+          ],
         };
-        warnings.push('A limit of 100 was applied to the query for performance reasons. Add an explicit limit to see more results.');
+        warnings.push(
+          "A limit of 100 was applied to the query for performance reasons. Add an explicit limit to see more results."
+        );
       }
     }
 
     // Convert AST back to SQL
     const sql = this.parser.sqlify(ast, {
-      database: 'Postgresql',
+      database: "Postgresql",
     });
 
     return {
       sql: sql,
-      args: [{
-        name: 'project_id',
-        value: projectId
-      }],
+      args: [
+        {
+          name: "project_id",
+          value: projectId,
+        },
+      ],
       warnings,
     };
   }
@@ -182,14 +192,14 @@ class SQLValidator {
    * @param {Set<AST>} processedNodes - Set of already processed nodes to prevent infinite recursion
    */
   private processSubqueries(node: AST, processedNodes: Set<AST>): AST {
-    if (!node || typeof node !== 'object') return node;
+    if (!node || typeof node !== "object") return node;
 
     // Prevent processing the same node twice
     if (processedNodes.has(node)) return node;
     processedNodes.add(node);
 
     // Handle subqueries in WHERE clauses
-    if (node.type === 'select') {
+    if (node.type === "select") {
       const newProcessedNodes = new Set(processedNodes);
       newProcessedNodes.add(node);
 
@@ -213,8 +223,8 @@ class SQLValidator {
       });
 
       if (node.groupby?.columns) {
-        node.groupby.columns = node.groupby.columns.map((column: ColumnRef) =>
-          replaceJsonbFields(column, fromTables, [], false) as ExpressionValue as ColumnRef
+        node.groupby.columns = node.groupby.columns.map(
+          (column: ColumnRef) => replaceJsonbFields(column, fromTables, [], false) as ExpressionValue as ColumnRef
         );
       }
 
@@ -247,7 +257,7 @@ class SQLValidator {
 
       if (node.where) {
         node.where = qualifyColumnReferences(node.where, fromTables);
-        if (node.where.type === 'binary_expr') {
+        if (node.where.type === "binary_expr") {
           const leftASTs = getExpressionASTs((node.where as Binary).left);
           const rightASTs = getExpressionASTs((node.where as Binary).right);
           for (const leftAST of leftASTs) {
@@ -261,7 +271,7 @@ class SQLValidator {
             left: replaceJsonbFields(node.where.left, fromTables, [], false) as ExpressionValue,
             right: replaceJsonbFields(node.where.right, fromTables, [], false) as ExpressionValue,
           };
-        } else if (node.where.type === 'function') {
+        } else if (node.where.type === "function") {
           const args = (node.where as NodeSqlFunction).args;
           if (args) {
             const argASTs = getExpressionASTs(args);
@@ -272,7 +282,7 @@ class SQLValidator {
               ...node.where,
               args: {
                 ...args,
-                value: args.value.map(item => replaceJsonbFields(item, fromTables, [], false) as ExpressionValue),
+                value: args.value.map((item) => replaceJsonbFields(item, fromTables, [], false) as ExpressionValue),
               },
             };
           }
@@ -280,10 +290,11 @@ class SQLValidator {
       }
 
       if (node.groupby) {
-        node.groupby.columns = node.groupby.columns?.map((column: ColumnRef) => {
-          const qualifiedColumn = qualifyColumnReferences(column, fromTables);
-          return replaceJsonbFields(qualifiedColumn, fromTables, [], false) as ExpressionValue as ColumnRef;
-        }) ?? [];
+        node.groupby.columns =
+          node.groupby.columns?.map((column: ColumnRef) => {
+            const qualifiedColumn = qualifyColumnReferences(column, fromTables);
+            return replaceJsonbFields(qualifiedColumn, fromTables, [], false) as ExpressionValue as ColumnRef;
+          }) ?? [];
       }
 
       if (node.orderby) {
@@ -305,7 +316,7 @@ class SQLValidator {
     } else if (node as unknown as TableExpr) {
       return this.processSubqueries((node as unknown as TableExpr).expr.ast, processedNodes);
     } else {
-      throw new Error('Only select queries are supported');
+      throw new Error("Only select queries are supported");
     }
   }
 }
@@ -329,7 +340,7 @@ async function executeSafeQuery(
   const result = validator.validateAndTranspile(sqlQuery, projectId);
 
   if (!result.valid || !result.sql) {
-    throw new Error(result.error ?? 'Unknown error');
+    throw new Error(result.error ?? "Unknown error");
   }
 
   try {
@@ -337,7 +348,7 @@ async function executeSafeQuery(
     const prepared = new PostgresJsPreparedQuery(
       db.$client,
       result.sql,
-      result.args.map(arg => arg.value),
+      result.args.map((arg) => arg.value),
       logger,
       undefined,
       false
@@ -348,11 +359,8 @@ async function executeSafeQuery(
       warnings: result.warnings,
     };
   } catch (error) {
-    throw new Error(`Database error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Database error: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
-export {
-  executeSafeQuery,
-  SQLValidator
-};
+export { executeSafeQuery, SQLValidator };

@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
-import { Database, FileJson2, Loader2, PlayIcon, TableProperties, X } from "lucide-react";
+import { FileJson2, Loader2, PlayIcon, TableProperties, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -150,12 +150,7 @@ export default function SQLEditor() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 py-2">
-              <ExportSqlDialog results={results}>
-                <Button variant="secondary" className="w-fit px-2">
-                  <Database className="size-3.5 mr-2" />
-                  Export to Dataset
-                </Button>
-              </ExportSqlDialog>
+              <ExportSqlDialog results={results} sqlQuery={query} />
               <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto w-fit px-2">
                 {isLoading ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />
