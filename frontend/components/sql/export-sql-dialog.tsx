@@ -26,10 +26,11 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportResultsDialogProps {
   results: Record<string, any>[] | null;
+  sqlQuery: string;
 }
 
 // Original export dialog component (internal use only)
-function ExportDatasetDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {
+function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<ExportResultsDialogProps, 'results'>>) {
   const { projectId } = useParams();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -244,7 +245,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<ExportResu
 }
 
 // Main export dropdown component
-export default function ExportSqlDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {
+export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWithChildren<ExportResultsDialogProps>) {
   if (!results || results.length === 0) {
     return null;
   }
@@ -267,7 +268,7 @@ export default function ExportSqlDialog({ results, children }: PropsWithChildren
             Export to Dataset
           </DropdownMenuItem>
         </ExportDatasetDialog>
-        <ExportJobDialog results={results}>
+        <ExportJobDialog sqlQuery={sqlQuery}>
           <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
             <Database className="w-4 h-4 mr-2" />
             Export to Dataset as Job

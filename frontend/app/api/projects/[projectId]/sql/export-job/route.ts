@@ -6,7 +6,7 @@ import { datasets } from "@/lib/db/migrations/schema";
 
 interface ExportJobRequestBody {
   datasetId: string;
-  results: Record<string, any>[];
+  sqlQuery: string;
 }
 
 export async function POST(
@@ -17,11 +17,11 @@ export async function POST(
   const projectId = params.projectId;
 
   const body: ExportJobRequestBody = await req.json();
-  const { datasetId, results } = body;
+  const { datasetId, sqlQuery } = body;
 
-  if (!datasetId || !results || !Array.isArray(results) || results.length === 0) {
+  if (!datasetId || !sqlQuery?.trim()) {
     return NextResponse.json(
-      { error: "Invalid request body. datasetId and results array are required." },
+      { error: "Invalid request body. datasetId and sqlQuery are required." },
       { status: 400 }
     );
   }
@@ -51,10 +51,13 @@ export async function POST(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        projectId,
-        datasetId,
-        datasetName: dataset.name,
-        results,
+        project_id: projectId,
+        dataset_id: datasetId,
+        sql_query: sqlQuery,
+        config: {
+          batch_size: 25000,
+          max_retries: 3,
+        },
       }),
     });
 

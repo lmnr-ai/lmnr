@@ -150,7 +150,7 @@ export default function SQLEditor() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 py-2">
-              <ExportSqlDialog results={results} />
+              <ExportSqlDialog results={results} sqlQuery={query} />
               <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto w-fit px-2">
                 {isLoading ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />

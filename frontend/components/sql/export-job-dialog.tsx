@@ -12,10 +12,10 @@ import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportJobDialogProps {
-    results: Record<string, any>[] | null;
+  sqlQuery: string;
 }
 
-export default function ExportJobDialog({ results, children }: PropsWithChildren<ExportJobDialogProps>) {
+export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildren<ExportJobDialogProps>) {
   const { projectId } = useParams();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -30,16 +30,11 @@ export default function ExportJobDialog({ results, children }: PropsWithChildren
   };
 
   const exportToDatasetAsJob = async () => {
-    if (!selectedDataset || !results || results.length === 0) return;
+    if (!selectedDataset || !sqlQuery?.trim()) return;
 
     setIsExporting(true);
 
     try {
-      const dataExporterUrl = process.env.NEXT_PUBLIC_DATA_EXPORTER_URL;
-      if (!dataExporterUrl) {
-        throw new Error("Data exporter service is not configured");
-      }
-
       const res = await fetch(`/api/projects/${projectId}/sql/export-job`, {
         method: "POST",
         headers: {
@@ -47,7 +42,7 @@ export default function ExportJobDialog({ results, children }: PropsWithChildren
         },
         body: JSON.stringify({
           datasetId: selectedDataset.id,
-          results: results,
+          sqlQuery: sqlQuery,
         }),
       });
 
@@ -61,9 +56,9 @@ export default function ExportJobDialog({ results, children }: PropsWithChildren
         title: `Export job started`,
         description: (
           <span>
-                        Successfully started export job for {results.length} results to dataset.{" "}
+            Successfully started export job to process SQL query.{" "}
             <Link className="text-primary" href={`/project/${projectId}/datasets/${selectedDataset.id}`}>
-                            Go to dataset.
+              Go to dataset.
             </Link>
           </span>
         ),
@@ -81,7 +76,7 @@ export default function ExportJobDialog({ results, children }: PropsWithChildren
     }
   };
 
-  if (!results || results.length === 0) {
+  if (!sqlQuery?.trim()) {
     return null;
   }
 
@@ -96,13 +91,13 @@ export default function ExportJobDialog({ results, children }: PropsWithChildren
             disabled={isExporting || !selectedDataset}
           >
             {isExporting && <Loader2 className="mr-2 animate-spin w-4 h-4" />}
-                        Start Export Job
+            Start Export Job
           </Button>
         </DialogHeader>
         <div className="flex flex-1 flex-col gap-4">
           <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />
           <p className="text-sm text-muted-foreground">
-                        This will start a background job to export {results.length} results to the selected dataset.
+            This will start a background job to execute your SQL query and export the results to the selected dataset.
           </p>
         </div>
       </DialogContent>
