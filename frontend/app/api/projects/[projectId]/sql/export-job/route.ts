@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
+import { SQLValidator } from "@/lib/sql/transpile";
 
 interface ExportJobRequestBody {
   datasetId: string;
@@ -35,6 +36,17 @@ export async function POST(
     return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
   }
 
+  // Validate and transpile the SQL query
+  const validator = new SQLValidator();
+  const result = validator.validateAndTranspile(sqlQuery, projectId);
+
+  if (!result.valid || !result.sql) {
+    return NextResponse.json(
+      { error: result.error || "Invalid SQL query" },
+      { status: 400 }
+    );
+  }
+
   try {
     const dataExporterUrl = process.env.DATA_EXPORTER_URL;
     if (!dataExporterUrl) {
@@ -51,9 +63,10 @@ export async function POST(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        sql: result.sql,
+        args: result.args,
         project_id: projectId,
         dataset_id: datasetId,
-        sql_query: sqlQuery,
         config: {
           batch_size: 25000,
           max_retries: 3,
@@ -72,6 +85,7 @@ export async function POST(
       success: true,
       message: "Export job started successfully",
       jobId: exportResult.jobId || null,
+      warnings: result.warnings,
     });
   } catch (error) {
     console.error("Error starting export job:", error);
