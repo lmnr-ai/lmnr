@@ -49,7 +49,7 @@ export async function GET(
 
   // if the format is csv, convert the datapoints to csv
   if (format === 'csv') {
-    const csv = await json2csv(datapoints, {
+    const csv = json2csv(datapoints, {
       emptyFieldValue: '',
       expandNestedObjects: false
     });
