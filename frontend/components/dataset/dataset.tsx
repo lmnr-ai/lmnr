@@ -21,6 +21,7 @@ import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import MonoWithCopy from "../ui/mono-with-copy";
 import DatasetPanel from "./dataset-panel";
+import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
 
 interface DatasetProps {
@@ -183,6 +184,7 @@ export default function Dataset({ dataset }: DatasetProps) {
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
             </Badge>
           </AddToLabelingQueuePopover>
+          <DownloadParquetDialog datasetId={dataset.id} />
         </div>
       </div>
       <div className="flex-grow">
