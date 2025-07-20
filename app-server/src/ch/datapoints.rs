@@ -33,9 +33,7 @@ impl From<CHDatapoint> for Datapoint {
         };
         let metadata: HashMap<String, serde_json::Value> =
             serde_json::from_str(&ch_datapoint.metadata).unwrap_or_default();
-        println!("metadata: {:?}", metadata);
-        println!("data: {:?}", data);
-        println!("target: {:?}", target);
+
         Datapoint {
             id: ch_datapoint.id,
             dataset_id: ch_datapoint.dataset_id,
