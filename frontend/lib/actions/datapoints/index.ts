@@ -9,8 +9,6 @@ import {
   getDatapoints as getClickHouseDatapoints,
   getDatapointsByIds,
 } from "@/lib/clickhouse/datapoints";
-import { db } from "@/lib/db/drizzle";
-import { datapointToSpan } from "@/lib/db/migrations/schema";
 
 export const ListDatapointsSchema = z.object({
   projectId: z.string(),
@@ -67,18 +65,8 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
     datasetId,
   });
 
-  // Transform ClickHouse data to match expected format
-  const transformedData = datapointsData.map((dp) => ({
-    id: dp.id,
-    datasetId: dp.dataset_id,
-    createdAt: dp.created_at,
-    data: dp.data,
-    target: dp.target,
-    metadata: dp.metadata,
-  }));
-
   return {
-    items: transformedData,
+    items: datapointsData,
     totalCount,
     pageNumber,
     pageSize,
@@ -131,20 +119,6 @@ export async function createDatapoints(input: z.infer<typeof CreateDatapointsInp
     datasetId,
     datapointsWithIds
   );
-
-  // Create span-to-datapoint relationships in PostgreSQL if needed
-  if (sourceSpanId && datapointsWithIds.length > 0) {
-    await db
-      .insert(datapointToSpan)
-      .values(
-        datapointsWithIds.map((datapoint: any) => ({
-          spanId: sourceSpanId,
-          datapointId: datapoint.id,
-          projectId,
-        }))
-      )
-      .returning();
-  }
 
   return datapointsWithIds[0];
 }

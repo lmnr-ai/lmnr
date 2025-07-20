@@ -20,16 +20,33 @@ interface DatasetPanelProps {
   onClose: () => void;
 }
 
+// Helper function to safely parse JSON strings
+const safeParseJSON = (jsonString: string | null | undefined, fallback: any = null) => {
+  if (!jsonString) return fallback;
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.error("Failed to parse JSON:", e);
+    return fallback;
+  }
+};
+
 export default function DatasetPanel({ datasetId, datapointId, onClose }: DatasetPanelProps) {
   const { projectId } = useParams();
   const { data: datapoint, isLoading } = useSWR<Datapoint>(
     `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
     swrFetcher
   );
-  // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data ?? null);
-  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(datapoint?.target ?? null);
-  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(datapoint?.metadata ?? {});
+
+  const [newData, setNewData] = useState<Record<string, any> | null>(
+    datapoint ? safeParseJSON(datapoint.data, null) : null
+  );
+  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
+    datapoint ? safeParseJSON(datapoint.target, null) : null
+  );
+  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
+    datapoint ? safeParseJSON(datapoint.metadata, {}) : {}
+  );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
@@ -45,8 +62,8 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
   // Check if current values differ from original values
   const hasChanges = useCallback(() => (
     JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
-      JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
-      JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
+    JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
+    JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
   ), [newData, newTarget, newMetadata]);
 
   const saveChanges = useCallback(async () => {
@@ -84,16 +101,20 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
 
   useEffect(() => {
     if (!datapoint) return;
-    setNewData(datapoint.data);
-    setNewTarget(datapoint.target);
-    if (datapoint?.metadata) {
-      setNewMetadata(datapoint?.metadata);
-    }
+
+    // Parse JSON strings and set state
+    const parsedData = safeParseJSON(datapoint.data, null);
+    const parsedTarget = safeParseJSON(datapoint.target, null);
+    const parsedMetadata = safeParseJSON(datapoint.metadata, {});
+
+    setNewData(parsedData);
+    setNewTarget(parsedTarget);
+    setNewMetadata(parsedMetadata);
 
     // Update original values when datapoint changes
-    originalDataRef.current = datapoint.data;
-    originalTargetRef.current = datapoint.target;
-    originalMetadataRef.current = datapoint?.metadata ?? {};
+    originalDataRef.current = parsedData;
+    originalTargetRef.current = parsedTarget;
+    originalMetadataRef.current = parsedMetadata;
   }, [datapoint]);
 
   // Debounced auto-save effect
@@ -140,9 +161,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           <Button
             variant="ghost"
             className="px-1"
-            onClick={() => {
-              onClose();
-            }}
+            onClick={onClose}
           >
             <ChevronsRight />
           </Button>
@@ -159,7 +178,11 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
             <AddToLabelingQueuePopover
               data={[
                 {
-                  payload: { data: datapoint.data, target: datapoint.target, metadata: datapoint.metadata },
+                  payload: {
+                    data: safeParseJSON(datapoint.data, {}),
+                    target: safeParseJSON(datapoint.target, {}),
+                    metadata: safeParseJSON(datapoint.metadata, {})
+                  },
                   metadata: { source: "datapoint", id: datapoint.id, datasetId: datasetId },
                 },
               ]}

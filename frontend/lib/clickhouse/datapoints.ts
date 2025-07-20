@@ -10,27 +10,28 @@ export interface DatapointSearchParams {
 
 export interface DatapointResult {
   id: string;
-  dataset_id: string;
-  project_id: string;
-  created_at: string;
+  datasetId: string;
+  projectId: string;
+  createdAt: string;
   data: string;
   target: string;
   metadata: string;
 }
 
-export const getDatapoint = async (projectId: string, datapointId: string): Promise<DatapointResult | null> => {
+export const getDatapoint = async (projectId: string, datapointId: string, datasetId: string): Promise<DatapointResult | null> => {
   const query = `
     SELECT 
       id,
-      dataset_id,
-      project_id,
-      created_at,
+      dataset_id as datasetId,
+      project_id as projectId,
+      created_at as createdAt,
       data,
       target,
       metadata
     FROM datapoints
     WHERE project_id = {projectId: UUID}
     AND id = {datapointId: UUID}
+    AND dataset_id = {datasetId: UUID}
     LIMIT 1
   `;
 
@@ -39,6 +40,7 @@ export const getDatapoint = async (projectId: string, datapointId: string): Prom
     format: "JSONEachRow",
     query_params: {
       projectId,
+      datasetId,
       datapointId,
     },
   });
@@ -59,9 +61,9 @@ export const getDatapointsByIds = async (
   let query = `
     SELECT 
       id,
-      dataset_id,
-      project_id,
-      created_at,
+      dataset_id as datasetId,
+      project_id as projectId,
+      created_at as createdAt,
       data,
       target,
       metadata
@@ -96,10 +98,9 @@ export const getAllDatapointsForDataset = async (
   const query = `
     SELECT 
       id,
-      dataset_id,
-      dataset_name,
-      project_id,
-      created_at,
+      dataset_id as datasetId,
+      project_id as projectId,
+      created_at as createdAt,
       data,
       target,
       metadata
@@ -127,9 +128,9 @@ export const getDatapoints = async (params: DatapointSearchParams): Promise<Data
   let baseQuery = `
     SELECT 
       id,
-      dataset_id,
-      project_id,
-      created_at,
+      dataset_id as datasetId,
+      project_id as projectId,
+      created_at as createdAt,
       substring(data, 1, 100) as data,
       substring(target, 1, 100) as target,
       metadata

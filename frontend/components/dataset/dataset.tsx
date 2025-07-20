@@ -1,7 +1,6 @@
 "use client";
 
 import { ColumnDef, Row } from "@tanstack/react-table";
-import { get } from "lodash";
 import { Pen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
@@ -36,30 +35,21 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
   {
-    accessorFn: (row) => JSON.stringify(row.data),
+    accessorFn: (row) => row.data,
     header: "Data",
     size: 200,
   },
   {
-    accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
+    accessorFn: (row) => row.target,
     header: "Target",
     size: 200,
   },
   {
-    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata) : "-"),
+    accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
   },
 ];
-
-const tryParse = (obj: any, key: string) => {
-  try {
-    const value = get(obj, key);
-    return typeof value === "string" ? JSON.parse(value) : value;
-  } catch {
-    return get(obj, key);
-  }
-};
 
 export default function Dataset({ dataset }: DatasetProps) {
   const router = useRouter();

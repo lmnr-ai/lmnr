@@ -23,22 +23,13 @@ export const UpdateDatapointRequestSchema = UpdateDatapointSchema.omit({ project
 export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
   const { projectId, datapointId, datasetId } = GetDatapointSchema.parse(input);
 
-  // Get datapoint from ClickHouse
-  const datapoint = await getClickHouseDatapoint(projectId, datapointId);
+  const datapoint = await getClickHouseDatapoint(projectId, datapointId, datasetId);
 
   if (!datapoint) {
     throw new Error("Datapoint not found");
   }
 
-  // Transform ClickHouse data to match expected format
-  return {
-    id: datapoint.id,
-    datasetId: datapoint.dataset_id,
-    createdAt: datapoint.created_at,
-    data: JSON.parse(datapoint.data),
-    target: datapoint.target ? JSON.parse(datapoint.target) : null,
-    metadata: JSON.parse(datapoint.metadata),
-  };
+  return datapoint;
 }
 
 export async function updateDatapoint(input: z.infer<typeof UpdateDatapointSchema>) {
