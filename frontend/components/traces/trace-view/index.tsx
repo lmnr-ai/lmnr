@@ -1,8 +1,8 @@
+import { RealtimeChannel } from "@supabase/supabase-js";
 import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { RealtimeChannel } from "@supabase/supabase-js";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
