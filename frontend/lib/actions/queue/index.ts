@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
-import { datasetDatapoints, labelingQueueItems } from "@/lib/db/migrations/schema";
+import { labelingQueueItems } from "@/lib/db/migrations/schema";
 
 export const MoveQueueSchema = z.object({
   queueId: z.string(),
@@ -42,9 +43,10 @@ export const RemoveQueueItemSchema = z.object({
   data: z.any(),
   target: z.any(),
   metadata: z.any(),
+  projectId: z.string(),
 });
 
-export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({ queueId: true });
+export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({ queueId: true, projectId: true });
 
 export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
   const { queueId, refDate, direction } = MoveQueueSchema.parse(input);
@@ -133,25 +135,27 @@ export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>)
 }
 
 export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchema>) {
-  const { queueId, id, skip, datasetId, data, target, metadata } = RemoveQueueItemSchema.parse(input);
+  const { queueId, id, skip, datasetId, data, target, metadata, projectId } = RemoveQueueItemSchema.parse(input);
 
   if (skip) {
     await db
       .delete(labelingQueueItems)
       .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
   } else if (datasetId) {
-    await db.transaction(async (tx) => {
-      await tx.insert(datasetDatapoints).values({
+    await db
+      .delete(labelingQueueItems)
+      .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
+
+    await createDatapoints(projectId, datasetId, [
+      {
+        id,
         data,
         target,
         metadata,
-        datasetId,
-      });
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
-      await tx
-        .delete(labelingQueueItems)
-        .where(and(eq(labelingQueueItems.queueId, queueId), eq(labelingQueueItems.id, id)));
-    });
   } else {
     throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
   }

@@ -12,8 +12,8 @@ export interface DatasetInfo extends Dataset {
 export interface Datapoint {
   id: string;
   createdAt: string;
-  data: Record<string, any>;
-  target: Record<string, any>;
-  metadata: Record<string, any> | null;
+  data: string;
+  target: string;
+  metadata: string;
   indexedOn: string | null;
 }
