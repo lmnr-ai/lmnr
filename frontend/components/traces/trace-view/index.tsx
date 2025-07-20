@@ -2,6 +2,7 @@ import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -193,10 +194,13 @@ export default function TraceView({
         saveSpanPathToStorage(spanPath);
       }
 
-      // Update URL with spanId
-      const params = new URLSearchParams(searchParams);
-      params.set("spanId", span.spanId);
-      router.push(`${pathName}?${params.toString()}`);
+      // Update URL with spanId only if it's different to prevent unnecessary navigation
+      const currentSpanId = searchParams.get("spanId");
+      if (currentSpanId !== span.spanId) {
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", span.spanId);
+        router.push(`${pathName}?${params.toString()}`);
+      }
     },
     [saveSpanPathToStorage, searchParams, router, pathName]
   );
@@ -222,11 +226,24 @@ export default function TraceView({
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
         const results = await response.json();
-        const spans = enrichSpansWithPending(results);
+        const fetchedSpans = enrichSpansWithPending(results);
 
-        setSpans(spans);
+        // Merge with current spans to preserve realtime additions
+        let mergedSpans: Span[] = [];
+        setSpans((currentSpans) => {
+          mergedSpans = [...fetchedSpans];
 
-        const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
+          // Add any realtime spans that aren't in the fetched results
+          for (const currentSpan of currentSpans) {
+            if (!mergedSpans.some(span => span.spanId === currentSpan.spanId)) {
+              mergedSpans.push(currentSpan);
+            }
+          }
+
+          return enrichSpansWithPending(mergedSpans);
+        });
+
+        const spanIdFromUrl = mergedSpans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
         let spanToSelect: Span | null = null;
 
         if (spanIdFromUrl) {
@@ -237,7 +254,7 @@ export default function TraceView({
           const savedPath = loadSpanPathFromStorage();
           if (savedPath) {
             spanToSelect =
-              spans.find((span: Span) => {
+              mergedSpans.find((span: Span) => {
                 const spanPath = span.attributes?.["lmnr.span.path"];
                 return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
               }) || null;
@@ -245,8 +262,8 @@ export default function TraceView({
         }
 
         // Fallback to first span
-        if (!spanToSelect && spans.length > 0) {
-          spanToSelect = spans[0];
+        if (!spanToSelect && mergedSpans.length > 0) {
+          spanToSelect = mergedSpans[0];
         }
 
         if (spanToSelect) {
@@ -258,7 +275,7 @@ export default function TraceView({
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual, router, pathName]
+    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual]
   );
 
   useEffect(() => {
@@ -279,7 +296,7 @@ export default function TraceView({
       setShowBrowserSession(false);
       setSearchEnabled(false);
     };
-  }, [traceId, projectId, router, filters]);
+  }, [traceId, projectId, filters, fetchSpans]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -350,10 +367,16 @@ export default function TraceView({
   });
 
   const { supabaseClient: supabase } = useUserContext();
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!supabase || !traceId) {
       return;
+    }
+
+    // Clean up existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
     }
 
     const channel = supabase
@@ -402,7 +425,8 @@ export default function TraceView({
             setSpans((currentSpans) => {
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
-              if (index !== -1 && newSpans[index].pending) {
+              if (index !== -1) {
+                // Always replace existing span, regardless of pending status
                 newSpans[index] = rtEventSpan;
               } else {
                 newSpans.push(rtEventSpan);
@@ -415,9 +439,13 @@ export default function TraceView({
       )
       .subscribe();
 
-    // Remove only this specific channel on cleanup
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [supabase, traceId]);
 
@@ -438,7 +466,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
