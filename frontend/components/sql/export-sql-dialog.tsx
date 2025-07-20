@@ -9,15 +9,17 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Database, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 
 import { CategoryDropZone, ColumnCategory } from "@/components/sql/dnd-components";
+import ExportJobDialog from "@/components/sql/export-job-dialog";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -26,7 +28,8 @@ interface ExportResultsDialogProps {
   results: Record<string, any>[] | null;
 }
 
-export default function ExportSqlDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {
+// Original export dialog component (internal use only)
+function ExportDatasetDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {
   const { projectId } = useParams();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -237,5 +240,40 @@ export default function ExportSqlDialog({ results, children }: PropsWithChildren
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Main export dropdown component
+export default function ExportSqlDialog({ results, children }: PropsWithChildren<ExportResultsDialogProps>) {
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {children || (
+          <Button variant="secondary" className="w-fit px-2">
+            <Database className="size-3.5 mr-2" />
+            Export to Dataset
+            <ChevronDown className="size-3.5 ml-2" />
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <ExportDatasetDialog results={results}>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Database className="w-4 h-4 mr-2" />
+            Export to Dataset
+          </DropdownMenuItem>
+        </ExportDatasetDialog>
+        <ExportJobDialog results={results}>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Database className="w-4 h-4 mr-2" />
+            Export to Dataset as Job
+          </DropdownMenuItem>
+        </ExportJobDialog>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
