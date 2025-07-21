@@ -158,7 +158,8 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(db::DB::new(pool));
 
     // === 3. Message queues ===
-    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ) {
+    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
+    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
         let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
         runtime_handle.block_on(async {
             let publisher_conn = Arc::new(
