@@ -318,5 +318,5 @@ export const getDurationString = (startTime: string, endTime: string) => {
 export const getDuration = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
-  return end.getTime() - start.getTime();
+  return Math.max(end.getTime() - start.getTime(), 0);
 };
