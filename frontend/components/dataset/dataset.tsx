@@ -23,6 +23,7 @@ import MonoWithCopy from "../ui/mono-with-copy";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
+import AddDatapointsDialog from "./add-datapoints-dialog";
 
 interface DatasetProps {
   dataset: DatasetType;
@@ -176,7 +177,7 @@ export default function Dataset({ dataset }: DatasetProps) {
             filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, "_")}-${dataset.id}`}
             variant="outline"
           />
-          {/* <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} /> */}
+          <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
           <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
