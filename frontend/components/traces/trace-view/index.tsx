@@ -226,24 +226,11 @@ export default function TraceView({
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
         const results = await response.json();
-        const fetchedSpans = enrichSpansWithPending(results);
+        const spans = enrichSpansWithPending(results);
 
-        // Merge with current spans to preserve realtime additions
-        let mergedSpans: Span[] = [];
-        setSpans((currentSpans) => {
-          mergedSpans = [...fetchedSpans];
+        setSpans(spans);
 
-          // Add any realtime spans that aren't in the fetched results
-          for (const currentSpan of currentSpans) {
-            if (!mergedSpans.some(span => span.spanId === currentSpan.spanId)) {
-              mergedSpans.push(currentSpan);
-            }
-          }
-
-          return enrichSpansWithPending(mergedSpans);
-        });
-
-        const spanIdFromUrl = mergedSpans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
+        const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
         let spanToSelect: Span | null = null;
 
         if (spanIdFromUrl) {
@@ -254,7 +241,7 @@ export default function TraceView({
           const savedPath = loadSpanPathFromStorage();
           if (savedPath) {
             spanToSelect =
-              mergedSpans.find((span: Span) => {
+              spans.find((span: Span) => {
                 const spanPath = span.attributes?.["lmnr.span.path"];
                 return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
               }) || null;
@@ -262,8 +249,8 @@ export default function TraceView({
         }
 
         // Fallback to first span
-        if (!spanToSelect && mergedSpans.length > 0) {
-          spanToSelect = mergedSpans[0];
+        if (!spanToSelect && spans.length > 0) {
+          spanToSelect = spans[0];
         }
 
         if (spanToSelect) {
@@ -296,7 +283,7 @@ export default function TraceView({
       setShowBrowserSession(false);
       setSearchEnabled(false);
     };
-  }, [traceId, projectId, filters, fetchSpans]);
+  }, [traceId, projectId, filters]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -379,7 +366,7 @@ export default function TraceView({
       supabase.removeChannel(channelRef.current);
     }
 
-    const channel = supabase
+    channelRef.current = supabase
       .channel(`trace-updates-${traceId}`)
       .on(
         "postgres_changes",
@@ -438,8 +425,6 @@ export default function TraceView({
         }
       )
       .subscribe();
-
-    channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
