@@ -32,7 +32,6 @@ pub async fn get_llm_usage_for_span(
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) -> SpanUsage {
-    dbg!(&attributes);
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
     let total_tokens = input_tokens.total() + output_tokens;
@@ -44,16 +43,16 @@ pub async fn get_llm_usage_for_span(
     let model_name = response_model.clone().or(attributes.request_model());
     let provider_name = attributes.provider_name();
 
-    if input_cost.is_some() || output_cost.is_some() {
+    if input_cost.is_some_and(|c| c > 0.0) || output_cost.is_some_and(|c| c > 0.0) {
         // do not proceed with cost estimation if
         // either input or output cost is reported manually
         return SpanUsage {
             input_tokens: input_tokens.total(),
             output_tokens,
             total_tokens,
-            input_cost: input_cost.unwrap(),
-            output_cost: output_cost.unwrap(),
-            total_cost: input_cost.unwrap() + output_cost.unwrap(),
+            input_cost: input_cost.unwrap_or(0.0),
+            output_cost: output_cost.unwrap_or(0.0),
+            total_cost: input_cost.unwrap_or(0.0) + output_cost.unwrap_or(0.0),
             response_model: response_model.clone(),
             request_model: request_model.clone(),
             provider_name,
