@@ -921,17 +921,6 @@
         "additional_prices": {}
       },
       {
-        "id": "b3f2a15a-8c87-421b-921f-616ceca419c2",
-        "created_at": "2025-07-10 12:57:21.296838+00",
-        "updated_at": "2025-07-10 12:57:21.296838+00",
-        "provider": "azure ",
-        "model": "gpt-4.1-mini",
-        "input_price_per_million": 0.4,
-        "output_price_per_million": 1.6,
-        "input_cached_price_per_million": 0.1,
-        "additional_prices": {}
-      },
-      {
         "id": "1427ff14-26d4-4723-92d9-dbfd939b1ea3",
         "created_at": "2024-10-16 18:18:03.452359+00",
         "updated_at": "2024-10-16 18:18:03.452359+00",
