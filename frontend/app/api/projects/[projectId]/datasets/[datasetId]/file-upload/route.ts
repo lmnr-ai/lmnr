@@ -83,13 +83,7 @@ export async function POST(
           for (const [key, value] of Object.entries(record)) {
             if (typeof value === 'string' && value.trim()) {
               try {
-                // Try to parse as JSON if it looks like JSON
-                if ((value.startsWith('{') && value.endsWith('}')) ||
-                  (value.startsWith('[') && value.endsWith(']'))) {
-                  parsedRecord[key] = JSON.parse(value);
-                } else {
-                  parsedRecord[key] = value;
-                }
+                parsedRecord[key] = JSON.parse(value);
               } catch {
                 // If parsing fails, keep as string
                 parsedRecord[key] = value;
