@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
+import { v4 as uuidv4 } from 'uuid';
 
 import { createDatapoints } from '@/lib/clickhouse/datapoints';
 

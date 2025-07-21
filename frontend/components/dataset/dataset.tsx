@@ -20,10 +20,10 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import MonoWithCopy from "../ui/mono-with-copy";
+import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
-import AddDatapointsDialog from "./add-datapoints-dialog";
 
 interface DatasetProps {
   dataset: DatasetType;
