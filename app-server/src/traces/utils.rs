@@ -1,4 +1,7 @@
-use std::{env, str::FromStr, sync::Arc};
+use std::{
+    env,
+    sync::{Arc, LazyLock},
+};
 
 use backoff::ExponentialBackoffBuilder;
 use indexmap::IndexMap;
@@ -25,6 +28,9 @@ use super::{
     spans::{SpanAttributes, SpanUsage},
 };
 
+static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
+
 /// Calculate usage for both default and LLM spans
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
@@ -33,16 +39,35 @@ pub async fn get_llm_usage_for_span(
     cache: Arc<Cache>,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
-    let output_tokens = attributes.completion_tokens();
+    let output_tokens = attributes.output_tokens();
     let total_tokens = input_tokens.total() + output_tokens;
 
-    let mut input_cost: f64 = 0.0;
-    let mut output_cost: f64 = 0.0;
-    let mut total_cost: f64 = 0.0;
-
+    let input_cost = attributes.input_cost();
+    let output_cost = attributes.output_cost();
     let response_model = attributes.response_model();
-    let model_name = response_model.or(attributes.request_model());
+    let request_model = attributes.request_model();
+    let model_name = response_model.clone().or(attributes.request_model());
     let provider_name = attributes.provider_name();
+
+    if input_cost.is_some_and(|c| c > 0.0) || output_cost.is_some_and(|c| c > 0.0) {
+        // do not proceed with cost estimation if
+        // either input or output cost is reported manually
+        return SpanUsage {
+            input_tokens: input_tokens.total(),
+            output_tokens,
+            total_tokens,
+            input_cost: input_cost.unwrap_or(0.0),
+            output_cost: output_cost.unwrap_or(0.0),
+            total_cost: input_cost.unwrap_or(0.0) + output_cost.unwrap_or(0.0),
+            response_model: response_model.clone(),
+            request_model: request_model.clone(),
+            provider_name,
+        };
+    }
+
+    let mut input_cost = input_cost.unwrap_or(0.0);
+    let mut output_cost = output_cost.unwrap_or(0.0);
+    let mut total_cost = input_cost + output_cost;
 
     if let Some(model) = model_name.as_deref() {
         if let Some(provider) = &provider_name {
@@ -70,8 +95,8 @@ pub async fn get_llm_usage_for_span(
         input_cost,
         output_cost,
         total_cost,
-        response_model: attributes.response_model().clone(),
-        request_model: attributes.request_model().clone(),
+        response_model,
+        request_model,
         provider_name,
     }
 }
@@ -135,9 +160,6 @@ pub async fn record_spans_batch<'a>(
             })
     };
 
-    // Starting with 0.5 second delay, delay multiplies by random factor between 1 and 2
-    // up to 1 minute and until the total elapsed time is 5 minutes
-    // https://docs.rs/backoff/latest/backoff/default/index.html
     let exponential_backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_multiplier(1.5)
@@ -202,8 +224,7 @@ pub async fn record_labels_to_db_and_ch(
 }
 
 pub fn skip_span_name(name: &str) -> bool {
-    let re = Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap();
-    re.is_match(name)
+    SKIP_SPAN_NAME_REGEX.is_match(name)
 }
 
 fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
@@ -350,7 +371,7 @@ pub fn convert_any_value_to_json_value(
             json!(map)
         }
         opentelemetry_proto_common_v1::any_value::Value::BytesValue(val) => String::from_utf8(val)
-            .map(|s| serde_json::Value::from_str(&s).unwrap_or(serde_json::Value::String(s)))
+            .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
             .unwrap_or_default(),
     }
 }

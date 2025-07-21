@@ -167,7 +167,7 @@ impl SpanAttributes {
         }
     }
 
-    pub fn completion_tokens(&mut self) -> i64 {
+    pub fn output_tokens(&mut self) -> i64 {
         if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_TOKENS) {
             n.as_i64().unwrap_or(0)
         } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_COMPLETION_TOKENS) {
@@ -178,6 +178,22 @@ impl SpanAttributes {
             n
         } else {
             0
+        }
+    }
+
+    pub fn input_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_INPUT_COST) {
+            n.as_f64()
+        } else {
+            None
+        }
+    }
+
+    pub fn output_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_COST) {
+            n.as_f64()
+        } else {
+            None
         }
     }
 
