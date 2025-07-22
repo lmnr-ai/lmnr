@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
+import { v4 } from "uuid";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ const deleteTemplate = async (projectId: string, id: string) => {
   });
 };
 
-const QueryItem = ({ template }: { template: SQLTemplate }) => {
+const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDelete: () => void }) => {
   const { id, projectId } = useParams();
   const router = useRouter();
   const { mutate } = useSWRConfig();
@@ -82,24 +83,6 @@ const QueryItem = ({ template }: { template: SQLTemplate }) => {
     }
   }, [editTemplate, mutate, projectId, setEditTemplate, template, toast]);
 
-  const handleDelete = useCallback(async () => {
-    try {
-      await mutate<SQLTemplate[]>(
-        () => deleteTemplate(projectId as string, template.id),
-        (currentData) => {
-          if (!currentData) return [];
-
-          return currentData.filter((q) => q.id !== template.id);
-        },
-        { revalidate: false, populateCache: true, rollbackOnError: true }
-      );
-    } catch (e) {
-      if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
-      }
-    }
-  }, [mutate, projectId, template.id, toast]);
-
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
@@ -141,7 +124,6 @@ const QueryItem = ({ template }: { template: SQLTemplate }) => {
         ) : (
           <div className="text-sm font-medium truncate">{template.name}</div>
         )}
-        <div className="text-xs text-muted-foreground">{new Date(template.createdAt).toLocaleDateString()}</div>
       </div>
       {!editing && (
         <DropdownMenu>
@@ -150,13 +132,15 @@ const QueryItem = ({ template }: { template: SQLTemplate }) => {
               variant="ghost"
               size="sm"
               className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 focus-visible:ring-0"
+              onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">
             <DropdownMenuItem
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setEditTemplate(template);
               }}
               className="cursor-pointer"
@@ -164,7 +148,13 @@ const QueryItem = ({ template }: { template: SQLTemplate }) => {
               <Edit className="h-3 w-3 mr-2" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDelete} className="cursor-pointer text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              className="cursor-pointer text-destructive focus:text-destructive"
+            >
               <Trash2 className="h-3 w-3 mr-2" />
               Delete
             </DropdownMenuItem>
@@ -177,14 +167,70 @@ const QueryItem = ({ template }: { template: SQLTemplate }) => {
 
 const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading: boolean }) => {
   const { projectId, id } = useParams();
+  const { mutate } = useSWRConfig();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const setCurrentTemplate = useSqlEditorStore((state) => state.setCurrentTemplate);
+
+  const handleCreate = useCallback(async () => {
+    const optimisticData: SQLTemplate = {
+      id: v4(),
+      name: "Untitled Query",
+      query: "",
+      createdAt: new Date().toISOString(),
+      projectId: projectId as string,
+    };
+
+    await mutate<SQLTemplate[]>(
+      `/api/projects/${projectId}/sql/templates`,
+      (currentData = []) => [optimisticData, ...currentData],
+      {
+        revalidate: false,
+      }
+    );
+
+    router.push(`/project/${projectId}/sql/${optimisticData.id}`);
+
+    await fetch(`/api/projects/${projectId}/sql/templates`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: optimisticData.id,
+        name: `Untitled Query`,
+        query: optimisticData.query,
+      }),
+    });
+  }, [mutate, projectId, router]);
+
+  const handleDelete = useCallback(
+    async (template: SQLTemplate) => {
+      try {
+        router.push(`/project/${projectId}/sql`);
+
+        await mutate<SQLTemplate[]>(
+          () => deleteTemplate(projectId as string, template.id),
+          (currentData = []) => currentData.filter((q) => q.id !== template.id),
+          {
+            revalidate: false,
+            populateCache: true,
+            rollbackOnError: true,
+          }
+        );
+      } catch (e) {
+        if (e instanceof Error) {
+          toast({ variant: "destructive", title: "Error", description: e.message });
+        }
+      }
+    },
+    [mutate, projectId, router, toast]
+  );
 
   useEffect(() => {
     if (id) {
       setCurrentTemplate(templates?.find((q) => q.id === id));
-    } else {
-      setCurrentTemplate(undefined);
     }
   }, [id, templates, setCurrentTemplate]);
 
@@ -196,7 +242,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
           Beta
         </Badge>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>
-          <Button variant="outline" className="size-6 p-0 lg:flex">
+          <Button onClick={handleCreate} variant="outline" className="size-6 p-0 lg:flex">
             <Plus className="w-4 h-4" />
           </Button>
         </Link>
@@ -213,11 +259,11 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
             ))}
           </div>
         ) : isEmpty(templates) ? (
-          <div className="text-center text-sm">No queries created yet</div>
+          <div className="text-center text-sm text-secondary-foreground">No queries created yet</div>
         ) : (
           <div className="space-y-2">
             {templates.map((template) => (
-              <QueryItem key={template.id} template={template} />
+              <QueryItem handleDelete={() => handleDelete(template)} key={template.id} template={template} />
             ))}
           </div>
         )}

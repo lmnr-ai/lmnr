@@ -41,7 +41,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()(
       onCurrentTemplateChange: (e) => {
         const current = get().currentTemplate;
         if (current) {
-          set({ currentTemplate: { ...current, name: e } });
+          set({ currentTemplate: { ...current, query: e } });
         }
       },
     }),

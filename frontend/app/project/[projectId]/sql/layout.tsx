@@ -8,7 +8,7 @@ interface SqlLayoutProps {
 
 const SqlLayout = ({ children }: SqlLayoutProps) => (
   <>
-    <Header path="sql" />
+    <Header path="SQL Editor" />
     {children}
   </>
 );

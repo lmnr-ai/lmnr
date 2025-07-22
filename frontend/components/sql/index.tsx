@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import React from "react";
 import useSWR from "swr";
 
-import SQLEditor from "@/components/sql/editor";
+import SQLEditorPanel from "@/components/sql/editor-panel";
 import Sidebar from "@/components/sql/sidebar";
 import { SQLTemplate } from "@/components/sql/sql-editor-store";
 import { swrFetcher } from "@/lib/utils";
@@ -16,8 +16,8 @@ const SQLTemplates = () => {
   return (
     <div className="flex flex-1 divide-x">
       <Sidebar isLoading={isLoading} templates={data} />
-      <div className="flex-1">
-        <SQLEditor />
+      <div className="flex flex-1 overflow-hidden">
+        <SQLEditorPanel />
       </div>
     </div>
   );

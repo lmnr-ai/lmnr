@@ -8,14 +8,14 @@ export const CreateSqlTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   name: z.string().min(1, "Template name is required"),
-  query: z.string().min(1, "SQL query is required"),
+  query: z.string(),
 });
 
 export const UpdateSqlTemplateSchema = z.object({
   projectId: z.string(),
   templateId: z.string(),
   name: z.string().min(1, "Template name is required"),
-  query: z.string().min(1, "SQL query is required"),
+  query: z.string(),
 });
 
 export const DeleteSqlTemplateSchema = z.object({
