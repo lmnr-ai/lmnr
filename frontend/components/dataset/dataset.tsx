@@ -27,6 +27,7 @@ import ManualAddDatapoint from "./manual-add-datapoint-dialog";
 
 interface DatasetProps {
   dataset: DatasetType;
+  enableDownloadParquet?: boolean;
 }
 
 const columns: ColumnDef<Datapoint>[] = [
@@ -53,7 +54,7 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-export default function Dataset({ dataset }: DatasetProps) {
+export default function Dataset({ dataset, enableDownloadParquet }: DatasetProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -185,7 +186,7 @@ export default function Dataset({ dataset }: DatasetProps) {
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
             </Badge>
           </AddToLabelingQueuePopover>
-          <DownloadParquetDialog datasetId={dataset.id} />
+          {enableDownloadParquet && <DownloadParquetDialog datasetId={dataset.id} />}
         </div>
       </div>
       <div className="flex-grow">
