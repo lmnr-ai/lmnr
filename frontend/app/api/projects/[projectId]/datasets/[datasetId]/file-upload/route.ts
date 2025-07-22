@@ -1,4 +1,5 @@
 import { type NextRequest } from 'next/server';
+import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createDatapoints } from '@/lib/clickhouse/datapoints';
@@ -25,7 +26,7 @@ export async function POST(
     // Check file size limit
     if (file.size > MAX_FILE_SIZE) {
       return Response.json(
-        { error: `File size exceeds 50MB limit. File size: ${(file.size / 1024 / 1024).toFixed(2)}MB` },
+        { error: `File size exceeds 25MB limit. File size: ${(file.size / 1024 / 1024).toFixed(2)}MB` },
         { status: 413 }
       );
     }
@@ -56,20 +57,42 @@ export async function POST(
           .filter(line => line.trim())
           .map(line => JSON.parse(line));
       } else if (extension === 'csv') {
-        // Simple CSV parser - for production, consider using a proper CSV library
-        const lines = fileContent.split('\n').filter(line => line.trim());
-        if (lines.length === 0) {
-          return Response.json({ error: 'Empty CSV file' }, { status: 400 });
+        // Use PapaParse for robust CSV parsing
+        const parseResult = Papa.parse(fileContent, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header: string) => header.trim(),
+          transform: (value: string) => value.trim()
+        });
+
+        if (parseResult.errors && parseResult.errors.length > 0) {
+          const errorMessages = parseResult.errors.map((error: any) =>
+            `Row ${error.row}: ${error.message}`
+          ).join('; ');
+          return Response.json(
+            { error: `CSV parsing errors: ${errorMessages}` },
+            { status: 400 }
+          );
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        records = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-          const record: any = {};
-          headers.forEach((header, index) => {
-            record[header] = values[index] || '';
-          });
-          return record;
+        records = parseResult.data;
+
+        // Parse JSON strings in CSV fields
+        records = records.map((record: any) => {
+          const parsedRecord: any = {};
+          for (const [key, value] of Object.entries(record)) {
+            if (typeof value === 'string' && value.trim()) {
+              try {
+                parsedRecord[key] = JSON.parse(value);
+              } catch {
+                // If parsing fails, keep as string
+                parsedRecord[key] = value;
+              }
+            } else {
+              parsedRecord[key] = value;
+            }
+          }
+          return parsedRecord;
         });
       }
     } catch (parseError) {
@@ -92,13 +115,11 @@ export async function POST(
       return {
         id: uuidv4(),
         data: data !== undefined ? data : (Object.keys(rest).length > 0 ? rest : record),
-        target: target || null,
+        target: target || {},
         metadata: metadata || {},
         createdAt: new Date().toISOString(),
       };
     });
-
-    console.log(datapointsWithIds);
 
     // Insert into ClickHouse
     await createDatapoints(projectId, datasetId, datapointsWithIds);

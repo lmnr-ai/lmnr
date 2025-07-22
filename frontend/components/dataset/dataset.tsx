@@ -20,12 +20,14 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import MonoWithCopy from "../ui/mono-with-copy";
+import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
 
 interface DatasetProps {
   dataset: DatasetType;
+  enableDownloadParquet?: boolean;
 }
 
 const columns: ColumnDef<Datapoint>[] = [
@@ -52,7 +54,7 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-export default function Dataset({ dataset }: DatasetProps) {
+export default function Dataset({ dataset, enableDownloadParquet }: DatasetProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -176,7 +178,7 @@ export default function Dataset({ dataset }: DatasetProps) {
             filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, "_")}-${dataset.id}`}
             variant="outline"
           />
-          {/* <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} /> */}
+          <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
           <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
@@ -184,7 +186,7 @@ export default function Dataset({ dataset }: DatasetProps) {
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
             </Badge>
           </AddToLabelingQueuePopover>
-          <DownloadParquetDialog datasetId={dataset.id} />
+          {enableDownloadParquet && <DownloadParquetDialog datasetId={dataset.id} />}
         </div>
       </div>
       <div className="flex-grow">
