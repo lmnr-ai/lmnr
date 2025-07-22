@@ -77,6 +77,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.0.1
         version: 5.0.1(react-hook-form@7.56.0(react@19.1.0))
+      '@lezer/highlight':
+        specifier: ^1.2.1
+        version: 1.2.1
       '@novnc/novnc':
         specifier: 1.5.0
         version: 1.5.0
@@ -164,9 +167,6 @@ importers:
       '@types/pako':
         specifier: ^2.0.3
         version: 2.0.3
-      '@uiw/codemirror-theme-github':
-        specifier: ^4.23.10
-        version: 4.23.10(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.0)
       '@uiw/codemirror-themes':
         specifier: ^4.23.10
         version: 4.23.10(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.0)
@@ -330,6 +330,9 @@ importers:
       '@eslint/eslintrc':
         specifier: ^3.3.1
         version: 3.3.1
+      '@next/eslint-plugin-next':
+        specifier: ^15.4.2
+        version: 15.4.2
       '@tailwindcss/typography':
         specifier: ^0.5.16
         version: 0.5.16(tailwindcss@3.4.17)
@@ -390,6 +393,9 @@ importers:
       eslint-plugin-promise:
         specifier: ^7.2.1
         version: 7.2.1(eslint@9.31.0(jiti@2.4.2))
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@9.31.0(jiti@2.4.2))
       eslint-plugin-simple-import-sort:
         specifier: ^12.1.1
         version: 12.1.1(eslint@9.31.0(jiti@2.4.2))
@@ -1430,6 +1436,9 @@ packages:
 
   '@next/eslint-plugin-next@15.3.5':
     resolution: {integrity: sha512-BZwWPGfp9po/rAnJcwUBaM+yT/+yTWIkWdyDwc74G9jcfTrNrmsHe+hXHljV066YNdVs8cxROxX5IgMQGX190w==}
+
+  '@next/eslint-plugin-next@15.4.2':
+    resolution: {integrity: sha512-k0rjdWjXBY6tAOty1ckrMETE6Mx66d85NsgcAIdDp7/cXOsTJ93ywmbg3uUcpxX5TUHFEcCWI5mb8nPhwCe9jg==}
 
   '@next/swc-darwin-arm64@15.3.3':
     resolution: {integrity: sha512-WRJERLuH+O3oYB4yZNVahSVFmtxRNjNF1I1c34tYMoJb0Pve+7/RaLAJJizyYiFhjYNGHRAE1Ri2Fd23zgDqhg==}
@@ -2716,9 +2725,6 @@ packages:
       '@codemirror/search': '>=6.0.0'
       '@codemirror/state': '>=6.0.0'
       '@codemirror/view': '>=6.0.0'
-
-  '@uiw/codemirror-theme-github@4.23.10':
-    resolution: {integrity: sha512-jTg2sHAcU1d+8x0O+EBDI71rtJ8PWKIW8gzy+SW4wShQTAdsqGHk5y1ynt3KIeoaUkqngLqAK4SkhPaUKlqZqg==}
 
   '@uiw/codemirror-themes@4.23.10':
     resolution: {integrity: sha512-dU0UgEEgEXCAYpxuVDQ6fovE82XsqgHZckTJOH6Bs8xCi3Z7dwBKO4pXuiA8qGDwTOXOMjSzfi+pRViDm7OfWw==}
@@ -7106,6 +7112,10 @@ snapshots:
     dependencies:
       fast-glob: 3.3.1
 
+  '@next/eslint-plugin-next@15.4.2':
+    dependencies:
+      fast-glob: 3.3.1
+
   '@next/swc-darwin-arm64@15.3.3':
     optional: true
 
@@ -8550,14 +8560,6 @@ snapshots:
       '@codemirror/search': 6.5.7
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.38.0
-
-  '@uiw/codemirror-theme-github@4.23.10(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.0)':
-    dependencies:
-      '@uiw/codemirror-themes': 4.23.10(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.0)
-    transitivePeerDependencies:
-      - '@codemirror/language'
-      - '@codemirror/state'
-      - '@codemirror/view'
 
   '@uiw/codemirror-themes@4.23.10(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.0)':
     dependencies:

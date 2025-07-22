@@ -1,52 +1,53 @@
 "use client";
 
+import { sql } from "@codemirror/lang-sql";
 import { ColumnDef } from "@tanstack/react-table";
-import { isEmpty } from "lodash";
-import { FileJson2, Loader2, PlayIcon, TableProperties, X } from "lucide-react";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { createTheme } from "@uiw/codemirror-themes";
+import CodeMirror from "@uiw/react-codemirror";
+import { debounce, isEmpty } from "lodash";
+import { FileJson2, Loader2, PlayIcon, TableProperties } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useSWRConfig } from "swr";
+import { v4 } from "uuid";
 
-import { useSQLEditorContext } from "@/components/sql/context";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
+import { SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
-import CodeEditor from "@/components/ui/code-editor";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import { defaultThemeSettings, githubDarkStyle } from "@/components/ui/code-highlighter/utils";
 import { DataTable } from "@/components/ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { Badge } from "../ui/badge";
-
-const QUERY_STORAGE_KEY = "sql-dashboard-query";
+const theme = createTheme({
+  theme: "dark",
+  settings: {
+    ...defaultThemeSettings,
+    fontSize: 14,
+  },
+  styles: githubDarkStyle,
+});
 
 export default function SQLEditor() {
-  const { projectId } = useParams();
-  const { setOpen } = useSQLEditorContext();
-  const [query, setQuery] = useState("");
+  const { projectId, id } = useParams();
+  const { push } = useRouter();
   const [results, setResults] = useState<Record<string, any>[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedQuery = localStorage.getItem(QUERY_STORAGE_KEY);
-      if (savedQuery) {
-        setQuery(savedQuery);
-      }
-    }
-  }, []);
-
-  const handleQueryChange = useCallback((value: string) => {
-    setQuery(value);
-    localStorage.setItem(QUERY_STORAGE_KEY, value);
-  }, []);
+  const { mutate } = useSWRConfig();
+  const { template, setCurrentTemplate, onChange } = useSqlEditorStore((state) => ({
+    template: state.currentTemplate,
+    onChange: state.onCurrentTemplateChange,
+    setCurrentTemplate: state.setCurrentTemplate,
+  }));
 
   const executeQuery = useCallback(async () => {
-    if (!query.trim()) return;
+    if (!template?.query.trim()) return;
     setIsLoading(true);
     setError(null);
 
@@ -56,7 +57,7 @@ export default function SQLEditor() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ sqlQuery: query }),
+        body: JSON.stringify({ sqlQuery: template?.query }),
       });
 
       const data = await response.json();
@@ -103,7 +104,79 @@ export default function SQLEditor() {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, query, toast]);
+  }, [projectId, template?.query, toast]);
+
+  const autoSaveTemplate = useCallback(
+    async (query: string) => {
+      if (!query.trim()) return;
+
+      const templatesKey = `/api/projects/${projectId}/sql/templates`;
+
+      try {
+        if (!template?.id || !id) {
+          const optimisticData: SQLTemplate = {
+            id: v4(),
+            name: "Untitled Query",
+            query: query,
+            createdAt: new Date().toISOString(),
+            projectId: projectId as string,
+          };
+          push(`/project/${projectId}/sql/${optimisticData.id}`);
+          setCurrentTemplate(optimisticData);
+          await mutate<SQLTemplate[]>(templatesKey, (currentData = []) => [optimisticData, ...currentData], {
+            revalidate: false,
+          });
+
+          await fetch(`/api/projects/${projectId}/sql/templates`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: optimisticData.id,
+              name: `Untitled Query`,
+              query: query,
+            }),
+          });
+        } else {
+          await fetch(`/api/projects/${projectId}/sql/templates/${template.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: template.name,
+              query: query,
+            }),
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Save failed",
+          description: "Failed to save template. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, template, id, push, mutate, toast]
+  );
+
+  const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
+
+  const handleQueryChange = useCallback(
+    (query: string) => {
+      onChange(query);
+
+      if (query !== template?.query && query.trim()) {
+        debouncedAutoSave(query);
+      }
+    },
+    [onChange, debouncedAutoSave, template?.query]
+  );
+
+  useEffect(() => {
+    debouncedAutoSave.cancel();
+  }, [debouncedAutoSave]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input", "textarea"],
@@ -113,25 +186,15 @@ export default function SQLEditor() {
   return (
     <ResizablePanelGroup direction="vertical" className="flex-grow overflow-hidden">
       <ResizablePanel className="h-full flex flex-col" defaultSize={40} minSize={20}>
-        <div className="flex items-center border-b min-h-12 px-2">
-          <h2 className="text-lg font-semibold flex items-center">
-            SQL Editor
-            <Badge className="ml-2" variant="outlinePrimary">
-              Beta
-            </Badge>
-          </h2>
-          <Button onClick={() => setOpen(false)} className="p-1 h-fit ml-auto" variant="outline">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="overflow-hidden h-full">
-          <CodeEditor
-            editable
-            value={query}
-            onChange={handleQueryChange}
-            language="sql"
-            className="w-full h-full font-mono"
+        <div className="flex-grow flex bg-muted/50 overflow-auto w-full h-full pl-1">
+          <CodeMirror
             placeholder="Enter your SQL query here..."
+            theme={theme}
+            className="h-full"
+            extensions={[sql()]}
+            editable
+            value={template?.query}
+            onChange={handleQueryChange}
           />
         </div>
       </ResizablePanel>
@@ -150,8 +213,12 @@ export default function SQLEditor() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 py-2">
-              <ExportSqlDialog results={results} sqlQuery={query} />
-              <Button disabled={isLoading || !query.trim()} onClick={executeQuery} className="ml-auto w-fit px-2">
+              <ExportSqlDialog results={results} sqlQuery={template?.query || ""} />
+              <Button
+                disabled={isLoading || !template?.query.trim()}
+                onClick={executeQuery}
+                className="ml-auto w-fit px-2"
+              >
                 {isLoading ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />
                 ) : (

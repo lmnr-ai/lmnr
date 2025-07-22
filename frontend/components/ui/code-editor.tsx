@@ -4,13 +4,13 @@ import { python } from "@codemirror/lang-python";
 import { sql } from "@codemirror/lang-sql";
 import { yaml } from "@codemirror/lang-yaml";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
-import { githubDarkStyle } from "@uiw/codemirror-theme-github";
 import { createTheme } from "@uiw/codemirror-themes";
 import CodeMirror from "@uiw/react-codemirror";
 import { debounce } from "lodash";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 
+import { githubDarkStyle } from "@/components/ui/code-highlighter/utils";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {
@@ -44,7 +44,10 @@ const MAX_LINE_WRAPPING_LENGTH = 500000;
 
 // Image widget for displaying base64 images
 class ImageWidget extends WidgetType {
-  constructor(readonly src: string, readonly maxHeight: number = 100) {
+  constructor(
+    readonly src: string,
+    readonly maxHeight: number = 100
+  ) {
     super();
   }
 
@@ -76,7 +79,7 @@ function findBase64Images(text: string) {
     matches.push({
       from: match.index,
       to: match.index + match[1].length,
-      content: match[1]
+      content: match[1],
     });
   }
 
@@ -114,7 +117,7 @@ function findBase64Images(text: string) {
     matches.push({
       from: match.index,
       to: match.index + base64Data.length + 1, // +1 to account for the position after the content
-      content
+      content,
     });
   }
 

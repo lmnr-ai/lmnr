@@ -1,38 +1,26 @@
 "use client";
 
-import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { SquareTerminal } from "lucide-react";
-import { memo } from "react";
+import { useParams } from "next/navigation";
+import React from "react";
+import useSWR from "swr";
 
-import { useSQLEditorContext } from "@/components/sql/context";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import SQLEditor from "@/components/sql/editor";
+import Sidebar from "@/components/sql/sidebar";
+import { SQLTemplate } from "@/components/sql/sql-editor-store";
+import { swrFetcher } from "@/lib/utils";
 
-const SQLEditorButton = ({ className }: { className?: string }) => {
-  const { setOpen, open } = useSQLEditorContext();
+const SQLTemplates = () => {
+  const { projectId } = useParams();
+  const { data = [], isLoading } = useSWR<SQLTemplate[]>(`/api/projects/${projectId}/sql/templates`, swrFetcher);
+
   return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={() => setOpen((prev) => !prev)}
-            variant="ghost"
-            className={cn("p-1 h-fit hover:bg-secondary", className)}
-          >
-            <SquareTerminal
-              className={cn("w-5 h-5", {
-                "text-primary": open,
-              })}
-            />
-          </Button>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent>SQL Editor</TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex flex-1 divide-x">
+      <Sidebar isLoading={isLoading} templates={data} />
+      <div className="flex-1">
+        <SQLEditor />
+      </div>
+    </div>
   );
 };
 
-export default memo(SQLEditorButton);
+export default SQLTemplates;

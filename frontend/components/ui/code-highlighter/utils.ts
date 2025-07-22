@@ -4,24 +4,43 @@ import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { yaml } from "@codemirror/lang-yaml";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
-import { githubDarkStyle } from "@uiw/codemirror-theme-github";
-import { createTheme } from "@uiw/codemirror-themes";
+import { tags as t } from "@lezer/highlight";
+import { createTheme, CreateThemeOptions } from "@uiw/codemirror-themes";
 import YAML from "yaml";
 
 import { inferImageType } from "@/lib/utils";
 
+export const defaultThemeSettings: CreateThemeOptions["settings"] = {
+  background: "transparent",
+  lineHighlight: "transparent",
+  gutterBackground: "#18181A",
+  gutterBorder: "transparent",
+  gutterForeground: "gray !important",
+  selection: "#193860",
+  selectionMatch: "transparent",
+  caret: "2px solid hsl(var(--primary) / 0.1)",
+};
+
+export const githubDarkStyle: CreateThemeOptions["styles"] = [
+  { tag: [t.standard(t.tagName), t.tagName], color: "#7ee787" },
+  { tag: [t.comment, t.bracket], color: "#8b949e" },
+  { tag: [t.className, t.propertyName], color: "#d2a8ff" },
+  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "#79c0ff" },
+  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "#ff7b72" },
+  { tag: [t.string, t.meta, t.regexp], color: "#a5d6ff" },
+  { tag: [t.name, t.quote], color: "#c9d1d9" },
+  { tag: [t.heading, t.strong], color: "#d2a8ff", fontWeight: "bold" },
+  { tag: [t.emphasis], color: "#d2a8ff", fontStyle: "italic" },
+  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "ffeef0" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#ffab70" },
+  { tag: t.link, textDecoration: "underline" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.invalid, color: "#f97583" },
+];
+
 export const theme = createTheme({
   theme: "dark",
-  settings: {
-    background: "transparent",
-    lineHighlight: "transparent",
-    gutterBackground: "#18181A",
-    gutterBorder: "transparent",
-    gutterForeground: "gray !important",
-    selection: "#193860",
-    selectionMatch: "transparent",
-    caret: "2px solid hsl(var(--primary) / 0.1)",
-  },
+  settings: defaultThemeSettings,
   styles: githubDarkStyle,
 });
 
@@ -48,12 +67,6 @@ export const baseExtensions = [
       left: 0,
       overflow: "auto",
     },
-    // ".cm-gutters": {
-    //   fontSize: "0.7rem !important",
-    // },
-    // ".cm-lineNumbers .cm-gutterElement": {
-    //   fontSize: "0.7rem !important",
-    // },
   }),
 ];
 
