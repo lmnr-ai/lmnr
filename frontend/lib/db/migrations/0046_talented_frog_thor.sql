@@ -16,8 +16,6 @@ ALTER TABLE "label_classes" DROP COLUMN "description";--> statement-breakpoint
 ALTER TABLE "label_classes" DROP COLUMN "evaluator_runnable_graph";--> statement-breakpoint
 ALTER TABLE "label_classes" DROP COLUMN "pipeline_version_id";--> statement-breakpoint
 ALTER TABLE "labels" DROP COLUMN "reasoning";--> statement-breakpoint
-ALTER TABLE "subscription_tiers" DROP COLUMN "spans";--> statement-breakpoint
-ALTER TABLE "subscription_tiers" DROP COLUMN "extra_span_price";--> statement-breakpoint
 ALTER TABLE "workspace_usage" DROP COLUMN "prev_span_count";--> statement-breakpoint
 ALTER TABLE "workspace_usage" DROP COLUMN "prev_step_count";--> statement-breakpoint
 ALTER TABLE "workspace_usage" DROP COLUMN "bytes_ingested";--> statement-breakpoint
