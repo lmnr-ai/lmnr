@@ -2948,6 +2948,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
+        },
+        "spans": {
+          "name": "spans",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "extra_span_price": {
+          "name": "extra_span_price",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
         }
       },
       "indexes": {},
