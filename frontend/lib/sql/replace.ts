@@ -11,7 +11,7 @@ import {
 } from "node-sql-parser";
 
 import { REPLACE_STATIC_FIELDS } from "./modifier-consts";
-import { ALLOWED_TABLES_AND_SCHEMA, TableName } from "./types";
+import { ALLOWED_TABLES_AND_SCHEMA, FromTable, TableName } from "./types";
 import { WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
 
 // Define valid columns for evaluation_results and traces tables
@@ -67,7 +67,7 @@ const createDynamicScoreColumn = ({
 
 export const replaceJsonbFields = (
   columnExpression: ExpressionValue | ExprList,
-  fromTables: string[] = [],
+  fromTables: FromTable[] = [],
   aliases: string[] = [],
   addAlias: boolean = false
 ): ExpressionValue | ExprList => {
@@ -82,7 +82,9 @@ export const replaceJsonbFields = (
 
   if (columnExpression.type === 'expr' && (columnExpression as unknown as ColumnRefExpr).expr?.type === 'column_ref') {
     const innerExpr = (columnExpression as unknown as ColumnRefExpr).expr;
-    const tables = innerExpr.table ? [innerExpr.table] : fromTables;
+    const tables = innerExpr.table
+      ? [fromTables.find(table => table.as === innerExpr.table) ?? { table: innerExpr.table, as: innerExpr.table }]
+      : fromTables;
     const column = innerExpr.column;
     const columnName = typeof column === 'string' ? column : column.expr.value as string;
 
@@ -102,10 +104,10 @@ export const replaceJsonbFields = (
     }
 
     for (const table of tables) {
-      if (table && columnName && REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]) {
-        const mapping = REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]!;
+      if (table && columnName && REPLACE_STATIC_FIELDS[table.table as TableName]?.[columnName]) {
+        const mapping = REPLACE_STATIC_FIELDS[table.table as TableName]?.[columnName]!;
         aliases.push(mapping.as ?? columnName);
-        return mapping.replaceWith as unknown as ExpressionValue;
+        return mapping.replaceWith(table.as) as unknown as ExpressionValue;
       }
     }
     return columnExpression;
@@ -113,7 +115,9 @@ export const replaceJsonbFields = (
 
   if (columnExpression.type === "column_ref") {
     const referredTable = (columnExpression as unknown as ColumnRefItem).table;
-    const tables = referredTable ? [referredTable] : fromTables;
+    const tables = referredTable
+      ? [{ table: fromTables.find(table => table.as === referredTable)?.table ?? referredTable, as: referredTable }]
+      : fromTables;
     const column = (columnExpression as unknown as ColumnRefItem).column;
     const columnName = typeof column === 'string' ? column : column.expr.value as string;
 
@@ -132,10 +136,10 @@ export const replaceJsonbFields = (
     }
 
     for (const table of tables) {
-      if (table && columnName && REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]) {
-        const mapping = REPLACE_STATIC_FIELDS[table as TableName]?.[columnName]!;
+      if (table && columnName && REPLACE_STATIC_FIELDS[table.table as TableName]?.[columnName]) {
+        const mapping = REPLACE_STATIC_FIELDS[table.table as TableName]?.[columnName]!;
         aliases.push(mapping.as ?? columnName);
-        return mapping.replaceWith as unknown as ExpressionValue;
+        return mapping.replaceWith(table.as) as unknown as ExpressionValue;
       }
     }
     return columnExpression;

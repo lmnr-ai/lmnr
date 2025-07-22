@@ -1,8 +1,10 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
+import { clickhouseClient } from '@/lib/clickhouse/client';
+import { DatasetInfo } from '@/lib/dataset/types';
 import { db } from '@/lib/db/drizzle';
-import { datasetDatapoints, datasets } from '@/lib/db/migrations/schema';
+import { datasets } from '@/lib/db/migrations/schema';
 import { paginatedGet } from '@/lib/db/utils';
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -38,7 +40,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const pageSize =
     parseInt(req.nextUrl.searchParams.get('pageSize') ?? '50') || 50;
   const filters = [eq(datasets.projectId, projectId)];
-  const { ...columns } = getTableColumns(datasets);
 
   const datasetsData = await paginatedGet({
     table: datasets,
@@ -46,17 +47,40 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     pageSize,
     filters,
     orderBy: [desc(datasets.createdAt)],
-    columns: {
-      ...columns,
-      datapointsCount: sql<number>`COALESCE((
-        SELECT COUNT(*)
-        FROM ${datasetDatapoints} dp
-        WHERE dp.dataset_id = datasets.id
-      ), 0)::int`.as('datapointsCount')
+  });
+
+  const datasetIds = datasetsData.items.map(dataset => (dataset as DatasetInfo).id);
+
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT dataset_id, COUNT(*) as count
+      FROM datapoints
+      WHERE project_id = {projectId: UUID}
+      AND dataset_id IN {datasetIds: Array(UUID)}
+      GROUP BY dataset_id
+    `,
+    format: 'JSONEachRow',
+    query_params: {
+      projectId,
+      datasetIds
     }
   });
 
-  return new Response(JSON.stringify(datasetsData), { status: 200 });
+  const chResultJson = await chResult.json();
+
+  const datapointCounts = Object.fromEntries(
+    chResultJson.map((row: any) => [row.dataset_id, row.count])
+  );
+
+  const items = datasetsData.items.map((dataset: any) => ({
+    ...dataset,
+    datapointsCount: parseInt(datapointCounts[dataset.id] ?? '0')
+  })) as DatasetInfo[];
+
+  return new Response(JSON.stringify({
+    ...datasetsData,
+    items
+  }), { status: 200 });
 }
 
 export async function DELETE(

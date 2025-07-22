@@ -51,6 +51,7 @@ pub async fn create_span(
     let span = Span {
         span_id,
         trace_id,
+        project_id,
         parent_span_id: request.parent_span_id,
         name: request.name,
         attributes: SpanAttributes::new(request.attributes.unwrap_or_default()),
@@ -68,15 +69,11 @@ pub async fn create_span(
 
     let events: Vec<Event> = vec![];
 
-    let rabbitmq_span_message = RabbitMqSpanMessage {
-        project_id,
-        span,
-        events,
-    };
+    let rabbitmq_span_message = RabbitMqSpanMessage { span, events };
 
     spans_message_queue
         .publish(
-            &serde_json::to_vec(&rabbitmq_span_message).unwrap(),
+            &serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap(),
             OBSERVATIONS_EXCHANGE,
             OBSERVATIONS_ROUTING_KEY,
         )

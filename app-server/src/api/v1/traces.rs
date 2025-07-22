@@ -3,7 +3,6 @@ use std::sync::Arc;
 use actix_web::{HttpRequest, HttpResponse, post, web};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
     db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
@@ -17,7 +16,6 @@ use prost::Message;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
-    pub project_id: Uuid,
     pub span: Span,
     pub events: Vec<Event>,
 }

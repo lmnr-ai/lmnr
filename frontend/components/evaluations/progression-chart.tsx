@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
-import { AggregationFunction } from "@/lib/clickhouse/utils";
+import { AggregationFunction } from "@/lib/clickhouse/types";
 import { EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 

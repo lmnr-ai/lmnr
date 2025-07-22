@@ -20,7 +20,15 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   let urlParamFilters: FilterDef[] = [];
   try {
-    urlParamFilters = req.nextUrl.searchParams.getAll("filter").map((f) => JSON.parse(f) as FilterDef);
+    urlParamFilters = req.nextUrl.searchParams.getAll("filter").map((f) => {
+      const urlParamFilter = JSON.parse(f) as FilterDef;
+      // Only keep the column, operator and value from the URL param
+      return {
+        column: urlParamFilter.column,
+        operator: urlParamFilter.operator,
+        value: urlParamFilter.value,
+      };
+    });
   } catch (e) {
     urlParamFilters = [];
   }

@@ -1,5 +1,4 @@
-use async_trait::async_trait;
-use redis::{aio::MultiplexedConnection, AsyncCommands, RedisResult};
+use redis::{AsyncCommands, RedisResult, aio::MultiplexedConnection};
 use serde::{Deserialize, Serialize};
 
 use super::{CacheError, CacheTrait};
@@ -23,7 +22,6 @@ impl RedisCache {
     }
 }
 
-#[async_trait]
 impl CacheTrait for RedisCache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where

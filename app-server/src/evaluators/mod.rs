@@ -1,9 +1,18 @@
 use std::{collections::HashMap, sync::Arc};
 
+use backoff::ExponentialBackoffBuilder;
+
 use crate::{
-    ch::evaluator_scores::insert_evaluator_score_ch, db::{
-        evaluators::{get_evaluator, insert_evaluator_score}, DB
-    }, mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait}
+    cache::{Cache, CacheTrait, keys::PROJECT_EVALUATORS_BY_PATH_CACHE_KEY},
+    ch::evaluator_scores::insert_evaluator_score_ch,
+    db::{
+        DB,
+        evaluators::{
+            Evaluator, EvaluatorScoreSource, get_evaluator, get_evaluators_by_ids_from_db,
+            get_evaluators_by_path_from_db, insert_evaluator_score,
+        },
+    },
+    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -24,7 +33,7 @@ pub struct EvaluatorsQueueMessage {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct EvaluatorRequest {
-    pub definition: HashMap<String,Value>,
+    pub definition: HashMap<String, Value>,
     pub input: Value,
 }
 
@@ -61,14 +70,40 @@ pub async fn inner_process_evaluators(
     client: Arc<reqwest::Client>,
     python_online_evaluator_url: &str,
 ) {
-    let mut receiver = queue
-        .get_receiver(
-            EVALUATORS_QUEUE,
-            EVALUATORS_EXCHANGE,
-            EVALUATORS_ROUTING_KEY,
-        )
-        .await
-        .unwrap();
+    // Add retry logic with exponential backoff for connection failures
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                EVALUATORS_QUEUE,
+                EVALUATORS_EXCHANGE,
+                EVALUATORS_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Failed to get receiver from evaluators queue: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    };
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(std::time::Duration::from_secs(1))
+        .with_max_interval(std::time::Duration::from_secs(60))
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .build();
+
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Successfully connected to evaluators queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to connect to evaluators queue after retries: {:?}",
+                e
+            );
+            return;
+        }
+    };
 
     while let Some(delivery) = receiver.receive().await {
         if let Err(e) = delivery {
@@ -101,7 +136,11 @@ pub async fn inner_process_evaluators(
         };
 
         // For now we call only python, later check for evaluator_type and call corresponing url
-        let response = client.post(python_online_evaluator_url).json(&body).send().await;
+        let response = client
+            .post(python_online_evaluator_url)
+            .json(&body)
+            .send()
+            .await;
 
         match response {
             Ok(resp) => {
@@ -120,12 +159,15 @@ pub async fn inner_process_evaluators(
                                     let score_id = Uuid::new_v4();
 
                                     if let Err(e) = insert_evaluator_score(
-                                        &db,
+                                        &db.pool,
                                         score_id,
                                         message.project_id,
+                                        &evaluator.name,
+                                        EvaluatorScoreSource::Evaluator,
                                         message.span_id,
-                                        message.id,
+                                        Some(message.id),
                                         score,
+                                        None,
                                     )
                                     .await
                                     {
@@ -141,8 +183,10 @@ pub async fn inner_process_evaluators(
                                         clickhouse.clone(),
                                         score_id,
                                         message.project_id,
+                                        &evaluator.name,
+                                        EvaluatorScoreSource::Evaluator,
                                         message.span_id,
-                                        message.id,
+                                        Some(message.id),
                                         score,
                                     )
                                     .await
@@ -156,7 +200,6 @@ pub async fn inner_process_evaluators(
                                     }
 
                                     let _ = acker.ack().await;
-
                                 }
                                 None => {
                                     log::info!(
@@ -173,10 +216,7 @@ pub async fn inner_process_evaluators(
                         }
                     }
                 } else if status.is_server_error() {
-                    log::error!(
-                        "Evaluator service returned server error {}",
-                        status
-                    );
+                    log::error!("Evaluator service returned server error {}", status);
                     let _ = acker.reject(false).await;
                 } else if status.is_client_error() {
                     log::error!(
@@ -201,7 +241,6 @@ pub async fn inner_process_evaluators(
     }
 }
 
-
 pub async fn push_to_evaluators_queue(
     span_id: Uuid,
     project_id: Uuid,
@@ -225,4 +264,31 @@ pub async fn push_to_evaluators_queue(
         .await?;
 
     Ok(())
+}
+
+pub async fn get_evaluators_by_path(
+    db: &DB,
+    cache: Arc<Cache>,
+    project_id: Uuid,
+    path: Vec<String>,
+) -> anyhow::Result<Vec<Evaluator>> {
+    let cache_key = format!(
+        "{PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:{project_id}:{}",
+        serde_json::to_string(&path)?
+    );
+    match cache.get::<Vec<Uuid>>(&cache_key).await {
+        Ok(Some(evaluator_ids)) => {
+            // Get full evaluator objects from database using cached IDs
+            let evaluators =
+                get_evaluators_by_ids_from_db(&db.pool, project_id, evaluator_ids).await?;
+            Ok(evaluators)
+        }
+        _ => {
+            // Get evaluators from database and cache only their IDs
+            let evaluators = get_evaluators_by_path_from_db(&db.pool, project_id, path).await?;
+            let evaluator_ids: Vec<Uuid> = evaluators.iter().map(|e| e.id).collect();
+            cache.insert(&cache_key, evaluator_ids).await?;
+            Ok(evaluators)
+        }
+    }
 }

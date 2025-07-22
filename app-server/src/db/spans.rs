@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
@@ -50,6 +51,7 @@ impl FromStr for SpanType {
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub span_id: Uuid,
+    pub project_id: Uuid,
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
     pub name: String,
@@ -74,17 +76,52 @@ struct SpanDBValues {
     attributes_value: Value,
 }
 
-pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    // Possible further optimization:
-    // clone all small values from the span, e.g. trace_id, parent_span_id, etc.
-    // into local variables here, and then move the `span` into `prepare_span_db_values`
-    // so that inside `prepare_span_db_values` we don't have to clone the attributes,
-    // which are slightly (after filtering) larger.
-    let values = prepare_span_db_values(span);
+pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
 
+    // Prepare all span values upfront
+    let span_values: Vec<SpanDBValues> = spans.par_iter().map(prepare_span_db_values).collect();
+
+    // Create arrays for each column
+    let span_ids: Vec<Uuid> = spans.iter().map(|s| s.span_id).collect();
+    let trace_ids: Vec<Uuid> = spans.iter().map(|s| s.trace_id).collect();
+    let parent_span_ids: Vec<Option<Uuid>> = spans.iter().map(|s| s.parent_span_id).collect();
+    let start_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.start_time).collect();
+    let end_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.end_time).collect();
+    let names: Vec<String> = spans.iter().map(|s| s.name.clone()).collect();
+    let attributes: Vec<Value> = span_values
+        .iter()
+        .map(|v| v.attributes_value.clone())
+        .collect();
+    let inputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_input.clone())
+        .collect();
+    let outputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_output.clone())
+        .collect();
+    let span_types: Vec<SpanType> = spans.iter().map(|s| s.span_type.clone()).collect();
+    let input_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.input_preview.clone())
+        .collect();
+    let output_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.output_preview.clone())
+        .collect();
+    let input_urls: Vec<Option<String>> = spans.iter().map(|s| s.input_url.clone()).collect();
+    let output_urls: Vec<Option<String>> = spans.iter().map(|s| s.output_url.clone()).collect();
+    let statuses: Vec<Option<String>> = spans.iter().map(|s| s.status.clone()).collect();
+    let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).collect();
+
+    // Use UNNEST to insert all spans in a single query
     sqlx::query(
-        "INSERT INTO spans
-            (span_id,
+        r#"
+        INSERT INTO spans (
+            span_id,
             trace_id,
             parent_span_id,
             start_time,
@@ -101,56 +138,43 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             status,
             project_id
         )
-        VALUES(
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10,
-            $11,
-            $12,
-            $13,
-            $14,
-            $15,
-            $16)
-        ON CONFLICT (span_id, project_id) DO UPDATE SET
-            trace_id = EXCLUDED.trace_id,
-            parent_span_id = EXCLUDED.parent_span_id,
-            start_time = EXCLUDED.start_time,
-            end_time = EXCLUDED.end_time,
-            name = EXCLUDED.name,
-            attributes = EXCLUDED.attributes,
-            input = EXCLUDED.input,
-            output = EXCLUDED.output,
-            span_type = EXCLUDED.span_type,
-            input_preview = EXCLUDED.input_preview,
-            output_preview = EXCLUDED.output_preview,
-            input_url = EXCLUDED.input_url,
-            output_url = EXCLUDED.output_url,
-            status = EXCLUDED.status
-    ",
+        SELECT * FROM UNNEST(
+            $1::uuid[],
+            $2::uuid[],
+            $3::uuid[],
+            $4::timestamptz[],
+            $5::timestamptz[],
+            $6::text[],
+            $7::jsonb[],
+            $8::jsonb[],
+            $9::jsonb[],
+            $10::span_type[],
+            $11::text[],
+            $12::text[],
+            $13::text[],
+            $14::text[],
+            $15::text[],
+            $16::uuid[]
+        )
+        ON CONFLICT DO NOTHING
+        "#,
     )
-    .bind(&span.span_id)
-    .bind(&span.trace_id)
-    .bind(&span.parent_span_id as &Option<Uuid>)
-    .bind(&span.start_time)
-    .bind(&span.end_time)
-    .bind(&span.name)
-    .bind(&values.attributes_value)
-    .bind(&values.sanitized_input as &Option<Value>)
-    .bind(&values.sanitized_output as &Option<Value>)
-    .bind(&span.span_type as &SpanType)
-    .bind(&values.input_preview)
-    .bind(&values.output_preview)
-    .bind(&span.input_url as &Option<String>)
-    .bind(&span.output_url as &Option<String>)
-    .bind(&span.status)
-    .bind(&project_id)
+    .bind(&span_ids)
+    .bind(&trace_ids)
+    .bind(&parent_span_ids)
+    .bind(&start_times)
+    .bind(&end_times)
+    .bind(&names)
+    .bind(&attributes)
+    .bind(&inputs)
+    .bind(&outputs)
+    .bind(&span_types)
+    .bind(&input_previews)
+    .bind(&output_previews)
+    .bind(&input_urls)
+    .bind(&output_urls)
+    .bind(&statuses)
+    .bind(&project_ids)
     .execute(pool)
     .await?;
 
@@ -308,6 +332,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: None,
             name: "openai.chat".to_string(),
@@ -529,6 +554,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ChatOpenAI.chat".to_string(),
@@ -783,6 +809,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ai.generateText.doGenerate".to_string(),

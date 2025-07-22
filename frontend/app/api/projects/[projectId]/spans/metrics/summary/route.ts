@@ -1,24 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { getSpanMetricsSummary } from "@/lib/clickhouse/spans";
-import { SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
-import { AggregationFunction, getTimeRange } from "@/lib/clickhouse/utils";
+import { getSpanMetricsSummaryAction } from "@/lib/actions/dashboard";
+import { AggregationFunction, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const { projectId } = params;
-  const searchParams = req.nextUrl.searchParams;
+  try {
+    const params = await props.params;
+    const { projectId } = params;
+    const searchParams = req.nextUrl.searchParams;
 
-  const metric = searchParams.get("metric") as SpanMetric;
-  const aggregation = searchParams.get("aggregation") as AggregationFunction;
-  const pastHours = searchParams.get("pastHours") as string | undefined;
-  const startDate = searchParams.get("startDate") as string | undefined;
-  const endDate = searchParams.get("endDate") as string | undefined;
-  const groupBy = searchParams.get("groupBy") as SpanMetricGroupBy;
+    const metric: SpanMetric | null = searchParams.get("metric") as SpanMetric;
+    const aggregation: AggregationFunction | null = searchParams.get("aggregation") as AggregationFunction;
+    const groupBy = searchParams.get("groupBy") as SpanMetricGroupBy;
+    const pastHours = searchParams.get("pastHours");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
 
-  const timeRange = getTimeRange(pastHours, startDate, endDate);
+    const metrics = await getSpanMetricsSummaryAction({
+      projectId,
+      metric,
+      aggregation,
+      groupBy,
+      pastHours,
+      startDate,
+      endDate,
+    });
 
-  const metrics = await getSpanMetricsSummary(projectId, metric, timeRange, groupBy, aggregation);
-
-  return NextResponse.json(metrics);
+    return NextResponse.json(metrics);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to get span metrics summary" }, { status: 500 });
+  }
 }

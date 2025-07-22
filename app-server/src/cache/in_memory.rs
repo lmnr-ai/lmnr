@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::result::Result;
 
-use async_trait::async_trait;
-
 use super::{CacheError, CacheTrait};
 
 const DEFAULT_CACHE_SIZE: u64 = 100;
@@ -18,7 +16,6 @@ impl InMemoryCache {
     }
 }
 
-#[async_trait]
 impl CacheTrait for InMemoryCache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>, CacheError>
     where

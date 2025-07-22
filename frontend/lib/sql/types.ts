@@ -1,7 +1,6 @@
-import { BaseFrom, Binary, Cast, ExpressionValue as BaseExpressionValue } from "node-sql-parser";
+import { BaseFrom, Binary, Cast, ExpressionValue as BaseExpressionValue, Function as SQLFunction } from "node-sql-parser";
 
 import {
-  datasetDatapoints,
   datasets,
   evaluationResults,
   evaluations,
@@ -35,14 +34,13 @@ export type TableName =
   | 'evaluation_results'
   | 'evaluation_scores'
   | 'datasets'
-  | 'dataset_datapoints'
   | 'labels'
   | 'label_classes'
   | 'evaluator_scores'
   | 'evaluators';
 
 export interface JsonbFieldMapping {
-  replaceWith: unknown;
+  replaceWith: (tableNameAlias?: string) => unknown;
   as?: string;
 }
 
@@ -53,7 +51,7 @@ export interface JoinCondition {
   rightTable: AllowedTableNameForJoin;
   rightColumn: string;
   additionalConditions?: Binary[];
-  lateral?: boolean;
+  left?: boolean;
 }
 
 // Base interface for common properties
@@ -69,7 +67,7 @@ interface AutoJoinRuleBase {
       table: AllowedTableNameForJoin;
       column: string;
       as?: string;
-    } | Binary | ExpressionValue | ExtendedCast;
+    } | Binary | ExpressionValue | ExtendedCast | SQLFunction;
   }[];
 }
 
@@ -128,7 +126,6 @@ export const ALLOWED_TABLES_AND_SCHEMA: Record<TableName, string[]> = {
   evaluation_results: Object.keys(evaluationResults).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   evaluation_scores: Object.keys(evaluationScores).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   datasets: Object.keys(datasets).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
-  dataset_datapoints: Object.keys(datasetDatapoints).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   labels: Object.keys(labels).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   label_classes: Object.keys(labelClasses).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
   evaluator_scores: Object.keys(evaluatorScores).filter(key => key !== 'enableRLS').map(camelCaseToSnakeCase),
@@ -136,3 +133,9 @@ export const ALLOWED_TABLES_AND_SCHEMA: Record<TableName, string[]> = {
 };
 
 export const ALLOWED_TABLES: Set<TableName> = new Set(Object.keys(ALLOWED_TABLES_AND_SCHEMA) as TableName[]);
+
+
+export interface FromTable {
+  table: string,
+  as: string,
+}
