@@ -28,7 +28,7 @@ import {
 /**
 * Apply automatic join rules to the query based on configured rules
 * @param {Select} node - The SELECT node to modify
-* @param {string[]} fromTables - Tables in the FROM clause
+* @param {FromTable[]} fromTables - Tables in the FROM clause
 */
 export const applyAutoJoinRules = (node: Select, fromTables: FromTable[]): void => {
   // Skip if no FROM tables
