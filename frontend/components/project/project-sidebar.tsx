@@ -82,11 +82,6 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
         icon: SquareFunction,
       },
       {
-        name: "sql editor",
-        href: `/project/${projectId}/sql`,
-        icon: SquareTerminal,
-      },
-      {
         name: "datasets",
         href: `/project/${projectId}/datasets`,
         icon: Database,
@@ -95,6 +90,11 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
         name: "queues",
         href: `/project/${projectId}/labeling-queues`,
         icon: Pen,
+      },
+      {
+        name: "sql editor",
+        href: `/project/${projectId}/sql`,
+        icon: SquareTerminal,
       },
       {
         name: "playgrounds",
