@@ -1008,6 +1008,26 @@ export const sqlTemplates = pgTable(
   ]
 );
 
+export const datasetParquets = pgTable(
+  "dataset_parquets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    datasetId: uuid("dataset_id").defaultRandom().notNull(),
+    parquetPath: text("parquet_path").notNull(),
+    jobId: uuid("job_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.datasetId],
+      foreignColumns: [datasets.id],
+      name: "dataset_parquets_dataset_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const machines = pgTable(
   "machines",
   {
