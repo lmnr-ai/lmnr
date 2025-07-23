@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, traces::{self}, DB},
+    db::{events::Event, project_api_keys::ProjectApiKey, spans::Span, trace, traces::{self}, DB},
     features::{is_feature_enabled, Feature},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -75,7 +75,7 @@ struct SearchTracesResponse {
 }
 
 #[get("/traces")]
-pub async fn search_traces(
+pub async fn get_traces(
     params: web::Query<traces::SearchTracesParams>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
@@ -94,4 +94,22 @@ pub async fn search_traces(
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+
+#[get("/traces/{trace_id}")]
+pub async fn get_trace(
+    path: web::Path<Uuid>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let trace_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+
+    let trace = trace::get_trace(&db.pool, &project_id, &trace_id).await?;
+    match trace {
+        Some(trace) => Ok(HttpResponse::Ok().json(trace)),
+        None => Ok(HttpResponse::NotFound().json("Trace not found")),
+    }
 }

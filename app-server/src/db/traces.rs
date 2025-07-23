@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr};
+use std::{collections::{HashMap, HashSet}, str::FromStr, sync::LazyLock};
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -30,15 +30,15 @@ pub struct TraceInfo {
     pub cost: f64,
     pub trace_type: TraceType,
     pub status: Option<String>,
-    pub latency: f64,
+    pub duration: f64,
     pub metadata: Option<Value>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchTracesParams {
-    page_size: Option<i32>,
-    page_number: Option<i32>,
+    page_size: Option<usize>,
+    page_number: Option<usize>,
     search: Option<String>,
     search_in: Option<String>,
     start_time: Option<DateTime<Utc>>,
@@ -49,26 +49,26 @@ pub struct SearchTracesParams {
 
 impl SearchTracesParams {
     const MAX_TIME_RANGE_DAYS: i64 = 30;
-    const MAX_PAGE_SIZE: i32 = 50;
+    const MAX_PAGE_SIZE: usize = 50;
 
-    pub fn page_size(&self) -> i32 {
+    pub fn page_size(&self) -> usize {
         self.page_size.unwrap_or(25)
     }
     
-    pub fn page_number(&self) -> i32 {
+    pub fn page_number(&self) -> usize {
         self.page_number.unwrap_or(0)
     }
     
-    pub fn offset(&self) -> i32 {
+    pub fn offset(&self) -> usize {
         self.page_number() * self.page_size()
     }
 
     pub fn start_time(&self) -> DateTime<Utc> {
-        self.start_time.unwrap_or_else(|| Utc::now() - Duration::hours(24))
+        self.start_time.unwrap_or(Utc::now() - Duration::hours(24))
     }
     
     pub fn end_time(&self) -> DateTime<Utc> {
-        self.end_time.unwrap_or_else(|| Utc::now())
+        self.end_time.unwrap_or(Utc::now())
     }
     
     pub fn search_in(&self) -> Vec<String> {
@@ -92,8 +92,7 @@ impl SearchTracesParams {
     }
 
     pub fn validate_and_convert_filters(&mut self) -> Result<(), Error> {
-        let field_configs = create_traces_field_configs();
-        self.filters = validate_and_convert_filters(&self.filters, &field_configs)?;
+        self.filters = validate_and_convert_filters(&self.filters, &TRACES_FIELD_CONFIGS)?;
         Ok(())
     }
 
@@ -130,7 +129,7 @@ impl SearchTracesParams {
         Ok(())
     }
 
-        fn validate_page_size(&self) -> Result<(), Error> {
+    fn validate_page_size(&self) -> Result<(), Error> {
         let page_size = self.page_size();
         
         if page_size <= 0 {
@@ -153,7 +152,7 @@ impl SearchTracesParams {
     }
 }
 
-fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
+static TRACES_FIELD_CONFIGS: LazyLock<HashMap<String, FieldConfig>> = LazyLock::new(|| {
     let mut configs = HashMap::new();
 
     configs.insert("trace_type".to_string(), FieldConfig::new(
@@ -166,7 +165,7 @@ fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
         "t.id"
     ));
 
-    configs.insert("latency".to_string(), FieldConfig::new(
+    configs.insert("duration".to_string(), FieldConfig::new(
         FieldType::Float,
         "CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8)"
     ));
@@ -212,7 +211,7 @@ fn create_traces_field_configs() -> HashMap<String, FieldConfig> {
     ).with_validator(validate_status));
 
     configs
-}
+});
 
 fn validate_trace_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
@@ -237,17 +236,17 @@ fn validate_status(value: &FilterValue) -> Result<(), String> {
 }
 
 
-fn build_trace_filters<'a>(
-    mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
+fn build_trace_filters<'qb>(
+    mut query_builder: QueryBuilder<'qb, sqlx::Postgres>,
     project_id: Uuid,
-    trace_ids: &'a Option<HashSet<Uuid>>,
-    params: &'a SearchTracesParams,
-) -> Result<QueryBuilder<'a, sqlx::Postgres>, Error> {
+    trace_ids: Option<HashSet<Uuid>>,
+    params: &'qb SearchTracesParams,
+) -> Result<QueryBuilder<'qb, sqlx::Postgres>, Error> {
     query_builder.push_bind(project_id);
 
     if let Some(trace_ids) = trace_ids {
         query_builder.push(" AND t.id = ANY(");
-        query_builder.push_bind(trace_ids.iter().cloned().collect::<Vec<Uuid>>());
+        query_builder.push_bind(trace_ids.into_iter().collect::<Vec<Uuid>>());
         query_builder.push(")");
     }
 
@@ -257,8 +256,8 @@ fn build_trace_filters<'a>(
     query_builder.push(" AND t.end_time <= ");
     query_builder.push_bind(params.end_time());
 
-    let field_configs = create_traces_field_configs();
     for filter in params.filters() {
+        // Manually cast status filter because of the way we store it.
         if filter.field == "status" && filter.operator == FilterOperator::Eq {
             if let FilterValue::String(status_value) = &filter.value {
                 if status_value == "success" {
@@ -268,7 +267,7 @@ fn build_trace_filters<'a>(
             }
         }
 
-        query_builder = filter.apply_to_query_builder(query_builder, &field_configs)
+        query_builder = filter.apply_to_query_builder(query_builder, &TRACES_FIELD_CONFIGS)
             .map_err(|e| Error::BadRequest(e))?;
     }
 
@@ -279,9 +278,9 @@ async fn get_traces(
     pool: &sqlx::PgPool,
     project_id: Uuid,
     params: &SearchTracesParams,
-    trace_ids: &Option<HashSet<Uuid>>,
+    trace_ids: Option<HashSet<Uuid>>,
 ) -> Result<Vec<TraceInfo>, Error> {
-    if let Some(trace_ids) = trace_ids {
+    if let Some(ref trace_ids) = trace_ids {
         if trace_ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -301,24 +300,24 @@ async fn get_traces(
             t.cost, 
             t.trace_type, 
             t.status,
-            CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8) as latency,
+            CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8) as duration,
             t.metadata
          FROM traces t
          WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
     );
 
-    let mut main_query_builder = build_trace_filters(main_query_builder, project_id, &trace_ids, params)?;
+    let mut main_query_builder = build_trace_filters(main_query_builder, project_id, trace_ids, params)?;
 
     main_query_builder.push(" ORDER BY t.start_time DESC");
     
     if params.page_size() > 0 {
         main_query_builder.push(" LIMIT ");
-        main_query_builder.push_bind(params.page_size());
+        main_query_builder.push_bind(params.page_size() as i32);
     }
 
     if params.page_number() > 0 {
         main_query_builder.push(" OFFSET ");
-        main_query_builder.push_bind(params.offset());
+        main_query_builder.push_bind(params.offset() as i32);
     }
 
     main_query_builder
@@ -332,27 +331,27 @@ async fn count_traces(
     pool: &sqlx::PgPool,
     project_id: Uuid,
     params: &SearchTracesParams,
-    trace_ids: &Option<HashSet<Uuid>>,
+    trace_ids: Option<HashSet<Uuid>>,
 ) -> Result<i64, Error> {
-    if let Some(trace_ids) = trace_ids {
+    if let Some(ref trace_ids) = trace_ids {
         if trace_ids.is_empty() {
             return Ok(0);
         }
     }
 
     let count_query_builder = QueryBuilder::new(
-        "SELECT COUNT(t.id) as count 
+        "SELECT COUNT(t.id) 
          FROM traces t
          WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
     );
-    let mut count_query_builder = build_trace_filters(count_query_builder, project_id, &trace_ids, params)?;
+    let mut count_query_builder = build_trace_filters(count_query_builder, project_id, trace_ids, params)?;
 
-    let count_result: (i64,) = count_query_builder
-        .build_query_as::<(i64,)>()
+    let count: i64 = count_query_builder
+        .build_query_scalar()
         .fetch_one(pool)
         .await?;
 
-    Ok(count_result.0)
+    Ok(count)
 }
 
 pub async fn search_traces(
@@ -377,8 +376,8 @@ pub async fn search_traces(
     };
 
     let (count_result, traces_result) = tokio::join!(
-        count_traces(&pool, project_id, &params, &trace_ids),
-        get_traces(&pool, project_id, &params, &trace_ids)
+        count_traces(&pool, project_id, &params, trace_ids.clone()),
+        get_traces(&pool, project_id, &params, trace_ids)
     );
 
     let count = count_result?;

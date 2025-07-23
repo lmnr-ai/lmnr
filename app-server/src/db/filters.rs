@@ -9,17 +9,17 @@ use crate::routes::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilterOperator {
-    #[serde(rename = "eq")]
+    #[serde(rename = "eq", alias = "=")]
     Eq,
-    #[serde(rename = "neq")]
+    #[serde(rename = "neq", alias = "!=", alias = "<>")]
     Neq,
-    #[serde(rename = "gt")]
+    #[serde(rename = "gt", alias = ">")]
     Gt,
-    #[serde(rename = "gte")]
+    #[serde(rename = "gte", alias = ">=")]
     Gte,
-    #[serde(rename = "lt")]
+    #[serde(rename = "lt", alias = "<")]
     Lt,
-    #[serde(rename = "lte")]
+    #[serde(rename = "lte", alias = "<=")]
     Lte,
     #[serde(rename = "ilike")]
     ILike,
@@ -32,12 +32,12 @@ impl FromStr for FilterOperator {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "eq" => Ok(FilterOperator::Eq),
-            "neq" => Ok(FilterOperator::Neq),
-            "gt" => Ok(FilterOperator::Gt),
-            "gte" => Ok(FilterOperator::Gte),
-            "lt" => Ok(FilterOperator::Lt),
-            "lte" => Ok(FilterOperator::Lte),
+            "eq" | "=" => Ok(FilterOperator::Eq),
+            "neq" | "!=" | "<>" => Ok(FilterOperator::Neq),
+            "gt" | ">" => Ok(FilterOperator::Gt),
+            "gte" | ">=" => Ok(FilterOperator::Gte),
+            "lt" | "<" => Ok(FilterOperator::Lt),
+            "lte" | "<=" => Ok(FilterOperator::Lte),
             "ilike" => Ok(FilterOperator::ILike),
             "not_ilike" => Ok(FilterOperator::NotILike),
             _ => Err(format!("Invalid filter operator: {}", s)),
@@ -64,7 +64,8 @@ impl FilterOperator {
 #[serde(untagged)]
 pub enum FilterValue {
     String(String),
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     Uuid(Uuid),
     Json { key: String, value: String },
@@ -77,12 +78,12 @@ impl FilterValue {
             FieldType::Integer => {
                 let num = s.parse::<i64>()
                     .map_err(|_| format!("Invalid integer value: {}", s))?;
-                Ok(FilterValue::Number(num as f64))
+                Ok(FilterValue::Integer(num))
             },
             FieldType::Float => {
                 let num = s.parse::<f64>()
                     .map_err(|_| format!("Invalid float value: {}", s))?;
-                Ok(FilterValue::Number(num))
+                Ok(FilterValue::Float(num))
             },
             FieldType::Boolean => {
                 let bool_val = match s.to_lowercase().as_str() {
@@ -203,11 +204,11 @@ impl Filter {
         Ok(())
     }
 
-    pub fn apply_to_query_builder<'a>(
+    pub fn apply_to_query_builder<'qb>(
         &self,
-        mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
+        mut query_builder: QueryBuilder<'qb, sqlx::Postgres>,
         field_configs: &HashMap<String, FieldConfig>,
-    ) -> Result<QueryBuilder<'a, sqlx::Postgres>, String> {
+    ) -> Result<QueryBuilder<'qb, sqlx::Postgres>, String> {
         let field_config = field_configs.get(&self.field)
             .ok_or_else(|| format!("Unknown field: {}", self.field))?;
 
@@ -221,15 +222,22 @@ impl Filter {
                 query_builder.push(" ");
                 query_builder.push_bind(format!("%{}%", s));
             },
-            (FilterOperator::Eq, FilterValue::Json { key, value }) => {
-                query_builder.push("@> ");
-                let json_obj = serde_json::json!({ key: value });
-                query_builder.push_bind(json_obj);
-            },
-            (FilterOperator::Neq, FilterValue::Json { key, value }) => {
-                query_builder.push("NOT @> ");
-                let json_obj = serde_json::json!({ key: value });
-                query_builder.push_bind(json_obj);
+            (_, FilterValue::Json { key, value }) => {
+                query_builder.push("->> ");
+                query_builder.push_bind(key.clone());
+                query_builder.push(" ");
+                
+                match self.operator {
+                    FilterOperator::Neq => {
+                        query_builder.push("IS DISTINCT FROM ");
+                    },
+                    _ => {
+                        query_builder.push(self.operator.to_sql());
+                        query_builder.push(" ");
+                    }
+                }
+                
+                query_builder.push_bind(value.clone());
             },
             _ => {
                 query_builder.push(self.operator.to_sql());
@@ -237,13 +245,8 @@ impl Filter {
                 match &self.value {
                     FilterValue::Uuid(uuid) => query_builder.push_bind(*uuid),
                     FilterValue::String(s) => query_builder.push_bind(s.clone()),
-                    FilterValue::Number(n) => {
-                        if field_config.field_type == FieldType::Integer {
-                            query_builder.push_bind(*n as i64)
-                        } else {
-                            query_builder.push_bind(*n)
-                        }
-                    },
+                    FilterValue::Integer(i) => query_builder.push_bind(*i),
+                    FilterValue::Float(f) => query_builder.push_bind(*f),
                     FilterValue::Boolean(b) => query_builder.push_bind(*b),
                     FilterValue::Json { .. } => {
                         return Err("JSON filters must use Eq or Neq operators".to_string());
