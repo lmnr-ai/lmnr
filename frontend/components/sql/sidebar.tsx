@@ -1,14 +1,13 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Edit, EllipsisVertical, Plus, Trash2 } from "lucide-react";
+import { Edit, EllipsisVertical, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -102,14 +102,12 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
 
   return (
     <div
-      className={cn(
-        "group flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors ",
-        {
-          "bg-accent": selected,
-        }
-      )}
+      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors ", {
+        "bg-accent": selected,
+      })}
       onClick={handleQueryClick}
     >
+      <FileText className="w-4 h-4 mr-2 text-secondary-foreground" />
       <div>
         {editing ? (
           <Input
@@ -122,7 +120,9 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
             onClick={(e) => e.preventDefault()}
           />
         ) : (
-          <div className="text-sm font-medium truncate">{template.name}</div>
+          <span title={template.name} className="text-sm font-medium truncate">
+            {template.name}
+          </span>
         )}
       </div>
       {!editing && (
@@ -131,7 +131,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
             <Button
               variant="ghost"
               size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 focus-visible:ring-0"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 ml-auto focus-visible:ring-0"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />
@@ -235,12 +235,9 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-sm w-full">
+    <div className="flex flex-col max-w-xs w-full">
       <div className="flex items-center p-2 px-4 border-b">
-        <span className="font-medium text-lg">SQL Editor</span>
-        <Badge className="ml-2" variant="outlinePrimary">
-          Beta
-        </Badge>
+        <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>
           <Button onClick={handleCreate} variant="outline" className="size-6 p-0 lg:flex">
             <Plus className="w-4 h-4" />
@@ -248,26 +245,23 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <ScrollArea className="flex-grow overflow-auto p-2">
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="p-2 rounded-md bg-muted animate-pulse">
-                <div className="h-4 bg-muted-foreground/20 rounded mb-1"></div>
-                <div className="h-3 bg-muted-foreground/20 rounded w-2/3"></div>
-              </div>
+              <div key={i} className="flex h-8 rounded-md bg-muted animate-pulse" />
             ))}
           </div>
         ) : isEmpty(templates) ? (
           <div className="text-center text-sm text-secondary-foreground">No queries created yet</div>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2 max-h-0">
             {templates.map((template) => (
               <QueryItem handleDelete={() => handleDelete(template)} key={template.id} template={template} />
             ))}
           </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 };

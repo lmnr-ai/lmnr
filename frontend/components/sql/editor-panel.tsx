@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { isEmpty } from "lodash";
-import { FileJson2, Loader2, PlayIcon, TableProperties } from "lucide-react";
+import { ChevronDown, Database, FileJson2, Loader2, PlayIcon, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -101,7 +101,7 @@ export default function EditorPanel() {
       <ResizableHandle withHandle />
       <ResizablePanel className="flex flex-col" defaultSize={60} minSize={20}>
         <Tabs className="flex flex-col h-full flex-1 overflow-hidden" defaultValue="table">
-          <TabsList className="border-b px-4 textsm">
+          <TabsList className="border-b px-3 text-sm">
             <TabsTrigger value="table">
               <TableProperties className="mr-2 w-4 h-4" />
               <span>Table</span>
@@ -110,12 +110,22 @@ export default function EditorPanel() {
               <FileJson2 className="mr-2 w-4 h-4" />
               <span>JSON</span>
             </TabsTrigger>
-            <div className="flex items-center gap-2 py-2 ml-auto">
-              <ExportSqlDialog results={results} sqlQuery={template?.query || ""} />
+            <div className="ml-auto py-2">
+              <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
+                <Button
+                  disabled={!template?.query.trim()}
+                  variant="secondary"
+                  className="rounded-tr-none rounded-br-none border-r-0"
+                >
+                  <Database className="size-3.5 mr-2" />
+                  Export
+                  <ChevronDown className="size-3.5 ml-2" />
+                </Button>
+              </ExportSqlDialog>
               <Button
                 disabled={isLoading || !template?.query.trim()}
                 onClick={executeQuery}
-                className="ml-auto w-fit px-2"
+                className="ml-auto px-2 rounded-tl-none rounded-bl-none"
               >
                 {isLoading ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />
@@ -127,7 +137,7 @@ export default function EditorPanel() {
               </Button>
             </div>
           </TabsList>
-          <TabsContent className="flex h-full" value="table">
+          <TabsContent className="size-full" value="table">
             {!results && !error && (
               <div className="w-full text-center text-gray-500 mt-4">Execute a query to see results</div>
             )}

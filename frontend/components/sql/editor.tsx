@@ -1,9 +1,5 @@
 "use client";
 
-import { sql } from "@codemirror/lang-sql";
-import { Prec } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
-import { createTheme } from "@uiw/codemirror-themes";
 import CodeMirror from "@uiw/react-codemirror";
 import { debounce } from "lodash";
 import { Plus, SquareTerminal } from "lucide-react";
@@ -13,36 +9,13 @@ import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
 import { SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
-import { baseExtensions, defaultThemeSettings, githubDarkStyle } from "@/components/ui/code-highlighter/utils";
 import { useToast } from "@/lib/hooks/use-toast";
-
-const theme = createTheme({
-  theme: "dark",
-  settings: {
-    ...defaultThemeSettings,
-    fontSize: 14,
-  },
-  styles: githubDarkStyle,
-});
 
 interface SQLEditorProps {
   className?: string;
 }
-
-const extensions = [
-  ...baseExtensions,
-  EditorView.lineWrapping,
-  sql(),
-  Prec.highest(
-    keymap.of([
-      {
-        key: "Mod-Enter",
-        run: () => true,
-      },
-    ])
-  ),
-];
 
 export default function SQLEditor({ className }: SQLEditorProps) {
   const { projectId, id } = useParams();
@@ -83,7 +56,7 @@ export default function SQLEditor({ className }: SQLEditorProps) {
         });
       }
     },
-    [projectId, templateId, templateName, id, toast] // Use stable values instead of template object
+    [projectId, templateId, templateName, id, toast]
   );
 
   const handleCreate = useCallback(async () => {
@@ -142,7 +115,7 @@ export default function SQLEditor({ className }: SQLEditorProps) {
     <div className={`flex-grow flex bg-muted/50 overflow-auto w-full h-full pl-1 ${className || ""}`}>
       {template ? (
         <CodeMirror
-          placeholder="Enter your SQL query here..."
+          placeholder="Enter your SQL query... Try typing 'spans.path', 'evaluator_scores.', or enum values like 'LLM'"
           theme={theme}
           className="size-full"
           extensions={extensions}
