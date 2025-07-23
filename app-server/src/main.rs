@@ -5,7 +5,6 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
 use actix_web::{
     App, HttpServer,
     middleware::{Logger, NormalizePath},
@@ -179,7 +178,9 @@ fn main() -> anyhow::Result<()> {
 
     let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
 
-    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
+    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) =
+        (publisher_connection.as_ref(), consumer_connection.as_ref())
+    {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
             // Register queues
@@ -520,11 +521,8 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                let process_traces_service = ProcessTracesService::new(
-                    db.clone(),
-                    cache.clone(),
-                    queue.clone(),
-                );
+                let process_traces_service =
+                    ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
 
                 Server::builder()
                     .add_service(

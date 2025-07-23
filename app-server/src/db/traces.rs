@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr, sync::LazyLock};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::LazyLock,
+};
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -7,12 +11,15 @@ use sqlx::{PgPool, QueryBuilder};
 use uuid::Uuid;
 
 use crate::{
-    ch::traces::search_spans_for_trace_ids, 
+    ch::traces::search_spans_for_trace_ids,
     db::{
-        filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterOperator, FilterValue}, 
-        trace::TraceType
-    }, 
-    routes::error::Error
+        filters::{
+            FieldConfig, FieldType, Filter, FilterOperator, FilterValue,
+            validate_and_convert_filters,
+        },
+        trace::TraceType,
+    },
+    routes::error::Error,
 };
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -36,29 +43,29 @@ pub struct TraceInfo {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SearchTracesParams {
+pub struct GetTracesParams {
     page_size: Option<usize>,
     page_number: Option<usize>,
     search: Option<String>,
     search_in: Option<String>,
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
-    #[serde(default, deserialize_with = "deserialize_filters")]
+    #[serde(default)]
     filters: Vec<Filter>,
 }
 
-impl SearchTracesParams {
+impl GetTracesParams {
     const MAX_TIME_RANGE_DAYS: i64 = 30;
     const MAX_PAGE_SIZE: usize = 50;
 
     pub fn page_size(&self) -> usize {
         self.page_size.unwrap_or(25)
     }
-    
+
     pub fn page_number(&self) -> usize {
         self.page_number.unwrap_or(0)
     }
-    
+
     pub fn offset(&self) -> usize {
         self.page_number() * self.page_size()
     }
@@ -66,20 +73,29 @@ impl SearchTracesParams {
     pub fn start_time(&self) -> DateTime<Utc> {
         self.start_time.unwrap_or(Utc::now() - Duration::hours(24))
     }
-    
+
     pub fn end_time(&self) -> DateTime<Utc> {
         self.end_time.unwrap_or(Utc::now())
     }
-    
+
     pub fn search_in(&self) -> Vec<String> {
-        let parsed = self.search_in
+        let parsed = self
+            .search_in
             .as_ref()
-            .map(|s| s.split(',').filter_map(|s| {
-                let trimmed = s.trim();
-                if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
-            }).collect::<Vec<_>>())
+            .map(|s| {
+                s.split(',')
+                    .filter_map(|s| {
+                        let trimmed = s.trim();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed.to_string())
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default();
-        
+
         if parsed.is_empty() {
             vec!["input".to_string(), "output".to_string()]
         } else {
@@ -106,48 +122,44 @@ impl SearchTracesParams {
     fn validate_time_range(&self) -> Result<(), Error> {
         let start = self.start_time();
         let end = self.end_time();
-        
+
         if start >= end {
             return Err(Error::BadRequest(
-                "Start time must be before end time".to_string()
+                "Start time must be before end time".to_string(),
             ));
         }
 
         let time_range = end.signed_duration_since(start);
         let max_duration = Duration::days(Self::MAX_TIME_RANGE_DAYS);
-        
+
         if time_range > max_duration {
-            return Err(Error::BadRequest(
-                format!(
-                    "Time range cannot exceed {} days. Current range: {} days",
-                    Self::MAX_TIME_RANGE_DAYS,
-                    time_range.num_days()
-                )
-            ));
+            return Err(Error::BadRequest(format!(
+                "Time range cannot exceed {} days. Current range: {} days",
+                Self::MAX_TIME_RANGE_DAYS,
+                time_range.num_days()
+            )));
         }
-        
+
         Ok(())
     }
 
     fn validate_page_size(&self) -> Result<(), Error> {
         let page_size = self.page_size();
-        
+
         if page_size <= 0 {
             return Err(Error::BadRequest(
-                "Page size must be greater than 0".to_string()
+                "Page size must be greater than 0".to_string(),
             ));
         }
 
         if page_size > Self::MAX_PAGE_SIZE {
-            return Err(Error::BadRequest(
-                format!(
-                    "Page size cannot exceed {}. Current page size: {}",
-                    Self::MAX_PAGE_SIZE,
-                    page_size
-                )
-            ));
+            return Err(Error::BadRequest(format!(
+                "Page size cannot exceed {}. Current page size: {}",
+                Self::MAX_PAGE_SIZE,
+                page_size
+            )));
         }
-        
+
         Ok(())
     }
 }
@@ -155,68 +167,72 @@ impl SearchTracesParams {
 static TRACES_FIELD_CONFIGS: LazyLock<HashMap<String, FieldConfig>> = LazyLock::new(|| {
     let mut configs = HashMap::new();
 
-    configs.insert("trace_type".to_string(), FieldConfig::new(
-        FieldType::Enum,
-        "t.trace_type"
-    ).with_validator(validate_trace_type));
+    configs.insert(
+        "trace_type".to_string(),
+        FieldConfig::new(FieldType::Enum, "t.trace_type").with_validator(validate_trace_type),
+    );
 
-    configs.insert("id".to_string(), FieldConfig::new(
-        FieldType::Uuid,
-        "t.id"
-    ));
+    configs.insert("id".to_string(), FieldConfig::new(FieldType::Uuid, "t.id"));
 
-    configs.insert("duration".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8)"
-    ));
+    configs.insert(
+        "duration".to_string(),
+        FieldConfig::new(
+            FieldType::Float,
+            "CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8)",
+        ),
+    );
 
-    configs.insert("input_cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "t.input_cost"
-    ));
+    configs.insert(
+        "input_cost".to_string(),
+        FieldConfig::new(FieldType::Float, "t.input_cost"),
+    );
 
-    configs.insert("output_cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "t.output_cost"
-    ));
+    configs.insert(
+        "output_cost".to_string(),
+        FieldConfig::new(FieldType::Float, "t.output_cost"),
+    );
 
-    configs.insert("cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "t.cost"
-    ));
+    configs.insert(
+        "cost".to_string(),
+        FieldConfig::new(FieldType::Float, "t.cost"),
+    );
 
-    configs.insert("input_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "t.input_token_count"
-    ));
+    configs.insert(
+        "input_token_count".to_string(),
+        FieldConfig::new(FieldType::Integer, "t.input_token_count"),
+    );
 
-    configs.insert("output_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "t.output_token_count"
-    ));
+    configs.insert(
+        "output_token_count".to_string(),
+        FieldConfig::new(FieldType::Integer, "t.output_token_count"),
+    );
 
-    configs.insert("total_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "t.total_token_count"
-    ));
+    configs.insert(
+        "total_token_count".to_string(),
+        FieldConfig::new(FieldType::Integer, "t.total_token_count"),
+    );
 
-    configs.insert("metadata".to_string(), FieldConfig::new(
-        FieldType::Json,
-        "t.metadata"
-    ));
+    configs.insert(
+        "metadata".to_string(),
+        FieldConfig::new(FieldType::Json, "t.metadata"),
+    );
 
-    configs.insert("status".to_string(), FieldConfig::new(
-        FieldType::Enum,
-        "t.status"
-    ).with_validator(validate_status));
+    configs.insert(
+        "status".to_string(),
+        FieldConfig::new(FieldType::Enum, "t.status").with_validator(validate_status),
+    );
 
     configs
 });
 
 fn validate_trace_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
-        TraceType::from_str(s)
-            .map_err(|_| format!("Invalid trace type: {}. Valid values: DEFAULT, EVENT, EVALUATION, PLAYGROUND", s))?;
+        TraceType::from_str(s).map_err(|_| {
+            format!(
+                "Invalid trace type: {}. Valid values: DEFAULT, EVENT, EVALUATION, PLAYGROUND",
+                s
+            )
+        })?;
         Ok(())
     } else {
         Err("Trace type must be a string".to_string())
@@ -235,12 +251,11 @@ fn validate_status(value: &FilterValue) -> Result<(), String> {
     }
 }
 
-
 fn build_trace_filters<'qb>(
     mut query_builder: QueryBuilder<'qb, sqlx::Postgres>,
     project_id: Uuid,
     trace_ids: Option<HashSet<Uuid>>,
-    params: &'qb SearchTracesParams,
+    params: &'qb GetTracesParams,
 ) -> Result<QueryBuilder<'qb, sqlx::Postgres>, Error> {
     query_builder.push_bind(project_id);
 
@@ -252,12 +267,31 @@ fn build_trace_filters<'qb>(
 
     query_builder.push(" AND t.start_time >= ");
     query_builder.push_bind(params.start_time());
-    
+
     query_builder.push(" AND t.end_time <= ");
     query_builder.push_bind(params.end_time());
 
     for filter in params.filters() {
-        // Manually cast status filter because of the way we store it.
+        if filter.field == "trace_type" {
+            if let FilterValue::String(trace_type_str) = &filter.value {
+                match TraceType::from_str(trace_type_str) {
+                    Ok(trace_type_enum) => {
+                        query_builder.push(" AND t.trace_type ");
+                        query_builder.push(filter.operator.to_sql());
+                        query_builder.push(" ");
+                        query_builder.push_bind(trace_type_enum);
+                        continue;
+                    }
+                    Err(_) => {
+                        return Err(Error::BadRequest(format!(
+                            "Invalid trace type: {}. Valid values: DEFAULT, EVENT, EVALUATION, PLAYGROUND",
+                            trace_type_str
+                        )));
+                    }
+                }
+            }
+        }
+
         if filter.field == "status" && filter.operator == FilterOperator::Eq {
             if let FilterValue::String(status_value) = &filter.value {
                 if status_value == "success" {
@@ -267,17 +301,18 @@ fn build_trace_filters<'qb>(
             }
         }
 
-        query_builder = filter.apply_to_query_builder(query_builder, &TRACES_FIELD_CONFIGS)
+        query_builder = filter
+            .apply_to_query_builder(query_builder, &TRACES_FIELD_CONFIGS)
             .map_err(|e| Error::BadRequest(e))?;
     }
 
     Ok(query_builder)
 }
 
-async fn get_traces(
+async fn query_traces(
     pool: &sqlx::PgPool,
     project_id: Uuid,
-    params: &SearchTracesParams,
+    params: &GetTracesParams,
     trace_ids: Option<HashSet<Uuid>>,
 ) -> Result<Vec<TraceInfo>, Error> {
     if let Some(ref trace_ids) = trace_ids {
@@ -303,13 +338,14 @@ async fn get_traces(
             CAST(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) * 1000 AS FLOAT8) as duration,
             t.metadata
          FROM traces t
-         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
+         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = ",
     );
 
-    let mut main_query_builder = build_trace_filters(main_query_builder, project_id, trace_ids, params)?;
+    let mut main_query_builder =
+        build_trace_filters(main_query_builder, project_id, trace_ids, params)?;
 
     main_query_builder.push(" ORDER BY t.start_time DESC");
-    
+
     if params.page_size() > 0 {
         main_query_builder.push(" LIMIT ");
         main_query_builder.push_bind(params.page_size() as i32);
@@ -330,7 +366,7 @@ async fn get_traces(
 async fn count_traces(
     pool: &sqlx::PgPool,
     project_id: Uuid,
-    params: &SearchTracesParams,
+    params: &GetTracesParams,
     trace_ids: Option<HashSet<Uuid>>,
 ) -> Result<i64, Error> {
     if let Some(ref trace_ids) = trace_ids {
@@ -342,9 +378,10 @@ async fn count_traces(
     let count_query_builder = QueryBuilder::new(
         "SELECT COUNT(t.id) 
          FROM traces t
-         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = "
+         WHERE t.start_time IS NOT NULL AND t.end_time IS NOT NULL AND t.project_id = ",
     );
-    let mut count_query_builder = build_trace_filters(count_query_builder, project_id, trace_ids, params)?;
+    let mut count_query_builder =
+        build_trace_filters(count_query_builder, project_id, trace_ids, params)?;
 
     let count: i64 = count_query_builder
         .build_query_scalar()
@@ -354,18 +391,19 @@ async fn count_traces(
     Ok(count)
 }
 
-pub async fn search_traces(
+pub async fn get_traces(
     pool: &PgPool,
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
-    mut params: SearchTracesParams,
+    mut params: GetTracesParams,
 ) -> Result<(Vec<TraceInfo>, i64), Error> {
     params.validate()?;
 
     let trace_ids = if let Some(search_query) = &params.search {
         match search_spans_for_trace_ids(clickhouse, project_id, search_query, &params)
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))? {
+            .map_err(|e| anyhow::anyhow!("{}", e))?
+        {
             Some(ids) => Some(ids),
             None => {
                 return Ok((Vec::new(), 0));
@@ -377,7 +415,7 @@ pub async fn search_traces(
 
     let (count_result, traces_result) = tokio::join!(
         count_traces(&pool, project_id, &params, trace_ids.clone()),
-        get_traces(&pool, project_id, &params, trace_ids)
+        query_traces(&pool, project_id, &params, trace_ids)
     );
 
     let count = count_result?;
