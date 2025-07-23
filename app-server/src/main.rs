@@ -7,9 +7,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 
 use actix_web::{
-    App, HttpServer,
-    middleware::{Logger, NormalizePath},
-    web::{self, JsonConfig, PayloadConfig},
+    dev, http::StatusCode, middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath}, web::{self, JsonConfig, PayloadConfig}, App, HttpServer
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
@@ -509,6 +507,12 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
+                    .wrap( ErrorHandlers::new()
+                            .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                log::error!("Bad request: {:?}", res.response().body());
+                                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                            })
+                        )
                         .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
