@@ -24,7 +24,6 @@ use prost::Message;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
-    pub project_id: Uuid,
     pub span: Span,
     pub events: Vec<Event>,
 }

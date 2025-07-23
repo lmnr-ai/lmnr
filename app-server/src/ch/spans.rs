@@ -66,7 +66,7 @@ pub struct CHSpan {
 impl CHSpan {
     pub fn from_db_span(
         span: &Span,
-        usage: SpanUsage,
+        usage: &SpanUsage,
         project_id: Uuid,
         size_bytes: usize,
     ) -> Self {
@@ -100,12 +100,16 @@ impl CHSpan {
             total_cost: usage.total_cost,
             model: usage
                 .response_model
-                .or(usage.request_model)
+                .clone()
+                .or(usage.request_model.clone())
                 .unwrap_or(String::from("<null>")),
             session_id: session_id.unwrap_or(String::from("<null>")),
             project_id: project_id,
             trace_id: span.trace_id,
-            provider: usage.provider_name.unwrap_or(String::from("<null>")),
+            provider: usage
+                .provider_name
+                .clone()
+                .unwrap_or(String::from("<null>")),
             user_id: user_id.unwrap_or(String::from("<null>")),
             path: path.unwrap_or(String::from("<null>")),
             input: span_input_string,
@@ -116,22 +120,34 @@ impl CHSpan {
     }
 }
 
-pub async fn insert_span(clickhouse: clickhouse::Client, span: &CHSpan) -> Result<()> {
+pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]) -> Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
+
     let ch_insert = clickhouse.insert("spans");
     match ch_insert {
         Ok(mut ch_insert) => {
-            ch_insert.write(span).await?;
+            // Write all spans to the batch
+            for span in spans {
+                ch_insert.write(span).await?;
+            }
+
+            // End the batch insertion
             let ch_insert_end_res = ch_insert.end().await;
             match ch_insert_end_res {
                 Ok(_) => Ok(()),
                 Err(e) => {
-                    return Err(anyhow::anyhow!("Clickhouse span insertion failed: {:?}", e));
+                    return Err(anyhow::anyhow!(
+                        "Clickhouse batch span insertion failed: {:?}",
+                        e
+                    ));
                 }
             }
         }
         Err(e) => {
             return Err(anyhow::anyhow!(
-                "Failed to insert span into Clickhouse: {:?}",
+                "Failed to insert spans batch into Clickhouse: {:?}",
                 e
             ));
         }

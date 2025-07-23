@@ -18,11 +18,13 @@ const WITH_AGG_SCORES_CTE_NAME = '__ql_cte_agg_json_scores';
 export const WITH_EVALUATOR_SCORES_CTE_NAME = 'evaluator_scores';
 export const WITH_EVAL_DP_DATA_CTE_NAME = '__ql_cte_eval_dp_data';
 export const WITH_EVAL_DP_TARGET_CTE_NAME = '__ql_cte_eval_dp_target';
+export const WITH_SPAN_TAGS_CTE_NAME = '__ql_cte_span_tags';
 export type AllowedTableNameForJoin =
   | TableName
   | typeof WITH_EVAL_DP_DATA_CTE_NAME
   | typeof WITH_EVAL_DP_TARGET_CTE_NAME
-  | typeof WITH_EVALUATOR_SCORES_CTE_NAME;
+  | typeof WITH_EVALUATOR_SCORES_CTE_NAME
+  | typeof WITH_SPAN_TAGS_CTE_NAME;
 
 const WITH_AGG_SCORES_CTE = `
   WITH ${WITH_AGG_SCORES_CTE_NAME}(result_id, scores) AS (
@@ -51,20 +53,20 @@ const WITH_AGG_SCORES_CTE = `
 `;
 
 const WITH_EVALUATOR_SCORES_CTE = `
-  WITH ${WITH_EVALUATOR_SCORES_CTE_NAME}(span_id, scores) AS (
+  WITH ${WITH_EVALUATOR_SCORES_CTE_NAME}(__span_id, scores) AS (
     SELECT
-      span_id,
+      evaluator_scores.span_id,
       jsonb_object_agg(evaluators.name, evaluator_scores.score) as evaluator_scores
     FROM evaluator_scores
     JOIN evaluators ON evaluator_scores.evaluator_id = evaluators.id
-    GROUP BY span_id
+    GROUP BY evaluator_scores.span_id
   )
   SELECT * FROM ${WITH_EVALUATOR_SCORES_CTE_NAME}
 `;
 
 const WITH_EVAL_DP_DATA_CTE = `
   WITH ${WITH_EVAL_DP_DATA_CTE_NAME}(id, full_data) AS (
-    SELECT DISTINCT ON (spans.project_id, span_id)
+    SELECT DISTINCT ON (spans.project_id, spans.span_id)
       evaluation_results.id,
       COALESCE(spans.input -> 'data', spans.input) as full_data
     FROM spans
@@ -80,7 +82,7 @@ const WITH_EVAL_DP_DATA_CTE = `
 
 const WITH_EVAL_DP_TARGET_CTE = `
   WITH ${WITH_EVAL_DP_TARGET_CTE_NAME}(id, target) AS (
-    SELECT DISTINCT ON (spans.project_id, span_id)
+    SELECT DISTINCT ON (spans.project_id, spans.span_id)
       evaluation_results.id,
       COALESCE(spans.input -> 'target', spans.input -> 0, spans.input) as target
     FROM spans
@@ -95,38 +97,29 @@ const WITH_EVAL_DP_TARGET_CTE = `
 `;
 
 // Hide most columns from label_classes table
-const WITH_LABEL_CLASSES_CTE = `
-  WITH label_classes(id, name) AS (
-    SELECT
-      label_classes.id,
-      label_classes.name
-    FROM label_classes
-  )
-  SELECT * FROM label_classes
-`;
-
-const WITH_LABEL_CTE = `
-  WITH labels(span_id, class_id) AS (
+const WITH_SPAN_TAGS_CTE = `
+  WITH ${WITH_SPAN_TAGS_CTE_NAME}(__span_id, tags) AS (
     SELECT
       labels.span_id,
-      labels.class_id
-    FROM labels
+      ARRAY_AGG(label_classes.name) as tags
+    FROM spans
+    JOIN labels ON spans.span_id = labels.span_id
+    JOIN label_classes ON labels.class_id = label_classes.id
+    GROUP BY labels.span_id
   )
-  SELECT * FROM labels
+  SELECT * FROM ${WITH_SPAN_TAGS_CTE_NAME}
 `;
 
 const AGG_SCORE_CTE_WITH: With[] = sqlToWithArray(WITH_AGG_SCORES_CTE);
 const EVAL_DP_DATA_CTE_WITH: With[] = sqlToWithArray(WITH_EVAL_DP_DATA_CTE);
 const EVAL_DP_TARGET_CTE_WITH: With[] = sqlToWithArray(WITH_EVAL_DP_TARGET_CTE);
 const EVALUATOR_SCORES_CTE_WITH: With[] = sqlToWithArray(WITH_EVALUATOR_SCORES_CTE);
-const LABEL_CTE_WITH: With[] = sqlToWithArray(WITH_LABEL_CTE);
-const LABEL_CLASSES_CTE_WITH: With[] = sqlToWithArray(WITH_LABEL_CLASSES_CTE);
+const SPAN_TAGS_CTE_WITH: With[] = sqlToWithArray(WITH_SPAN_TAGS_CTE);
 
 export const ADDITIONAL_WITH_CTES = [
   ...AGG_SCORE_CTE_WITH,
   ...EVAL_DP_DATA_CTE_WITH,
   ...EVAL_DP_TARGET_CTE_WITH,
   ...EVALUATOR_SCORES_CTE_WITH,
-  ...LABEL_CTE_WITH,
-  ...LABEL_CLASSES_CTE_WITH,
+  ...SPAN_TAGS_CTE_WITH,
 ];

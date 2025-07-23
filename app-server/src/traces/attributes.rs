@@ -25,6 +25,7 @@ pub struct TraceAttributes {
     pub has_browser_session: Option<bool>,
     pub top_span_id: Option<Uuid>,
     pub user_id: Option<String>,
+    pub project_id: Uuid,
 }
 
 impl TraceAttributes {

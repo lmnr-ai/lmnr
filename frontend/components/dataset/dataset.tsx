@@ -1,7 +1,6 @@
 "use client";
 
 import { ColumnDef, Row } from "@tanstack/react-table";
-import { get } from "lodash";
 import { Pen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
@@ -23,10 +22,12 @@ import Header from "../ui/header";
 import MonoWithCopy from "../ui/mono-with-copy";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
+import DownloadParquetDialog from "./download-parquet-dialog";
 import ManualAddDatapoint from "./manual-add-datapoint-dialog";
 
 interface DatasetProps {
   dataset: DatasetType;
+  enableDownloadParquet?: boolean;
 }
 
 const columns: ColumnDef<Datapoint>[] = [
@@ -37,32 +38,23 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
   {
-    accessorFn: (row) => JSON.stringify(row.data),
+    accessorFn: (row) => row.data,
     header: "Data",
     size: 200,
   },
   {
-    accessorFn: (row) => (row.target ? JSON.stringify(row.target) : "-"),
+    accessorFn: (row) => row.target,
     header: "Target",
     size: 200,
   },
   {
-    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata) : "-"),
+    accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
   },
 ];
 
-const tryParse = (obj: any, key: string) => {
-  try {
-    const value = get(obj, key);
-    return typeof value === "string" ? JSON.parse(value) : value;
-  } catch {
-    return get(obj, key);
-  }
-};
-
-export default function Dataset({ dataset }: DatasetProps) {
+export default function Dataset({ dataset, enableDownloadParquet }: DatasetProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -89,26 +81,12 @@ export default function Dataset({ dataset }: DatasetProps) {
     swrFetcher
   );
 
-  const { datapoints, totalCount } = useMemo<{ datapoints: Datapoint[]; totalCount: number }>(
+  const { datapoints, totalCount } = useMemo<{ datapoints: Datapoint[] | undefined; totalCount: number }>(
     () => ({
-      datapoints: data?.items || [],
+      datapoints: data?.items || undefined,
       totalCount: data?.totalCount || 0,
     }),
     [data?.items, data?.totalCount]
-  );
-
-  const datapointsToLabel = useMemo(
-    () =>
-      datapoints.map((point, index) => ({
-        createdAt: new Date(Date.now() + index).toISOString(),
-        payload: {
-          data: tryParse(point, "data"),
-          target: tryParse(point, "target"),
-          metadata: tryParse(point, "metadata"),
-        },
-        metadata: { source: "datapoint", id: point.id, datasetId: dataset.id },
-      })),
-    [datapoints, dataset.id]
   );
 
   const pageCount = Math.ceil(totalCount / pageSize);
@@ -202,12 +180,13 @@ export default function Dataset({ dataset }: DatasetProps) {
           />
           <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
-          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints.map(({ id }) => id)}>
+          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
               <Pen className="size-3 min-w-3" />
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
             </Badge>
           </AddToLabelingQueuePopover>
+          {enableDownloadParquet && <DownloadParquetDialog datasetId={dataset.id} />}
         </div>
       </div>
       <div className="flex-grow">
