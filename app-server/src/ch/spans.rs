@@ -1,13 +1,11 @@
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
     traces::spans::SpanUsage,
-    utils::json_value_to_string,
 };
 
 use super::utils::chrono_to_nanoseconds;
@@ -74,17 +72,17 @@ impl CHSpan {
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
 
-        let span_input_string = json_value_to_string(
-            span.input
-                .as_ref()
-                .unwrap_or(&Value::String(String::from(""))),
-        );
+        let span_input_string = span
+            .input
+            .as_ref()
+            .map(|input| input.to_string())
+            .unwrap_or(String::new());
 
-        let span_output_string = json_value_to_string(
-            span.output
-                .as_ref()
-                .unwrap_or(&Value::String(String::from(""))),
-        );
+        let span_output_string = span
+            .output
+            .as_ref()
+            .map(|output| output.to_string())
+            .unwrap_or(String::new());
 
         CHSpan {
             span_id: span.span_id,
