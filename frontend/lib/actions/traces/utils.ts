@@ -6,7 +6,7 @@ import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
 import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
-import { Span, SpanType,Trace } from "@/lib/traces/types";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
 
 export type TraceQueryResult = Pick<
   Trace,
@@ -97,7 +97,10 @@ export const processTraceFilters = (filters: FilterDef[]) =>
         },
       },
     ]),
-    defaultProcessor: (filter) => filtersToSql([filter], [], {})[0] || null,
+    defaultProcessor: (filter) =>
+      filtersToSql([filter], [], {
+        latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
+      })[0] || null,
   });
 
 export const separateFilters = (filters: FilterDef[]) => {

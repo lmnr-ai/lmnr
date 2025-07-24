@@ -11,6 +11,7 @@ export async function GET(
 
   try {
     const span = await getSpan({ spanId, projectId });
+
     return NextResponse.json(span);
   } catch (error) {
     return NextResponse.json({ error: "Span not found" }, { status: 404 });
