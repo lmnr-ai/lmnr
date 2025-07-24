@@ -197,6 +197,14 @@ impl SpanAttributes {
         }
     }
 
+    pub fn total_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_TOTAL_COST) {
+            n.as_f64()
+        } else {
+            None
+        }
+    }
+
     pub fn request_model(&self) -> Option<String> {
         match self.raw_attributes.get(GEN_AI_REQUEST_MODEL) {
             Some(Value::String(s)) => Some(s.clone()),
