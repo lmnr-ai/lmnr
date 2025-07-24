@@ -13,7 +13,7 @@ const tryParseJson = (value: string) => {
       return JSON.parse(`[${value}]`);
     } catch (e2) {
       console.log("Failed to parse JSON with brackets:", e2);
-      return value || null;
+      return value;
     }
   }
 };
