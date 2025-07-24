@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::LazyLock,
 };
 
 use anyhow::Result;
@@ -343,8 +344,7 @@ impl GetSpansParams {
     }
 
     pub fn validate_and_convert_filters(&mut self) -> Result<(), Error> {
-        let field_configs = create_spans_field_configs();
-        self.filters = validate_and_convert_filters(&self.filters, &field_configs)?;
+        self.filters = validate_and_convert_filters(&self.filters, &SPANS_FIELD_CONFIGS)?;
         Ok(())
     }
 
@@ -400,7 +400,7 @@ impl GetSpansParams {
     }
 }
 
-fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
+static SPANS_FIELD_CONFIGS: LazyLock<HashMap<String, FieldConfig>> = LazyLock::new(|| {
     let mut configs = HashMap::new();
 
     configs.insert(
@@ -490,7 +490,7 @@ fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
     );
 
     configs
-}
+});
 
 fn validate_span_type(value: &FilterValue) -> Result<(), String> {
     if let FilterValue::String(s) = value {
@@ -539,7 +539,6 @@ fn build_span_filters<'a>(
     query_builder.push(" AND s.end_time <= ");
     query_builder.push_bind(params.end_time());
 
-    let field_configs = create_spans_field_configs();
     for filter in params.filters() {
         if filter.field == "span_type" {
             if let FilterValue::String(span_type_str) = &filter.value {
@@ -571,7 +570,7 @@ fn build_span_filters<'a>(
         }
 
         query_builder = filter
-            .apply_to_query_builder(query_builder, &field_configs)
+            .apply_to_query_builder(query_builder, &SPANS_FIELD_CONFIGS) // Use static reference here
             .map_err(|e| Error::BadRequest(e))?;
     }
 
