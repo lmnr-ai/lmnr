@@ -81,8 +81,8 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
 
   return {
     ...dbSpan,
-    input: spanInput,
-    output: spanOutput,
+    input: tryParseJson(spanInput),
+    output: tryParseJson(spanOutput),
   };
 }
 
@@ -144,3 +144,19 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
+
+const tryParseJson = (value: string) => {
+  if (value === "") return null;
+
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    // Parse with brackets because we stringify array using comma separator on server.
+    try {
+      return JSON.parse(`[${value}]`);
+    } catch (e2) {
+      console.log("Failed to parse JSON with brackets:", e2);
+      return value;
+    }
+  }
+};
