@@ -1,4 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { capitalize } from "lodash";
 import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
@@ -253,6 +254,15 @@ export const filters: ColumnFilter[] = [
     name: "Total tokens",
     key: "total_token_count",
     dataType: "number",
+  },
+  {
+    name: "Status",
+    dataType: "enum",
+    key: "status",
+    options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
   },
   {
     name: "Metadata",

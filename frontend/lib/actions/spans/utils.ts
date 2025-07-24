@@ -91,6 +91,18 @@ export const processSpanFilters = (filters: FilterDef[]) =>
         operators: [Operator.Eq, Operator.Ne],
         process: (filter) => createModelFilter(filter),
       },
+      {
+        column: "status",
+        operators: [Operator.Eq, Operator.Ne],
+        process: (filter) => {
+          if (filter.value === "success") {
+            return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
+          } else if (filter.value === "error") {
+            return filter.operator === "eq" ? sql`status = 'error'` : sql`status IS NULL`;
+          }
+          return sql`1=1`;
+        },
+      },
     ]),
     defaultProcessor: (filter) => {
       const processed = processAttributeFilter(filter);
@@ -108,6 +120,7 @@ export const processTraceSpanFilters = (filters: FilterDef[]) =>
     processors: processors<FilterDef, any>([
       {
         column: "status",
+        operators: [Operator.Eq, Operator.Ne],
         process: (filter) => {
           if (filter.value === "success") {
             return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;

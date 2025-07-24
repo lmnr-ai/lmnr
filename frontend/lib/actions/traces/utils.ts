@@ -51,6 +51,18 @@ export const processTraceFilters = (filters: FilterDef[]) =>
           return filtersToSql([{ ...filter, value, castType: AllowedCastType.SpanType }], [], {})[0];
         },
       },
+      {
+        column: "status",
+        operators: [Operator.Eq, Operator.Ne],
+        process: (filter) => {
+          if (filter.value === "success") {
+            return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
+          } else if (filter.value === "error") {
+            return filter.operator === "eq" ? sql`status = 'error'` : sql`status IS NULL`;
+          }
+          return sql`1=1`;
+        },
+      },
     ]),
     defaultProcessor: (filter) => filtersToSql([filter], [], {})[0] || null,
   });
