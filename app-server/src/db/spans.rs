@@ -514,12 +514,12 @@ fn validate_status(value: &FilterValue) -> Result<(), String> {
     }
 }
 
-fn build_span_filters<'a>(
-    mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
+fn build_span_filters<'qb>(
+    mut query_builder: QueryBuilder<'qb, sqlx::Postgres>,
     project_id: Uuid,
-    span_ids: &'a Option<HashSet<Uuid>>,
-    params: &'a GetSpansParams,
-) -> Result<QueryBuilder<'a, sqlx::Postgres>, Error> {
+    span_ids: &'qb Option<HashSet<Uuid>>,
+    params: &'qb GetSpansParams,
+) -> Result<QueryBuilder<'qb, sqlx::Postgres>, Error> {
     query_builder.push_bind(project_id);
 
     if let Some(trace_id) = params.trace_id {
@@ -570,7 +570,7 @@ fn build_span_filters<'a>(
         }
 
         query_builder = filter
-            .apply_to_query_builder(query_builder, &SPANS_FIELD_CONFIGS) // Use static reference here
+            .apply_to_query_builder(query_builder, &SPANS_FIELD_CONFIGS)
             .map_err(|e| Error::BadRequest(e))?;
     }
 
