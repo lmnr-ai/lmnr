@@ -1,14 +1,25 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
-use crate::{ch::spans::search_spans_for_span_ids, db::filters::{deserialize_filters, validate_and_convert_filters, FieldConfig, FieldType, Filter, FilterOperator, FilterValue}, routes::error::Error, traces::spans::{should_keep_attribute, SpanAttributes}};
 use super::utils::sanitize_value;
+use crate::{
+    ch::spans::search_spans_for_span_ids,
+    db::filters::{
+        FieldConfig, FieldType, Filter, FilterOperator, FilterValue, validate_and_convert_filters,
+    },
+    routes::error::Error,
+    traces::spans::{SpanAttributes, should_keep_attribute},
+};
 
 const PREVIEW_CHARACTERS: usize = 50;
 
@@ -49,6 +60,7 @@ impl FromStr for SpanType {
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub span_id: Uuid,
+    pub project_id: Uuid,
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
     pub name: String,
@@ -73,17 +85,52 @@ struct SpanDBValues {
     attributes_value: Value,
 }
 
-pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Result<()> {
-    // Possible further optimization:
-    // clone all small values from the span, e.g. trace_id, parent_span_id, etc.
-    // into local variables here, and then move the `span` into `prepare_span_db_values`
-    // so that inside `prepare_span_db_values` we don't have to clone the attributes,
-    // which are slightly (after filtering) larger.
-    let values = prepare_span_db_values(span);
+pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
 
+    // Prepare all span values upfront
+    let span_values: Vec<SpanDBValues> = spans.par_iter().map(prepare_span_db_values).collect();
+
+    // Create arrays for each column
+    let span_ids: Vec<Uuid> = spans.iter().map(|s| s.span_id).collect();
+    let trace_ids: Vec<Uuid> = spans.iter().map(|s| s.trace_id).collect();
+    let parent_span_ids: Vec<Option<Uuid>> = spans.iter().map(|s| s.parent_span_id).collect();
+    let start_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.start_time).collect();
+    let end_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.end_time).collect();
+    let names: Vec<String> = spans.iter().map(|s| s.name.clone()).collect();
+    let attributes: Vec<Value> = span_values
+        .iter()
+        .map(|v| v.attributes_value.clone())
+        .collect();
+    let inputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_input.clone())
+        .collect();
+    let outputs: Vec<Option<Value>> = span_values
+        .iter()
+        .map(|v| v.sanitized_output.clone())
+        .collect();
+    let span_types: Vec<SpanType> = spans.iter().map(|s| s.span_type.clone()).collect();
+    let input_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.input_preview.clone())
+        .collect();
+    let output_previews: Vec<Option<String>> = span_values
+        .iter()
+        .map(|v| v.output_preview.clone())
+        .collect();
+    let input_urls: Vec<Option<String>> = spans.iter().map(|s| s.input_url.clone()).collect();
+    let output_urls: Vec<Option<String>> = spans.iter().map(|s| s.output_url.clone()).collect();
+    let statuses: Vec<Option<String>> = spans.iter().map(|s| s.status.clone()).collect();
+    let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).collect();
+
+    // Use UNNEST to insert all spans in a single query
     sqlx::query(
-        "INSERT INTO spans
-            (span_id,
+        r#"
+        INSERT INTO spans (
+            span_id,
             trace_id,
             parent_span_id,
             start_time,
@@ -100,56 +147,43 @@ pub async fn record_span(pool: &PgPool, span: &Span, project_id: &Uuid) -> Resul
             status,
             project_id
         )
-        VALUES(
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10,
-            $11,
-            $12,
-            $13,
-            $14,
-            $15,
-            $16)
-        ON CONFLICT (span_id, project_id) DO UPDATE SET
-            trace_id = EXCLUDED.trace_id,
-            parent_span_id = EXCLUDED.parent_span_id,
-            start_time = EXCLUDED.start_time,
-            end_time = EXCLUDED.end_time,
-            name = EXCLUDED.name,
-            attributes = EXCLUDED.attributes,
-            input = EXCLUDED.input,
-            output = EXCLUDED.output,
-            span_type = EXCLUDED.span_type,
-            input_preview = EXCLUDED.input_preview,
-            output_preview = EXCLUDED.output_preview,
-            input_url = EXCLUDED.input_url,
-            output_url = EXCLUDED.output_url,
-            status = EXCLUDED.status
-    ",
+        SELECT * FROM UNNEST(
+            $1::uuid[],
+            $2::uuid[],
+            $3::uuid[],
+            $4::timestamptz[],
+            $5::timestamptz[],
+            $6::text[],
+            $7::jsonb[],
+            $8::jsonb[],
+            $9::jsonb[],
+            $10::span_type[],
+            $11::text[],
+            $12::text[],
+            $13::text[],
+            $14::text[],
+            $15::text[],
+            $16::uuid[]
+        )
+        ON CONFLICT DO NOTHING
+        "#,
     )
-    .bind(&span.span_id)
-    .bind(&span.trace_id)
-    .bind(&span.parent_span_id as &Option<Uuid>)
-    .bind(&span.start_time)
-    .bind(&span.end_time)
-    .bind(&span.name)
-    .bind(&values.attributes_value)
-    .bind(&values.sanitized_input as &Option<Value>)
-    .bind(&values.sanitized_output as &Option<Value>)
-    .bind(&span.span_type as &SpanType)
-    .bind(&values.input_preview)
-    .bind(&values.output_preview)
-    .bind(&span.input_url as &Option<String>)
-    .bind(&span.output_url as &Option<String>)
-    .bind(&span.status)
-    .bind(&project_id)
+    .bind(&span_ids)
+    .bind(&trace_ids)
+    .bind(&parent_span_ids)
+    .bind(&start_times)
+    .bind(&end_times)
+    .bind(&names)
+    .bind(&attributes)
+    .bind(&inputs)
+    .bind(&outputs)
+    .bind(&span_types)
+    .bind(&input_previews)
+    .bind(&output_previews)
+    .bind(&input_urls)
+    .bind(&output_urls)
+    .bind(&statuses)
+    .bind(&project_ids)
     .execute(pool)
     .await?;
 
@@ -241,7 +275,7 @@ fn generate_preview(value: &Option<Value>) -> Option<String> {
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct SpanSearchItem {
+pub struct SpanInfo {
     pub span_id: Uuid,
     pub trace_id: Uuid,
     pub parent_span_id: Option<Uuid>,
@@ -261,7 +295,7 @@ pub struct SpanSearchItem {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SearchSpansParams {
+pub struct GetSpansParams {
     pub page_size: Option<i32>,
     pub page_number: Option<i32>,
     pub search: Option<String>,
@@ -269,36 +303,39 @@ pub struct SearchSpansParams {
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
     pub trace_id: Option<Uuid>,
-    #[serde(default, deserialize_with = "deserialize_filters")]
+    #[serde(default)]
     pub filters: Vec<Filter>,
 }
 
-impl SearchSpansParams {
+impl GetSpansParams {
     const MAX_TIME_RANGE_DAYS: i64 = 30;
     const MAX_PAGE_SIZE: i32 = 50;
 
     pub fn page_size(&self) -> i32 {
         self.page_size.unwrap_or(25)
     }
-    
+
     pub fn page_number(&self) -> i32 {
         self.page_number.unwrap_or(0)
     }
-    
+
     pub fn offset(&self) -> i32 {
         self.page_number() * self.page_size()
     }
 
     pub fn start_time(&self) -> DateTime<Utc> {
-        self.start_time.unwrap_or_else(|| Utc::now() - Duration::hours(24))
+        self.start_time
+            .unwrap_or_else(|| Utc::now() - Duration::hours(24))
     }
-    
+
     pub fn end_time(&self) -> DateTime<Utc> {
         self.end_time.unwrap_or_else(|| Utc::now())
     }
-    
+
     pub fn search_in(&self) -> Vec<String> {
-        self.search_in.clone().unwrap_or_else(|| vec!["input".to_string(), "output".to_string()])
+        self.search_in
+            .clone()
+            .unwrap_or_else(|| vec!["input".to_string(), "output".to_string()])
     }
 
     pub fn filters(&self) -> &[Filter] {
@@ -321,48 +358,44 @@ impl SearchSpansParams {
     fn validate_time_range(&self) -> Result<(), Error> {
         let start = self.start_time();
         let end = self.end_time();
-        
+
         if start >= end {
             return Err(Error::BadRequest(
-                "Start time must be before end time".to_string()
+                "Start time must be before end time".to_string(),
             ));
         }
 
         let time_range = end.signed_duration_since(start);
         let max_duration = Duration::days(Self::MAX_TIME_RANGE_DAYS);
-        
+
         if time_range > max_duration {
-            return Err(Error::BadRequest(
-                format!(
-                    "Time range cannot exceed {} days. Current range: {} days",
-                    Self::MAX_TIME_RANGE_DAYS,
-                    time_range.num_days()
-                )
-            ));
+            return Err(Error::BadRequest(format!(
+                "Time range cannot exceed {} days. Current range: {} days",
+                Self::MAX_TIME_RANGE_DAYS,
+                time_range.num_days()
+            )));
         }
-        
+
         Ok(())
     }
 
     fn validate_page_size(&self) -> Result<(), Error> {
         let page_size = self.page_size();
-        
+
         if page_size <= 0 {
             return Err(Error::BadRequest(
-                "Page size must be greater than 0".to_string()
+                "Page size must be greater than 0".to_string(),
             ));
         }
 
         if page_size > Self::MAX_PAGE_SIZE {
-            return Err(Error::BadRequest(
-                format!(
-                    "Page size cannot exceed {}. Current page size: {}",
-                    Self::MAX_PAGE_SIZE,
-                    page_size
-                )
-            ));
+            return Err(Error::BadRequest(format!(
+                "Page size cannot exceed {}. Current page size: {}",
+                Self::MAX_PAGE_SIZE,
+                page_size
+            )));
         }
-        
+
         Ok(())
     }
 }
@@ -370,70 +403,91 @@ impl SearchSpansParams {
 fn create_spans_field_configs() -> HashMap<String, FieldConfig> {
     let mut configs = HashMap::new();
 
-    configs.insert("span_type".to_string(), FieldConfig::new(
-        FieldType::Enum,
-        "s.span_type"
-    ).with_validator(validate_span_type));
+    configs.insert(
+        "span_type".to_string(),
+        FieldConfig::new(FieldType::Enum, "s.span_type").with_validator(validate_span_type),
+    );
 
-    configs.insert("span_id".to_string(), FieldConfig::new(
-        FieldType::Uuid,
-        "s.span_id"
-    ));
+    configs.insert(
+        "span_id".to_string(),
+        FieldConfig::new(FieldType::Uuid, "s.span_id"),
+    );
 
-    configs.insert("trace_id".to_string(), FieldConfig::new(
-        FieldType::Uuid,
-        "s.trace_id"
-    ));
+    configs.insert(
+        "trace_id".to_string(),
+        FieldConfig::new(FieldType::Uuid, "s.trace_id"),
+    );
 
-    configs.insert("parent_span_id".to_string(), FieldConfig::new(
-        FieldType::Uuid,
-        "s.parent_span_id"
-    ));
+    configs.insert(
+        "parent_span_id".to_string(),
+        FieldConfig::new(FieldType::Uuid, "s.parent_span_id"),
+    );
 
-    configs.insert("name".to_string(), FieldConfig::new(
-        FieldType::String,
-        "s.name"
-    ));
+    configs.insert(
+        "name".to_string(),
+        FieldConfig::new(FieldType::String, "s.name"),
+    );
 
-    configs.insert("status".to_string(), FieldConfig::new(
-        FieldType::Enum,
-        "s.status"
-    ).with_validator(validate_status));
+    configs.insert(
+        "status".to_string(),
+        FieldConfig::new(FieldType::Enum, "s.status").with_validator(validate_status),
+    );
 
-    configs.insert("latency".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8)"
-    ));
+    configs.insert(
+        "latency".to_string(),
+        FieldConfig::new(
+            FieldType::Float,
+            "CAST(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) * 1000 AS FLOAT8)",
+        ),
+    );
 
-    configs.insert("input_cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "CAST(s.attributes->>'gen_ai.usage.input_cost' AS FLOAT8)"
-    ));
+    configs.insert(
+        "input_cost".to_string(),
+        FieldConfig::new(
+            FieldType::Float,
+            "CAST(s.attributes->>'gen_ai.usage.input_cost' AS FLOAT8)",
+        ),
+    );
 
-    configs.insert("output_cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "CAST(s.attributes->>'gen_ai.usage.output_cost' AS FLOAT8)"
-    ));
+    configs.insert(
+        "output_cost".to_string(),
+        FieldConfig::new(
+            FieldType::Float,
+            "CAST(s.attributes->>'gen_ai.usage.output_cost' AS FLOAT8)",
+        ),
+    );
 
-    configs.insert("cost".to_string(), FieldConfig::new(
-        FieldType::Float,
-        "CAST(s.attributes->>'gen_ai.usage.cost' AS FLOAT8)"
-    ));
+    configs.insert(
+        "cost".to_string(),
+        FieldConfig::new(
+            FieldType::Float,
+            "CAST(s.attributes->>'gen_ai.usage.cost' AS FLOAT8)",
+        ),
+    );
 
-    configs.insert("input_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "CAST(s.attributes->>'gen_ai.usage.input_tokens' AS BIGINT)"
-    ));
+    configs.insert(
+        "input_token_count".to_string(),
+        FieldConfig::new(
+            FieldType::Integer,
+            "CAST(s.attributes->>'gen_ai.usage.input_tokens' AS BIGINT)",
+        ),
+    );
 
-    configs.insert("output_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT)"
-    ));
+    configs.insert(
+        "output_token_count".to_string(),
+        FieldConfig::new(
+            FieldType::Integer,
+            "CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT)",
+        ),
+    );
 
-    configs.insert("total_token_count".to_string(), FieldConfig::new(
-        FieldType::Integer,
-        "CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT)"
-    ));
+    configs.insert(
+        "total_token_count".to_string(),
+        FieldConfig::new(
+            FieldType::Integer,
+            "CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT)",
+        ),
+    );
 
     configs
 }
@@ -464,7 +518,7 @@ fn build_span_filters<'a>(
     mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
     project_id: Uuid,
     span_ids: &'a Option<HashSet<Uuid>>,
-    params: &'a SearchSpansParams,
+    params: &'a GetSpansParams,
 ) -> Result<QueryBuilder<'a, sqlx::Postgres>, Error> {
     query_builder.push_bind(project_id);
 
@@ -481,12 +535,32 @@ fn build_span_filters<'a>(
 
     query_builder.push(" AND s.start_time >= ");
     query_builder.push_bind(params.start_time());
-    
+
     query_builder.push(" AND s.end_time <= ");
     query_builder.push_bind(params.end_time());
 
     let field_configs = create_spans_field_configs();
     for filter in params.filters() {
+        if filter.field == "span_type" {
+            if let FilterValue::String(span_type_str) = &filter.value {
+                match SpanType::from_str(span_type_str) {
+                    Ok(span_type_enum) => {
+                        query_builder.push(" AND s.span_type ");
+                        query_builder.push(filter.operator.to_sql());
+                        query_builder.push(" ");
+                        query_builder.push_bind(span_type_enum);
+                        continue;
+                    }
+                    Err(_) => {
+                        return Err(Error::BadRequest(format!(
+                            "Invalid span type: {}. Valid values: DEFAULT, LLM, PIPELINE, EXECUTOR, EVALUATOR, HUMAN_EVALUATOR, EVALUATION, TOOL",
+                            span_type_str
+                        )));
+                    }
+                }
+            }
+        }
+
         if filter.field == "status" && filter.operator == FilterOperator::Eq {
             if let FilterValue::String(status_value) = &filter.value {
                 if status_value == "success" {
@@ -496,19 +570,20 @@ fn build_span_filters<'a>(
             }
         }
 
-        query_builder = filter.apply_to_query_builder(query_builder, &field_configs)
+        query_builder = filter
+            .apply_to_query_builder(query_builder, &field_configs)
             .map_err(|e| Error::BadRequest(e))?;
     }
 
     Ok(query_builder)
 }
 
-async fn get_spans(
+async fn query_spans(
     pool: &sqlx::PgPool,
     project_id: Uuid,
-    params: &SearchSpansParams,
+    params: &GetSpansParams,
     span_ids: &Option<HashSet<Uuid>>,
-) -> Result<Vec<SpanSearchItem>, Error> {
+) -> Result<Vec<SpanInfo>, Error> {
     if let Some(span_ids) = span_ids {
         if span_ids.is_empty() {
             return Ok(Vec::new());
@@ -533,13 +608,14 @@ async fn get_spans(
             CAST(s.attributes->>'gen_ai.usage.output_tokens' AS BIGINT) as output_token_count,
             CAST(s.attributes->>'llm.usage.total_tokens' AS BIGINT) as total_token_count
          FROM spans s
-         WHERE s.start_time IS NOT NULL AND s.end_time IS NOT NULL AND s.project_id = "
+         WHERE s.start_time IS NOT NULL AND s.end_time IS NOT NULL AND s.project_id = ",
     );
 
-    let mut main_query_builder = build_span_filters(main_query_builder, project_id, &span_ids, params)?;
+    let mut main_query_builder =
+        build_span_filters(main_query_builder, project_id, &span_ids, params)?;
 
     main_query_builder.push(" ORDER BY s.start_time DESC");
-    
+
     if params.page_size() > 0 {
         main_query_builder.push(" LIMIT ");
         main_query_builder.push_bind(params.page_size());
@@ -551,7 +627,7 @@ async fn get_spans(
     }
 
     main_query_builder
-        .build_query_as::<SpanSearchItem>()
+        .build_query_as::<SpanInfo>()
         .fetch_all(pool)
         .await
         .map_err(|e| e.into())
@@ -560,7 +636,7 @@ async fn get_spans(
 async fn count_spans(
     pool: &sqlx::PgPool,
     project_id: Uuid,
-    params: &SearchSpansParams,
+    params: &GetSpansParams,
     span_ids: &Option<HashSet<Uuid>>,
 ) -> Result<i64, Error> {
     if let Some(span_ids) = span_ids {
@@ -572,42 +648,44 @@ async fn count_spans(
     let count_query_builder = QueryBuilder::new(
         "SELECT COUNT(s.span_id) as count 
          FROM spans s
-         WHERE s.project_id = "
+         WHERE s.project_id = ",
     );
-    let mut count_query_builder = build_span_filters(count_query_builder, project_id, &span_ids, params)?;
+    let mut count_query_builder =
+        build_span_filters(count_query_builder, project_id, &span_ids, params)?;
 
-    let count_result: (i64,) = count_query_builder
-        .build_query_as::<(i64,)>()
+    let count: i64 = count_query_builder
+        .build_query_scalar()
         .fetch_one(pool)
         .await?;
 
-    Ok(count_result.0)
+    Ok(count)
 }
 
-pub async fn search_spans(
+pub async fn get_spans(
     pool: &PgPool,
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
-    mut params: SearchSpansParams,
-) -> Result<(Vec<SpanSearchItem>, i64), Error> {
+    mut params: GetSpansParams,
+) -> Result<(Vec<SpanInfo>, i64), Error> {
     params.validate()?;
 
     let span_ids = if let Some(search_query) = &params.search {
         match search_spans_for_span_ids(clickhouse, project_id, search_query, &params)
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))? {
+            .map_err(|e| anyhow::anyhow!("{}", e))?
+        {
             Some(ids) => Some(ids),
             None => {
                 return Ok((Vec::new(), 0));
             }
-            }
+        }
     } else {
         None
     };
 
     let (count_result, spans_result) = tokio::join!(
         count_spans(&pool, project_id, &params, &span_ids),
-        get_spans(&pool, project_id, &params, &span_ids)
+        query_spans(&pool, project_id, &params, &span_ids)
     );
 
     let count = count_result?;
@@ -684,6 +762,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: None,
             name: "openai.chat".to_string(),
@@ -905,6 +984,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ChatOpenAI.chat".to_string(),
@@ -1159,6 +1239,7 @@ mod tests {
 
         let span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ai.generateText.doGenerate".to_string(),

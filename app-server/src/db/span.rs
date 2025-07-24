@@ -5,7 +5,10 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::db::{events::Event, spans::{Span, SpanType}};
+use crate::db::{
+    events::Event,
+    spans::{Span, SpanType},
+};
 use crate::traces::spans::SpanAttributes;
 
 #[derive(Deserialize, Serialize, Clone, Debug, FromRow)]
@@ -27,17 +30,13 @@ struct SpanRow {
 }
 
 impl SpanRow {
-    fn into_span(self, events: Vec<Event>) -> Span {
+    fn into_span(self, project_id: Uuid, events: Vec<Event>) -> Span {
         let attributes = if let Value::Object(map) = self.attributes {
-            SpanAttributes::new(
-                map.into_iter()
-                    .collect()
-            )
+            SpanAttributes::new(map.into_iter().collect())
         } else {
             SpanAttributes::default()
         };
 
-        // Convert events to JSON array if any exist
         let events_json = if events.is_empty() {
             None
         } else {
@@ -60,6 +59,7 @@ impl SpanRow {
             labels: None,
             input_url: self.input_url,
             output_url: self.output_url,
+            project_id,
         }
     }
 }
@@ -80,7 +80,7 @@ async fn get_span_events(
             attributes
         FROM events 
         WHERE span_id = $1 AND project_id = $2 
-        ORDER BY timestamp ASC"
+        ORDER BY timestamp ASC",
     )
     .bind(span_id)
     .bind(project_id)
@@ -93,7 +93,6 @@ pub async fn get_span(
     project_id: &Uuid,
     span_id: &Uuid,
 ) -> Result<Option<Span>, sqlx::Error> {
-    // Get the span data
     let span_row = sqlx::query_as::<_, SpanRow>(
         "SELECT 
             s.span_id, 
@@ -110,7 +109,7 @@ pub async fn get_span(
             s.input_url,
             s.output_url
         FROM spans s
-        WHERE s.span_id = $1 AND s.project_id = $2"
+        WHERE s.span_id = $1 AND s.project_id = $2",
     )
     .bind(span_id)
     .bind(project_id)
@@ -120,7 +119,7 @@ pub async fn get_span(
     if let Some(row) = span_row {
         // Get the events for this span
         let events = get_span_events(pool, project_id, span_id).await?;
-        Ok(Some(row.into_span(events)))
+        Ok(Some(row.into_span(*project_id, events)))
     } else {
         Ok(None)
     }

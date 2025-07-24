@@ -2,7 +2,6 @@ use sqlx::PgPool;
 
 pub mod agent_chats;
 pub mod agent_messages;
-pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
 pub mod evaluators;

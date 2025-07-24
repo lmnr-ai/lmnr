@@ -35,6 +35,9 @@ services:
       - type: volume
         source: clickhouse-logs
         target: /var/log/clickhouse-server/
+      - type: bind
+        source: ./clickhouse-profiles-config.xml
+        target: /etc/clickhouse-server/users.d/lmnr.xml
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}

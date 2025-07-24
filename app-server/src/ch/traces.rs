@@ -4,7 +4,7 @@ use clickhouse::Row;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{db::traces::SearchTracesParams, ch::utils::chrono_to_nanoseconds};
+use crate::{ch::utils::chrono_to_nanoseconds, db::traces::GetTracesParams};
 
 #[derive(Row, Deserialize)]
 pub struct SpanSearchResult {
@@ -16,7 +16,7 @@ pub async fn search_spans_for_trace_ids(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     search_query: &str,
-    params: &SearchTracesParams,
+    params: &GetTracesParams,
 ) -> Result<Option<HashSet<Uuid>>, Box<dyn std::error::Error + Send + Sync>> {
     let search_fields = params.search_in();
 
@@ -49,7 +49,7 @@ pub async fn search_spans_for_trace_ids(
     );
 
     let search_pattern = format!("%{}%", search_query.to_lowercase());
-    
+
     let mut query_builder = clickhouse
         .query(&query)
         .bind(project_id)
@@ -63,7 +63,7 @@ pub async fn search_spans_for_trace_ids(
     let rows = query_builder.fetch_all::<SpanSearchResult>().await?;
 
     let trace_ids: HashSet<Uuid> = rows.into_iter().map(|row| row.trace_id).collect();
-    
+
     if trace_ids.is_empty() {
         Ok(None)
     } else {

@@ -12,6 +12,7 @@ pub enum Feature {
     AgentManager,
     /// Evaluators
     Evaluators,
+    RabbitMQ,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -32,5 +33,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             // && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
         Feature::Evaluators => env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok(),
+        Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
     }
 }

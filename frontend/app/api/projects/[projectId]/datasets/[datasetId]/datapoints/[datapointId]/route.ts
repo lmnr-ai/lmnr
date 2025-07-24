@@ -8,6 +8,7 @@ export async function GET(
 
   try {
     const datapoint = await getDatapoint({
+      projectId: params.projectId,
       datapointId: params.datapointId,
       datasetId: params.datasetId,
     });
@@ -40,17 +41,19 @@ export async function POST(
       return new Response("Invalid request body", { status: 400 });
     }
 
-    const { data, target, metadata } = result.data;
+    const { data, target, metadata, createdAt } = result.data;
 
-    const updatedDatapoint = await updateDatapoint({
+    await updateDatapoint({
+      projectId: params.projectId,
       datapointId: params.datapointId,
       datasetId: params.datasetId,
       data,
       target,
       metadata,
+      createdAt,
     });
 
-    return new Response(JSON.stringify(updatedDatapoint), {
+    return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

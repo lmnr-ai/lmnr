@@ -16,7 +16,7 @@ use crate::{
     db::{
         spans::{Span, SpanType},
         trace::TraceType,
-        utils::{convert_any_value_to_json_value, span_id_to_uuid},
+        utils::span_id_to_uuid,
     },
     language_model::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
@@ -26,7 +26,7 @@ use crate::{
     storage::{Storage, StorageTrait},
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
-        utils::serialize_indexmap,
+        utils::{convert_any_value_to_json_value, serialize_indexmap},
     },
     utils::{estimate_json_size, json_value_to_string},
 };
@@ -167,7 +167,7 @@ impl SpanAttributes {
         }
     }
 
-    pub fn completion_tokens(&mut self) -> i64 {
+    pub fn output_tokens(&mut self) -> i64 {
         if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_TOKENS) {
             n.as_i64().unwrap_or(0)
         } else if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_COMPLETION_TOKENS) {
@@ -178,6 +178,22 @@ impl SpanAttributes {
             n
         } else {
             0
+        }
+    }
+
+    pub fn input_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_INPUT_COST) {
+            n.as_f64()
+        } else {
+            None
+        }
+    }
+
+    pub fn output_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_COST) {
+            n.as_f64()
+        } else {
+            None
         }
     }
 
@@ -436,7 +452,7 @@ impl Span {
     ///
     /// This is called on the producer side of the MQ, i.e. at the OTel ingester
     /// side, so it must be lightweight.
-    pub fn from_otel_span(otel_span: OtelSpan) -> Self {
+    pub fn from_otel_span(otel_span: OtelSpan, project_id: Uuid) -> Self {
         let trace_id = Uuid::from_slice(&otel_span.trace_id).unwrap();
 
         let span_id = span_id_to_uuid(&otel_span.span_id);
@@ -457,6 +473,7 @@ impl Span {
 
         let mut span = Span {
             span_id,
+            project_id,
             trace_id,
             parent_span_id,
             name: otel_span.name,
@@ -696,11 +713,10 @@ impl Span {
                 serde_json::to_writer(&mut data, &self.input)?;
                 if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
-                    let url = storage.store(data.clone(), &key).await?;
+                    let preview = String::from_utf8_lossy(&data).chars().take(100).collect();
+                    let url = storage.store(data, &key).await?;
                     self.input_url = Some(url);
-                    self.input = Some(serde_json::Value::String(
-                        String::from_utf8_lossy(&data).chars().take(100).collect(),
-                    ));
+                    self.input = Some(serde_json::Value::String(preview));
                 }
             }
         }
@@ -1234,6 +1250,7 @@ mod tests {
 
         let mut span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: None,
             name: "openai.chat".to_string(),
@@ -1558,6 +1575,7 @@ mod tests {
 
         let mut span = Span {
             span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
             trace_id: Uuid::new_v4(),
             parent_span_id: Some(Uuid::new_v4()),
             name: "ChatOpenAI.chat".to_string(),
@@ -1885,6 +1903,7 @@ mod tests {
 
         let mut parent_span = Span {
             span_id: parent_span_id,
+            project_id: Uuid::new_v4(),
             trace_id,
             parent_span_id: None,
             name: "ai.generateText".to_string(),
@@ -1990,6 +2009,7 @@ mod tests {
 
         let mut child_span = Span {
             span_id: child_span_id,
+            project_id: Uuid::new_v4(),
             trace_id,
             parent_span_id: Some(parent_span_id),
             name: "ai.generateText.doGenerate".to_string(),

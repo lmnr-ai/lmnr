@@ -4,8 +4,6 @@ pub mod datasets;
 pub mod evals;
 pub mod evaluators;
 pub mod metrics;
-pub mod span;
 pub mod tag;
-pub mod trace;
 pub mod traces;
 pub mod spans;

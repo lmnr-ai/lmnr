@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   const invitation = await db.query.workspaceInvitations.findFirst({
-    where: eq(workspaceInvitations.id, id),
+    where: and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.email, user.email ?? "")),
   });
 
   if (!invitation) {

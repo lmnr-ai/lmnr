@@ -1,6 +1,6 @@
 import { ChevronsRight, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
@@ -20,7 +20,16 @@ interface DatasetPanelProps {
   onClose: () => void;
 }
 
-const AUTO_SAVE_TIMEOUT_MS = 750;
+// Helper function to safely parse JSON strings
+const safeParseJSON = (jsonString: string | null | undefined, fallback: any = null) => {
+  if (!jsonString) return fallback;
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.error("Failed to parse JSON:", e);
+    return fallback;
+  }
+};
 
 export default function DatasetPanel({ datasetId, datapointId, onClose }: DatasetPanelProps) {
   const { projectId } = useParams();
@@ -28,21 +37,38 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
     swrFetcher
   );
-  // datapoint is DatasetDatapoint, i.e. result of one execution on a data point
-  const [newData, setNewData] = useState<Record<string, any> | null>(datapoint?.data ?? null);
-  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(datapoint?.target ?? null);
-  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(datapoint?.metadata ?? {});
+
+  const [newData, setNewData] = useState<Record<string, any> | null>(
+    datapoint ? safeParseJSON(datapoint.data, null) : null
+  );
+  const [newTarget, setNewTarget] = useState<Record<string, any> | null>(
+    datapoint ? safeParseJSON(datapoint.target, null) : null
+  );
+  const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
+    datapoint ? safeParseJSON(datapoint.metadata, {}) : {}
+  );
   const [isValidJsonData, setIsValidJsonData] = useState(true);
   const [isValidJsonTarget, setIsValidJsonTarget] = useState(true);
   const [isValidJsonMetadata, setIsValidJsonMetadata] = useState(true);
   const { toast } = useToast();
   const autoSaveFuncTimeoutId = useRef<NodeJS.Timeout | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
-  const [isFirstRender, setIsFirstRender] = useState<boolean>(true);
 
-  const saveChanges = async () => {
+  // Track original values to detect changes
+  const originalDataRef = useRef<Record<string, any> | null>(null);
+  const originalTargetRef = useRef<Record<string, any> | null>(null);
+  const originalMetadataRef = useRef<Record<string, any>>({});
+
+  // Check if current values differ from original values
+  const hasChanges = useCallback(() => (
+    JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
+    JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
+    JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
+  ), [newData, newTarget, newMetadata]);
+
+  const saveChanges = useCallback(async () => {
     // don't do anything if no changes or invalid jsons
-    if (!isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
+    if (!hasChanges() || !isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
       return;
     }
     setSaving(true);
@@ -55,6 +81,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
         data: newData,
         target: newTarget,
         metadata: newMetadata,
+        createdAt: datapoint?.createdAt,
       }),
     });
     setSaving(false);
@@ -65,28 +92,57 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
       });
       return;
     }
-  };
+
+    // Update original values after successful save
+    originalDataRef.current = newData;
+    originalTargetRef.current = newTarget;
+    originalMetadataRef.current = newMetadata;
+  }, [hasChanges, isValidJsonData, isValidJsonTarget, isValidJsonMetadata, newData, newTarget, newMetadata, projectId, datasetId, datapointId, toast]);
 
   useEffect(() => {
-    if (isFirstRender) {
-      setIsFirstRender(false);
+    if (!datapoint) return;
+
+    // Parse JSON strings and set state
+    const parsedData = safeParseJSON(datapoint.data, null);
+    const parsedTarget = safeParseJSON(datapoint.target, null);
+    const parsedMetadata = safeParseJSON(datapoint.metadata, {});
+
+    setNewData(parsedData);
+    setNewTarget(parsedTarget);
+    setNewMetadata(parsedMetadata);
+
+    // Update original values when datapoint changes
+    originalDataRef.current = parsedData;
+    originalTargetRef.current = parsedTarget;
+    originalMetadataRef.current = parsedMetadata;
+  }, [datapoint]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    // Skip if datapoint is not loaded yet or if values are invalid
+    if (!datapoint || !isValidJsonData || !isValidJsonTarget || !isValidJsonMetadata) {
       return;
     }
+
+    // Clear existing timeout
     if (autoSaveFuncTimeoutId.current) {
       clearTimeout(autoSaveFuncTimeoutId.current);
     }
 
-    autoSaveFuncTimeoutId.current = setTimeout(async () => await saveChanges(), AUTO_SAVE_TIMEOUT_MS);
-  }, [newData, newTarget, newMetadata]);
-
-  useEffect(() => {
-    if (!datapoint) return;
-    setNewData(datapoint.data);
-    setNewTarget(datapoint.target);
-    if (datapoint?.metadata) {
-      setNewMetadata(datapoint?.metadata);
+    // Only set timeout if there are changes
+    if (hasChanges()) {
+      autoSaveFuncTimeoutId.current = setTimeout(() => {
+        saveChanges();
+      }, 500);
     }
-  }, [datapoint]);
+
+    // Cleanup function
+    return () => {
+      if (autoSaveFuncTimeoutId.current) {
+        clearTimeout(autoSaveFuncTimeoutId.current);
+      }
+    };
+  }, [newData, newTarget, newMetadata, hasChanges, saveChanges, datapoint, isValidJsonData, isValidJsonTarget, isValidJsonMetadata]);
 
   if (isLoading) {
     return (
@@ -105,10 +161,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           <Button
             variant="ghost"
             className="px-1"
-            onClick={async () => {
-              await saveChanges();
-              onClose();
-            }}
+            onClick={onClose}
           >
             <ChevronsRight />
           </Button>
@@ -125,7 +178,11 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
             <AddToLabelingQueuePopover
               data={[
                 {
-                  payload: { data: datapoint.data, target: datapoint.target, metadata: datapoint.metadata },
+                  payload: {
+                    data: safeParseJSON(datapoint.data, {}),
+                    target: safeParseJSON(datapoint.target, {}),
+                    metadata: safeParseJSON(datapoint.metadata, {})
+                  },
                   metadata: { source: "datapoint", id: datapoint.id, datasetId: datasetId },
                 },
               ]}

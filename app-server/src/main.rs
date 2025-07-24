@@ -5,11 +5,8 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
 use actix_web::{
-    App, HttpServer,
-    middleware::{Logger, NormalizePath},
-    web::{self, JsonConfig, PayloadConfig},
+    dev, http::StatusCode, middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath}, web::{self, JsonConfig, PayloadConfig}, App, HttpServer
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
@@ -29,7 +26,7 @@ use mq::MessageQueue;
 use names::NameGenerator;
 use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use storage::{Storage, mock::MockStorage};
+use storage::{Storage, mock::MockStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, process_payloads};
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, consumer::process_queue_spans,
@@ -158,7 +155,8 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(db::DB::new(pool));
 
     // === 3. Message queues ===
-    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::FullBuild) {
+    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
+    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
         let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
         runtime_handle.block_on(async {
             let publisher_conn = Arc::new(
@@ -179,16 +177,26 @@ fn main() -> anyhow::Result<()> {
 
     let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
 
-    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
+    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) =
+        (publisher_connection.as_ref(), consumer_connection.as_ref())
+    {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
+            
+            // Create quorum queue arguments (reused for all queues)
+            let mut quorum_queue_args = FieldTable::default();
+            quorum_queue_args.insert("x-queue-type".into(), lapin::types::AMQPValue::LongString("quorum".into()));
+            
             // Register queues
             // ==== 3.1 Spans message queue ====
             channel
                 .exchange_declare(
                     OBSERVATIONS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -197,8 +205,11 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -208,7 +219,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     BROWSER_SESSIONS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -217,8 +231,11 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE,
-                    QueueDeclareOptions::default(),
-                    FieldTable::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -228,7 +245,10 @@ fn main() -> anyhow::Result<()> {
                 .exchange_declare(
                     EVALUATORS_EXCHANGE,
                     ExchangeKind::Fanout,
-                    ExchangeDeclareOptions::default(),
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
                 )
                 .await
@@ -237,8 +257,37 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     EVALUATORS_QUEUE,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.4 Payloads message queue ====
+            channel
+                .exchange_declare(
+                    PAYLOADS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
                     FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    PAYLOADS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
                 )
                 .await
                 .unwrap();
@@ -266,11 +315,13 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
         // ==== 3.3 Evaluators message queue ====
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
+        // ==== 3.4 Payloads message queue ====
+        queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
 
-    // ==== 3.4 Agent worker message queue ====
+    // ==== 3.5 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -299,6 +350,7 @@ fn main() -> anyhow::Result<()> {
                         s3_client,
                         env::var("S3_TRACE_PAYLOADS_BUCKET")
                             .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
+                        mq_for_http.clone(),
                     );
                     Arc::new(s3_storage.into())
                 } else {
@@ -402,11 +454,18 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(4);
 
+                let num_payload_workers_per_thread =
+                    env::var("NUM_PAYLOAD_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("2"))
+                        .parse::<u8>()
+                        .unwrap_or(2);
+
                 log::info!(
-                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}",
+                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}, Payload workers per thread: {}",
                     num_spans_workers_per_thread,
                     num_browser_events_workers_per_thread,
-                    num_evaluators_workers_per_thread
+                    num_evaluators_workers_per_thread,
+                    num_payload_workers_per_thread
                 );
 
                 HttpServer::new(move || {
@@ -441,7 +500,20 @@ fn main() -> anyhow::Result<()> {
                         ));
                     }
 
+                    for _ in 0..num_payload_workers_per_thread {
+                        tokio::spawn(process_payloads(
+                            storage.clone(),
+                            mq_for_http.clone(),
+                        ));
+                    }
+
                     App::new()
+                    .wrap( ErrorHandlers::new()
+                            .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                log::error!("Bad request: {:?}", res.response().body());
+                                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                            })
+                        )
                         .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -472,10 +544,10 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
-                                .service(api::v1::spans::search_spans)
-                                .service(api::v1::span::get_span)
-                                .service(api::v1::traces::search_traces)
-                                .service(api::v1::trace::get_trace)
+                                .service(api::v1::spans::get_spans)
+                                .service(api::v1::spans::get_span)
+                                .service(api::v1::traces::get_traces)
+                                .service(api::v1::traces::get_trace)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::metrics::process_metrics)
@@ -503,7 +575,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::api_keys::revoke_project_api_key)
                                 .service(routes::evaluations::get_evaluation_score_stats)
                                 .service(routes::evaluations::get_evaluation_score_distribution)
-                                .service(routes::datasets::upload_datapoint_file)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
                         )
@@ -522,11 +593,8 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                let process_traces_service = ProcessTracesService::new(
-                    db.clone(),
-                    cache.clone(),
-                    queue.clone(),
-                );
+                let process_traces_service =
+                    ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
 
                 Server::builder()
                     .add_service(

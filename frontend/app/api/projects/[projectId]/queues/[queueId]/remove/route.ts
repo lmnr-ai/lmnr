@@ -2,6 +2,7 @@ import { removeQueueItem, RemoveQueueItemRequestSchema } from "@/lib/actions/que
 
 export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const params = await props.params;
+  const { projectId } = params;
 
   try {
     const body = await request.json();
@@ -23,6 +24,7 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
       data,
       target,
       metadata,
+      projectId,
     });
 
     return new Response(JSON.stringify({ success: true }));

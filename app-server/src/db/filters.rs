@@ -9,17 +9,17 @@ use crate::routes::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilterOperator {
-    #[serde(rename = "eq")]
+    #[serde(rename = "eq", alias = "=")]
     Eq,
-    #[serde(rename = "neq")]
+    #[serde(rename = "neq", alias = "!=", alias = "<>")]
     Neq,
-    #[serde(rename = "gt")]
+    #[serde(rename = "gt", alias = ">")]
     Gt,
-    #[serde(rename = "gte")]
+    #[serde(rename = "gte", alias = ">=")]
     Gte,
-    #[serde(rename = "lt")]
+    #[serde(rename = "lt", alias = "<")]
     Lt,
-    #[serde(rename = "lte")]
+    #[serde(rename = "lte", alias = "<=")]
     Lte,
     #[serde(rename = "ilike")]
     ILike,
@@ -32,12 +32,12 @@ impl FromStr for FilterOperator {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "eq" => Ok(FilterOperator::Eq),
-            "neq" => Ok(FilterOperator::Neq),
-            "gt" => Ok(FilterOperator::Gt),
-            "gte" => Ok(FilterOperator::Gte),
-            "lt" => Ok(FilterOperator::Lt),
-            "lte" => Ok(FilterOperator::Lte),
+            "eq" | "=" => Ok(FilterOperator::Eq),
+            "neq" | "!=" | "<>" => Ok(FilterOperator::Neq),
+            "gt" | ">" => Ok(FilterOperator::Gt),
+            "gte" | ">=" => Ok(FilterOperator::Gte),
+            "lt" | "<" => Ok(FilterOperator::Lt),
+            "lte" | "<=" => Ok(FilterOperator::Lte),
             "ilike" => Ok(FilterOperator::ILike),
             "not_ilike" => Ok(FilterOperator::NotILike),
             _ => Err(format!("Invalid filter operator: {}", s)),
@@ -64,7 +64,8 @@ impl FilterOperator {
 #[serde(untagged)]
 pub enum FilterValue {
     String(String),
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     Uuid(Uuid),
     Json { key: String, value: String },
@@ -75,15 +76,17 @@ impl FilterValue {
         match field_type {
             FieldType::String => Ok(FilterValue::String(s.to_string())),
             FieldType::Integer => {
-                let num = s.parse::<i64>()
+                let num = s
+                    .parse::<i64>()
                     .map_err(|_| format!("Invalid integer value: {}", s))?;
-                Ok(FilterValue::Number(num as f64))
-            },
+                Ok(FilterValue::Integer(num))
+            }
             FieldType::Float => {
-                let num = s.parse::<f64>()
+                let num = s
+                    .parse::<f64>()
                     .map_err(|_| format!("Invalid float value: {}", s))?;
-                Ok(FilterValue::Number(num))
-            },
+                Ok(FilterValue::Float(num))
+            }
             FieldType::Boolean => {
                 let bool_val = match s.to_lowercase().as_str() {
                     "true" => true,
@@ -91,15 +94,13 @@ impl FilterValue {
                     _ => return Err(format!("Invalid boolean value: {}", s)),
                 };
                 Ok(FilterValue::Boolean(bool_val))
-            },
-            FieldType::Enum => {
-                Ok(FilterValue::String(s.to_string()))
-            },
+            }
+            FieldType::Enum => Ok(FilterValue::String(s.to_string())),
             FieldType::Uuid => {
-                let uuid = Uuid::parse_str(s.trim())
-                    .map_err(|_| format!("Invalid UUID format: {}", s))?;
+                let uuid =
+                    Uuid::parse_str(s.trim()).map_err(|_| format!("Invalid UUID format: {}", s))?;
                 Ok(FilterValue::Uuid(uuid))
-            },
+            }
             FieldType::Json => {
                 // Parse key=value format
                 if let Some(eq_pos) = s.find('=') {
@@ -109,7 +110,7 @@ impl FilterValue {
                 } else {
                     Err("JSON value must be in 'key=value' format".to_string())
                 }
-            },
+            }
         }
     }
 }
@@ -128,21 +129,28 @@ pub enum FieldType {
 impl FieldType {
     pub fn allows_operator(&self, operator: &FilterOperator) -> bool {
         match self {
-            FieldType::String => matches!(operator, 
-                FilterOperator::Eq | FilterOperator::Neq | 
-                FilterOperator::ILike | FilterOperator::NotILike
+            FieldType::String => matches!(
+                operator,
+                FilterOperator::Eq
+                    | FilterOperator::Neq
+                    | FilterOperator::ILike
+                    | FilterOperator::NotILike
             ),
-            FieldType::Integer | FieldType::Float => matches!(operator,
-                FilterOperator::Eq | FilterOperator::Neq |
-                FilterOperator::Gt | FilterOperator::Gte |
-                FilterOperator::Lt | FilterOperator::Lte
+            FieldType::Integer | FieldType::Float => matches!(
+                operator,
+                FilterOperator::Eq
+                    | FilterOperator::Neq
+                    | FilterOperator::Gt
+                    | FilterOperator::Gte
+                    | FilterOperator::Lt
+                    | FilterOperator::Lte
             ),
             FieldType::Boolean | FieldType::Enum | FieldType::Uuid => {
                 matches!(operator, FilterOperator::Eq | FilterOperator::Neq)
-            },
+            }
             FieldType::Json => {
                 matches!(operator, FilterOperator::Eq | FilterOperator::Neq)
-            },
+            }
         }
     }
 }
@@ -186,7 +194,8 @@ impl Filter {
     }
 
     pub fn validate(&self, field_configs: &HashMap<String, FieldConfig>) -> Result<(), String> {
-        let field_config = field_configs.get(&self.field)
+        let field_config = field_configs
+            .get(&self.field)
             .ok_or_else(|| format!("Unknown field: {}", self.field))?;
 
         if !field_config.field_type.allows_operator(&self.operator) {
@@ -203,12 +212,13 @@ impl Filter {
         Ok(())
     }
 
-    pub fn apply_to_query_builder<'a>(
+    pub fn apply_to_query_builder<'qb>(
         &self,
-        mut query_builder: QueryBuilder<'a, sqlx::Postgres>,
+        mut query_builder: QueryBuilder<'qb, sqlx::Postgres>,
         field_configs: &HashMap<String, FieldConfig>,
-    ) -> Result<QueryBuilder<'a, sqlx::Postgres>, String> {
-        let field_config = field_configs.get(&self.field)
+    ) -> Result<QueryBuilder<'qb, sqlx::Postgres>, String> {
+        let field_config = field_configs
+            .get(&self.field)
             .ok_or_else(|| format!("Unknown field: {}", self.field))?;
 
         query_builder.push(" AND ");
@@ -220,30 +230,32 @@ impl Filter {
                 query_builder.push(self.operator.to_sql());
                 query_builder.push(" ");
                 query_builder.push_bind(format!("%{}%", s));
-            },
-            (FilterOperator::Eq, FilterValue::Json { key, value }) => {
-                query_builder.push("@> ");
-                let json_obj = serde_json::json!({ key: value });
-                query_builder.push_bind(json_obj);
-            },
-            (FilterOperator::Neq, FilterValue::Json { key, value }) => {
-                query_builder.push("NOT @> ");
-                let json_obj = serde_json::json!({ key: value });
-                query_builder.push_bind(json_obj);
-            },
+            }
+            (_, FilterValue::Json { key, value }) => {
+                query_builder.push("->> ");
+                query_builder.push_bind(key.clone());
+                query_builder.push(" ");
+
+                match self.operator {
+                    FilterOperator::Neq => {
+                        query_builder.push("IS DISTINCT FROM ");
+                    }
+                    _ => {
+                        query_builder.push(self.operator.to_sql());
+                        query_builder.push(" ");
+                    }
+                }
+
+                query_builder.push_bind(value.clone());
+            }
             _ => {
                 query_builder.push(self.operator.to_sql());
                 query_builder.push(" ");
                 match &self.value {
                     FilterValue::Uuid(uuid) => query_builder.push_bind(*uuid),
                     FilterValue::String(s) => query_builder.push_bind(s.clone()),
-                    FilterValue::Number(n) => {
-                        if field_config.field_type == FieldType::Integer {
-                            query_builder.push_bind(*n as i64)
-                        } else {
-                            query_builder.push_bind(*n)
-                        }
-                    },
+                    FilterValue::Integer(i) => query_builder.push_bind(*i),
+                    FilterValue::Float(f) => query_builder.push_bind(*f),
                     FilterValue::Boolean(b) => query_builder.push_bind(*b),
                     FilterValue::Json { .. } => {
                         return Err("JSON filters must use Eq or Neq operators".to_string());
@@ -254,42 +266,6 @@ impl Filter {
 
         Ok(query_builder)
     }
-}
-
-pub fn deserialize_filters<'de, D>(deserializer: D) -> Result<Vec<Filter>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error;
-    
-    let opt_value: Option<String> = Option::deserialize(deserializer)?;
-    let filters_str = match opt_value {
-        Some(s) if !s.is_empty() => s,
-        _ => return Ok(Vec::new()),
-    };
-
-    let mut filters = Vec::new();
-    for filter_str in filters_str.split(',') {
-        let filter_str = filter_str.trim();
-        if !filter_str.is_empty() {
-            let parts: Vec<&str> = filter_str.split(':').collect();
-            if parts.len() != 3 {
-                return Err(Error::custom(format!(
-                    "Invalid filter format: '{}'. Expected 'field:operator:value'",
-                    filter_str
-                )));
-            }
-
-            let field = parts[0].to_string();
-            let operator = FilterOperator::from_str(parts[1])
-                .map_err(|e| Error::custom(e))?;
-            let value = FilterValue::String(parts[2].to_string());
-
-            filters.push(Filter::new(field, operator, value));
-        }
-    }
-
-    Ok(filters)
 }
 
 struct ParsedField<'a> {
@@ -316,13 +292,16 @@ fn parse_field<'a>(
 
     let base_field = &field_name[..dot_pos];
     let key = &field_name[dot_pos + 1..];
-    
+
     let Some(config) = field_configs.get(base_field) else {
         return Err(format!("Unknown field: {}", field_name));
     };
 
     if config.field_type != FieldType::Json {
-        return Err(format!("Field '{}' does not support dot notation (not a JSON field)", base_field));
+        return Err(format!(
+            "Field '{}' does not support dot notation (not a JSON field)",
+            base_field
+        ));
     }
 
     Ok(ParsedField {
@@ -339,18 +318,19 @@ pub fn validate_and_convert_filters(
     let mut validated_filters = Vec::new();
 
     for raw_filter in raw_filters {
-        let parsed_field = parse_field(&raw_filter.field, field_configs)
-            .map_err(|e| Error::BadRequest(e))?;
+        let parsed_field =
+            parse_field(&raw_filter.field, field_configs).map_err(|e| Error::BadRequest(e))?;
 
-        // Convert string value to proper type
         let converted_value = if let FilterValue::String(s) = &raw_filter.value {
             if let Some(key) = parsed_field.json_key {
-                // This is a JSON field, create JSON filter value
-                FilterValue::Json { key, value: s.clone() }
+                FilterValue::Json {
+                    key,
+                    value: s.clone(),
+                }
             } else {
-                // Regular field conversion
-                FilterValue::from_string(s, &parsed_field.config.field_type)
-                    .map_err(|e| Error::BadRequest(format!("Field '{}': {}", parsed_field.field, e)))?
+                FilterValue::from_string(s, &parsed_field.config.field_type).map_err(|e| {
+                    Error::BadRequest(format!("Field '{}': {}", parsed_field.field, e))
+                })?
             }
         } else {
             raw_filter.value.clone()
@@ -362,7 +342,8 @@ pub fn validate_and_convert_filters(
             converted_value,
         );
 
-        filter.validate(field_configs)
+        filter
+            .validate(field_configs)
             .map_err(|e| Error::BadRequest(e))?;
 
         validated_filters.push(filter);
@@ -384,7 +365,7 @@ mod tests {
 
         assert!(FieldType::Integer.allows_operator(&FilterOperator::Gte));
         assert!(!FieldType::Integer.allows_operator(&FilterOperator::ILike));
-        
+
         assert!(FieldType::Boolean.allows_operator(&FilterOperator::Eq));
         assert!(!FieldType::Boolean.allows_operator(&FilterOperator::Gte));
         assert!(!FieldType::Boolean.allows_operator(&FilterOperator::ILike));
@@ -409,14 +390,14 @@ mod tests {
         let field_type = FieldType::Json;
         let result = FilterValue::from_string("environment=production", &field_type);
         assert!(result.is_ok());
-        
+
         if let Ok(FilterValue::Json { key, value }) = result {
             assert_eq!(key, "environment");
             assert_eq!(value, "production");
         } else {
             panic!("Expected JSON filter value");
         }
-        
+
         let invalid_result = FilterValue::from_string("invalid_format", &field_type);
         assert!(invalid_result.is_err());
     }
