@@ -41,41 +41,40 @@ export const PushSpanSchema = z.object({
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   const { spanId, projectId } = GetSpanSchema.parse(input);
 
-  const dbSpan = await db.query.spans.findFirst({
-    where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
-    columns: {
-      spanId: true,
-      createdAt: true,
-      parentSpanId: true,
-      name: true,
-      attributes: true,
-      spanType: true,
-      startTime: true,
-      endTime: true,
-      traceId: true,
-      inputPreview: true,
-      outputPreview: true,
-      projectId: true,
-      inputUrl: true,
-      outputUrl: true,
-      status: true,
-    },
-  });
+  const [dbSpan, chResult] = await Promise.all([
+    db.query.spans.findFirst({
+      where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
+      columns: {
+        spanId: true,
+        createdAt: true,
+        parentSpanId: true,
+        name: true,
+        attributes: true,
+        spanType: true,
+        startTime: true,
+        endTime: true,
+        traceId: true,
+        projectId: true,
+        inputUrl: true,
+        outputUrl: true,
+        status: true,
+      },
+    }),
+    clickhouseClient.query({
+      query: `
+        SELECT input, output
+        FROM spans
+        WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
+        LIMIT 1
+      `,
+      format: "JSONEachRow",
+      query_params: { spanId, projectId },
+    }),
+  ]);
 
   if (!dbSpan) {
     throw new Error("Span not found");
   }
-
-  const chResult = await clickhouseClient.query({
-    query: `
-      SELECT input, output
-      FROM spans
-      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
-      LIMIT 1
-    `,
-    format: "JSONEachRow",
-    query_params: { spanId, projectId },
-  });
 
   const chData = (await chResult.json()) as [{ input: string; output: string }];
   const { input: spanInput, output: spanOutput } = chData[0] || {};
