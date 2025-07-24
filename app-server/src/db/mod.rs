@@ -2,13 +2,11 @@ use sqlx::PgPool;
 
 pub mod agent_chats;
 pub mod agent_messages;
-pub mod datapoints;
 pub mod datasets;
 pub mod evaluations;
 pub mod evaluators;
 pub mod events;
 pub mod labels;
-pub mod machine_manager;
 pub mod prices;
 pub mod project_api_keys;
 pub mod projects;

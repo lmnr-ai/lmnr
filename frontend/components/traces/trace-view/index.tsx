@@ -1,3 +1,4 @@
+import { RealtimeChannel } from "@supabase/supabase-js";
 import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -40,10 +41,10 @@ interface TraceViewProps {
   onLangGraphDetected?: (detected: boolean) => void;
 }
 
-const MAX_ZOOM = 3;
+const MAX_ZOOM = 5;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
-const MIN_TREE_VIEW_WIDTH = 500;
+const MIN_TREE_VIEW_WIDTH = 450;
 
 export default function TraceView({
   traceId,
@@ -193,10 +194,13 @@ export default function TraceView({
         saveSpanPathToStorage(spanPath);
       }
 
-      // Update URL with spanId
-      const params = new URLSearchParams(searchParams);
-      params.set("spanId", span.spanId);
-      router.push(`${pathName}?${params.toString()}`);
+      // Update URL with spanId only if it's different to prevent unnecessary navigation
+      const currentSpanId = searchParams.get("spanId");
+      if (currentSpanId !== span.spanId) {
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", span.spanId);
+        router.push(`${pathName}?${params.toString()}`);
+      }
     },
     [saveSpanPathToStorage, searchParams, router, pathName]
   );
@@ -258,7 +262,7 @@ export default function TraceView({
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual, router, pathName]
+    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual]
   );
 
   useEffect(() => {
@@ -279,7 +283,7 @@ export default function TraceView({
       setShowBrowserSession(false);
       setSearchEnabled(false);
     };
-  }, [traceId, projectId, router, filters]);
+  }, [traceId, projectId, filters]);
 
   useEffect(() => {
     const childSpans = {} as { [key: string]: Span[] };
@@ -350,13 +354,19 @@ export default function TraceView({
   });
 
   const { supabaseClient: supabase } = useUserContext();
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!supabase || !traceId) {
       return;
     }
 
-    const channel = supabase
+    // Clean up existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    channelRef.current = supabase
       .channel(`trace-updates-${traceId}`)
       .on(
         "postgres_changes",
@@ -402,7 +412,8 @@ export default function TraceView({
             setSpans((currentSpans) => {
               const newSpans = [...currentSpans];
               const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
-              if (index !== -1 && newSpans[index].pending) {
+              if (index !== -1) {
+                // Always replace existing span, regardless of pending status
                 newSpans[index] = rtEventSpan;
               } else {
                 newSpans.push(rtEventSpan);
@@ -415,9 +426,11 @@ export default function TraceView({
       )
       .subscribe();
 
-    // Remove only this specific channel on cleanup
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [supabase, traceId]);
 
@@ -438,7 +451,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);

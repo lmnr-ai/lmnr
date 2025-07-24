@@ -1,15 +1,15 @@
 import { AutoJoinRule, ExtendedCast, JsonbFieldMapping, TableName } from "./types";
-import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME, WITH_EVALUATOR_SCORES_CTE_NAME } from "./with";
+import { WITH_EVAL_DP_DATA_CTE_NAME, WITH_EVAL_DP_TARGET_CTE_NAME, WITH_EVALUATOR_SCORES_CTE_NAME, WITH_SPAN_TAGS_CTE_NAME } from "./with";
 
 export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, JsonbFieldMapping>>> = {
   spans: {
     // SELECT string_agg(value::TEXT, '.') FROM jsonb_array_elements_text(spans.attributes->'lmnr.span.path') as path
     path: {
-      replaceWith: {
+      replaceWith: (tableNameAlias?: string) => ({
         tableList: [],
         columnList: [
           "select::null::value",
-          "select::spans::attributes"
+          `select::${tableNameAlias ?? 'spans'}::attributes`
         ],
         ast: {
           with: null,
@@ -84,7 +84,7 @@ export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, Jso
                       operator: "->",
                       left: {
                         type: "column_ref",
-                        table: "spans",
+                        table: tableNameAlias ?? 'spans',
                         column: {
                           expr: {
                             type: "default",
@@ -117,21 +117,18 @@ export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, Jso
           },
         },
         parentheses: true
-      },
+      }),
       as: "path"
     },
-  },
-  // EXTRACT(EPOCH FROM end_time - start_time)
-  traces: {
     duration: {
-      replaceWith: {
+      replaceWith: (tableNameAlias?: string) => ({
         tableList: [
           "traces"
         ],
         columnList: [
           "select::null::value",
-          "select::traces::end_time",
-          "select::traces::start_time"
+          `select::${tableNameAlias ?? 'spans'}::end_time`,
+          `select::${tableNameAlias ?? 'spans'}::start_time`
         ],
         ast: {
           type: "extract",
@@ -167,7 +164,56 @@ export const REPLACE_STATIC_FIELDS: Partial<Record<TableName, Record<string, Jso
           }
         },
         as: "duration"
-      }
+      }),
+    }
+  },
+  // EXTRACT(EPOCH FROM end_time - start_time)
+  traces: {
+    duration: {
+      replaceWith: (tableNameAlias?: string) => ({
+        tableList: [
+          "traces"
+        ],
+        columnList: [
+          "select::null::value",
+          `select::${tableNameAlias ?? 'traces'}::end_time`,
+          `select::${tableNameAlias ?? 'traces'}::start_time`
+        ],
+        ast: {
+          type: "extract",
+          args: {
+            field: "EPOCH",
+            cast_type: null,
+            source: {
+              type: "binary_expr",
+              operator: "-",
+              left: {
+                type: "column_ref",
+                table: null,
+                column: {
+                  expr: {
+                    type: "default",
+                    value: "end_time"
+                  }
+                },
+                collate: null
+              },
+              right: {
+                type: "column_ref",
+                table: null,
+                column: {
+                  expr: {
+                    type: "default",
+                    value: "start_time"
+                  }
+                },
+                collate: null
+              }
+            }
+          }
+        },
+        as: "duration"
+      }),
     }
   },
 };
@@ -232,27 +278,48 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
   },
   {
     triggerTables: ['spans'] as TableName[],
-    triggerColumns: ['tag'],
+    triggerColumns: ['tags'],
     joinChain: [
       {
         leftTable: 'spans',
         leftColumn: 'span_id',
-        rightTable: 'labels',
-        rightColumn: 'span_id',
+        rightTable: WITH_SPAN_TAGS_CTE_NAME,
+        rightColumn: '__span_id',
+        left: true,
       },
-      {
-        leftTable: 'labels',
-        leftColumn: 'class_id',
-        rightTable: 'label_classes',
-        rightColumn: 'id',
-      }
     ],
     columnReplacements: [
       {
-        original: 'tag',
+        original: "tags",
         replacement: {
-          table: 'label_classes',
-          column: 'name'
+          "type": "function",
+          "name": {
+            "name": [
+              {
+                "type": "default",
+                "value": "COALESCE"
+              }
+            ]
+          },
+          "args": {
+            "type": "expr_list",
+            "value": [
+              {
+                "type": "column_ref",
+                "table": null,
+                "column": {
+                  "expr": {
+                    "type": "default",
+                    "value": "tags"
+                  }
+                },
+              },
+              {
+                "type": "single_quote_string",
+                "value": "{}"
+              }
+            ]
+          }
         }
       }
     ]
@@ -433,7 +500,6 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
     ]
   },
   {
-    // Rule to join spans -> evaluator_scores when any column from evaluator_scores is referenced
     triggerTables: ['spans'] as TableName[],
     triggerReferencedTables: [WITH_EVALUATOR_SCORES_CTE_NAME],
     joinChain: [
@@ -441,7 +507,7 @@ export const AUTO_JOIN_RULES: AutoJoinRule[] = [
         leftTable: 'spans',
         leftColumn: 'span_id',
         rightTable: WITH_EVALUATOR_SCORES_CTE_NAME,
-        rightColumn: 'span_id'
+        rightColumn: '__span_id'
       }
     ]
   }

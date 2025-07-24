@@ -20,6 +20,7 @@ import {
   AutoJoinColumnRule,
   AutoJoinRule,
   AutoJoinTableRule,
+  FromTable,
   JoinCondition,
   TableName
 } from "./types";
@@ -27,9 +28,9 @@ import {
 /**
 * Apply automatic join rules to the query based on configured rules
 * @param {Select} node - The SELECT node to modify
-* @param {string[]} fromTables - Tables in the FROM clause
+* @param {FromTable[]} fromTables - Tables in the FROM clause
 */
-export const applyAutoJoinRules = (node: Select, fromTables: string[]): void => {
+export const applyAutoJoinRules = (node: Select, fromTables: FromTable[]): void => {
   // Skip if no FROM tables
   if (fromTables.length === 0) return;
 
@@ -37,7 +38,7 @@ export const applyAutoJoinRules = (node: Select, fromTables: string[]): void => 
   for (const rule of AUTO_JOIN_RULES) {
     // Check if any trigger table is in the FROM clause
     const hasTriggerTable = rule.triggerTables.some(table =>
-      fromTables.includes(table)
+      fromTables.some(fromTable => fromTable.table === table)
     );
 
     if (!hasTriggerTable) continue;
@@ -81,7 +82,7 @@ export const applyAutoJoinRules = (node: Select, fromTables: string[]): void => 
     if (!shouldApplyRule) continue;
 
     // Rule matched, apply joins
-    applyJoins(node, rule);
+    applyJoins(node, rule, fromTables);
   }
 };
 
@@ -94,7 +95,7 @@ export const applyAutoJoinRules = (node: Select, fromTables: string[]): void => 
  */
 export function qualifyColumnReferences<T extends ExpressionValue>(
   expression: T,
-  fromTables: string[]
+  fromTables: FromTable[]
 ): T {
   if (!expression) return expression;
 
@@ -175,14 +176,14 @@ export function qualifyColumnReferences<T extends ExpressionValue>(
  * @param condition - Join condition
  * @returns JOIN AST node
  */
-const createJoinNode = (condition: JoinCondition): Join => {
+const createJoinNode = (condition: JoinCondition, fromTables: FromTable[]): Join => {
   // Create the main equality condition
   const mainCondition: Binary = {
     type: 'binary_expr',
     operator: '=',
     left: {
       type: 'column_ref',
-      table: condition.leftTable,
+      table: fromTables.find(table => table.table === condition.leftTable)?.as ?? condition.leftTable,
       column: condition.leftColumn
     },
     right: {
@@ -198,8 +199,7 @@ const createJoinNode = (condition: JoinCondition): Join => {
       db: null,
       table: condition.rightTable,
       as: null,
-      join: 'INNER JOIN',
-      // join: condition.lateral ? 'INNER JOIN' : 'INNER JOIN',
+      join: condition.left ? 'LEFT JOIN' : 'INNER JOIN',
       on: mainCondition
     };
   }
@@ -347,13 +347,13 @@ const replaceColumnReferences = (
  * @param fromTables - Tables in the FROM clause, with primary table first
  * @returns The qualified table name, or null if no match
  */
-const resolveColumnToTable = (columnName: string, fromTables: string[]): string | null => {
+const resolveColumnToTable = (columnName: string, fromTables: FromTable[]): string | null => {
   if (!columnName || fromTables.length === 0) return null;
 
   for (const table of fromTables) {
     const columnNameCamelCase = columnName.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-    if (ALLOWED_TABLES_AND_SCHEMA[table as TableName]?.includes(columnNameCamelCase)) {
-      return table;
+    if (ALLOWED_TABLES_AND_SCHEMA[table.table as TableName]?.includes(columnNameCamelCase)) {
+      return table.as;
     }
   }
 
@@ -365,7 +365,7 @@ const resolveColumnToTable = (columnName: string, fromTables: string[]): string 
   * @param {Select} node - The SELECT node to modify
   * @param {AutoJoinRule} rule - The rule to apply
   */
-const applyJoins = (node: Select, rule: AutoJoinRule): void => {
+const applyJoins = (node: Select, rule: AutoJoinRule, fromTables: FromTable[]): void => {
   if (!node.from) return;
 
   const fromNodes = Array.isArray(node.from) ? node.from : [node.from];
@@ -388,7 +388,7 @@ const applyJoins = (node: Select, rule: AutoJoinRule): void => {
     if (joinedTables.has(joinCondition.rightTable)) continue;
 
     // Create a join node
-    const joinNode = createJoinNode(joinCondition);
+    const joinNode = createJoinNode(joinCondition, fromTables);
 
     // Add it to the FROM clause
     newFromNodes.push(joinNode);

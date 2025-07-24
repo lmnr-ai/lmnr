@@ -33,7 +33,8 @@ export async function POST(
     return NextResponse.json("Span exported to dataset successfully");
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      console.error(error);
+      return NextResponse.json({ error: error.message }, { status: 404 });
     }
 
     return NextResponse.json({ error: "Failed to export span" }, { status: 500 });

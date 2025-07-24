@@ -35,7 +35,7 @@ import {
 } from "./join";
 import { applyProjectIdToStatement, findMainTable } from "./project-id-filter";
 import { replaceJsonbFields } from "./replace";
-import { ALLOWED_TABLES, Arg, TranspiledQuery } from "./types";
+import { ALLOWED_TABLES, Arg, FromTable, TranspiledQuery } from "./types";
 import { getFromTableNames } from "./utils";
 import { ADDITIONAL_WITH_CTES } from "./with";
 
@@ -199,7 +199,7 @@ class SQLValidator {
         }
       }
 
-      const fromTables: string[] = getFromTableNames(node);
+      const fromTables: FromTable[] = getFromTableNames(node);
 
       // Process auto-joins based on rules
       applyAutoJoinRules(node as Select, fromTables);
@@ -298,7 +298,7 @@ class SQLValidator {
 
       // Now apply the project_id condition to this select statement
       const mainTable = findMainTable(node);
-      if (mainTable && this.allowedTables.has(mainTable) && !this.withAliases.has(mainTable)) {
+      if (mainTable && this.allowedTables.has(mainTable.table) && !this.withAliases.has(mainTable.as)) {
         applyProjectIdToStatement(node);
       }
       return node;

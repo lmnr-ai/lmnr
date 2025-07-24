@@ -30,5 +30,5 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
     return notFound();
   }
 
-  return <Dataset dataset={dataset} />;
+  return <Dataset dataset={dataset} enableDownloadParquet={process.env.DATASET_EXPORT_WORKER_URL !== undefined} />;
 }

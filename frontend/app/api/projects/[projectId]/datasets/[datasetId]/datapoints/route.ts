@@ -9,17 +9,12 @@ export async function GET(
   const params = await props.params;
 
   try {
-    const pastHours = req.nextUrl.searchParams.get("pastHours");
-    const startTime = req.nextUrl.searchParams.get("startDate");
-    const endTime = req.nextUrl.searchParams.get("endDate");
     const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
     const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
 
     const datapointsData = await getDatapoints({
+      projectId: params.projectId,
       datasetId: params.datasetId,
-      pastHours,
-      startTime,
-      endTime,
       pageNumber,
       pageSize,
     });
@@ -86,6 +81,7 @@ export async function DELETE(
     }
 
     await deleteDatapoints({
+      projectId: params.projectId,
       datasetId: params.datasetId,
       datapointIds,
     });

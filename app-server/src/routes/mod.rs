@@ -1,6 +1,5 @@
 pub mod agent;
 pub mod api_keys;
-pub mod datasets;
 pub mod error;
 pub mod evaluations;
 pub mod probes;
@@ -10,7 +9,6 @@ pub mod types;
 pub mod workspace;
 use serde::Serialize;
 use types::*;
-
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
