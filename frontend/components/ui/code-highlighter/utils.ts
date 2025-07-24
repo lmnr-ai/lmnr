@@ -31,7 +31,7 @@ export const githubDarkStyle: CreateThemeOptions["styles"] = [
   { tag: [t.name, t.quote], color: "#c9d1d9" },
   { tag: [t.heading, t.strong], color: "#d2a8ff", fontWeight: "bold" },
   { tag: [t.emphasis], color: "#d2a8ff", fontStyle: "italic" },
-  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "ffeef0" },
+  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "#ffeef0" },
   { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#ffab70" },
   { tag: t.link, textDecoration: "underline" },
   { tag: t.strikethrough, textDecoration: "line-through" },
