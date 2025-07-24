@@ -6,3 +6,4 @@ pub mod evaluators;
 pub mod metrics;
 pub mod tag;
 pub mod traces;
+pub mod spans;
