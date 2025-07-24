@@ -163,6 +163,9 @@ const queryTracesAndSpans = async (params: {
     pageSize,
   } = params;
 
+  // Strategy selection: when span filters exist, query spans first to get relevant trace IDs,
+  // otherwise query traces first for better performance when no span related filtering is needed.
+  // This help avoiding joins on database calls that result in performance bottlenecks.
   if (spansFilters.length > 0) {
     const spansResult = await queryTopLevelSpans({
       projectId,
@@ -234,6 +237,8 @@ export const getTraces = async (input: z.infer<typeof GetTracesSchema>) => {
   } = input;
 
   const urlParamFilters: FilterDef[] = compact(inputFilters);
+
+  // Breakdown filters in two categories to apply them to separate queries of spans and traces.
   const { spansFilters, tracesFilters } = separateFilters(urlParamFilters);
 
   const searchTraceIds = search
