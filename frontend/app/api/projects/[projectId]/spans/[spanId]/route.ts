@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 
 import { getSpan, updateSpanOutput, UpdateSpanOutputSchema } from "@/lib/actions/span";
 
+const tryParseJson = (value: string) => {
+  if (value === "") return null;
+
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    // Parse with brackets because we stringify array using comma separator on server.
+    try {
+      return JSON.parse(`[${value}]`);
+    } catch (e2) {
+      console.log("Failed to parse JSON with brackets:", e2);
+      return value || null;
+    }
+  }
+};
+
 export async function GET(
   _req: Request,
   props: { params: Promise<{ projectId: string; spanId: string }> }
@@ -11,7 +27,14 @@ export async function GET(
 
   try {
     const span = await getSpan({ spanId, projectId });
-    return NextResponse.json(span);
+
+    const spanWithParsedData = {
+      ...span,
+      input: tryParseJson(span.input),
+      output: tryParseJson(span.output),
+    };
+
+    return NextResponse.json(spanWithParsedData);
   } catch (error) {
     return NextResponse.json({ error: "Span not found" }, { status: 404 });
   }
