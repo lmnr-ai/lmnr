@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::{
     db::spans::{Span, SpanType},
     traces::spans::SpanUsage,
+    utils::sanitize_string,
 };
 
 use super::utils::chrono_to_nanoseconds;
@@ -80,13 +81,13 @@ impl CHSpan {
         let span_input_string = span
             .input
             .as_ref()
-            .map(|input| input.to_string())
+            .map(|input| sanitize_string(&input.to_string()))
             .unwrap_or(String::new());
 
         let span_output_string = span
             .output
             .as_ref()
-            .map(|output| output.to_string())
+            .map(|output| sanitize_string(&output.to_string()))
             .unwrap_or(String::new());
 
         CHSpan {

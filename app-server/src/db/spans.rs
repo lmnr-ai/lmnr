@@ -9,7 +9,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use super::utils::get_string_preview;
-use crate::traces::spans::SpanAttributes;
+use crate::{traces::spans::SpanAttributes, utils::sanitize_string};
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -86,11 +86,11 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
 
     let input_previews: Vec<Option<String>> = spans
         .par_iter()
-        .map(|s| get_string_preview(&s.input))
+        .map(|s| get_string_preview(&s.input).map(|s| sanitize_string(&s)))
         .collect();
     let output_previews: Vec<Option<String>> = spans
         .par_iter()
-        .map(|s| get_string_preview(&s.output))
+        .map(|s| get_string_preview(&s.output).map(|s| sanitize_string(&s)))
         .collect();
 
     // Use UNNEST to insert all spans in a single query
