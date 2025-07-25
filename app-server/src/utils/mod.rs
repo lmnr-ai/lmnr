@@ -24,3 +24,25 @@ pub fn estimate_json_size(v: &Value) -> usize {
 pub fn is_url(data: &str) -> bool {
     data.starts_with("http://") || data.starts_with("https://") || data.starts_with("data:")
 }
+
+pub fn sanitize_string(input: &str) -> String {
+    // Remove Unicode null characters and invalid UTF-8 sequences
+    input
+        .chars()
+        .filter(|&c| {
+            // Keep newlines and tabs, remove other control chars
+            if c == '\n' || c == '\t' {
+                return true;
+            }
+            // Remove Unicode null characters
+            if c == '\0' || c == '\u{0000}' || c == '\u{FFFE}' || c == '\u{FFFF}' {
+                return false;
+            }
+            // Remove other control characters
+            if c.is_control() {
+                return false;
+            }
+            true
+        })
+        .collect::<String>()
+}
