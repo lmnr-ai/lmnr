@@ -8,11 +8,8 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::traces::spans::{SpanAttributes, should_keep_attribute};
-
-use super::utils::sanitize_value;
-
-const PREVIEW_CHARACTERS: usize = 50;
+use super::utils::get_string_preview;
+use crate::traces::spans::SpanAttributes;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -68,54 +65,33 @@ pub struct Span {
     pub output_url: Option<String>,
 }
 
-struct SpanDBValues {
-    sanitized_input: Option<Value>,
-    sanitized_output: Option<Value>,
-    input_preview: Option<String>,
-    output_preview: Option<String>,
-    attributes_value: Value,
-}
-
 pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
     if spans.is_empty() {
         return Ok(());
     }
 
-    // Prepare all span values upfront
-    let span_values: Vec<SpanDBValues> = spans.par_iter().map(prepare_span_db_values).collect();
-
     // Create arrays for each column
-    let span_ids: Vec<Uuid> = spans.iter().map(|s| s.span_id).collect();
-    let trace_ids: Vec<Uuid> = spans.iter().map(|s| s.trace_id).collect();
-    let parent_span_ids: Vec<Option<Uuid>> = spans.iter().map(|s| s.parent_span_id).collect();
-    let start_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.start_time).collect();
-    let end_times: Vec<DateTime<Utc>> = spans.iter().map(|s| s.end_time).collect();
-    let names: Vec<String> = spans.iter().map(|s| s.name.clone()).collect();
-    let attributes: Vec<Value> = span_values
-        .iter()
-        .map(|v| v.attributes_value.clone())
+    let span_ids: Vec<Uuid> = spans.par_iter().map(|s| s.span_id).collect();
+    let trace_ids: Vec<Uuid> = spans.par_iter().map(|s| s.trace_id).collect();
+    let parent_span_ids: Vec<Option<Uuid>> = spans.par_iter().map(|s| s.parent_span_id).collect();
+    let start_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.start_time).collect();
+    let end_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.end_time).collect();
+    let names: Vec<String> = spans.par_iter().map(|s| s.name.clone()).collect();
+    let attributes: Vec<Value> = spans.par_iter().map(|s| s.attributes.to_value()).collect();
+    let span_types: Vec<SpanType> = spans.par_iter().map(|s| s.span_type.clone()).collect();
+    let input_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.input_url.clone()).collect();
+    let output_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.output_url.clone()).collect();
+    let statuses: Vec<Option<String>> = spans.par_iter().map(|s| s.status.clone()).collect();
+    let project_ids: Vec<Uuid> = spans.par_iter().map(|s| s.project_id).collect();
+
+    let input_previews: Vec<Option<String>> = spans
+        .par_iter()
+        .map(|s| get_string_preview(&s.input))
         .collect();
-    let inputs: Vec<Option<Value>> = span_values
-        .iter()
-        .map(|v| v.sanitized_input.clone())
+    let output_previews: Vec<Option<String>> = spans
+        .par_iter()
+        .map(|s| get_string_preview(&s.output))
         .collect();
-    let outputs: Vec<Option<Value>> = span_values
-        .iter()
-        .map(|v| v.sanitized_output.clone())
-        .collect();
-    let span_types: Vec<SpanType> = spans.iter().map(|s| s.span_type.clone()).collect();
-    let input_previews: Vec<Option<String>> = span_values
-        .iter()
-        .map(|v| v.input_preview.clone())
-        .collect();
-    let output_previews: Vec<Option<String>> = span_values
-        .iter()
-        .map(|v| v.output_preview.clone())
-        .collect();
-    let input_urls: Vec<Option<String>> = spans.iter().map(|s| s.input_url.clone()).collect();
-    let output_urls: Vec<Option<String>> = spans.iter().map(|s| s.output_url.clone()).collect();
-    let statuses: Vec<Option<String>> = spans.iter().map(|s| s.status.clone()).collect();
-    let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).collect();
 
     // Use UNNEST to insert all spans in a single query
     sqlx::query(
@@ -128,15 +104,13 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
             end_time,
             name,
             attributes,
-            input,
-            output,
             span_type,
-            input_preview,
-            output_preview,
             input_url,
             output_url,
             status,
-            project_id
+            project_id,
+            input_preview,
+            output_preview
         )
         SELECT * FROM UNNEST(
             $1::uuid[],
@@ -146,15 +120,13 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
             $5::timestamptz[],
             $6::text[],
             $7::jsonb[],
-            $8::jsonb[],
-            $9::jsonb[],
-            $10::span_type[],
+            $8::span_type[],
+            $9::text[],
+            $10::text[],
             $11::text[],
-            $12::text[],
+            $12::uuid[],
             $13::text[],
-            $14::text[],
-            $15::text[],
-            $16::uuid[]
+            $14::text[]
         )
         ON CONFLICT DO NOTHING
         "#,
@@ -166,15 +138,13 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
     .bind(&end_times)
     .bind(&names)
     .bind(&attributes)
-    .bind(&inputs)
-    .bind(&outputs)
     .bind(&span_types)
-    .bind(&input_previews)
-    .bind(&output_previews)
     .bind(&input_urls)
     .bind(&output_urls)
     .bind(&statuses)
     .bind(&project_ids)
+    .bind(&input_previews)
+    .bind(&output_previews)
     .execute(pool)
     .await?;
 
@@ -212,56 +182,6 @@ pub async fn is_span_in_project(pool: &PgPool, span_id: &Uuid, project_id: &Uuid
     .await?;
 
     Ok(exists)
-}
-
-fn prepare_span_db_values(span: &Span) -> SpanDBValues {
-    let sanitized_input = match &span.input {
-        Some(v) => Some(sanitize_value(v)),
-        None => None,
-    };
-
-    let sanitized_output = match &span.output {
-        Some(v) => Some(sanitize_value(v)),
-        None => None,
-    };
-
-    let input_preview = generate_preview(&sanitized_input);
-    let output_preview = generate_preview(&sanitized_output);
-
-    let attributes_value = serde_json::Value::Object(
-        span.attributes
-            .raw_attributes
-            .iter()
-            .filter_map(|(k, v)| {
-                if should_keep_attribute(&k) {
-                    Some((k.clone(), v.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect::<serde_json::Map<String, Value>>(),
-    );
-
-    SpanDBValues {
-        sanitized_input,
-        sanitized_output,
-        input_preview,
-        output_preview,
-        attributes_value,
-    }
-}
-
-fn generate_preview(value: &Option<Value>) -> Option<String> {
-    match &value {
-        Some(Value::String(s)) => Some(s.chars().take(PREVIEW_CHARACTERS).collect::<String>()),
-        Some(v) => Some(
-            v.to_string()
-                .chars()
-                .take(PREVIEW_CHARACTERS)
-                .collect::<String>(),
-        ),
-        None => None,
-    }
 }
 
 #[cfg(test)]
@@ -349,11 +269,11 @@ mod tests {
             output_url: None,
         };
 
-        let db_values = prepare_span_db_values(&span);
+        let span_attributes = span.attributes.to_value();
 
         // Check that the attributes_value is properly structured
-        assert!(db_values.attributes_value.is_object());
-        let attrs = db_values.attributes_value.as_object().unwrap();
+        assert!(span_attributes.is_object());
+        let attrs = span_attributes.as_object().unwrap();
 
         // Verify that gen_ai.prompt/completion content and role attributes are REMOVED
         assert!(!attrs.contains_key("gen_ai.prompt.0.role"));
@@ -571,11 +491,11 @@ mod tests {
             output_url: None,
         };
 
-        let db_values = prepare_span_db_values(&span);
+        let span_attributes = span.attributes.to_value();
 
         // Check that the attributes_value is properly structured
-        assert!(db_values.attributes_value.is_object());
-        let attrs = db_values.attributes_value.as_object().unwrap();
+        assert!(span_attributes.is_object());
+        let attrs = span_attributes.as_object().unwrap();
 
         // Verify that gen_ai.prompt/completion content and role attributes are REMOVED
         assert!(!attrs.contains_key("gen_ai.prompt.0.role"));
@@ -826,11 +746,11 @@ mod tests {
             output_url: None,
         };
 
-        let db_values = prepare_span_db_values(&span);
+        let span_attributes = span.attributes.to_value();
 
         // Check that the attributes_value is properly structured
-        assert!(db_values.attributes_value.is_object());
-        let attrs = db_values.attributes_value.as_object().unwrap();
+        assert!(span_attributes.is_object());
+        let attrs = span_attributes.as_object().unwrap();
 
         // Verify that AI SDK attributes are REMOVED
         assert!(!attrs.contains_key("ai.prompt.messages"));

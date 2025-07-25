@@ -32,6 +32,8 @@ impl Into<u8> for SpanType {
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub parent_span_id: Uuid,
     pub name: String,
     pub span_type: u8,
     /// Start time in nanoseconds
@@ -45,6 +47,8 @@ pub struct CHSpan {
     pub output_cost: f64,
     pub total_cost: f64,
     pub model: String,
+    pub request_model: String,
+    pub response_model: String,
     pub session_id: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
@@ -59,6 +63,7 @@ pub struct CHSpan {
     pub status: String,
     #[serde(default)]
     pub size_bytes: u64,
+    pub attributes: String,
 }
 
 impl CHSpan {
@@ -86,6 +91,7 @@ impl CHSpan {
 
         CHSpan {
             span_id: span.span_id,
+            parent_span_id: span.parent_span_id.unwrap_or(Uuid::nil()),
             name: span.name.clone(),
             span_type: span.span_type.clone().into(),
             start_time: chrono_to_nanoseconds(span.start_time),
@@ -101,6 +107,14 @@ impl CHSpan {
                 .clone()
                 .or(usage.request_model.clone())
                 .unwrap_or(String::from("<null>")),
+            request_model: usage
+                .request_model
+                .clone()
+                .unwrap_or(String::from("<null>")),
+            response_model: usage
+                .response_model
+                .clone()
+                .unwrap_or(String::from("<null>")),
             session_id: session_id.unwrap_or(String::from("<null>")),
             project_id: project_id,
             trace_id: span.trace_id,
@@ -114,6 +128,7 @@ impl CHSpan {
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("<null>")),
             size_bytes: size_bytes as u64,
+            attributes: span.attributes.to_string(),
         }
     }
 }
