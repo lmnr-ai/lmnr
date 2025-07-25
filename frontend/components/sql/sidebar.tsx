@@ -102,29 +102,29 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
 
   return (
     <div
-      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors ", {
+      className={cn("group flex items-center px-2 py-1 rounded-md hover:bg-accent cursor-pointer transition-colors", {
         "bg-accent": selected,
       })}
       onClick={handleQueryClick}
     >
-      <FileText className="w-4 h-4 mr-2 text-secondary-foreground" />
-      <div>
-        {editing ? (
-          <Input
-            ref={inputRef}
-            defaultValue={editTemplate?.name}
-            onBlur={handleEdit}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-transparent border-token-border-light p-0 h-fit"
-            type="text"
-            onClick={(e) => e.preventDefault()}
-          />
-        ) : (
+      {editing ? (
+        <Input
+          ref={inputRef}
+          defaultValue={editTemplate?.name}
+          onBlur={handleEdit}
+          onKeyDown={handleKeyDown}
+          className="w-full bg-transparent border-token-border-light p-0 h-fit"
+          type="text"
+          onClick={(e) => e.preventDefault()}
+        />
+      ) : (
+        <>
+          <FileText className="min-w-4 min-h-4 w-4 h-4 mr-2 text-secondary-foreground" />
           <span title={template.name} className="text-sm font-medium truncate">
             {template.name}
           </span>
-        )}
-      </div>
+        </>
+      )}
       {!editing && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -235,8 +235,8 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-xs w-full">
-      <div className="flex items-center p-2 px-4 border-b">
+    <div className="flex flex-col max-w-60 w-full h-full">
+      <div className="flex items-center p-2 px-4 border-b flex-shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>
           <Button onClick={handleCreate} variant="outline" className="size-6 p-0 lg:flex">
@@ -245,7 +245,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         </Link>
       </div>
 
-      <ScrollArea className="flex-grow overflow-auto p-2">
+      <ScrollArea className="flex-1 p-2 [&>*>div]:!block">
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
