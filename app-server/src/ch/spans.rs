@@ -65,6 +65,7 @@ pub struct CHSpan {
     #[serde(default)]
     pub size_bytes: u64,
     pub attributes: String,
+    pub trace_metadata: String,
 }
 
 impl CHSpan {
@@ -107,15 +108,9 @@ impl CHSpan {
                 .response_model
                 .clone()
                 .or(usage.request_model.clone())
-                .unwrap_or(String::from("<null>")),
-            request_model: usage
-                .request_model
-                .clone()
-                .unwrap_or(String::from("<null>")),
-            response_model: usage
-                .response_model
-                .clone()
-                .unwrap_or(String::from("<null>")),
+                .unwrap_or(String::from("")),
+            request_model: usage.request_model.clone().unwrap_or(String::from("")),
+            response_model: usage.response_model.clone().unwrap_or(String::from("")),
             session_id: session_id.unwrap_or(String::from("<null>")),
             project_id: project_id,
             trace_id: span.trace_id,
@@ -130,6 +125,7 @@ impl CHSpan {
             status: span.status.clone().unwrap_or(String::from("<null>")),
             size_bytes: size_bytes as u64,
             attributes: span.attributes.to_string(),
+            trace_metadata: serde_json::to_string(&span.attributes.metadata()).unwrap_or_default(),
         }
     }
 }
