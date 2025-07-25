@@ -92,4 +92,4 @@ export async function validateProjectApiKey(rawApiKey: string): Promise<ProjectA
     console.error("Database error validating API key:", error);
     return null;
   }
-} 
+}
