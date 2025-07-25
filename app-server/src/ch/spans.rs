@@ -91,6 +91,11 @@ impl CHSpan {
             .map(|output| sanitize_string(&output.to_string()))
             .unwrap_or(String::new());
 
+        let trace_metadata = match span.attributes.metadata() {
+            Some(metadata) => serde_json::to_string(&metadata).unwrap_or_default(),
+            None => String::from(""),
+        };
+
         CHSpan {
             span_id: span.span_id,
             parent_span_id: span.parent_span_id.unwrap_or(Uuid::nil()),
@@ -125,7 +130,7 @@ impl CHSpan {
             status: span.status.clone().unwrap_or(String::from("<null>")),
             size_bytes: size_bytes as u64,
             attributes: span.attributes.to_string(),
-            trace_metadata: serde_json::to_string(&span.attributes.metadata()).unwrap_or_default(),
+            trace_metadata,
         }
     }
 }
