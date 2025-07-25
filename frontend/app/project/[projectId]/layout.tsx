@@ -1,6 +1,6 @@
 import "@/app/globals.css";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -14,9 +14,10 @@ import SQLEditorProvider from "@/components/sql/context";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
+import { getWorkspaceUsage } from "@/lib/actions/workspaces";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { GetProjectResponse } from "@/lib/workspaces/types";
 
@@ -50,22 +51,7 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   }
   const workspace = workspaceResult[0];
 
-  const usageResult = await db
-    .select({
-      spanCountSinceReset: workspaceUsage.spanCountSinceReset,
-      stepCountSinceReset: workspaceUsage.stepCountSinceReset,
-      // Get bytes ingested for GB calculation
-      bytesIngestedThisMonth: sql<number>`${workspaceUsage.spansBytesIngestedSinceReset} + ${workspaceUsage.browserSessionEventsBytesIngestedSinceReset}`,
-    })
-    .from(workspaceUsage)
-    .where(eq(workspaceUsage.workspaceId, project.workspaceId))
-    .limit(1);
-
-  const usage = usageResult.length > 0 ? usageResult[0] : {
-    spanCountSinceReset: 0,
-    stepCountSinceReset: 0,
-    bytesIngestedThisMonth: 0
-  };
+  const usageResult = await getWorkspaceUsage(project.workspaceId);
 
   const tierResult = await db
     .select({
@@ -85,23 +71,16 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   // Convert bytes to GB (1 GB = 1024^3 bytes)
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
-  const gbUsedThisMonth = bytesToGB(Number(usage.bytesIngestedThisMonth));
+  const gbUsedThisMonth = bytesToGB(Number(usageResult.spansBytesIngested + usageResult.browserSessionEventsBytesIngested));
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
 
   return {
     id: project.id,
     name: project.name,
     workspaceId: project.workspaceId,
-    // Legacy span fields (for backward compatibility)
-    spansThisMonth: Number(usage.spanCountSinceReset),
-    // New GB-based usage fields
     gbUsedThisMonth,
     gbLimit,
-    agentStepsThisMonth: Number(usage.stepCountSinceReset),
-    agentStepsLimit: Number(tier.stepsLimit),
     isFreeTier: tier.name.toLowerCase().trim() === "free",
-    eventsThisMonth: 0,
-    eventsLimit: 0,
   };
 }
 
@@ -121,8 +100,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
     project.isFreeTier &&
-    ((project.gbLimit > 0 && project.gbUsedThisMonth >= 0.8 * project.gbLimit) ||
-      (project.agentStepsLimit > 0 && project.agentStepsThisMonth >= 0.8 * project.agentStepsLimit));
+    (project.gbLimit > 0 && project.gbUsedThisMonth >= 0.8 * project.gbLimit);
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -151,8 +129,6 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   workspaceId={project.workspaceId}
                   gbUsedThisMonth={project.gbUsedThisMonth}
                   gbLimit={project.gbLimit}
-                  agentStepsThisMonth={project.agentStepsThisMonth}
-                  agentStepsLimit={project.agentStepsLimit}
                 />
               )}
               <SQLEditorProvider>{children}</SQLEditorProvider>

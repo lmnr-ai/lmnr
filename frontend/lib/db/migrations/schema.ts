@@ -256,11 +256,6 @@ export const events = pgTable("events", {
   projectId: uuid("project_id").notNull(),
 }, (table) => [
   index("events_span_id_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.spanId.asc().nullsLast().op("uuid_ops")),
-  foreignKey({
-    columns: [table.spanId, table.projectId],
-    foreignColumns: [spans.spanId, spans.projectId],
-    name: "events_span_id_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
 export const labelClassesForPath = pgTable("label_classes_for_path", {
@@ -385,6 +380,24 @@ export const traces = pgTable("traces", {
   pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["anon", "authenticated"], using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)` }),
 ]);
 
+export const workspaces = pgTable("workspaces", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  tierId: bigint("tier_id", { mode: "number" }).default(sql`'1'`).notNull(),
+  subscriptionId: text("subscription_id"),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  additionalSeats: bigint("additional_seats", { mode: "number" }).default(sql`'0'`).notNull(),
+  resetTime: timestamp("reset_time", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.tierId],
+    foreignColumns: [subscriptionTiers.id],
+    name: "workspaces_tier_id_fkey"
+  }).onUpdate("cascade"),
+]);
+
 export const users = pgTable("users", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -423,6 +436,29 @@ export const targetPipelineVersions = pgTable("target_pipeline_versions", {
   unique("unique_pipeline_id").on(table.pipelineId),
 ]);
 
+export const subscriptionTiers = pgTable("subscription_tiers", {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "subscription_tiers_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  storageMib: bigint("storage_mib", { mode: "number" }).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  membersPerWorkspace: bigint("members_per_workspace", { mode: "number" }).default(sql`'-1'`).notNull(),
+  stripeProductId: text("stripe_product_id").default('').notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  steps: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
+  extraStepPrice: doublePrecision("extra_step_price").default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  bytesIngested: bigint("bytes_ingested", { mode: "number" }).default(sql`'0'`).notNull(),
+  extraBytePrice: doublePrecision("extra_byte_price").default(sql`'0'`).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  spans: bigint({ mode: "number" }),
+  extraSpanPrice: doublePrecision("extra_span_price"),
+});
+
 export const projects = pgTable("projects", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -451,46 +487,6 @@ export const providerApiKeys = pgTable("provider_api_keys", {
     name: "provider_api_keys_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
-
-export const workspaces = pgTable("workspaces", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text().notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  tierId: bigint("tier_id", { mode: "number" }).default(sql`'1'`).notNull(),
-  subscriptionId: text("subscription_id"),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  additionalSeats: bigint("additional_seats", { mode: "number" }).default(sql`'0'`).notNull(),
-}, (table) => [
-  foreignKey({
-    columns: [table.tierId],
-    foreignColumns: [subscriptionTiers.id],
-    name: "workspaces_tier_id_fkey"
-  }).onUpdate("cascade"),
-]);
-
-export const subscriptionTiers = pgTable("subscription_tiers", {
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ name: "subscription_tiers_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 9223372036854775807, cache: 1 }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text().notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  storageMib: bigint("storage_mib", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  membersPerWorkspace: bigint("members_per_workspace", { mode: "number" }).default(sql`'-1'`).notNull(),
-  stripeProductId: text("stripe_product_id").default('').notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  steps: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
-  extraStepPrice: doublePrecision("extra_step_price").default(sql`'0'`).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  bytesIngested: bigint("bytes_ingested", { mode: "number" }).default(sql`'0'`).notNull(),
-  extraBytePrice: doublePrecision("extra_byte_price").default(sql`'0'`).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  spans: bigint({ mode: "number" }),
-  extraSpanPrice: doublePrecision("extra_span_price"),
-});
 
 export const userSubscriptionInfo = pgTable("user_subscription_info", {
   userId: uuid("user_id").defaultRandom().primaryKey().notNull(),
@@ -771,16 +767,14 @@ export const spans = pgTable("spans", {
   status: text(),
 }, (table) => [
   index("spans_name_idx").using("btree", table.name.asc().nullsLast().op("text_ops")),
-  index("spans_project_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops")),
-  index("spans_project_id_trace_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
-  index("spans_root_project_id_start_time_end_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.endTime.asc().nullsLast().op("timestamptz_ops"), table.traceId.asc().nullsLast().op("uuid_ops")).where(sql`(parent_span_id IS NULL)`),
-  index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
+  index("spans_project_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops")),
+  index("spans_root_project_id_start_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops"), table.traceId.asc().nullsLast().op("uuid_ops")).where(sql`(parent_span_id IS NULL)`),
+  index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "spans_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
   primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
-  unique("unique_span_id_project_id").on(table.spanId, table.projectId),
   pgPolicy("select_by_next_api_key", { as: "permissive", for: "select", to: ["public"], using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)` }),
 ]);

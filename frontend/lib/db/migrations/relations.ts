@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, events, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan, datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelClasses, labelClassesForPath, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans,subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
   dataset: one(datasets, {
@@ -120,11 +120,11 @@ export const workspaceInvitationsRelations = relations(workspaceInvitations, ({o
 
 export const workspacesRelations = relations(workspaces, ({one, many}) => ({
   workspaceInvitations: many(workspaceInvitations),
-  projects: many(projects),
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
     references: [subscriptionTiers.id]
   }),
+  projects: many(projects),
   membersOfWorkspaces: many(membersOfWorkspaces),
   workspaceUsages: many(workspaceUsage),
 }));
@@ -173,22 +173,6 @@ export const labelClassesRelations = relations(labelClasses, ({one, many}) => ({
   labels: many(labels),
 }));
 
-export const eventsRelations = relations(events, ({one}) => ({
-  span: one(spans, {
-    fields: [events.spanId],
-    references: [spans.spanId]
-  }),
-}));
-
-export const spansRelations = relations(spans, ({one, many}) => ({
-  events: many(events),
-  datapointToSpans: many(datapointToSpan),
-  project: one(projects, {
-    fields: [spans.projectId],
-    references: [projects.id]
-  }),
-}));
-
 export const labelClassesForPathRelations = relations(labelClassesForPath, ({one}) => ({
   project: one(projects, {
     fields: [labelClassesForPath.projectId],
@@ -216,6 +200,10 @@ export const tracesRelations = relations(traces, ({one}) => ({
     fields: [traces.projectId],
     references: [projects.id]
   }),
+}));
+
+export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
+  workspaces: many(workspaces),
 }));
 
 export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, ({many}) => ({
@@ -250,10 +238,6 @@ export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
     fields: [providerApiKeys.projectId],
     references: [projects.id]
   }),
-}));
-
-export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
-  workspaces: many(workspaces),
 }));
 
 export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({one}) => ({
@@ -340,5 +324,13 @@ export const datapointToSpanRelations = relations(datapointToSpan, ({one}) => ({
   span: one(spans, {
     fields: [datapointToSpan.spanId],
     references: [spans.spanId]
+  }),
+}));
+
+export const spansRelations = relations(spans, ({one, many}) => ({
+  datapointToSpans: many(datapointToSpan),
+  project: one(projects, {
+    fields: [spans.projectId],
+    references: [projects.id]
   }),
 }));

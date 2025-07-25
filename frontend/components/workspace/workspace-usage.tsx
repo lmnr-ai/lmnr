@@ -37,8 +37,6 @@ const TIER_USAGE_HINTS = {
 export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: WorkspaceUsageProps) {
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 1;
-  const stepsThisMonth = workspaceStats?.stepsThisMonth ?? 0;
-  const stepsLimit = workspaceStats?.stepsLimit ?? 1;
   const resetTime = workspaceStats.resetTime;
 
   const formatter = new Intl.NumberFormat("en-US", {
@@ -126,23 +124,9 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
               maxValue={gbLimit}
             />
           </div>
-          <div className="flex justify-between px-4 py-2">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm">Index agent steps</span>
-              <span className="text-sm text-secondary-foreground">
-                {stepsThisMonth} / {stepsLimit} ({formatter.format(stepsThisMonth / stepsLimit)})
-              </span>
-            </div>
-            <UsageProgressDisc
-              data={[{ fill: "hsl(var(--chart-1))", steps: stepsThisMonth }]}
-              dataKey="steps"
-              value={stepsThisMonth}
-              maxValue={stepsLimit}
-            />
-          </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
 

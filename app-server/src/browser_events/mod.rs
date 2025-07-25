@@ -9,7 +9,6 @@ use crate::{
         BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY, EventBatch,
     },
     ch::browser_events::insert_browser_events,
-    db::{DB, stats::increment_project_browser_events_bytes_ingested},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
 };
 
@@ -20,25 +19,16 @@ pub struct QueueBrowserEventMessage {
 }
 
 pub async fn process_browser_events(
-    db: Arc<DB>,
     clickhouse: clickhouse::Client,
     browser_events_message_queue: Arc<MessageQueue>,
 ) {
     loop {
-        inner_process_browser_events(
-            db.clone(),
-            clickhouse.clone(),
-            browser_events_message_queue.clone(),
-        )
-        .await;
+        inner_process_browser_events(clickhouse.clone(), browser_events_message_queue.clone())
+            .await;
     }
 }
 
-async fn inner_process_browser_events(
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-) {
+async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -98,12 +88,12 @@ async fn inner_process_browser_events(
         }
 
         let insert_browser_events = || async {
-            let size_bytes = insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
+            insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
                 log::error!("Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
                 })?;
 
-            Ok::<usize, backoff::Error<clickhouse::error::Error>>(size_bytes)
+            Ok::<(), backoff::Error<clickhouse::error::Error>>(())
         };
         // Starting with 1 second delay, delay multiplies by random factor between 1 and 2
         // up to 1 minute and until the total elapsed time is 1 minute
@@ -117,21 +107,9 @@ async fn inner_process_browser_events(
             .build();
 
         match backoff::future::retry(exponential_backoff, insert_browser_events).await {
-            Ok(recorded_bytes) => {
+            Ok(_) => {
                 if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
-                }
-                if let Err(e) = increment_project_browser_events_bytes_ingested(
-                    &db.pool,
-                    &project_id,
-                    recorded_bytes,
-                )
-                .await
-                {
-                    log::error!(
-                        "Failed to increment project browser events bytes ingested: {:?}",
-                        e
-                    );
                 }
             }
             Err(e) => {

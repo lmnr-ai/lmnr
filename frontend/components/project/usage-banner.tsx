@@ -8,28 +8,20 @@ interface ProjectUsageBannerProps {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
-  agentStepsThisMonth: number;
-  agentStepsLimit: number;
 }
 
 export default function ProjectUsageBanner({
   workspaceId,
   gbUsedThisMonth,
   gbLimit,
-  agentStepsThisMonth,
-  agentStepsLimit,
 }: ProjectUsageBannerProps) {
   const router = useRouter();
 
   const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
-  const agentStepPercentage = agentStepsLimit > 0 ? (agentStepsThisMonth / agentStepsLimit) * 100 : 0;
 
   let usageStrings = [];
   if (gbLimit > 0) {
     usageStrings.push(`${dataPercentage.toFixed(1)}% of your data usage limit`);
-  }
-  if (agentStepsLimit > 0) {
-    usageStrings.push(`${agentStepPercentage.toFixed(1)}% of your Index agent steps limit`);
   }
 
   let messageContent = "";
