@@ -1,7 +1,6 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
 //! and clickhouse
-
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
@@ -15,7 +14,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{self, spans::CHSpan},
-    db::{DB, events::Event, spans::Span, stats::increment_project_spans_bytes_ingested},
+    db::{DB, events::Event, spans::Span},
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
     mq::{
@@ -140,7 +139,7 @@ async fn process_spans_and_events_batch(
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
-    let mut ingested_bytes_by_project: HashMap<Uuid, IngestedBytes> = HashMap::new();
+    let mut project_ids = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans in parallel (heavy processing)
@@ -172,16 +171,7 @@ async fn process_spans_and_events_batch(
     // Collect results from parallel processing
     for (span, events, ingested_bytes) in processing_results {
         spans_ingested_bytes.push(ingested_bytes.clone());
-
-        // Add to collections for batch processing
-        ingested_bytes_by_project
-            .entry(span.project_id)
-            .and_modify(|bytes| {
-                bytes.span_bytes += ingested_bytes.span_bytes;
-                bytes.events_bytes += ingested_bytes.events_bytes;
-            })
-            .or_insert(ingested_bytes);
-
+        project_ids.push(span.project_id);
         all_spans.push(span);
         all_events.extend(events.into_iter());
     }
@@ -214,7 +204,7 @@ async fn process_spans_and_events_batch(
         all_spans,
         spans_ingested_bytes,
         all_events,
-        ingested_bytes_by_project,
+        project_ids,
         db,
         clickhouse,
         cache,
@@ -236,7 +226,7 @@ async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,
     events: Vec<Event>,
-    mut ingested_bytes_by_project: HashMap<Uuid, IngestedBytes>,
+    project_ids: Vec<Uuid>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -294,9 +284,6 @@ async fn process_batch(
                 e
             );
         });
-        ingested_bytes_by_project
-            .iter_mut()
-            .for_each(|(_, ingested_bytes)| ingested_bytes.span_bytes = 0);
     }
 
     // Record spans to clickhouse
@@ -348,31 +335,18 @@ async fn process_batch(
         Ok(_) => {}
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
-            ingested_bytes_by_project
-                .iter_mut()
-                .for_each(|(_, ingested_bytes)| ingested_bytes.events_bytes = 0);
         }
     };
 
-    for (project_id, bytes) in ingested_bytes_by_project {
-        if let Err(e) = increment_project_spans_bytes_ingested(
-            &db.pool,
-            &project_id,
-            bytes.span_bytes + bytes.events_bytes,
-        )
-        .await
-        {
-            log::error!(
-                "Failed to increment project data ingested for project [{}]: {:?}",
-                project_id,
-                e
-            );
-        }
-
+    for project_id in project_ids {
         if is_feature_enabled(Feature::UsageLimit) {
-            if let Err(e) =
-                update_workspace_limit_exceeded_by_project_id(db.clone(), cache.clone(), project_id)
-                    .await
+            if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+                db.clone(),
+                clickhouse.clone(),
+                cache.clone(),
+                project_id,
+            )
+            .await
             {
                 log::error!(
                     "Failed to update workspace limit exceeded for project [{}]: {:?}",

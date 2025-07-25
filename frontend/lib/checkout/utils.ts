@@ -1,11 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
 
-import { cache } from '../cache';
+import { deleteAllProjectsWorkspaceInfoFromCache } from '../actions/project';
+import { cache, WORKSPACE_LIMITS_CACHE_KEY } from '../cache';
 import { db } from '../db/drizzle';
-import { subscriptionTiers, users, userSubscriptionInfo, userUsage, workspaces, workspaceUsage } from '../db/migrations/schema';
+import { users, userSubscriptionInfo, userUsage, workspaces } from '../db/migrations/schema';
 
-// This cache key MUST match the key in the app-server
-const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   hobby_monthly_2025_04: 'Laminar Hobby tier',
@@ -73,13 +72,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
     activated: true
   }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
 
-  const tierBeforeUpdate = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, workspaceId),
-    columns: {
-      tierId: true,
-    }
-  });
-
   // Add additional seats to the workspace
   if (isAdditionalSeats && newQuantity > 0) {
     await db.update(workspaces).set({
@@ -96,19 +88,9 @@ export const manageWorkspaceSubscriptionEvent = async ({
           FROM subscription_tiers
           WHERE stripe_product_id = ${productId})
         END
-      `
-    }).where(eq(workspaces.id, workspaceId));
-  }
-
-  // If the workspace is upgrading from the free tier, reset the usage
-  if (tierBeforeUpdate?.tierId === 1) {
-    await db.update(workspaceUsage).set({
-      spansBytesIngestedSinceReset: 0,
-      browserSessionEventsBytesIngestedSinceReset: 0,
-      stepCountSinceReset: 0,
+      `,
       resetTime: sql`now()`,
-      resetReason: 'subscription_change'
-    }).where(eq(workspaceUsage.workspaceId, workspaceId));
+    }).where(eq(workspaces.id, workspaceId));
   }
 
   await updateUsageCacheForWorkspace(workspaceId);
@@ -135,7 +117,8 @@ export const manageUserSubscriptionEvent = async ({
         FROM user_subscription_tiers
         WHERE stripe_product_id = ${productId})
       END
-    `
+    `,
+    subscriptionId,
   }).where(eq(users.id, userId));
 
 
@@ -167,36 +150,7 @@ export const getIdFromStripeObject = (
 // This function updates the cache that is used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-//
-// Worst case scenario if the cache fails,
-// is that the workspace will upgrade but the spans will still be rejected
-// based on the cached value. Bad, but not critical.
 const updateUsageCacheForWorkspace = async (workspaceId: string) => {
-  const cacheKey = `${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`;
-  const baseQuery = db.$with('workspace_stats').as(
-    db.select({
-      name: subscriptionTiers.name,
-      steps: subscriptionTiers.steps,
-      bytesIngested: subscriptionTiers.bytesIngested,
-      spansBytesIngestedSinceReset: workspaceUsage.spansBytesIngestedSinceReset,
-      browserSessionEventsBytesIngestedSinceReset: workspaceUsage.browserSessionEventsBytesIngestedSinceReset,
-      stepCountSinceReset: workspaceUsage.stepCountSinceReset
-    }).from(workspaces)
-      .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-      .innerJoin(workspaceUsage, eq(workspaces.id, workspaceUsage.workspaceId))
-      .where(eq(workspaces.id, workspaceId))
-  );
-
-  const limitExceededRows = await db.with(baseQuery).select({
-    bytesIngested: sql`spans_bytes_ingested_since_reset + browser_session_events_bytes_ingested_since_reset >= bytes_ingested AND LOWER(TRIM(name)) = 'free'`.as('bytesIngested'),
-    steps: sql`step_count_since_reset >= steps AND LOWER(TRIM(name)) = 'free'`.as('steps')
-  }).from(baseQuery);
-
-  const limitExceeded = {
-    // snake_case because the cache key is snake_case
-    bytes_ingested: limitExceededRows.length > 0 && !!limitExceededRows[0].bytesIngested,
-    steps: limitExceededRows.length > 0 && !!limitExceededRows[0].steps
-  };
-
-  await cache.set(cacheKey, limitExceeded);
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
+  await cache.remove(`${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`);
 };
