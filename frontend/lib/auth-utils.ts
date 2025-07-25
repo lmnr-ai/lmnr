@@ -52,7 +52,7 @@ function isValidProjectApiKeyData(data: any): data is ProjectApiKeyData {
  */
 export async function validateProjectApiKey(rawApiKey: string): Promise<ProjectApiKeyData | null> {
   const apiKeyHash = hashApiKey(rawApiKey);
-  const cacheKey = `project-api-key:${apiKeyHash}`;
+  const cacheKey = `project_api_key:${apiKeyHash}`;
 
   try {
     const cachedResult = await cache.get(cacheKey);
