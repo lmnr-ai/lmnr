@@ -5,7 +5,6 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
 use actix_web::{
     dev, http::StatusCode, middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath}, web::{self, JsonConfig, PayloadConfig}, App, HttpServer
 };
@@ -178,7 +177,9 @@ fn main() -> anyhow::Result<()> {
 
     let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
 
-    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) = (publisher_connection.as_ref(), consumer_connection.as_ref()) {
+    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) =
+        (publisher_connection.as_ref(), consumer_connection.as_ref())
+    {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
             
@@ -543,6 +544,8 @@ fn main() -> anyhow::Result<()> {
                         .service(
                             web::scope("/v1")
                                 .wrap(project_auth.clone())
+                                .service(api::v1::traces::get_traces)
+                                .service(api::v1::traces::get_trace)
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::metrics::process_metrics)
@@ -588,11 +591,8 @@ fn main() -> anyhow::Result<()> {
         .name("grpc".to_string())
         .spawn(move || {
             runtime_handle.block_on(async {
-                let process_traces_service = ProcessTracesService::new(
-                    db.clone(),
-                    cache.clone(),
-                    queue.clone(),
-                );
+                let process_traces_service =
+                    ProcessTracesService::new(db.clone(), cache.clone(), queue.clone());
 
                 Server::builder()
                     .add_service(

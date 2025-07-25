@@ -5,4 +5,5 @@ pub mod evaluator_scores;
 pub mod events;
 pub mod labels;
 pub mod spans;
+pub mod traces;
 pub mod utils;

@@ -1,11 +1,19 @@
 use std::sync::Arc;
 
-use actix_web::{HttpRequest, HttpResponse, post, web};
+use actix_web::{HttpRequest, HttpResponse, get, post, web};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
-    db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
+    db::{
+        DB,
+        events::Event,
+        project_api_keys::ProjectApiKey,
+        spans::Span,
+        trace,
+        traces::{self, GetTracesParams},
+    }, // Updated import
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -62,5 +70,47 @@ pub async fn process_traces(
         Ok(HttpResponse::Ok().keep_alive().finish())
     } else {
         Ok(HttpResponse::Ok().finish())
+    }
+}
+
+#[derive(Serialize)]
+struct GetTracesResponse {
+    data: Vec<traces::TraceInfo>,
+    count: i64,
+}
+
+#[post("/traces/query")]
+pub async fn get_traces(
+    body: web::Json<GetTracesParams>,
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+    let clickhouse = clickhouse.into_inner();
+    let query = body.into_inner();
+
+    let (data, count) = traces::get_traces(&db.pool, &clickhouse, project_id, query).await?;
+
+    let response = GetTracesResponse { data, count };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[get("/traces/{trace_id}")]
+pub async fn get_trace(
+    path: web::Path<Uuid>,
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let trace_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+
+    let trace = trace::get_trace(&db.pool, &project_id, &trace_id).await?;
+    match trace {
+        Some(trace) => Ok(HttpResponse::Ok().json(trace)),
+        None => Ok(HttpResponse::NotFound().json("Trace not found")),
     }
 }
