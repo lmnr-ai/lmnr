@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 
-import SQLEditorButton from "@/components/sql";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
@@ -52,7 +51,6 @@ export default function Header({
           </div>
         ))}
         {children}
-        {projectId && <SQLEditorButton className="ml-auto mr-4" />}
       </div>
     </div>
   );

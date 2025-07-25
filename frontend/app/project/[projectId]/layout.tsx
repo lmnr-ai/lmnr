@@ -10,7 +10,6 @@ import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
-import SQLEditorProvider from "@/components/sql/context";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -61,11 +60,14 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
     .where(eq(workspaceUsage.workspaceId, project.workspaceId))
     .limit(1);
 
-  const usage = usageResult.length > 0 ? usageResult[0] : {
-    spanCountSinceReset: 0,
-    stepCountSinceReset: 0,
-    bytesIngestedThisMonth: 0
-  };
+  const usage =
+    usageResult.length > 0
+      ? usageResult[0]
+      : {
+        spanCountSinceReset: 0,
+        stepCountSinceReset: 0,
+        bytesIngestedThisMonth: 0,
+      };
 
   const tierResult = await db
     .select({
@@ -155,7 +157,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   agentStepsLimit={project.agentStepsLimit}
                 />
               )}
-              <SQLEditorProvider>{children}</SQLEditorProvider>
+              {children}
             </SidebarInset>
           </SidebarProvider>
         </div>

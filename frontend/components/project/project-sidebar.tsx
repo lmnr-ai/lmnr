@@ -10,6 +10,7 @@ import {
   Rows4,
   Settings,
   SquareFunction,
+  SquareTerminal,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -89,6 +90,11 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
         name: "queues",
         href: `/project/${projectId}/labeling-queues`,
         icon: Pen,
+      },
+      {
+        name: "sql editor",
+        href: `/project/${projectId}/sql`,
+        icon: SquareTerminal,
       },
       {
         name: "playgrounds",

@@ -253,7 +253,7 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {children || (
-          <Button variant="secondary" className="w-fit px-2">
+          <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2">
             <Database className="size-3.5 mr-2" />
             Export to Dataset
             <ChevronDown className="size-3.5 ml-2" />
