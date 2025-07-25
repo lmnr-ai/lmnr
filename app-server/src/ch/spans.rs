@@ -91,10 +91,9 @@ impl CHSpan {
             .map(|output| sanitize_string(&output.to_string()))
             .unwrap_or(String::new());
 
-        let trace_metadata = match span.attributes.metadata() {
-            Some(metadata) => serde_json::to_string(&metadata).unwrap_or_default(),
-            None => String::from(""),
-        };
+        let trace_metadata = span.attributes.metadata().map_or(String::new(), |m| {
+            serde_json::to_string(&m).unwrap_or_default()
+        });
 
         CHSpan {
             span_id: span.span_id,
