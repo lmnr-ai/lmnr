@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { extractBearerToken, validateProjectApiKey } from "@/lib/auth-utils";
+import { validateProjectApiKey } from "@/lib/actions/project";
 import { executeSafeQuery } from "@/lib/sql/transpile";
+import { extractBearerToken } from "@/lib/utils";
 
-export async function POST(
-  request: NextRequest,
-) {
+export async function POST(request: NextRequest) {
   try {
     // Extract bearer token from Authorization header
     const authHeader = request.headers.get("Authorization");
@@ -21,19 +20,13 @@ export async function POST(
     // Validate the project API key
     const apiKeyData = await validateProjectApiKey(bearerToken);
     if (!apiKeyData) {
-      return NextResponse.json(
-        { error: "Invalid API key" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
     const { sqlQuery } = await request.json();
 
     if (!sqlQuery?.trim()) {
-      return NextResponse.json(
-        { error: "SQL query is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "SQL query is required" }, { status: 400 });
     }
 
     // Execute the query with the authenticated project ID
@@ -42,13 +35,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       result: result.result,
-      warnings: result.warnings
+      warnings: result.warnings,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: errorMessage, success: false, result: null, warnings: null },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage, success: false, result: null, warnings: null }, { status: 500 });
   }
 }
