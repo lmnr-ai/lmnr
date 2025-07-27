@@ -328,6 +328,28 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let mq_for_http = queue.clone();
 
+        // == Clickhouse ==
+    let clickhouse_url =
+        env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user =
+        env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(clickhouse_url)
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
+
+    let clickhouse = match clickhouse_password {
+        Ok(password) => clickhouse_client.with_password(password),
+        _ => {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            clickhouse_client
+        }
+    };
+    let clickhouse_for_grpc = clickhouse.clone();
+
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
@@ -355,27 +377,6 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     log::info!("using mock storage");
                     Arc::new(MockStorage {}.into())
-                };
-
-                // == Clickhouse ==
-                let clickhouse_url =
-                    env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-                let clickhouse_user =
-                    env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-                let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-                let clickhouse_client = clickhouse::Client::default()
-                    .with_url(clickhouse_url)
-                    .with_user(clickhouse_user)
-                    .with_database("default")
-                    .with_option("async_insert", "1")
-                    .with_option("wait_for_async_insert", "0");
-
-                let clickhouse = match clickhouse_password {
-                    Ok(password) => clickhouse_client.with_password(password),
-                    _ => {
-                        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-                        clickhouse_client
-                    }
                 };
 
                 // == Browser agent ==
@@ -483,7 +484,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
-                            db_for_http.clone(),
                             clickhouse.clone(),
                             mq_for_http.clone(),
                         ));
@@ -591,6 +591,7 @@ fn main() -> anyhow::Result<()> {
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
+                    clickhouse_for_grpc,
                     queue.clone(),
                 );
 

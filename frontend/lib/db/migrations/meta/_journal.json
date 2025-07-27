@@ -337,6 +337,13 @@
       "when": 1752153201338,
       "tag": "0047_mixed_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1753457776247,
+      "tag": "0048_damp_glorian",
+      "breakpoints": true
     }
   ]
 }
