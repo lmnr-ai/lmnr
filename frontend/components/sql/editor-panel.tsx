@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import GraphBuilder from "@/components/graph-builder";
 import SQLEditor from "@/components/sql/editor";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
@@ -110,6 +111,9 @@ export default function EditorPanel() {
               <FileJson2 className="mr-2 w-4 h-4" />
               <span>JSON</span>
             </TabsTrigger>
+            <TabsTrigger value="chart">
+              <span>Chart</span>
+            </TabsTrigger>
             <div className="ml-auto py-2">
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
                 <Button
@@ -160,6 +164,11 @@ export default function EditorPanel() {
                 />
               </div>
             )}
+          </TabsContent>
+          <TabsContent className="flex flex-col overflow-hidden" value="chart">
+            <div className="p-4 overflow-hidden">
+              <GraphBuilder data={results || []} />
+            </div>
           </TabsContent>
         </Tabs>
       </ResizablePanel>
