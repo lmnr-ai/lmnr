@@ -439,13 +439,14 @@ fn main() -> anyhow::Result<()> {
 
                 // == Evaluator client ==
                 let sql_query_engine_client = if is_feature_enabled(Feature::SqlQueryEngine) {
-                    let mut headers = reqwest::header::HeaderMap::new();    
+                    let mut headers = reqwest::header::HeaderMap::new();
 
-                    // headers.insert(
-                    //     reqwest::header::AUTHORIZATION,
-                    //     reqwest::header::HeaderValue::from_str(&format!("Bearer {}", online_evaluators_secret_key))
-                    //         .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format")
-                    // );
+                    let sql_query_engine_secret_key = env::var("SQL_QUERY_ENGINE_SECRET_KEY").expect("SQL_QUERY_ENGINE_SECRET_KEY must be set");
+
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", sql_query_engine_secret_key)).expect("Invalid SQL_QUERY_ENGINE_SECRET_KEY format")
+                    );
                     headers.insert(
                         reqwest::header::CONTENT_TYPE,
                         reqwest::header::HeaderValue::from_static("application/json")

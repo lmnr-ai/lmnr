@@ -35,6 +35,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
         Feature::Evaluators => env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok(),
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
-        Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
+        Feature::SqlQueryEngine => {
+            env::var("SQL_QUERY_ENGINE_URL").is_ok()
+                && env::var("SQL_QUERY_ENGINE_SECRET_KEY").is_ok()
+        }
     }
 }
