@@ -456,7 +456,7 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(
                         reqwest::Client::builder()
                             .user_agent("lmnr-query-engine/1.0")
-                            .timeout(Duration::from_secs(120))
+                            .timeout(Duration::from_secs(300)) // 5 minutes timeout
                             .default_headers(headers)
                             .build()
                             .expect("Failed to create query engine HTTP client")
