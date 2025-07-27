@@ -40,6 +40,7 @@ use sodiumoxide;
 use std::{
     env,
     io::{self, Error},
+    time::Duration,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -437,6 +438,40 @@ fn main() -> anyhow::Result<()> {
                     String::new()
                 };
 
+
+                // == Evaluator client ==
+                let sql_query_engine_client = if is_feature_enabled(Feature::SqlQueryEngine) {
+                    let mut headers = reqwest::header::HeaderMap::new();
+
+                    let sql_query_engine_secret_key = env::var("QUERY_ENGINE_SECRET_KEY").expect("QUERY_ENGINE_SECRET_KEY must be set");
+
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", sql_query_engine_secret_key)).expect("Invalid SQL_QUERY_ENGINE_SECRET_KEY format")
+                    );
+                    headers.insert(
+                        reqwest::header::CONTENT_TYPE,
+                        reqwest::header::HeaderValue::from_static("application/json")
+                    );
+
+                    Arc::new(
+                        reqwest::Client::builder()
+                            .user_agent("lmnr-query-engine/1.0")
+                            .timeout(Duration::from_secs(300)) // 5 minutes timeout
+                            .default_headers(headers)
+                            .build()
+                            .expect("Failed to create query engine HTTP client")
+                    )
+                } else {
+                    log::info!("Using mock query engine client");
+                    Arc::new(
+                        reqwest::Client::builder()
+                        .user_agent("lmnr-query-engine-mock/1.0")
+                        .build()
+                        .expect("Failed to create mock query engine HTTP client")
+                    )
+                };
+
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -526,6 +561,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
+                        .app_data(web::Data::new(sql_query_engine_client.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(api::v1::browser_sessions::options_handler)
@@ -552,7 +588,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evals::update_eval_datapoint)
                                 .service(api::v1::evaluators::create_evaluator_score)
                                 .service(api::v1::tag::tag_trace)
-                                .service(api::v1::agent::run_agent_manager),
+                                .service(api::v1::agent::run_agent_manager)
+                                .service(api::v1::sql::execute_sql_query),
                         )
                         // Scopes with generic auth
                         .service(
