@@ -23,7 +23,7 @@ export async function POST(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          sql_query: sqlQuery,
+          query: sqlQuery,
           project_id: projectId,
         }),
       });

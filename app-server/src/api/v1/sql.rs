@@ -18,15 +18,15 @@ pub async fn execute_sql_query(
     client: web::Data<Arc<reqwest::Client>>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
-    let sql_query = req.into_inner().query;
+    let query = req.into_inner().query;
     let Ok(query_engine_url) = env::var("QUERY_ENGINE_URL") else {
-        return Ok(HttpResponse::MethodNotAllowed()
+        return Ok(HttpResponse::InternalServerError()
             .body("Server not configured to run SQL queries. QUERY_ENGINE_URL is not set."));
     };
     let result = client
         .post(format!("{}", query_engine_url))
         .json(&serde_json::json!({
-            "sql_query": sql_query,
+            "query": query,
             "project_id": project_id,
         }))
         .send()

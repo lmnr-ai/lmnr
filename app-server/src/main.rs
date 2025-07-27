@@ -40,6 +40,7 @@ use sodiumoxide;
 use std::{
     env,
     io::{self, Error},
+    time::Duration,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -441,7 +442,7 @@ fn main() -> anyhow::Result<()> {
                 let sql_query_engine_client = if is_feature_enabled(Feature::SqlQueryEngine) {
                     let mut headers = reqwest::header::HeaderMap::new();
 
-                    let sql_query_engine_secret_key = env::var("SQL_QUERY_ENGINE_SECRET_KEY").expect("SQL_QUERY_ENGINE_SECRET_KEY must be set");
+                    let sql_query_engine_secret_key = env::var("QUERY_ENGINE_SECRET_KEY").expect("QUERY_ENGINE_SECRET_KEY must be set");
 
                     headers.insert(
                         reqwest::header::AUTHORIZATION,
@@ -455,17 +456,18 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(
                         reqwest::Client::builder()
                             .user_agent("lmnr-query-engine/1.0")
+                            .timeout(Duration::from_secs(120))
                             .default_headers(headers)
                             .build()
-                            .expect("Failed to create evaluator HTTP client")
+                            .expect("Failed to create query engine HTTP client")
                     )
                 } else {
-                    log::info!("Using mock evaluator client");
+                    log::info!("Using mock query engine client");
                     Arc::new(
                         reqwest::Client::builder()
                         .user_agent("lmnr-query-engine-mock/1.0")
                         .build()
-                        .expect("Failed to create mock evaluator HTTP client")
+                        .expect("Failed to create mock query engine HTTP client")
                     )
                 };
 
