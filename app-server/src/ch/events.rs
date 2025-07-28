@@ -18,6 +18,7 @@ pub struct CHEvent {
     /// Timestamp in nanoseconds
     pub timestamp: i64,
     pub name: String,
+    pub attributes: String,
 }
 
 impl CHEvent {
@@ -28,6 +29,7 @@ impl CHEvent {
             timestamp: chrono_to_nanoseconds(event.timestamp),
             name: event.name.clone(),
             project_id: event.project_id,
+            attributes: event.attributes.to_string(),
         }
     }
 }
