@@ -139,7 +139,7 @@ export default function EditorPanel() {
 
       if (results && results.length === 0) {
         return (
-          <div className="flex items-center justify-center h-full text text-muted-foreground">
+          <div className="flex items-center justify-center h-full text-muted-foreground">
             Query executed successfully but returned no results
           </div>
         );
