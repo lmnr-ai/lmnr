@@ -146,7 +146,7 @@ export default function EditorPanel() {
             )}
             {error && <div className="text-center text-red-500 mt-4">{error}</div>}
           </TabsContent>
-          <TabsContent className="flex overflow-hidden" value="json">
+          <TabsContent className="flex flex-1 overflow-hidden" value="json">
             {!results && !error && (
               <div className="w-full text-center text-gray-500 mt-4">Execute a query to see results</div>
             )}
