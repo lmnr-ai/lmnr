@@ -15,7 +15,6 @@ import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 
 import { CategoryDropZone, ColumnCategory } from "@/components/sql/dnd-components";
-import ExportJobDialog from "@/components/sql/export-job-dialog";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -267,12 +266,13 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
             Export to Dataset
           </DropdownMenuItem>
         </ExportDatasetDialog>
-        <ExportJobDialog sqlQuery={sqlQuery}>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-            <Database className="w-4 h-4 mr-2" />
-            Export to Dataset as Job
-          </DropdownMenuItem>
-        </ExportJobDialog>
+        {/*NOTE: uncomment when data exporter is ready to operate.*/}
+        {/*<ExportJobDialog sqlQuery={sqlQuery}>*/}
+        {/*  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>*/}
+        {/*    <Database className="w-4 h-4 mr-2" />*/}
+        {/*    Export to Dataset as Job*/}
+        {/*  </DropdownMenuItem>*/}
+        {/*</ExportJobDialog>*/}
       </DropdownMenuContent>
     </DropdownMenu>
   );
