@@ -2,7 +2,7 @@ import React from "react";
 
 import { GraphBuilderStoreProvider, useGraphBuilderStoreContext } from "@/components/graph-builder/graph-builder-store";
 import GraphRenderer from "@/components/graph-builder/graph-renderer";
-import { GraphType, graphTypeLabelMap } from "@/components/graph-builder/types";
+import { ChartConfig, GraphType, graphTypeLabelMap } from "@/components/graph-builder/types";
 import { ColumnInfo } from "@/components/graph-builder/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,41 +13,52 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const GraphBuilderCore = () => {
   const {
-    type,
-    setType,
+    chartConfig,
+    setGraphType,
+    setXColumn,
+    toggleYColumn,
+    setBreakdownColumn,
+    setEnableTimeRange,
     columns,
-    setColumnXAxis,
-    setColumnYAxis,
-    setColumnBreakdown,
     canSelectForYAxis,
     getAvailableBreakdownColumns,
     getSelectedBreakdownColumn,
-    enableTimeRange,
-    setEnableTimeRange,
   } = useGraphBuilderStoreContext((state) => ({
-    type: state.type,
-    setType: state.setType,
+    chartConfig: state.chartConfig,
+    setGraphType: state.setGraphType,
+    setXColumn: state.setXColumn,
+    toggleYColumn: state.toggleYColumn,
+    setBreakdownColumn: state.setBreakdownColumn,
+    setEnableTimeRange: state.setEnableTimeRange,
     columns: state.columns,
-    setColumnXAxis: state.setColumnXAxis,
-    setColumnYAxis: state.setColumnYAxis,
-    setColumnBreakdown: state.setColumnBreakdown,
     canSelectForYAxis: state.canSelectForYAxis,
     getAvailableBreakdownColumns: state.getAvailableBreakdownColumns,
     getSelectedBreakdownColumn: state.getSelectedBreakdownColumn,
-    enableTimeRange: state.enableTimeRange,
-    setEnableTimeRange: state.setEnableTimeRange,
   }));
 
   const availableBreakdownColumns = getAvailableBreakdownColumns();
   const selectedBreakdownColumn = getSelectedBreakdownColumn();
-  const hasGraphType = !!type;
+  const hasGraphType = !!chartConfig.type;
+
+  const isColumnSelected = (columnName: string, axis: "x" | "y" | "breakdown") => {
+    switch (axis) {
+      case "x":
+        return chartConfig.x === columnName;
+      case "y":
+        return chartConfig.y.includes(columnName);
+      case "breakdown":
+        return chartConfig.breakdown === columnName;
+      default:
+        return false;
+    }
+  };
 
   return (
     <div className="flex flex-col space-y-4 w-full h-full">
       <div className="flex-shrink-0 space-y-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Chart type</label>
-          <Select value={type || ""} onValueChange={setType}>
+          <Select value={chartConfig.type || ""} onValueChange={setGraphType}>
             <SelectTrigger className="max-w-xs focus:ring-0">
               <SelectValue placeholder="Select Graph Type" />
             </SelectTrigger>
@@ -66,7 +77,11 @@ const GraphBuilderCore = () => {
         {hasGraphType && (
           <>
             <div className="flex items-center space-x-2">
-              <Checkbox id="enable-time-range" checked={enableTimeRange} onCheckedChange={setEnableTimeRange} />
+              <Checkbox
+                id="enable-time-range"
+                checked={chartConfig.enableTimeRange || false}
+                onCheckedChange={setEnableTimeRange}
+              />
               <label
                 htmlFor="enable-time-range"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -75,18 +90,13 @@ const GraphBuilderCore = () => {
               </label>
             </div>
 
-            {type === GraphType.LineGraph && availableBreakdownColumns.length > 0 && (
+            {chartConfig.type === GraphType.LineGraph && availableBreakdownColumns.length > 0 && (
               <div>
                 <label className="text-sm font-medium mb-2 block">Break down lines by</label>
                 <Select
                   value={selectedBreakdownColumn?.name || "none"}
                   onValueChange={(value) => {
-                    if (selectedBreakdownColumn) {
-                      setColumnBreakdown(selectedBreakdownColumn.name, false);
-                    }
-                    if (value && value !== "none") {
-                      setColumnBreakdown(value, true);
-                    }
+                    setBreakdownColumn(value === "none" ? undefined : value);
                   }}
                 >
                   <SelectTrigger className="max-w-xs focus:ring-0">
@@ -129,16 +139,16 @@ const GraphBuilderCore = () => {
                         <div className="flex flex-col">
                           <span className="font-medium">{column.name}</span>
                           <span className="text-sm text-muted-foreground">{column.type}</span>
-                          {column.isBreakdown && (
+                          {isColumnSelected(column.name, "breakdown") && (
                             <span className="text-xs text-blue-600 font-medium">• Line breakdown</span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="w-20 text-center">
                         <Switch
-                          checked={column.isXAxis}
-                          onCheckedChange={(checked) => setColumnXAxis(column.name, checked)}
-                          disabled={column.isBreakdown}
+                          checked={isColumnSelected(column.name, "x")}
+                          onCheckedChange={(checked) => setXColumn(checked ? column.name : undefined)}
+                          disabled={isColumnSelected(column.name, "breakdown")}
                         />
                       </TableCell>
                       <TableCell className="w-20 text-center">
@@ -147,16 +157,18 @@ const GraphBuilderCore = () => {
                             <TooltipTrigger asChild>
                               <div>
                                 <Switch
-                                  checked={column.isYAxis}
-                                  onCheckedChange={(checked) => setColumnYAxis(column.name, checked)}
-                                  disabled={!canSelectForYAxis(column.name) || column.isBreakdown}
+                                  checked={isColumnSelected(column.name, "y")}
+                                  onCheckedChange={() => toggleYColumn(column.name)}
+                                  disabled={
+                                    !canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")
+                                  }
                                 />
                               </div>
                             </TooltipTrigger>
-                            {(!canSelectForYAxis(column.name) || column.isBreakdown) && (
+                            {(!canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")) && (
                               <TooltipContent>
                                 <p>
-                                  {column.isBreakdown
+                                  {isColumnSelected(column.name, "breakdown")
                                     ? "Column is used for line breakdown"
                                     : "String columns cannot be used for Y-axis in this chart type"}
                                 </p>
@@ -191,12 +203,16 @@ const GraphBuilderCore = () => {
 
 interface GraphBuilderProps<T extends Record<string, string | number | boolean>> {
   data: T[];
+  initialConfig?: ChartConfig;
 }
 
-const GraphBuilder = <T extends Record<string, string | number | boolean>>({ data }: GraphBuilderProps<T>) => (
-  <GraphBuilderStoreProvider data={data}>
-    <GraphBuilderCore />
-  </GraphBuilderStoreProvider>
-);
+const GraphBuilder = <T extends Record<string, string | number | boolean>>({
+  data,
+  initialConfig,
+}: GraphBuilderProps<T>) => (
+    <GraphBuilderStoreProvider data={data} initialConfig={initialConfig}>
+      <GraphBuilderCore />
+    </GraphBuilderStoreProvider>
+  );
 
 export default GraphBuilder;

@@ -112,22 +112,28 @@ const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: Colum
 };
 
 const GraphRenderer = () => {
-  const { type, getSelectedXColumn, getSelectedYColumns, getSelectedBreakdownColumn, isValidGraphConfiguration, data } =
-    useGraphBuilderStoreContext((state) => ({
-      type: state.type,
-      getSelectedXColumn: state.getSelectedXColumn,
-      getSelectedYColumns: state.getSelectedYColumns,
-      getSelectedBreakdownColumn: state.getSelectedBreakdownColumn,
-      isValidGraphConfiguration: state.isValidGraphConfiguration,
-      data: state.data,
-    }));
+  const {
+    chartConfig,
+    getSelectedXColumn,
+    getSelectedYColumns,
+    getSelectedBreakdownColumn,
+    isValidGraphConfiguration,
+    data
+  } = useGraphBuilderStoreContext((state) => ({
+    chartConfig: state.chartConfig,
+    getSelectedXColumn: state.getSelectedXColumn,
+    getSelectedYColumns: state.getSelectedYColumns,
+    getSelectedBreakdownColumn: state.getSelectedBreakdownColumn,
+    isValidGraphConfiguration: state.isValidGraphConfiguration,
+    data: state.data,
+  }));
 
   const selectedXColumn = getSelectedXColumn();
   const selectedYColumns = getSelectedYColumns();
   const selectedBreakdownColumn = getSelectedBreakdownColumn();
   const hasValidConfiguration = isValidGraphConfiguration();
 
-  const { chartData, keys, chartConfig } = useMemo(() => {
+  const { chartData, keys, chartConfig: uiChartConfig } = useMemo(() => {
     if (!hasValidConfiguration || !selectedXColumn || selectedYColumns.length === 0) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
@@ -145,7 +151,7 @@ const GraphRenderer = () => {
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
         <div className="text-center">
           <p className="text-sm">Select chart type, X-axis, and Y-axis columns to display graph</p>
-          {!type && <p className="text-xs mt-1">• Choose a chart type</p>}
+          {!chartConfig.type && <p className="text-xs mt-1">• Choose a chart type</p>}
           {!selectedXColumn && <p className="text-xs mt-1">• Select one X-axis column</p>}
           {selectedYColumns.length === 0 && <p className="text-xs mt-1">• Select at least one Y-axis column</p>}
           {selectedBreakdownColumn && selectedYColumns.length > 1 && (
@@ -161,7 +167,7 @@ const GraphRenderer = () => {
       data: chartData,
       keys: keys,
       xAxisKey: selectedXColumn.name,
-      chartConfig: chartConfig,
+      chartConfig: uiChartConfig,
     }
     : {
       data: chartData,
@@ -169,7 +175,7 @@ const GraphRenderer = () => {
       yColumns: selectedYColumns,
     };
 
-  switch (type) {
+  switch (chartConfig.type) {
     case GraphType.LineGraph:
       return <LineChart {...lineChartProps} />;
     case GraphType.BarGraph:

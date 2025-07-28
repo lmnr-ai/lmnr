@@ -1,11 +1,8 @@
-import { GraphType } from "./types";
+import { ChartConfig, GraphType } from "./types";
 
 export interface ColumnInfo {
   name: string;
   type: "string" | "number" | "boolean";
-  isXAxis: boolean;
-  isYAxis: boolean;
-  isBreakdown: boolean;
 }
 
 export type DataRow = Record<string, string | number | boolean>;
@@ -46,14 +43,11 @@ export const transformDataToColumns = (data: DataRow[]): ColumnInfo[] => {
     return {
       name: key,
       type,
-      isXAxis: false,
-      isYAxis: false,
-      isBreakdown: false,
     };
   });
 };
 
-export const canSelectForYAxis = (column: ColumnInfo, graphType: GraphType | string | undefined): boolean => {
+export const canSelectForYAxis = (column: ColumnInfo, graphType: GraphType | undefined): boolean => {
   if (graphType === GraphType.HorizontalBarGraph) {
     return true;
   }
@@ -61,22 +55,39 @@ export const canSelectForYAxis = (column: ColumnInfo, graphType: GraphType | str
 };
 
 export const isValidGraphConfiguration = (
-  graphType: GraphType | string | undefined,
+  config: ChartConfig,
   columns: ColumnInfo[]
 ): boolean => {
-  const xColumn = columns.find((col) => col.isXAxis);
-  const yColumns = columns.filter((col) => col.isYAxis);
+  const { type, x, y, breakdown } = config;
 
-  const hasBasicConfig = !!(graphType && xColumn && yColumns.length > 0);
+  // Basic validation
+  if (!type || !x || y.length === 0) return false;
 
-  if (!hasBasicConfig) return false;
+  // Check if selected columns exist
+  const xColumn = columns.find((col) => col.name === x);
+  const yColumns = y.map(yName => columns.find((col) => col.name === yName)).filter(Boolean);
 
-  if (graphType === GraphType.LineGraph) {
-    const breakdownColumn = columns.find((col) => col.isBreakdown);
-    if (breakdownColumn) {
-      return yColumns.length === 1;
-    }
+  if (!xColumn || yColumns.length !== y.length) return false;
+
+  // Line graph with breakdown requires exactly one Y column
+  if (type === GraphType.LineGraph && breakdown && y.length > 1) {
+    return false;
+  }
+
+  // Check if breakdown column exists (if specified)
+  if (breakdown) {
+    const breakdownColumn = columns.find((col) => col.name === breakdown);
+    if (!breakdownColumn) return false;
   }
 
   return true;
+};
+
+export const getAvailableBreakdownColumns = (
+  config: ChartConfig,
+  columns: ColumnInfo[]
+): ColumnInfo[] => {
+  const { x, y } = config;
+  const usedColumns = new Set([x, ...y].filter(Boolean));
+  return columns.filter((col) => !usedColumns.has(col.name));
 };

@@ -7,6 +7,14 @@ export enum GraphType {
   "HorizontalBarGraph" = "horizontalBar",
 }
 
+export interface ChartConfig {
+  type?: GraphType;
+  x?: string;           // column name for x-axis
+  y: string[];         // column names for y-axis
+  breakdown?: string;   // column name for breakdown (line charts)
+  enableTimeRange?: boolean;
+}
+
 export const graphTypeLabelMap: Record<GraphType, { label: string; icon: ReactNode }> = {
   [GraphType.LineGraph]: {
     label: "Line Graph",
