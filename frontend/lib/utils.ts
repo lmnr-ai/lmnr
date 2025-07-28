@@ -320,3 +320,16 @@ export const getDuration = (startTime: string, endTime: string) => {
   const end = new Date(endTime);
   return Math.max(end.getTime() - start.getTime(), 0);
 };
+
+export function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) {
+    return null;
+  }
+
+  const bearerPrefix = "Bearer ";
+  if (!authHeader.startsWith(bearerPrefix)) {
+    return null;
+  }
+
+  return authHeader.slice(bearerPrefix.length).trim();
+}

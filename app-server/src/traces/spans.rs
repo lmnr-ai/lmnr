@@ -102,6 +102,25 @@ impl SpanAttributes {
         }
     }
 
+    pub fn to_value(&self) -> Value {
+        Value::Object(
+            self.raw_attributes
+                .iter()
+                .filter_map(|(k, v)| {
+                    if should_keep_attribute(&k) {
+                        Some((k.clone(), v.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<serde_json::Map<String, Value>>(),
+        )
+    }
+
+    pub fn to_string(&self) -> String {
+        json_value_to_string(&self.to_value())
+    }
+
     pub fn session_id(&self) -> Option<String> {
         let session_id_val = self
             .raw_attributes
@@ -191,6 +210,14 @@ impl SpanAttributes {
 
     pub fn output_cost(&mut self) -> Option<f64> {
         if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_OUTPUT_COST) {
+            n.as_f64()
+        } else {
+            None
+        }
+    }
+
+    pub fn total_cost(&mut self) -> Option<f64> {
+        if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_TOTAL_COST) {
             n.as_f64()
         } else {
             None

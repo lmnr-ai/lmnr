@@ -1,13 +1,12 @@
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
     db::spans::{Span, SpanType},
     traces::spans::SpanUsage,
-    utils::json_value_to_string,
+    utils::sanitize_string,
 };
 
 use super::utils::chrono_to_nanoseconds;
@@ -34,6 +33,8 @@ impl Into<u8> for SpanType {
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub parent_span_id: Uuid,
     pub name: String,
     pub span_type: u8,
     /// Start time in nanoseconds
@@ -47,6 +48,8 @@ pub struct CHSpan {
     pub output_cost: f64,
     pub total_cost: f64,
     pub model: String,
+    pub request_model: String,
+    pub response_model: String,
     pub session_id: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
@@ -61,6 +64,8 @@ pub struct CHSpan {
     pub status: String,
     #[serde(default)]
     pub size_bytes: u64,
+    pub attributes: String,
+    pub trace_metadata: String,
 }
 
 impl CHSpan {
@@ -74,20 +79,25 @@ impl CHSpan {
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
 
-        let span_input_string = json_value_to_string(
-            span.input
-                .as_ref()
-                .unwrap_or(&Value::String(String::from(""))),
-        );
+        let span_input_string = span
+            .input
+            .as_ref()
+            .map(|input| sanitize_string(&input.to_string()))
+            .unwrap_or(String::new());
 
-        let span_output_string = json_value_to_string(
-            span.output
-                .as_ref()
-                .unwrap_or(&Value::String(String::from(""))),
-        );
+        let span_output_string = span
+            .output
+            .as_ref()
+            .map(|output| sanitize_string(&output.to_string()))
+            .unwrap_or(String::new());
+
+        let trace_metadata = span.attributes.metadata().map_or(String::new(), |m| {
+            serde_json::to_string(&m).unwrap_or_default()
+        });
 
         CHSpan {
             span_id: span.span_id,
+            parent_span_id: span.parent_span_id.unwrap_or(Uuid::nil()),
             name: span.name.clone(),
             span_type: span.span_type.clone().into(),
             start_time: chrono_to_nanoseconds(span.start_time),
@@ -102,7 +112,9 @@ impl CHSpan {
                 .response_model
                 .clone()
                 .or(usage.request_model.clone())
-                .unwrap_or(String::from("<null>")),
+                .unwrap_or(String::from("")),
+            request_model: usage.request_model.clone().unwrap_or(String::from("")),
+            response_model: usage.response_model.clone().unwrap_or(String::from("")),
             session_id: session_id.unwrap_or(String::from("<null>")),
             project_id: project_id,
             trace_id: span.trace_id,
@@ -116,6 +128,8 @@ impl CHSpan {
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("<null>")),
             size_bytes: size_bytes as u64,
+            attributes: span.attributes.to_string(),
+            trace_metadata,
         }
     }
 }

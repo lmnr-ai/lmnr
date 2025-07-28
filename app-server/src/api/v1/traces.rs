@@ -28,6 +28,7 @@ pub async fn process_traces(
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
@@ -39,6 +40,7 @@ pub async fn process_traces(
     if is_feature_enabled(Feature::UsageLimit) {
         let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
             db.clone(),
+            clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
             project_api_key.project_id,
         )
