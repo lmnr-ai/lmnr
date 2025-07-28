@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { compact, isNil } from "lodash";
+import { compact, groupBy, isNil } from "lodash";
 import { z } from "zod/v4";
 
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
@@ -129,39 +129,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
 
   const processedFilters = processTraceSpanFilters(urlParamFilters);
 
-  const spanEventsQuery = db.$with("span_events").as(
-    db
-      .select({
-        eventSpanId: sql`events.span_id`.as("eventSpanId"),
-        projectId: events.projectId,
-        events: sql`jsonb_agg(jsonb_build_object(
-        'id', events.id,
-        'spanId', events.span_id,
-        'timestamp', events.timestamp,
-        'name', events.name,
-        'attributes', events.attributes
-      ))`.as("events"),
-      })
-      .from(events)
-      .where(
-        and(
-          eq(events.projectId, projectId),
-          // This check may seem redundant because there is a join statement below,
-          // but it makes much wiser use of indexes and is much faster (up to 1000x in theory)
-          inArray(
-            events.spanId,
-            sql`(SELECT span_id FROM spans
-            WHERE project_id = ${projectId} AND trace_id = ${traceId}
-            ${searchSpanIds.length > 0 ? sql`AND span_id IN ${searchSpanIds}` : sql``}
-          )`
-          )
-        )
-      )
-      .groupBy(events.spanId, events.projectId)
-  );
-
   const spanItems = await db
-    .with(spanEventsQuery)
     .select({
       // inputs and outputs are ignored on purpose
       spanId: spans.spanId,
@@ -173,13 +141,8 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
       attributes: spans.attributes,
       spanType: spans.spanType,
       status: spans.status,
-      events: sql`COALESCE(${spanEventsQuery.events}, '[]'::jsonb)`.as("events"),
     })
     .from(spans)
-    .leftJoin(
-      spanEventsQuery,
-      and(eq(spans.spanId, spanEventsQuery.eventSpanId), eq(spans.projectId, spanEventsQuery.projectId))
-    )
     .where(
       and(
         eq(spans.traceId, traceId),
@@ -190,10 +153,31 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
     )
     .orderBy(asc(spans.startTime));
 
-  // For now we flatten the span tree in the front-end if there is a search query,
+  if (spanItems.length === 0) {
+    return [];
+  }
+
+  // Join in memory, because json aggregation and join in PostgreSQL may be too slow
+  // depending on the number of spans and events, and there is no way for us
+  // to force PostgreSQL to use the correct indexes always.
+  const spanEvents = await db
+    .query.events.findMany({
+      where: and(
+        eq(events.projectId, projectId),
+        inArray(events.spanId, spanItems.map((span) => span.spanId))
+      ),
+    });
+
+  const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
+
+  // For now, we flatten the span tree in the front-end if there is a search query,
   // so we explicitly set the parentSpanId to null
   return spanItems.map((span) => ({
     ...span,
+    events: (spanEventsMap[span.spanId] || []).map((event) => ({
+      ...event,
+      attributes: event.attributes as Record<string, any>,
+    })),
     parentSpanId: searchSpanIds.length > 0 || urlParamFilters.length > 0 ? null : span.parentSpanId,
   }));
 }
