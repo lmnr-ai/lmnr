@@ -26,6 +26,10 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     .where(and(eq(spans.traceId, traceId)))
     .orderBy(asc(spans.startTime))) as unknown as Span[];
 
+  if (spansResult.length === 0) {
+    return [];
+  }
+
   // Join in memory, because json aggregation and join in PostgreSQL may be too slow
   // depending on the number of spans and events, and there is no way for us
   // to force PostgreSQL to use the correct indexes always.

@@ -153,6 +153,10 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
     )
     .orderBy(asc(spans.startTime));
 
+  if (spanItems.length === 0) {
+    return [];
+  }
+
   // Join in memory, because json aggregation and join in PostgreSQL may be too slow
   // depending on the number of spans and events, and there is no way for us
   // to force PostgreSQL to use the correct indexes always.
