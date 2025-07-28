@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import _sodium from "libsodium-wrappers";
 
 async function getKeyFromEnv(): Promise<Uint8Array> {
@@ -30,8 +29,4 @@ export async function decodeApiKey(name: string, nonce: string, value: string): 
   } catch (error) {
     throw new Error(`Failed to decode api_key ${name}`);
   }
-}
-
-export function hashApiKey(apiKey: string): string {
-  return createHash("sha3-256").update(apiKey).digest("hex");
 }

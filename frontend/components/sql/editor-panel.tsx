@@ -1,13 +1,21 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { isEmpty } from "lodash";
-import { ChevronDown, Database, FileJson2, Loader2, PlayIcon, TableProperties } from "lucide-react";
+import ChartBuilder from "components/chart-builder";
+import {
+  AlertCircle,
+  ChartArea,
+  ChevronDown,
+  Database,
+  FileJson2,
+  Loader2,
+  PlayIcon,
+  TableProperties,
+} from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import GraphBuilder from "@/components/graph-builder";
 import SQLEditor from "@/components/sql/editor";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
@@ -23,66 +31,69 @@ export default function EditorPanel() {
   const [results, setResults] = useState<Record<string, any>[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
   const { toast } = useToast();
+
   const { template } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
   }));
 
+  const hasQuery = Boolean(template?.query?.trim());
+  const hasResults = results && results.length > 0;
+
+  const columns = useMemo<ColumnDef<any>[]>(() => {
+    if (!hasResults) return [];
+
+    return Object.keys(results[0]).map((column: string) => ({
+      header: column,
+      accessorFn: (row: any) => {
+        const value = row[column];
+        if (value === null) return "NULL";
+        if (value === undefined) return "UNDEFINED";
+        if (typeof value === "object") {
+          try {
+            const serialized = JSON.stringify(value);
+            return serialized.length > 100 ? `${serialized.slice(0, 100)}...` : serialized;
+          } catch {
+            return "[Object]";
+          }
+        }
+        return String(value);
+      },
+    }));
+  }, [hasResults, results]);
+
   const executeQuery = useCallback(async () => {
-    if (!template?.query.trim()) return;
+    const query = template?.query?.trim();
+    if (!query) {
+      toast({
+        title: "No query to execute",
+        description: "Please enter a SQL query first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ sqlQuery: template?.query }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sqlQuery: query }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to execute query");
+        throw new Error(data?.error || `Query failed with status ${response.status}`);
       }
 
-      if (!isEmpty(data.warnings)) {
-        toast({
-          title: "Warning",
-          description: data.warnings.join("\n"),
-          variant: "default",
-        });
-      }
-
-      if (data.error) {
-        setError(data.error);
-        return;
-      }
-
-      setResults(data.result);
-      if (data.result && data.result.length > 0) {
-        setColumns(
-          Object.keys(data.result[0]).map((column: string) => ({
-            header: column,
-            accessorFn: (row: any) => {
-              const value = row[column];
-              if (typeof value === "object" && value !== null) {
-                const fullValue = JSON.stringify(value);
-                if (fullValue.length > 100) {
-                  return fullValue.slice(0, 100) + "...";
-                }
-                return fullValue;
-              }
-              return value;
-            },
-          }))
-        );
-      }
+      setResults(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to query data. Please try again.");
+      const errorMessage =
+        err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
+      setError(errorMessage);
       setResults(null);
     } finally {
       setIsLoading(false);
@@ -93,6 +104,51 @@ export default function EditorPanel() {
     enableOnFormTags: ["input", "textarea"],
     enableOnContentEditable: true,
   });
+
+  const renderContent = useCallback(
+    ({
+      success,
+      default: defaultContent,
+      loadingText = "Executing query...",
+    }: {
+      success: () => React.ReactNode;
+      default: () => React.ReactNode;
+      loadingText?: string;
+    }) => {
+      if (isLoading) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            <p className="text">{loadingText}</p>
+          </div>
+        );
+      }
+
+      if (error) {
+        return (
+          <div className="flex items-center justify-center h-full space-x-2 text-destructive">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm">{error}</span>
+          </div>
+        );
+      }
+
+      if (hasResults) {
+        return success();
+      }
+
+      if (results && results.length === 0) {
+        return (
+          <div className="flex items-center justify-center h-full text text-muted-foreground">
+            Query executed successfully but returned no results
+          </div>
+        );
+      }
+
+      return defaultContent();
+    },
+    [isLoading, error, hasResults, results]
+  );
 
   return (
     <ResizablePanelGroup direction="vertical">
@@ -112,22 +168,19 @@ export default function EditorPanel() {
               <span>JSON</span>
             </TabsTrigger>
             <TabsTrigger value="chart">
+              <ChartArea className="mr-2 w-4 h-4" />
               <span>Chart</span>
             </TabsTrigger>
             <div className="ml-auto py-2">
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
-                <Button
-                  disabled={!template?.query.trim()}
-                  variant="secondary"
-                  className="rounded-tr-none rounded-br-none border-r-0"
-                >
+                <Button disabled={!hasQuery} variant="secondary" className="rounded-tr-none rounded-br-none border-r-0">
                   <Database className="size-3.5 mr-2" />
                   Export
                   <ChevronDown className="size-3.5 ml-2" />
                 </Button>
               </ExportSqlDialog>
               <Button
-                disabled={isLoading || !template?.query.trim()}
+                disabled={isLoading || !hasQuery}
                 onClick={executeQuery}
                 className="ml-auto px-2 rounded-tl-none rounded-bl-none"
               >
@@ -141,33 +194,63 @@ export default function EditorPanel() {
               </Button>
             </div>
           </TabsList>
-          <TabsContent className="size-full" value="table">
-            {!results && !error && (
-              <div className="w-full text-center text-gray-500 mt-4">Execute a query to see results</div>
-            )}
-            {results && !error && (
-              <DataTable className="border-t-0 w-full" columns={columns} data={results} paginated />
-            )}
-            {error && <div className="text-center text-red-500 mt-4">{error}</div>}
+          <TabsContent asChild value="table">
+            <div className="size-full">
+              {renderContent({
+                success: () => (
+                  <DataTable className="border-t-0 w-full" columns={columns} data={results || []} paginated />
+                ),
+                loadingText: "Executing query...",
+                default: () => (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                    <TableProperties className="w-8 h-8 opacity-50" />
+                    <p className="text">Execute a query to see table results</p>
+                  </div>
+                ),
+              })}
+            </div>
           </TabsContent>
-          <TabsContent className="flex flex-1 overflow-hidden" value="json">
-            {!results && !error && (
-              <div className="w-full text-center text-gray-500 mt-4">Execute a query to see results</div>
-            )}
-            {results && !error && (
-              <div className="flex flex-1 overflow-hidden">
-                <CodeHighlighter
-                  readOnly
-                  className="border-0"
-                  value={JSON.stringify(results, null, 2)}
-                  defaultMode="json"
-                />
-              </div>
-            )}
+
+          <TabsContent asChild value="json">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              {renderContent({
+                success: () => (
+                  <div className="flex flex-1 overflow-hidden">
+                    <CodeHighlighter
+                      readOnly
+                      className="border-0"
+                      value={JSON.stringify(results, null, 2)}
+                      defaultMode="json"
+                    />
+                  </div>
+                ),
+                loadingText: "Processing results...",
+                default: () => (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                    <FileJson2 className="w-8 h-8 opacity-50" />
+                    <p className="text">Execute a query to see JSON results</p>
+                  </div>
+                ),
+              })}
+            </div>
           </TabsContent>
-          <TabsContent className="flex flex-col flex-1 overflow-hidden" value="chart">
-            <div className="p-4 overflow-hidden h-full">
-              <GraphBuilder data={results || []} />
+
+          <TabsContent asChild value="chart">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              {renderContent({
+                success: () => (
+                  <div className="overflow-hidden h-full">
+                    <ChartBuilder data={results || []} />
+                  </div>
+                ),
+                loadingText: "Generating chart...",
+                default: () => (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                    <ChartArea className="w-8 h-8 opacity-50" />
+                    <p className="text">Execute a query to visualize results as charts</p>
+                  </div>
+                ),
+              })}
             </div>
           </TabsContent>
         </Tabs>

@@ -1,32 +1,30 @@
 import { createContext, PropsWithChildren, useContext, useMemo, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ChartConfig, GraphType } from "@/components/graph-builder/types";
+import { ChartConfig, ChartType } from "@/components/chart-builder/types";
 import {
   canSelectForYAxis as utilCanSelectForYAxis,
   ColumnInfo,
   DataRow,
-  generateSampleTimeData,
   getAvailableBreakdownColumns as utilGetAvailableBreakdownColumns,
-  isValidGraphConfiguration as utilIsValidGraphConfiguration,
+  isValidChartConfiguration as utilIsValidChartConfiguration,
   transformDataToColumns,
-} from "@/components/graph-builder/utils";
+} from "@/components/chart-builder/utils";
 
-export type GraphBuilderState = {
+export type ChartBuilderState = {
   chartConfig: ChartConfig;
   columns: ColumnInfo[];
   data: DataRow[];
   originalData: DataRow[];
 };
 
-export type GraphBuilderActions = {
+export type ChartBuilderActions = {
   setChartConfig: (config: Partial<ChartConfig>) => void;
-  setGraphType: (type: GraphType) => void;
+  setChartType: (type: ChartType) => void;
   setXColumn: (columnName?: string) => void;
   setYColumns: (columnNames: string[]) => void;
   toggleYColumn: (columnName: string) => void;
   setBreakdownColumn: (columnName?: string) => void;
-  setEnableTimeRange: (enabled: boolean) => void;
 
   getSelectedXColumn: () => ColumnInfo | undefined;
   getSelectedYColumns: () => ColumnInfo[];
@@ -34,31 +32,30 @@ export type GraphBuilderActions = {
   getAvailableBreakdownColumns: () => ColumnInfo[];
 
   canSelectForYAxis: (columnName: string) => boolean;
-  isValidGraphConfiguration: () => boolean;
+  isValidChartConfiguration: () => boolean;
 
   reset: () => void;
 };
 
-export type GraphBuilderStore = GraphBuilderState & GraphBuilderActions;
-export type GraphBuilderStoreApi = ReturnType<typeof createGraphBuilderStore>;
+export type ChartBuilderStore = ChartBuilderState & ChartBuilderActions;
+export type ChartBuilderStoreApi = ReturnType<typeof createChartBuilderStore>;
 
-type GraphBuilderProps = {
+type ChartBuilderProps = {
   data?: DataRow[];
   initialConfig?: ChartConfig;
 };
 
-const GraphBuilderContext = createContext<GraphBuilderStoreApi | undefined>(undefined);
+const ChartBuilderContext = createContext<ChartBuilderStoreApi | undefined>(undefined);
 
-export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) => {
+export const createChartBuilderStore = (initProps?: Partial<ChartBuilderProps>) => {
   const DEFAULT_CONFIG: ChartConfig = {
     type: undefined,
     x: undefined,
     y: [],
     breakdown: undefined,
-    enableTimeRange: false,
   };
 
-  const DEFAULT_PROPS: GraphBuilderState = {
+  const DEFAULT_PROPS: ChartBuilderState = {
     chartConfig: DEFAULT_CONFIG,
     columns: [],
     data: [],
@@ -69,7 +66,7 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
   const initialColumns = transformDataToColumns(initialData);
   const initialConfig = { ...DEFAULT_CONFIG, ...initProps?.initialConfig };
 
-  return createStore<GraphBuilderStore>()((set, get) => ({
+  return createStore<ChartBuilderStore>()((set, get) => ({
     ...DEFAULT_PROPS,
     chartConfig: initialConfig,
     data: initialData,
@@ -81,7 +78,7 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
         chartConfig: { ...state.chartConfig, ...config },
       })),
 
-    setGraphType: (type) =>
+    setChartType: (type) =>
       set((state) => ({
         chartConfig: {
           ...state.chartConfig,
@@ -118,30 +115,6 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
         chartConfig: { ...state.chartConfig, breakdown: columnName },
       })),
 
-    setEnableTimeRange: (enabled) =>
-      set((state) => {
-        if (enabled) {
-          const sampleData = generateSampleTimeData(state.originalData);
-          const newColumns = transformDataToColumns(sampleData);
-
-          return {
-            chartConfig: {
-              ...state.chartConfig,
-              enableTimeRange: enabled,
-              x: "timestamp",
-            },
-            data: sampleData,
-            columns: newColumns,
-          };
-        } else {
-          return {
-            chartConfig: { ...state.chartConfig, enableTimeRange: enabled },
-            data: state.originalData,
-            columns: transformDataToColumns(state.originalData),
-          };
-        }
-      }),
-
     getSelectedXColumn: () => {
       const { chartConfig, columns } = get();
       return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
@@ -169,9 +142,9 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
       return utilCanSelectForYAxis(column, chartConfig.type);
     },
 
-    isValidGraphConfiguration: () => {
+    isValidChartConfiguration: () => {
       const { chartConfig, columns } = get();
-      return utilIsValidGraphConfiguration(chartConfig, columns);
+      return utilIsValidChartConfiguration(chartConfig, columns);
     },
 
     reset: () =>
@@ -184,21 +157,21 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
   }));
 };
 
-export const useGraphBuilderStoreContext = <T,>(selector: (state: GraphBuilderStore) => T): T => {
-  const store = useContext(GraphBuilderContext);
-  if (!store) throw new Error("Missing GraphBuilderContext.Provider in the tree");
+export const useChartBuilderStoreContext = <T,>(selector: (state: ChartBuilderStore) => T): T => {
+  const store = useContext(ChartBuilderContext);
+  if (!store) throw new Error("Missing ChartBuilderContext.Provider in the tree");
   return useStore(store, selector);
 };
 
-export const GraphBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<GraphBuilderProps>) => {
-  const storeRef = useRef<GraphBuilderStoreApi | undefined>(undefined);
+export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<ChartBuilderProps>) => {
+  const storeRef = useRef<ChartBuilderStoreApi | undefined>(undefined);
 
   const memoizedData = useMemo(() => props.data, [props.data]);
   const memoizedConfig = useMemo(() => props.initialConfig, [props.initialConfig]);
 
   if (!storeRef.current) {
-    storeRef.current = createGraphBuilderStore({ data: memoizedData, initialConfig: memoizedConfig });
+    storeRef.current = createChartBuilderStore({ data: memoizedData, initialConfig: memoizedConfig });
   }
 
-  return <GraphBuilderContext.Provider value={storeRef.current}>{children}</GraphBuilderContext.Provider>;
+  return <ChartBuilderContext.Provider value={storeRef.current}>{children}</ChartBuilderContext.Provider>;
 };

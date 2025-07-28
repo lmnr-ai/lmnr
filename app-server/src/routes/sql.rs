@@ -2,8 +2,11 @@ use std::sync::Arc;
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
+use uuid::Uuid;
 
-use crate::{db::project_api_keys::ProjectApiKey, routes::types::ResponseResult, sql};
+use crate::sql;
+
+use super::ResponseResult;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,10 +17,10 @@ pub struct SqlQueryRequest {
 #[post("sql/query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
-    project_api_key: ProjectApiKey,
+    path: web::Path<Uuid>,
     client: web::Data<Arc<reqwest::Client>>,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
+    let project_id = path.into_inner();
     let query = req.into_inner().query;
 
     match sql::execute_sql_query(query, project_id, &client).await {

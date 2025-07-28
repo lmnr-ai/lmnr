@@ -1,10 +1,10 @@
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 
-import { ColumnInfo } from "@/components/graph-builder/utils";
+import { ColumnInfo } from "@/components/chart-builder/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateDataMax, generateChartConfig, getChartMargins, numberFormatter } from "./utils";
+import { calculateDataMax, createAxisFormatter,generateChartConfig, getChartMargins } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -15,6 +15,8 @@ interface HorizontalBarChartProps {
 const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProps) => {
   const chartConfig = useMemo(() => generateChartConfig(xColumns), [xColumns]);
   const dataMax = useMemo(() => calculateDataMax(data, xColumns), [data, xColumns]);
+  const yAxisFormatter = useMemo(() => createAxisFormatter(data, yAxisKey), [data, yAxisKey]);
+  const xAxisFormatter = useMemo(() => createAxisFormatter(data, xColumns[0]?.name || ""), [data, xColumns]);
 
   return (
     <ChartContainer config={chartConfig} className="aspect-auto w-full h-full">
@@ -25,9 +27,18 @@ const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProp
           tickLine={false}
           tickMargin={8}
           domain={["auto", dataMax]}
-          tickFormatter={(value) => numberFormatter.format(value)}
+          tickFormatter={xAxisFormatter}
         />
-        <YAxis type="category" hide tickLine={false} axisLine={false} tickMargin={8} dataKey={yAxisKey} width={60} />
+        <YAxis
+          type="category"
+          hide
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          dataKey={yAxisKey}
+          width={60}
+          tickFormatter={yAxisFormatter}
+        />
         <ChartTooltip content={<ChartTooltipContent />} />
         {xColumns.map((column) => {
           const config = chartConfig[column.name];
@@ -43,4 +54,5 @@ const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProp
     </ChartContainer>
   );
 };
+
 export default HorizontalBarChart;
