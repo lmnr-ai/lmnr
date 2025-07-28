@@ -115,7 +115,7 @@ export default function SQLEditor({ className }: SQLEditorProps) {
     <div className={`flex-grow flex bg-muted/50 overflow-auto w-full h-full pl-1 ${className || ""}`}>
       {template ? (
         <CodeMirror
-          placeholder="Enter your SQL query... Try typing 'spans.path', 'evaluator_scores.', or enum values like 'LLM'"
+          placeholder="Enter your SQL query..."
           theme={theme}
           className="size-full"
           extensions={extensions}
