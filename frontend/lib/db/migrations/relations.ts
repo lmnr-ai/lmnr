@@ -2,13 +2,20 @@ import { relations } from "drizzle-orm/relations";
 
 import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, events, labelClasses, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans, sqlTemplates, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
+export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
+  dataset: one(datasets, {
+    fields: [datasetParquets.datasetId],
+    references: [datasets.id]
+  }),
+}));
+
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
+  datasetParquets: many(datasetParquets),
   project: one(projects, {
     fields: [datasets.projectId],
     references: [projects.id]
   }),
   datasetDatapoints: many(datasetDatapoints),
-  datasetParquets: many(datasetParquets),
 }));
 
 export const projectsRelations = relations(projects, ({one, many}) => ({
@@ -22,8 +29,6 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   providerApiKeys: many(providerApiKeys),
   labelingQueues: many(labelingQueues),
   renderTemplates: many(renderTemplates),
-  labelClasses: many(labelClasses),
-  evaluatorScores: many(evaluatorScores),
   traces: many(traces),
   evaluators: many(evaluators),
   evaluatorSpanPaths: many(evaluatorSpanPaths),
@@ -31,6 +36,8 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   sharedPayloads: many(sharedPayloads),
   playgrounds: many(playgrounds),
   sqlTemplates: many(sqlTemplates),
+  evaluatorScores: many(evaluatorScores),
+  labelClasses: many(labelClasses),
   machines: many(machines),
   spans: many(spans),
 }));
@@ -46,12 +53,12 @@ export const datasetDatapointsRelations = relations(datasetDatapoints, ({one, ma
 export const workspacesRelations = relations(workspaces, ({one, many}) => ({
   projects: many(projects),
   membersOfWorkspaces: many(membersOfWorkspaces),
+  workspaceInvitations: many(workspaceInvitations),
+  workspaceUsages: many(workspaceUsage),
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
     references: [subscriptionTiers.id]
   }),
-  workspaceInvitations: many(workspaceInvitations),
-  workspaceUsages: many(workspaceUsage),
 }));
 
 export const membersOfWorkspacesRelations = relations(membersOfWorkspaces, ({one}) => ({
@@ -76,10 +83,6 @@ export const usersRelations = relations(users, ({one, many}) => ({
     fields: [users.tierId],
     references: [userSubscriptionTiers.id]
   }),
-}));
-
-export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
-  workspaces: many(workspaces),
 }));
 
 export const pipelinesRelations = relations(pipelines, ({one, many}) => ({
@@ -179,21 +182,6 @@ export const renderTemplatesRelations = relations(renderTemplates, ({one}) => ({
   }),
 }));
 
-export const labelClassesRelations = relations(labelClasses, ({one, many}) => ({
-  project: one(projects, {
-    fields: [labelClasses.projectId],
-    references: [projects.id]
-  }),
-  labels: many(labels),
-}));
-
-export const labelsRelations = relations(labels, ({one}) => ({
-  labelClass: one(labelClasses, {
-    fields: [labels.classId],
-    references: [labelClasses.id]
-  }),
-}));
-
 export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
   agentSession: one(agentSessions, {
     fields: [agentMessages.sessionId],
@@ -242,13 +230,6 @@ export const userSubscriptionTiersRelations = relations(userSubscriptionTiers, (
   users: many(users),
 }));
 
-export const evaluatorScoresRelations = relations(evaluatorScores, ({one}) => ({
-  project: one(projects, {
-    fields: [evaluatorScores.projectId],
-    references: [projects.id]
-  }),
-}));
-
 export const labelingQueueItemsRelations = relations(labelingQueueItems, ({one}) => ({
   labelingQueue: one(labelingQueues, {
     fields: [labelingQueueItems.queueId],
@@ -290,13 +271,6 @@ export const evaluatorSpanPathsRelations = relations(evaluatorSpanPaths, ({one})
   }),
 }));
 
-export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
-  workspace: one(workspaces, {
-    fields: [workspaceUsage.workspaceId],
-    references: [workspaces.id]
-  }),
-}));
-
 export const sharedPayloadsRelations = relations(sharedPayloads, ({one}) => ({
   project: one(projects, {
     fields: [sharedPayloads.projectId],
@@ -318,11 +292,37 @@ export const sqlTemplatesRelations = relations(sqlTemplates, ({one}) => ({
   }),
 }));
 
-export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
-  dataset: one(datasets, {
-    fields: [datasetParquets.datasetId],
-    references: [datasets.id]
+export const evaluatorScoresRelations = relations(evaluatorScores, ({one}) => ({
+  project: one(projects, {
+    fields: [evaluatorScores.projectId],
+    references: [projects.id]
   }),
+}));
+
+export const labelClassesRelations = relations(labelClasses, ({one, many}) => ({
+  project: one(projects, {
+    fields: [labelClasses.projectId],
+    references: [projects.id]
+  }),
+  labels: many(labels),
+}));
+
+export const labelsRelations = relations(labels, ({one}) => ({
+  labelClass: one(labelClasses, {
+    fields: [labels.classId],
+    references: [labelClasses.id]
+  }),
+}));
+
+export const workspaceUsageRelations = relations(workspaceUsage, ({one}) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsage.workspaceId],
+    references: [workspaces.id]
+  }),
+}));
+
+export const subscriptionTiersRelations = relations(subscriptionTiers, ({many}) => ({
+  workspaces: many(workspaces),
 }));
 
 export const machinesRelations = relations(machines, ({one}) => ({

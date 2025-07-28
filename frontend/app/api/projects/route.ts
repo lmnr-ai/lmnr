@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 
+import { deleteAllProjectsWorkspaceInfoFromCache } from '@/lib/actions/project';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/migrations/schema';
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (project.length === 0) {
     return new NextResponse(JSON.stringify({ error: 'Failed to create project' }), { status: 500 });
   }
+
+  await deleteAllProjectsWorkspaceInfoFromCache(body.workspaceId);
 
   return NextResponse.json(project[0]);
 }

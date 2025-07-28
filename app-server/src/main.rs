@@ -7,9 +7,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 
 use actix_web::{
-    App, HttpServer,
-    middleware::{Logger, NormalizePath},
-    web::{self, JsonConfig, PayloadConfig},
+    dev, http::StatusCode, middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath}, web::{self, JsonConfig, PayloadConfig}, App, HttpServer
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
@@ -42,6 +40,7 @@ use sodiumoxide;
 use std::{
     env,
     io::{self, Error},
+    time::Duration,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -330,6 +329,28 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let mq_for_http = queue.clone();
 
+        // == Clickhouse ==
+    let clickhouse_url =
+        env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user =
+        env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(clickhouse_url)
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
+
+    let clickhouse = match clickhouse_password {
+        Ok(password) => clickhouse_client.with_password(password),
+        _ => {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            clickhouse_client
+        }
+    };
+    let clickhouse_for_grpc = clickhouse.clone();
+
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
@@ -357,27 +378,6 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     log::info!("using mock storage");
                     Arc::new(MockStorage {}.into())
-                };
-
-                // == Clickhouse ==
-                let clickhouse_url =
-                    env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-                let clickhouse_user =
-                    env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-                let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-                let clickhouse_client = clickhouse::Client::default()
-                    .with_url(clickhouse_url)
-                    .with_user(clickhouse_user)
-                    .with_database("default")
-                    .with_option("async_insert", "1")
-                    .with_option("wait_for_async_insert", "0");
-
-                let clickhouse = match clickhouse_password {
-                    Ok(password) => clickhouse_client.with_password(password),
-                    _ => {
-                        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-                        clickhouse_client
-                    }
                 };
 
                 // == Browser agent ==
@@ -438,6 +438,40 @@ fn main() -> anyhow::Result<()> {
                     String::new()
                 };
 
+
+                // == Evaluator client ==
+                let sql_query_engine_client = if is_feature_enabled(Feature::SqlQueryEngine) {
+                    let mut headers = reqwest::header::HeaderMap::new();
+
+                    let sql_query_engine_secret_key = env::var("QUERY_ENGINE_SECRET_KEY").expect("QUERY_ENGINE_SECRET_KEY must be set");
+
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", sql_query_engine_secret_key)).expect("Invalid SQL_QUERY_ENGINE_SECRET_KEY format")
+                    );
+                    headers.insert(
+                        reqwest::header::CONTENT_TYPE,
+                        reqwest::header::HeaderValue::from_static("application/json")
+                    );
+
+                    Arc::new(
+                        reqwest::Client::builder()
+                            .user_agent("lmnr-query-engine/1.0")
+                            .timeout(Duration::from_secs(300)) // 5 minutes timeout
+                            .default_headers(headers)
+                            .build()
+                            .expect("Failed to create query engine HTTP client")
+                    )
+                } else {
+                    log::info!("Using mock query engine client");
+                    Arc::new(
+                        reqwest::Client::builder()
+                        .user_agent("lmnr-query-engine-mock/1.0")
+                        .build()
+                        .expect("Failed to create mock query engine HTTP client")
+                    )
+                };
+
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -485,7 +519,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
-                            db_for_http.clone(),
                             clickhouse.clone(),
                             mq_for_http.clone(),
                         ));
@@ -509,6 +542,12 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
+                    .wrap( ErrorHandlers::new()
+                            .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                log::error!("Bad request: {:?}", res.response().body());
+                                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                            })
+                        )
                         .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -522,6 +561,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
+                        .app_data(web::Data::new(sql_query_engine_client.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(api::v1::browser_sessions::options_handler)
@@ -541,6 +581,7 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(project_auth.clone())
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
+                                .service(api::v1::datasets::create_datapoints)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
@@ -548,7 +589,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evals::update_eval_datapoint)
                                 .service(api::v1::evaluators::create_evaluator_score)
                                 .service(api::v1::tag::tag_trace)
-                                .service(api::v1::agent::run_agent_manager),
+                                .service(api::v1::agent::run_agent_manager)
+                                .service(api::v1::sql::execute_sql_query),
                         )
                         // Scopes with generic auth
                         .service(
@@ -587,6 +629,7 @@ fn main() -> anyhow::Result<()> {
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
+                    clickhouse_for_grpc,
                     queue.clone(),
                 );
 

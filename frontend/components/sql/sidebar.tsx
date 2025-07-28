@@ -63,16 +63,18 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
   const handleEdit = useCallback(async () => {
     if (!editTemplate) return;
 
+    const newName = String(inputRef.current?.value);
+
     try {
       await mutate<SQLTemplate[]>(
-        () => updateTemplate(projectId as string, { ...template, name: String(inputRef.current?.value) }),
-        (currentData) => {
+        `/api/projects/${projectId}/sql/templates`,
+        async (currentData) => {
+          await updateTemplate(projectId as string, { ...template, name: newName });
+
           if (!currentData) return [];
-          return currentData.map((q) =>
-            q.id === editTemplate.id ? { ...q, name: String(inputRef.current?.value) } : q
-          );
+          return currentData.map((q) => (q.id === editTemplate.id ? { ...q, name: newName } : q));
         },
-        { revalidate: false, populateCache: true, rollbackOnError: true }
+        { rollbackOnError: true, revalidate: false, populateCache: true }
       );
     } catch (e) {
       if (e instanceof Error) {
@@ -211,21 +213,23 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         router.push(`/project/${projectId}/sql`);
 
         await mutate<SQLTemplate[]>(
-          () => deleteTemplate(projectId as string, template.id),
-          (currentData = []) => currentData.filter((q) => q.id !== template.id),
-          {
-            revalidate: false,
-            populateCache: true,
-            rollbackOnError: true,
-          }
+          `/api/projects/${projectId}/sql/templates`,
+          async (currentData = []) => {
+            await deleteTemplate(projectId as string, template.id);
+
+            return currentData.filter((q) => q.id !== template.id);
+          },
+          { revalidate: false, populateCache: true, rollbackOnError: true }
         );
+
+        setCurrentTemplate(undefined);
       } catch (e) {
         if (e instanceof Error) {
           toast({ variant: "destructive", title: "Error", description: e.message });
         }
       }
     },
-    [mutate, projectId, router, toast]
+    [mutate, projectId, router, setCurrentTemplate, toast]
   );
 
   useEffect(() => {

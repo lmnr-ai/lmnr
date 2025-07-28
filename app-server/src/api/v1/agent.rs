@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
-use actix_web::{post, web, HttpResponse};
+use actix_web::{HttpResponse, post, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::agent_manager::RunAgentParams;
 use crate::agent_manager::channel::AgentManagerWorkers;
 use crate::agent_manager::types::RunAgentResponseStreamChunk;
-use crate::agent_manager::worker::{run_agent_worker, RunAgentWorkerOptions};
-use crate::agent_manager::RunAgentParams;
-use crate::agent_manager::{types::ModelProvider, AgentManager, AgentManagerTrait};
+use crate::agent_manager::worker::{RunAgentWorkerOptions, run_agent_worker};
+use crate::agent_manager::{AgentManager, AgentManagerTrait, types::ModelProvider};
 use crate::cache::Cache;
 use crate::db::project_api_keys::ProjectApiKey;
 use crate::db::{self, DB};
-use crate::features::{is_feature_enabled, Feature};
+use crate::features::{Feature, is_feature_enabled};
 use crate::routes::types::ResponseResult;
 use crate::traces::limits::get_workspace_limit_exceeded_by_project_id;
 
@@ -62,6 +62,7 @@ pub async fn run_agent_manager(
     agent_manager: web::Data<Arc<AgentManager>>,
     worker_states: web::Data<Arc<AgentManagerWorkers>>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
     cache: web::Data<Cache>,
     request: web::Json<RunAgentRequest>,
@@ -76,6 +77,7 @@ pub async fn run_agent_manager(
     if is_feature_enabled(Feature::UsageLimit) {
         match get_workspace_limit_exceeded_by_project_id(
             db.clone(),
+            clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
             project_api_key.project_id,
         )
@@ -128,7 +130,6 @@ pub async fn run_agent_manager(
             return_agent_state: request.return_agent_state,
             return_storage_state: request.return_storage_state,
         };
-        let pool = db.pool.clone();
         let worker_states_clone = worker_states.clone();
         let handle = tokio::spawn(async move {
             run_agent_worker(
@@ -149,13 +150,6 @@ pub async fn run_agent_manager(
             while let Some(message) = receiver.recv().await {
                 match message {
                     Ok(agent_chunk) => {
-                        if let Err(e) =
-                            db::stats::add_agent_steps_to_project_usage_stats(&pool, &project_api_key.project_id, 1)
-                                .await
-                        {
-                            log::error!("Error adding agent steps to project usage stats: {}", e);
-                        }
-
                         match agent_chunk {
                             RunAgentResponseStreamChunk::FinalOutput(_) => {
                                 yield anyhow::Ok(agent_chunk.into());
@@ -222,15 +216,6 @@ pub async fn run_agent_manager(
         match fut.await {
             Ok(response) => {
                 let response = response?;
-                if let Err(e) = db::stats::add_agent_steps_to_project_usage_stats(
-                    &db.pool,
-                    &project_api_key.project_id,
-                    response.step_count.unwrap_or(0) as i64,
-                )
-                .await
-                {
-                    log::error!("Error adding agent steps to project usage stats: {}", e);
-                }
                 Ok(HttpResponse::Ok().json(response))
             }
             Err(e) if e.is_cancelled() => Ok(HttpResponse::NoContent().finish()),

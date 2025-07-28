@@ -19,12 +19,23 @@ use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_s
 pub struct ProcessTracesService {
     db: Arc<DB>,
     cache: Arc<Cache>,
+    clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
 }
 
 impl ProcessTracesService {
-    pub fn new(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) -> Self {
-        Self { db, cache, queue }
+    pub fn new(
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        clickhouse: clickhouse::Client,
+        queue: Arc<MessageQueue>,
+    ) -> Self {
+        Self {
+            db,
+            cache,
+            clickhouse,
+            queue,
+        }
     }
 }
 
@@ -43,16 +54,19 @@ impl TraceService for ProcessTracesService {
         if is_feature_enabled(Feature::UsageLimit) {
             let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
                 self.db.clone(),
+                self.clickhouse.clone(),
                 self.cache.clone(),
                 project_id,
             )
             .await
             .map_err(|e| {
+                // Don't throw an error here. If there is a problem with us
+                // getting the limits, we don't want to block the user from
+                // sending traces.
                 log::error!("Failed to get workspace limits: {:?}", e);
-                Status::internal("Failed to get workspace limits")
-            })?;
+            });
 
-            if limits_exceeded.bytes_ingested {
+            if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
                 return Err(Status::resource_exhausted("Workspace data limit exceeded"));
             }
         }

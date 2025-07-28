@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { DatatableFilter, Operator } from "@/components/ui/datatable-filter/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
 import { SpanMetricGroupBy } from "../clickhouse/types";
@@ -19,7 +19,7 @@ export const SPAN_TYPE_TO_COLOR = {
 const buildFilters = (groupBy: SpanMetricGroupBy, value: string): DatatableFilter[] => [
   {
     column: groupBy,
-    operator: "eq",
+    operator: Operator.Eq,
     value,
   },
 ];
