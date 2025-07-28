@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart as RechartsBarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 
 import { ColumnInfo } from "@/components/graph-builder/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -16,7 +16,6 @@ const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProp
   const chartConfig = useMemo(() => generateChartConfig(xColumns), [xColumns]);
   const dataMax = useMemo(() => calculateDataMax(data, xColumns), [data, xColumns]);
 
-  console.log(data, yAxisKey, xColumns);
   return (
     <ChartContainer config={chartConfig} className="aspect-auto w-full h-full">
       <RechartsBarChart layout="vertical" data={data} margin={getChartMargins()}>
@@ -28,16 +27,15 @@ const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProp
           domain={["auto", dataMax]}
           tickFormatter={(value) => numberFormatter.format(value)}
         />
-        <YAxis type="category" tickLine={false} axisLine={false} tickMargin={8} dataKey={yAxisKey} width={60} />
+        <YAxis type="category" hide tickLine={false} axisLine={false} tickMargin={8} dataKey={yAxisKey} width={60} />
         <ChartTooltip content={<ChartTooltipContent />} />
         {xColumns.map((column) => {
           const config = chartConfig[column.name];
           if (!config) return null;
 
-          console.log(config, column);
           return (
             <Bar key={column.name} dataKey={column.name} fill={config.color} radius={4}>
-              sdfds
+              <LabelList style={{ fill: "#E8E3E3" }} position="insideLeft" dataKey={yAxisKey} />
             </Bar>
           );
         })}

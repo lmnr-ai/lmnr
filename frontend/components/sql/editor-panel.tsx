@@ -165,8 +165,8 @@ export default function EditorPanel() {
               </div>
             )}
           </TabsContent>
-          <TabsContent className="flex flex-col overflow-hidden" value="chart">
-            <div className="p-4 overflow-hidden">
+          <TabsContent className="flex flex-col flex-1 overflow-hidden" value="chart">
+            <div className="p-4 overflow-hidden h-full">
               <GraphBuilder data={results || []} />
             </div>
           </TabsContent>

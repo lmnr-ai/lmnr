@@ -5,7 +5,111 @@ import HorizontalBarChart from "@/components/graph-builder/charts/horizontal-bar
 import LineChart from "@/components/graph-builder/charts/line-chart";
 import { useGraphBuilderStoreContext } from "@/components/graph-builder/graph-builder-store";
 import { GraphType } from "@/components/graph-builder/types";
+import { ColumnInfo } from "@/components/graph-builder/utils";
 import { ChartConfig } from "@/components/ui/chart";
+
+const selectColumnsFromData = (
+  data: Record<string, any>[],
+  xColumn: ColumnInfo,
+  yColumns: ColumnInfo[]
+): Record<string, any>[] =>
+  data.map((row) => {
+    const selectedRow: Record<string, any> = {
+      [xColumn.name]: row[xColumn.name],
+    };
+
+    yColumns.forEach((yColumn) => {
+      selectedRow[yColumn.name] = row[yColumn.name];
+    });
+
+    return selectedRow;
+  });
+
+const createMultiColumnChartConfig = (yColumns: ColumnInfo[]): ChartConfig =>
+  Object.fromEntries(
+    yColumns.map((column, index) => [
+      column.name,
+      {
+        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        label: column.name,
+      },
+    ])
+  );
+
+const groupDataByXAndBreakdown = (
+  data: Record<string, any>[],
+  xColumnName: string,
+  yColumnName: string,
+  breakdownColumnName: string
+): Map<string, Record<string, number>> => {
+  const groupedByX = new Map<string, Record<string, number>>();
+
+  data.forEach((row) => {
+    const xValue = String(row[xColumnName]);
+    const breakdownValue = String(row[breakdownColumnName]);
+    const yValue = Number(row[yColumnName]) || 0;
+
+    if (!groupedByX.has(xValue)) {
+      groupedByX.set(xValue, {});
+    }
+
+    groupedByX.get(xValue)![breakdownValue] = yValue;
+  });
+
+  return groupedByX;
+};
+
+const createChartDataFromGroups = (
+  groupedData: Map<string, Record<string, number>>,
+  xColumnName: string,
+  allBreakdownValues: Set<string>
+): Record<string, any>[] =>
+  Array.from(groupedData.entries()).map(([xValue, breakdownGroups]) => ({
+    ...Object.fromEntries(Array.from(allBreakdownValues).map((value) => [value, 0])),
+    ...breakdownGroups,
+    [xColumnName]: xValue,
+  }));
+
+const createBreakdownChartConfig = (breakdownValues: Set<string>): ChartConfig =>
+  Object.fromEntries(
+    Array.from(breakdownValues).map((value, index) => [
+      value,
+      {
+        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        label: value,
+      },
+    ])
+  );
+
+const transformDataForBreakdownChart = (
+  data: Record<string, any>[],
+  xColumn: ColumnInfo,
+  yColumn: ColumnInfo,
+  breakdownColumn: ColumnInfo
+) => {
+  const allBreakdownValues = new Set(data.map((row) => String(row[breakdownColumn.name])));
+  const groupedData = groupDataByXAndBreakdown(data, xColumn.name, yColumn.name, breakdownColumn.name);
+  const chartData = createChartDataFromGroups(groupedData, xColumn.name, allBreakdownValues);
+  const chartConfig = createBreakdownChartConfig(allBreakdownValues);
+
+  return {
+    chartData,
+    keys: allBreakdownValues,
+    chartConfig,
+  };
+};
+
+const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: ColumnInfo, yColumns: ColumnInfo[]) => {
+  const chartData = selectColumnsFromData(data, xColumn, yColumns);
+  const keys = new Set(yColumns.map((col) => col.name));
+  const chartConfig = createMultiColumnChartConfig(yColumns);
+
+  return {
+    chartData,
+    keys,
+    chartConfig,
+  };
+};
 
 const GraphRenderer = () => {
   const { type, getSelectedXColumn, getSelectedYColumns, getSelectedBreakdownColumn, isValidGraphConfiguration, data } =
@@ -18,92 +122,33 @@ const GraphRenderer = () => {
       data: state.data,
     }));
 
-  const xColumn = getSelectedXColumn();
-  const yColumns = getSelectedYColumns();
-  const breakdownColumn = getSelectedBreakdownColumn();
-  const isValidConfig = isValidGraphConfiguration();
+  const selectedXColumn = getSelectedXColumn();
+  const selectedYColumns = getSelectedYColumns();
+  const selectedBreakdownColumn = getSelectedBreakdownColumn();
+  const hasValidConfiguration = isValidGraphConfiguration();
 
   const { chartData, keys, chartConfig } = useMemo(() => {
-    if (!isValidConfig || !xColumn || yColumns.length === 0) {
+    if (!hasValidConfiguration || !selectedXColumn || selectedYColumns.length === 0) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
-    if (!breakdownColumn) {
-      const simpleData = data.map((row) => {
-        const transformedRow: Record<string, any> = {
-          [xColumn.name]: row[xColumn.name],
-        };
-        yColumns.forEach((yCol) => {
-          transformedRow[yCol.name] = row[yCol.name];
-        });
-        return transformedRow;
-      });
-
-      const simpleKeys = new Set(yColumns.map((col) => col.name));
-      const simpleConfig = Object.fromEntries(
-        yColumns.map((col, index) => [
-          col.name,
-          {
-            color: `hsl(var(--chart-${(index % 5) + 1}))`,
-            label: col.name,
-          },
-        ])
-      ) satisfies ChartConfig;
-
-      return { chartData: simpleData, keys: simpleKeys, chartConfig: simpleConfig };
+    if (selectedBreakdownColumn) {
+      const firstYColumn = selectedYColumns[0];
+      return transformDataForBreakdownChart(data, selectedXColumn, firstYColumn, selectedBreakdownColumn);
     }
 
-    const yColumn = yColumns[0];
+    return transformDataForSimpleChart(data, selectedXColumn, selectedYColumns);
+  }, [data, selectedXColumn, selectedYColumns, selectedBreakdownColumn, hasValidConfiguration]);
 
-    const groupedData = new Map<string | number, Record<string, number>>();
-    const uniqueGroups = new Set<string>();
-
-    data.forEach((row) => {
-      const xValue = String(row[xColumn.name]);
-      const groupValue = String(row[breakdownColumn.name]);
-      const yValue = Number(row[yColumn.name]) || 0;
-
-      uniqueGroups.add(groupValue);
-
-      if (!groupedData.has(xValue)) {
-        groupedData.set(xValue, {});
-      }
-
-      groupedData.get(xValue)![groupValue] = yValue;
-    });
-
-    const transformedData = Array.from(groupedData.entries()).map(([xValue, groups]) => ({
-      ...Object.fromEntries(Array.from(uniqueGroups).map((group) => [group, 0])),
-      ...groups,
-      [xColumn.name]: xValue,
-    }));
-
-    const groupConfig = Object.fromEntries(
-      Array.from(uniqueGroups).map((group, index) => [
-        group,
-        {
-          color: `hsl(var(--chart-${(index % 5) + 1}))`,
-          label: group,
-        },
-      ])
-    ) satisfies ChartConfig;
-
-    return {
-      chartData: transformedData,
-      keys: uniqueGroups,
-      chartConfig: groupConfig,
-    };
-  }, [data, xColumn, yColumns, breakdownColumn, isValidConfig]);
-
-  if (!isValidConfig || !xColumn) {
+  if (!hasValidConfiguration || !selectedXColumn) {
     return (
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
         <div className="text-center">
           <p className="text-sm">Select chart type, X-axis, and Y-axis columns to display graph</p>
           {!type && <p className="text-xs mt-1">• Choose a chart type</p>}
-          {!xColumn && <p className="text-xs mt-1">• Select one X-axis column</p>}
-          {yColumns.length === 0 && <p className="text-xs mt-1">• Select at least one Y-axis column</p>}
-          {breakdownColumn && yColumns.length > 1 && (
+          {!selectedXColumn && <p className="text-xs mt-1">• Select one X-axis column</p>}
+          {selectedYColumns.length === 0 && <p className="text-xs mt-1">• Select at least one Y-axis column</p>}
+          {selectedBreakdownColumn && selectedYColumns.length > 1 && (
             <p className="text-xs mt-1">• Breakdown requires exactly one Y-axis column</p>
           )}
         </div>
@@ -111,26 +156,28 @@ const GraphRenderer = () => {
     );
   }
 
-  const lineChartProps = breakdownColumn
+  const lineChartProps = selectedBreakdownColumn
     ? {
       data: chartData,
       keys: keys,
-      xAxisKey: xColumn.name,
+      xAxisKey: selectedXColumn.name,
       chartConfig: chartConfig,
     }
     : {
       data: chartData,
-      xAxisKey: xColumn.name,
-      yColumns: yColumns,
+      xAxisKey: selectedXColumn.name,
+      yColumns: selectedYColumns,
     };
 
   switch (type) {
     case GraphType.LineGraph:
       return <LineChart {...lineChartProps} />;
     case GraphType.BarGraph:
-      return <BarChart data={chartData} xAxisKey={xColumn.name} yColumns={yColumns} />;
+      return <BarChart data={chartData} xAxisKey={selectedXColumn.name} yColumns={selectedYColumns} />;
     case GraphType.HorizontalBarGraph:
-      return <HorizontalBarChart data={chartData} xColumns={[xColumn]} yAxisKey={yColumns[0]?.name || ""} />;
+      return (
+        <HorizontalBarChart data={chartData} xColumns={[selectedXColumn]} yAxisKey={selectedYColumns[0]?.name || ""} />
+      );
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">

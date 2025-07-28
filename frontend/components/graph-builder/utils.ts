@@ -18,7 +18,7 @@ export const generateSampleTimeData = (originalData: DataRow[]): DataRow[] => {
   const sampleDates = Array.from({ length: dataPointCount }, (_, i) => {
     const date = new Date(now);
     date.setDate(date.getDate() - (dataPointCount - 1 - i));
-    return date.toISOString().split('T')[0];
+    return date.toISOString().split("T")[0];
   });
 
   return originalData.map((row, index) => ({
@@ -60,37 +60,19 @@ export const canSelectForYAxis = (column: ColumnInfo, graphType: GraphType | str
   return column.type !== "string";
 };
 
-export const canSelectForBreakdown = (column: ColumnInfo, graphType: GraphType | string | undefined): boolean => {
-  if (column.isXAxis || column.isYAxis) return false;
-
-  if (graphType === GraphType.LineGraph) {
-    return true;
-  }
-
-  return false;
-};
-
-export const getSelectedXColumn = (columns: ColumnInfo[]): ColumnInfo | undefined => columns.find((col) => col.isXAxis);
-
-export const getSelectedYColumns = (columns: ColumnInfo[]): ColumnInfo[] => columns.filter((col) => col.isYAxis);
-
-export const getSelectedBreakdownColumn = (columns: ColumnInfo[]): ColumnInfo | undefined => columns.find((col) => col.isBreakdown);
-
-export const getAvailableBreakdownColumns = (columns: ColumnInfo[]): ColumnInfo[] => columns.filter((col) => !col.isXAxis && !col.isYAxis);
-
 export const isValidGraphConfiguration = (
   graphType: GraphType | string | undefined,
   columns: ColumnInfo[]
 ): boolean => {
-  const xColumn = getSelectedXColumn(columns);
-  const yColumns = getSelectedYColumns(columns);
+  const xColumn = columns.find((col) => col.isXAxis);
+  const yColumns = columns.filter((col) => col.isYAxis);
 
   const hasBasicConfig = !!(graphType && xColumn && yColumns.length > 0);
 
   if (!hasBasicConfig) return false;
 
   if (graphType === GraphType.LineGraph) {
-    const breakdownColumn = getSelectedBreakdownColumn(columns);
+    const breakdownColumn = columns.find((col) => col.isBreakdown);
     if (breakdownColumn) {
       return yColumns.length === 1;
     }
@@ -98,10 +80,3 @@ export const isValidGraphConfiguration = (
 
   return true;
 };
-
-export const resetColumnSelections = (columns: ColumnInfo[]): ColumnInfo[] => columns.map((col) => ({
-  ...col,
-  isXAxis: false,
-  isYAxis: false,
-  isBreakdown: false,
-}));

@@ -3,17 +3,11 @@ import { createStore, useStore } from "zustand";
 
 import { GraphType } from "@/components/graph-builder/types";
 import {
-  canSelectForBreakdown as utilCanSelectForBreakdown,
   canSelectForYAxis as utilCanSelectForYAxis,
   ColumnInfo,
   DataRow,
   generateSampleTimeData,
-  getAvailableBreakdownColumns,
-  getSelectedBreakdownColumn,
-  getSelectedXColumn,
-  getSelectedYColumns,
   isValidGraphConfiguration as utilIsValidGraphConfiguration,
-  resetColumnSelections,
   transformDataToColumns,
 } from "@/components/graph-builder/utils";
 
@@ -37,7 +31,6 @@ export type GraphBuilderActions = {
   getSelectedBreakdownColumn: () => ColumnInfo | undefined;
   getAvailableBreakdownColumns: () => ColumnInfo[];
   canSelectForYAxis: (columnName: string) => boolean;
-  canSelectForBreakdown: (columnName: string) => boolean;
   isValidGraphConfiguration: () => boolean;
 };
 
@@ -71,17 +64,18 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
     setType: (type) =>
       set((state) => ({
         type,
-        columns: resetColumnSelections(state.columns),
+        columns: state.columns.map((col) => ({
+          ...col,
+          isXAxis: false,
+          isYAxis: false,
+          isBreakdown: false,
+        })),
       })),
 
     setColumnXAxis: (columnName, isXAxis) =>
       set((state) => ({
         columns: state.columns.map((col) =>
-          col.name === columnName
-            ? { ...col, isXAxis }
-            : isXAxis
-              ? { ...col, isXAxis: false }
-              : col
+          col.name === columnName ? { ...col, isXAxis } : isXAxis ? { ...col, isXAxis: false } : col
         ),
       })),
 
@@ -93,11 +87,7 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
     setColumnBreakdown: (columnName, isBreakdown) =>
       set((state) => ({
         columns: state.columns.map((col) =>
-          col.name === columnName
-            ? { ...col, isBreakdown }
-            : isBreakdown
-              ? { ...col, isBreakdown: false }
-              : col
+          col.name === columnName ? { ...col, isBreakdown } : isBreakdown ? { ...col, isBreakdown: false } : col
         ),
       })),
 
@@ -126,23 +116,16 @@ export const createGraphBuilderStore = (initProps?: Partial<GraphBuilderProps>) 
         }
       }),
 
-    getSelectedXColumn: () => getSelectedXColumn(get().columns),
-    getSelectedYColumns: () => getSelectedYColumns(get().columns),
-    getSelectedBreakdownColumn: () => getSelectedBreakdownColumn(get().columns),
-    getAvailableBreakdownColumns: () => getAvailableBreakdownColumns(get().columns),
+    getSelectedXColumn: () => get().columns.find((col) => col.isXAxis),
+    getSelectedYColumns: () => get().columns.filter((col) => col.isYAxis),
+    getSelectedBreakdownColumn: () => get().columns.find((col) => col.isBreakdown),
+    getAvailableBreakdownColumns: () => get().columns.filter((col) => !col.isXAxis && !col.isYAxis),
 
     canSelectForYAxis: (columnName: string) => {
       const state = get();
       const column = state.columns.find((col) => col.name === columnName);
       if (!column) return false;
       return utilCanSelectForYAxis(column, state.type);
-    },
-
-    canSelectForBreakdown: (columnName: string) => {
-      const state = get();
-      const column = state.columns.find((col) => col.name === columnName);
-      if (!column) return false;
-      return utilCanSelectForBreakdown(column, state.type);
     },
 
     isValidGraphConfiguration: () => {

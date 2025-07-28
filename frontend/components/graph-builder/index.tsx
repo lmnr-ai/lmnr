@@ -20,7 +20,6 @@ const GraphBuilderCore = () => {
     setColumnYAxis,
     setColumnBreakdown,
     canSelectForYAxis,
-    canSelectForBreakdown,
     getAvailableBreakdownColumns,
     getSelectedBreakdownColumn,
     enableTimeRange,
@@ -33,7 +32,6 @@ const GraphBuilderCore = () => {
     setColumnYAxis: state.setColumnYAxis,
     setColumnBreakdown: state.setColumnBreakdown,
     canSelectForYAxis: state.canSelectForYAxis,
-    canSelectForBreakdown: state.canSelectForBreakdown,
     getAvailableBreakdownColumns: state.getAvailableBreakdownColumns,
     getSelectedBreakdownColumn: state.getSelectedBreakdownColumn,
     enableTimeRange: state.enableTimeRange,
@@ -45,7 +43,7 @@ const GraphBuilderCore = () => {
   const hasGraphType = !!type;
 
   return (
-    <div className="flex flex-col space-y-4 w-full h-full min-h-0">
+    <div className="flex flex-col space-y-4 w-full h-full">
       <div className="flex-shrink-0 space-y-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Chart type</label>
@@ -106,11 +104,6 @@ const GraphBuilderCore = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedBreakdownColumn && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Creates multiple lines, one for each unique value in &#34;{selectedBreakdownColumn.name}&#34;
-                  </p>
-                )}
               </div>
             )}
           </>
@@ -118,65 +111,69 @@ const GraphBuilderCore = () => {
       </div>
 
       {hasGraphType && (
-        <div className="overflow-hidden grid grid-rows-2 gap-4">
-          <ScrollArea className="h-full rounded-lg border">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-10">
-                <TableRow className="bg-muted/50">
-                  <TableCell className="font-medium">Column</TableCell>
-                  <TableCell className="font-medium w-20 text-center">X</TableCell>
-                  <TableCell className="font-medium w-20 text-center">Y</TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {columns.map((column: ColumnInfo) => (
-                  <TableRow key={column.name} className="last:border-b-0">
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{column.name}</span>
-                        <span className="text-sm text-muted-foreground">{column.type}</span>
-                        {column.isBreakdown && (
-                          <span className="text-xs text-blue-600 font-medium">• Line breakdown</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-20 text-center">
-                      <Switch
-                        checked={column.isXAxis}
-                        onCheckedChange={(checked) => setColumnXAxis(column.name, checked)}
-                        disabled={column.isBreakdown}
-                      />
-                    </TableCell>
-                    <TableCell className="w-20 text-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div>
-                              <Switch
-                                checked={column.isYAxis}
-                                onCheckedChange={(checked) => setColumnYAxis(column.name, checked)}
-                                disabled={!canSelectForYAxis(column.name) || column.isBreakdown}
-                              />
-                            </div>
-                          </TooltipTrigger>
-                          {(!canSelectForYAxis(column.name) || column.isBreakdown) && (
-                            <TooltipContent>
-                              <p>
-                                {column.isBreakdown
-                                  ? "Column is used for line breakdown"
-                                  : "String columns cannot be used for Y-axis in this chart type"}
-                              </p>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
+        <div className="overflow-hidden grid grid-cols-4 h-full gap-4">
+          <div className="col-span-1">
+            <ScrollArea className="rounded-lg border">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow className="bg-muted/50">
+                    <TableCell className="font-medium">Column</TableCell>
+                    <TableCell className="font-medium w-20 text-center">X</TableCell>
+                    <TableCell className="font-medium w-20 text-center">Y</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-          <GraphRenderer />
+                </TableHeader>
+                <TableBody>
+                  {columns.map((column: ColumnInfo) => (
+                    <TableRow key={column.name} className="last:border-b-0 h-14">
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{column.name}</span>
+                          <span className="text-sm text-muted-foreground">{column.type}</span>
+                          {column.isBreakdown && (
+                            <span className="text-xs text-blue-600 font-medium">• Line breakdown</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="w-20 text-center">
+                        <Switch
+                          checked={column.isXAxis}
+                          onCheckedChange={(checked) => setColumnXAxis(column.name, checked)}
+                          disabled={column.isBreakdown}
+                        />
+                      </TableCell>
+                      <TableCell className="w-20 text-center">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Switch
+                                  checked={column.isYAxis}
+                                  onCheckedChange={(checked) => setColumnYAxis(column.name, checked)}
+                                  disabled={!canSelectForYAxis(column.name) || column.isBreakdown}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            {(!canSelectForYAxis(column.name) || column.isBreakdown) && (
+                              <TooltipContent>
+                                <p>
+                                  {column.isBreakdown
+                                    ? "Column is used for line breakdown"
+                                    : "String columns cannot be used for Y-axis in this chart type"}
+                                </p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+          <div className="col-span-3">
+            <GraphRenderer />
+          </div>
         </div>
       )}
 
