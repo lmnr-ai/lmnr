@@ -10,7 +10,6 @@ import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import ProjectSidebar from "@/components/project/project-sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
-import SQLEditorProvider from "@/components/sql/context";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -50,7 +49,6 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
     throw new Error("Workspace not found for project");
   }
   const workspace = workspaceResult[0];
-
   const usageResult = await getWorkspaceUsage(project.workspaceId);
 
   const tierResult = await db
@@ -71,7 +69,9 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   // Convert bytes to GB (1 GB = 1024^3 bytes)
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
-  const gbUsedThisMonth = bytesToGB(Number(usageResult.spansBytesIngested + usageResult.browserSessionEventsBytesIngested));
+  const gbUsedThisMonth = bytesToGB(
+    Number(usageResult.spansBytesIngested + usageResult.browserSessionEventsBytesIngested)
+  );
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
 
   return {
@@ -100,7 +100,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
     project.isFreeTier &&
-    (project.gbLimit > 0 && project.gbUsedThisMonth >= 0.8 * project.gbLimit);
+    project.gbLimit > 0 &&
+    project.gbUsedThisMonth >= 0.8 * project.gbLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -131,7 +132,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   gbLimit={project.gbLimit}
                 />
               )}
-              <SQLEditorProvider>{children}</SQLEditorProvider>
+              {children}
             </SidebarInset>
           </SidebarProvider>
         </div>
