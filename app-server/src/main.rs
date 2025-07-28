@@ -581,6 +581,7 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(project_auth.clone())
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
+                                .service(api::v1::datasets::create_datapoints)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)

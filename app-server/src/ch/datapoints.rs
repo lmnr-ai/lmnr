@@ -1,9 +1,11 @@
 use anyhow::Result;
+use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use super::utils::chrono_to_nanoseconds;
 use crate::datasets::datapoints::Datapoint;
 
 #[derive(Row, Serialize, Deserialize, Debug)]
@@ -41,6 +43,60 @@ impl From<CHDatapoint> for Datapoint {
             target,
             metadata,
         }
+    }
+}
+
+/// Convert Datapoint to CHDatapoint for ClickHouse insertion
+impl CHDatapoint {
+    pub fn from_datapoint(datapoint: &Datapoint, project_id: Uuid) -> Self {
+        let data = serde_json::to_string(&datapoint.data).unwrap_or_default();
+        let target = if let Some(target) = &datapoint.target {
+            serde_json::to_string(target).unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+        let metadata = serde_json::to_string(&datapoint.metadata).unwrap_or_default();
+
+        CHDatapoint {
+            id: datapoint.id,
+            dataset_id: datapoint.dataset_id,
+            project_id,
+            created_at: chrono_to_nanoseconds(Utc::now()),
+            data,
+            target,
+            metadata,
+        }
+    }
+}
+
+/// Insert datapoints into ClickHouse
+pub async fn insert_datapoints(
+    clickhouse: clickhouse::Client,
+    datapoints: Vec<CHDatapoint>,
+) -> Result<()> {
+    if datapoints.is_empty() {
+        return Ok(());
+    }
+
+    let ch_insert = clickhouse.insert("datapoints");
+    match ch_insert {
+        Ok(mut ch_insert) => {
+            for datapoint in datapoints {
+                ch_insert.write(&datapoint).await?;
+            }
+            let ch_insert_end_res = ch_insert.end().await;
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!(
+                    "ClickHouse datapoints insertion failed: {:?}",
+                    e
+                )),
+            }
+        }
+        Err(e) => Err(anyhow::anyhow!(
+            "Failed to insert datapoints into ClickHouse: {:?}",
+            e
+        )),
     }
 }
 
