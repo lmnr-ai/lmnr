@@ -33,7 +33,7 @@ const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProp
   const maxTextWidth = useMemo(
     () =>
       data.reduce((acc, cur) => {
-        const value = cur[xColumns?.[0]?.name];
+        const value = cur[xColumns?.[0]?.name] ?? 0;
         const width = measureText14Inter(value.toLocaleString());
         if (width > acc) {
           return width;
