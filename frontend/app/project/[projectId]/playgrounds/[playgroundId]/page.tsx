@@ -1,11 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
 import { getPlaygroundConfig } from "@/components/playground/utils";
+import { getSpan } from "@/lib/actions/span";
 import { db } from "@/lib/db/drizzle";
-import { playgrounds, spans } from "@/lib/db/migrations/schema";
+import { playgrounds } from "@/lib/db/migrations/schema";
 import { Playground as PlaygroundType } from "@/lib/playground/types";
 import { convertSpanToPlayground } from "@/lib/spans/utils";
 import { Span } from "@/lib/traces/types";
@@ -28,12 +29,13 @@ export default async function PlaygroundPage(props: {
     const spanId = searchParams?.spanId;
     try {
       if (spanId) {
-        const span = (await db.query.spans.findFirst({
-          where: and(eq(spans.spanId, spanId), eq(spans.projectId, params.projectId)),
-        })) as Span | undefined;
+        const span = (await getSpan({
+          spanId,
+          projectId: params.projectId,
+        })) as unknown as Span;
 
         if (span) {
-          const parsedSpanId = span.spanId.replace(/[0-]+/g, "");
+          const parsedSpanId = spanId.replace(/[0-]+/g, "");
 
           const config = getPlaygroundConfig(span);
           const promptMessages = await convertSpanToPlayground(span.input);
