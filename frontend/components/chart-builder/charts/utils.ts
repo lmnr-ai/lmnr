@@ -119,17 +119,17 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
 
     return {
       left: Math.max(12, longestLabel.length * 3),
-      right: 8,
-      top: 8,
-      bottom: 8,
+      right: 0,
+      top: 0,
+      bottom: 0,
     };
   }
 
   return {
-    left: 8,
-    right: 8,
-    top: 8,
-    bottom: 8,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   };
 };
 
