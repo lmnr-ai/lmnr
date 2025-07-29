@@ -2,7 +2,7 @@ import React from "react";
 
 import { ChartBuilderStoreProvider, useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import ChartRenderer from "@/components/chart-builder/charts";
-import { ChartConfig, ChartType, chartTypeLabelMap } from "@/components/chart-builder/types";
+import { ChartType, chartTypeLabelMap } from "@/components/chart-builder/types";
 import { ColumnInfo } from "@/components/chart-builder/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -189,16 +189,12 @@ const ChartBuilderCore = () => {
 
 interface ChartBuilderProps<T extends Record<string, string | number | boolean>> {
   data: T[];
-  initialConfig?: ChartConfig;
 }
 
-const ChartBuilder = <T extends Record<string, string | number | boolean>>({
-  data,
-  initialConfig,
-}: ChartBuilderProps<T>) => (
-    <ChartBuilderStoreProvider data={data} initialConfig={initialConfig}>
-      <ChartBuilderCore />
-    </ChartBuilderStoreProvider>
-  );
+const ChartBuilder = <T extends Record<string, string | number | boolean>>({ data }: ChartBuilderProps<T>) => (
+  <ChartBuilderStoreProvider data={data}>
+    <ChartBuilderCore />
+  </ChartBuilderStoreProvider>
+);
 
 export default ChartBuilder;

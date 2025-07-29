@@ -16,7 +16,6 @@ export const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
-// Simple date formatter - tries to format as date, falls back to original value
 export const tryFormatAsDate = (value: any, formatPattern: string = "MMM dd"): string => {
   try {
     let date: Date;
@@ -24,7 +23,6 @@ export const tryFormatAsDate = (value: any, formatPattern: string = "MMM dd"): s
     if (value instanceof Date) {
       date = value;
     } else if (typeof value === "string") {
-      // Try parsing ISO string first, then general parsing
       date = value.includes("T") ? parseISO(value) : new Date(value);
     } else if (typeof value === "number") {
       date = new Date(value);
@@ -63,17 +61,14 @@ export const getOptimalDateFormat = (data: Record<string, any>[], dataKey: strin
     const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
 
-    // Same day - show time
     if (minDate.toDateString() === maxDate.toDateString()) {
       return "HH:mm";
     }
 
-    // Different years - include year
     if (minDate.getFullYear() !== maxDate.getFullYear()) {
       return "MMM dd, yyyy";
     }
 
-    // Default - month and day
     return "MMM dd";
   } catch {
     return "MMM dd";
@@ -84,21 +79,17 @@ export const createAxisFormatter = (data: Record<string, any>[], dataKey: string
   const dateFormat = getOptimalDateFormat(data, dataKey);
 
   return (value: any) => {
-    // If it's a number, use number formatter
     if (typeof value === "number") {
       return numberFormatter.format(value);
     }
 
-    // If it's a string, try date formatting first
     if (typeof value === "string") {
       const dateFormatted = tryFormatAsDate(value, dateFormat);
-      // If date formatting changed the output, it was likely a date
       if (dateFormatted !== value) {
         return dateFormatted;
       }
     }
 
-    // Return as string for everything else
     return String(value);
   };
 };
