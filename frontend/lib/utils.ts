@@ -315,21 +315,9 @@ export const getDurationString = (startTime: string, endTime: string) => {
 
   return `${(duration / 1000).toFixed(2)}s`;
 };
+
 export const getDuration = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
   return Math.max(end.getTime() - start.getTime(), 0);
 };
-
-export function extractBearerToken(authHeader: string | null): string | null {
-  if (!authHeader) {
-    return null;
-  }
-
-  const bearerPrefix = "Bearer ";
-  if (!authHeader.startsWith(bearerPrefix)) {
-    return null;
-  }
-
-  return authHeader.slice(bearerPrefix.length).trim();
-}

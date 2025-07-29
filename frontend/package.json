@@ -93,7 +93,6 @@
     "next": "^15.3.3",
     "next-auth": "^4.24.11",
     "next-mdx-remote": "^5.0.0",
-    "node-sql-parser": "^5.3.9",
     "pako": "^2.1.0",
     "papaparse": "^5.5.3",
     "postgres": "^3.4.5",

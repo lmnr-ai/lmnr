@@ -65,6 +65,7 @@ mod project_api_keys;
 mod provider_api_keys;
 mod routes;
 mod runtime;
+mod sql;
 mod storage;
 mod traces;
 mod utils;
@@ -610,6 +611,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::evaluations::get_evaluation_score_distribution)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
+                                .service(routes::sql::execute_sql_query),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)

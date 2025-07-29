@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
-import { SQLValidator } from "@/lib/sql/transpile";
 
 export const CreateExportJobSchema = z.object({
   projectId: z.string(),
@@ -35,13 +34,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
     throw new Error("Dataset not found");
   }
 
-  const validator = new SQLValidator();
-  const result = validator.validateAndTranspile(sqlQuery, projectId);
-
-  if (!result.valid || !result.sql) {
-    throw new Error(result.error || "Invalid SQL query");
-  }
-
   const dataExporterUrl = process.env.DATA_EXPORTER_URL;
   if (!dataExporterUrl) {
     throw new Error("Data exporter service is not configured");
@@ -60,8 +52,8 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
       Authorization: `Bearer ${process.env.DATA_EXPORTER_SECRET_KEY}`,
     },
     body: JSON.stringify({
-      sql: result.sql,
-      args: result.args,
+      sql: sqlQuery,
+      // args: result.args,
       project_id: projectId,
       dataset_id: datasetId,
       config: exportConfig,
@@ -78,6 +70,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
-    warnings: result.warnings,
+    // warnings: result.warnings,
   };
 }
