@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { groupBy } from "lodash";
 import z from "zod/v4";
 
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
@@ -8,39 +9,8 @@ import { Span } from "@/lib/traces/types";
 
 export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>) => {
   const { traceId } = GetSharedTraceSchema.parse(input);
-  const eventsSql = sql`
-    jsonb_agg(jsonb_build_object(
-      'id', events.id,
-      'timestamp', events.timestamp,
-      'name', events.name,
-      'attributes', events.attributes
-      )
-  )`;
-
-  const spanEventsQuery = db.$with("span_events").as(
-    db
-      .select({
-        spanId: events.spanId,
-        events: eventsSql.as("events"),
-      })
-      .from(events)
-      .where(
-        and(
-          // This check may seem redundant because there is a join statement below,
-          // but it makes much wiser use of indexes and is much faster (up to 1000x in theory)
-          inArray(
-            events.spanId,
-            sql`(SELECT span_id FROM spans
-            WHERE trace_id = ${traceId}
-          )`
-          )
-        )
-      )
-      .groupBy(events.spanId)
-  );
 
   const spansResult = (await db
-    .with(spanEventsQuery)
     .select({
       spanId: spans.spanId,
       startTime: spans.startTime,
@@ -51,12 +21,31 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
       attributes: spans.attributes,
       spanType: spans.spanType,
       status: spans.status,
-      events: sql`COALESCE(${spanEventsQuery.events}, '[]'::jsonb)`.as("events"),
     })
     .from(spans)
-    .leftJoin(spanEventsQuery, and(eq(spans.spanId, spanEventsQuery.spanId)))
     .where(and(eq(spans.traceId, traceId)))
     .orderBy(asc(spans.startTime))) as unknown as Span[];
 
-  return spansResult;
+  if (spansResult.length === 0) {
+    return [];
+  }
+
+  // Join in memory, because json aggregation and join in PostgreSQL may be too slow
+  // depending on the number of spans and events, and there is no way for us
+  // to force PostgreSQL to use the correct indexes always.
+  const spanEvents = await db.query.events.findMany({
+    where: and(
+      inArray(events.spanId, spansResult.map((span) => span.spanId))
+    ),
+  });
+
+  const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
+
+  return spansResult.map((span) => ({
+    ...span,
+    events: (spanEventsMap[span.spanId] || []).map((event) => ({
+      ...event,
+      attributes: event.attributes as Record<string, any>,
+    })),
+  }));
 };
