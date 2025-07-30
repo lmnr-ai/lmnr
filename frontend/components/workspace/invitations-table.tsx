@@ -14,7 +14,7 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
   const { toast } = useToast();
 
   const router = useRouter();
-  const handleRevokeInvitation = async (id: string) => {
+  const handleRevokeInvitation = async (id: string, email: string) => {
     try {
       const response = await fetch(`/api/invitations/${id}`, {
         method: "POST",
@@ -22,6 +22,7 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
           id,
           workspaceId,
           action: "decline",
+          email,
         }),
       });
 
@@ -71,7 +72,7 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
               <TableCell>{invitation.email}</TableCell>
               <TableCell>{formatTimestamp(invitation.createdAt)}</TableCell>
               <TableCell>
-                <Button onClick={() => handleRevokeInvitation(invitation.id)} variant="outline">
+                <Button onClick={() => handleRevokeInvitation(invitation.id, invitation.email)} variant="outline">
                   Revoke invite
                 </Button>
               </TableCell>
