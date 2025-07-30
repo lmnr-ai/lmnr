@@ -80,7 +80,7 @@ export default function EditorPanel() {
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sqlQuery: query }),
+        body: JSON.stringify({ query }),
       });
 
       const data = await response.json();
@@ -215,14 +215,12 @@ export default function EditorPanel() {
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
                 success: () => (
-                  <div className="flex flex-1 overflow-hidden">
-                    <CodeHighlighter
-                      readOnly
-                      className="border-0"
-                      value={JSON.stringify(results, null, 2)}
-                      defaultMode="json"
-                    />
-                  </div>
+                  <CodeHighlighter
+                    readOnly
+                    className="border-0"
+                    value={JSON.stringify(results, null, 2)}
+                    defaultMode="json"
+                  />
                 ),
                 loadingText: "Processing results...",
                 default: () => (
@@ -238,11 +236,7 @@ export default function EditorPanel() {
           <TabsContent asChild value="chart">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: () => (
-                  <div className="overflow-hidden h-full">
-                    <ChartBuilder data={results || []} />
-                  </div>
-                ),
+                success: () => <ChartBuilder data={results || []} />,
                 loadingText: "Generating chart...",
                 default: () => (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">

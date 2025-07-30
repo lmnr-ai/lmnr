@@ -1,59 +1,85 @@
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import { ColumnInfo } from "@/components/chart-builder/utils";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateDataMax, createAxisFormatter,generateChartConfig, getChartMargins } from "./utils";
+import { calculateDataMax, createAxisFormatter, generateChartConfig, getChartMargins } from "./utils";
 
 interface BarChartProps {
   data: Record<string, any>[];
-  xAxisKey: string;
-  yColumns: ColumnInfo[];
+  x: string;
+  y: string[];
+  keys?: Set<string>;
+  chartConfig?: ChartConfig;
+  total?: boolean;
 }
 
-const BarChart = ({ data, xAxisKey, yColumns }: BarChartProps) => {
-  const chartConfig = useMemo(() => generateChartConfig(yColumns), [yColumns]);
-  const dataMax = useMemo(() => calculateDataMax(data, yColumns), [data, yColumns]);
-  const xAxisFormatter = useMemo(() => createAxisFormatter(data, xAxisKey), [data, xAxisKey]);
-  const yAxisFormatter = useMemo(() => createAxisFormatter(data, yColumns[0]?.name || ""), [data, yColumns]);
+const BarChart = ({ data, x, y, keys, chartConfig, total }: BarChartProps) => {
+  const finalChartConfig = useMemo(() => {
+    if (chartConfig) return chartConfig;
+    return generateChartConfig(y);
+  }, [chartConfig, y]);
+
+  const finalKeys = useMemo(() => {
+    if (keys) return Array.from(keys);
+    return y;
+  }, [keys, y]);
+
+  const dataMax = useMemo(() => calculateDataMax(data, y), [data, y]);
+  const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
+  const yAxisFormatter = useMemo(() => createAxisFormatter(data, y[0] || ""), [data, y]);
 
   const chartMargins = useMemo(() => {
-    // For bar chart, Y-axis shows the values from yColumns
-    const yValues = data.flatMap(row => yColumns.map(col => row[col.name])).filter(value => value != null);
+    const yValues = data.flatMap((row) => finalKeys.map((key) => row[key])).filter((value) => value != null);
     return getChartMargins(yValues, yAxisFormatter);
-  }, [data, yColumns, yAxisFormatter]);
+  }, [data, finalKeys, yAxisFormatter]);
+
+  const totalSum = useMemo(() => {
+    if (!total) return 0;
+    return data.reduce(
+      (sum, row) =>
+        sum +
+        finalKeys.reduce((keySum, key) => {
+          const value = Number(row[key]) || 0;
+          return keySum + value;
+        }, 0),
+      0
+    );
+  }, [data, finalKeys, total]);
 
   return (
-    <ChartContainer config={chartConfig} className="aspect-auto w-full h-full">
-      <RechartsBarChart data={data} margin={chartMargins}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          type="category"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          dataKey={xAxisKey}
-          tickFormatter={xAxisFormatter}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickCount={5}
-          domain={["auto", dataMax]}
-          width={32}
-          tickFormatter={yAxisFormatter}
-        />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        {yColumns.map((column) => {
-          const config = chartConfig[column.name];
-          if (!config) return null;
+    <div className="flex flex-col overflow-hidden h-full">
+      {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
+      <ChartContainer config={finalChartConfig} className="aspect-auto h-full w-full">
+        <RechartsBarChart data={data} margin={chartMargins}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            type="category"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            dataKey={x}
+            tickFormatter={xAxisFormatter}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            tickCount={5}
+            domain={["auto", dataMax]}
+            width={32}
+            tickFormatter={yAxisFormatter}
+          />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          {finalKeys.map((key) => {
+            const config = finalChartConfig[key];
+            if (!config) return null;
 
-          return <Bar key={column.name} dataKey={column.name} fill={config.color} radius={4} />;
-        })}
-      </RechartsBarChart>
-    </ChartContainer>
+            return <Bar key={key} dataKey={key} fill={config.color} radius={4} />;
+          })}
+        </RechartsBarChart>
+      </ChartContainer>
+    </div>
   );
 };
 

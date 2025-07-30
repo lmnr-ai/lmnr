@@ -3,39 +3,302 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-import SpanStatChart from "@/components/dashboard/span-stat-chart";
-import SpanSummaryChart from "@/components/dashboard/span-summary-chart";
-import TraceStatChart from "@/components/dashboard/trace-stat-chart";
-import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { AggregationFunction, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
-import { getGroupByInterval } from "@/lib/utils";
+import { ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { Chart } from "@/components/dashboard/chart";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
-import { TraceStatusChart } from "./trace-status-chart";
 
-const SPAN_SUMMARY_CHARTS = [
+const SQL_SPAN_SUMMARY_CHARTS = [
   {
     title: "Spans",
-    metric: SpanMetric.Count,
-    groupBy: SpanMetricGroupBy.Name,
+    query: `
+        SELECT
+            name,
+            COUNT(span_id) AS value
+        FROM spans
+        WHERE
+            name != '<null>'
+          AND span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY name
+        ORDER BY value DESC
+            LIMIT 5
+    `,
+    chartConfig: {
+      total: true,
+      type: ChartType.HorizontalBarChart,
+      x: "value",
+      y: ["name"],
+    },
   },
   {
     title: "Top Model Cost",
-    metric: SpanMetric.TotalCost,
-    groupBy: SpanMetricGroupBy.Model,
+    query: `
+        SELECT
+            model,
+            sum(total_cost) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+          AND span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY model
+        ORDER BY value DESC
+            LIMIT 5
+    `,
+    chartConfig: {
+      total: true,
+      type: ChartType.HorizontalBarChart,
+      x: "value",
+      y: ["model"],
+    },
+    addDollarSign: true,
   },
   {
     title: "Top Model Tokens",
-    metric: SpanMetric.TotalTokens,
-    groupBy: SpanMetricGroupBy.Model,
+    query: `
+        SELECT
+            model,
+            sum(total_tokens) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+          AND span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY model
+        ORDER BY value DESC
+            LIMIT 5
+    `,
+    chartConfig: {
+      total: true,
+      type: ChartType.HorizontalBarChart,
+      x: "value",
+      y: ["model"],
+    },
   },
   {
     title: "Top LLM Spans",
-    metric: SpanMetric.Count,
-    groupBy: SpanMetricGroupBy.Model,
+    query: `
+        SELECT
+            model,
+            COUNT(span_id) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+          AND span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY model
+        ORDER BY value DESC
+            LIMIT 5
+    `,
+    chartConfig: {
+      total: true,
+      type: ChartType.HorizontalBarChart,
+      x: "value",
+      y: ["model"],
+    },
+  },
+];
+
+const SQL_LINE_CHARTS: { title: string; query: string; chartConfig: ChartConfig }[] = [
+  {
+    title: "Latency by model",
+    query: `
+        SELECT
+            CASE
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
+                ELSE toStartOfDay(start_time)
+                END AS time,
+            model,
+            quantile(0.9)(end_time - start_time) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+          AND span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY time, model
+        ORDER BY time, model
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+      breakdown: "model",
+    },
+  },
+  {
+    title: "Tokens by model",
+    query: `
+        SELECT
+            CASE 
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
+                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+            END AS time,
+            model,
+            sum(total_tokens) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+            AND span_type in [0, 1]
+            AND start_time >= fromUnixTimestamp({start_time: UInt32})
+            AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY time, model
+        ORDER BY time, model
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+      breakdown: "model",
+    },
+  },
+  {
+    title: "Cost by model",
+    query: `
+        SELECT
+            CASE 
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
+                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+            END AS time,
+            model,
+            sum(total_cost) AS value
+        FROM spans
+        WHERE
+            model != '<null>'
+            AND span_type in [0, 1]
+            AND start_time >= fromUnixTimestamp({start_time: UInt32})
+            AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY time, model
+        ORDER BY time, model
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+      breakdown: "model",
+    },
+  },
+];
+
+const SQL_TRACE_LINE_CHARTS: {
+  title: string;
+  query: string;
+  chartConfig: ChartConfig;
+  addDollarSign?: boolean;
+  showTotal?: boolean;
+}[] = [
+  {
+    title: "Trace latency (p90)",
+    query: `
+        WITH trace_durations AS (
+            SELECT
+                CASE
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)
+                    ELSE toStartOfDay(start_time)
+                    END as time,
+            toFloat64(COALESCE((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1e9, 0)) as duration
+        FROM traces
+        WHERE start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+            )
+        SELECT
+            time,
+            toFloat64(COALESCE(quantileExact(0.90)(duration), 0)) as value
+        FROM trace_durations
+        GROUP BY time
+        ORDER BY time
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+    },
+  },
+  {
+    title: "Total Tokens",
+    query: `
+        SELECT
+            CASE
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time) 
+                ELSE toStartOfDay(start_time)
+                END AS time,
+            sum(total_tokens) AS value
+        FROM spans
+        WHERE
+            span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY time
+        ORDER BY time
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+      total: true,
+    },
+    showTotal: true,
+  },
+  {
+    title: "Total cost",
+    query: `
+        SELECT
+            CASE
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
+                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+                END AS time,
+            sum(total_cost) AS value
+        FROM spans
+        WHERE
+            span_type in [0, 1]
+          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          AND start_time <= fromUnixTimestamp({end_time: UInt32})
+        GROUP BY time
+        ORDER BY time
+    `,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["value"],
+      total: true,
+    },
+    addDollarSign: true,
+    showTotal: true,
+  },
+  {
+    title: "Trace Status",
+    query: `SELECT
+                CASE
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)
+                    ELSE toStartOfDay(start_time)
+                    END as time,
+            countIf(status = '') as success,
+            countIf(status = 'error') as error
+            FROM traces
+            WHERE start_time >= fromUnixTimestamp({start_time: UInt32})
+              AND start_time <= fromUnixTimestamp({end_time: UInt32})
+            GROUP BY time
+            ORDER BY time`,
+    chartConfig: {
+      type: ChartType.LineChart,
+      x: "time",
+      y: ["success", "error"],
+    },
   },
 ];
 
@@ -43,12 +306,10 @@ export default function Dashboard() {
   const params = useParams();
   const projectId = params?.projectId as string;
 
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
   const pastHours = searchParams.get("pastHours") || undefined;
   const startDate = searchParams.get("startDate") || undefined;
   const endDate = searchParams.get("endDate") || undefined;
-  const groupByInterval =
-    searchParams.get("groupByInterval") ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
 
   const router = useRouter();
 
@@ -71,110 +332,21 @@ export default function Dashboard() {
       <div className="flex-grow flex flex-col h-0">
         <ScrollArea className="h-full">
           <div className="grid grid-cols-3 gap-4 p-4">
-            {SPAN_SUMMARY_CHARTS.map((chart) => (
+            {SQL_SPAN_SUMMARY_CHARTS.map((chart) => (
               <div className="col-span-1 h-72" key={chart.title}>
-                <SpanSummaryChart
-                  {...chart}
-                  className="w-full"
-                  projectId={projectId}
-                  pastHours={pastHours ?? ""}
-                  startDate={startDate ?? ""}
-                  endDate={endDate ?? ""}
-                  addDollarSign={chart.metric === SpanMetric.TotalCost}
-                />
+                <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
               </div>
             ))}
-            <div className="col-span-1">
-              <SpanStatChart
-                title="Latency by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.Latency}
-                defaultAggregation={AggregationFunction.p90}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <SpanStatChart
-                title="Tokens by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.TotalTokens}
-                defaultAggregation={AggregationFunction.SUM}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <SpanStatChart
-                title="Cost by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.TotalCost}
-                defaultAggregation={AggregationFunction.SUM}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-2 h-72">
-              <TraceStatusChart
-                projectId={projectId}
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                title="Trace Status"
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="traceLatencySeconds"
-                aggregation={AggregationFunction.p90}
-                title="Trace latency (p90)"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="totalTokenCount"
-                aggregation={AggregationFunction.SUM}
-                title="Total Tokens"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                showTotal
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="costUsd"
-                aggregation={AggregationFunction.SUM}
-                title="Total cost"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                addDollarSign={true}
-                showTotal
-              />
-            </div>
+            {SQL_LINE_CHARTS.map((chart) => (
+              <div className="col-span-1 h-72" key={chart.title}>
+                <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
+              </div>
+            ))}
+            {SQL_TRACE_LINE_CHARTS.map((chart) => (
+              <div className="col-span-1 h-72" key={chart.title}>
+                <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
+              </div>
+            ))}
           </div>
         </ScrollArea>
       </div>

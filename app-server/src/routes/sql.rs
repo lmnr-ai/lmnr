@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::sql;
@@ -12,6 +13,7 @@ use super::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
+    pub parameters: Option<Value>,
 }
 
 #[post("sql/query")]
@@ -21,9 +23,9 @@ pub async fn execute_sql_query(
     client: web::Data<Arc<reqwest::Client>>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
-    let query = req.into_inner().query;
+    let SqlQueryRequest { query, parameters } = req.into_inner();
 
-    match sql::execute_sql_query(query, project_id, &client).await {
+    match sql::execute_sql_query(query, project_id, parameters, &client).await {
         Ok(result_json) => Ok(HttpResponse::Ok().json(result_json)),
         Err(e) => Err(e.into()),
     }

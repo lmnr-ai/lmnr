@@ -1,11 +1,10 @@
 import { format, isValid, parseISO } from "date-fns";
 
-import { ColumnInfo } from "@/components/chart-builder/utils";
 import { ChartConfig } from "@/components/ui/chart";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
-  maximumFractionDigits: 1,
+  maximumFractionDigits: 3,
 });
 
 export const chartColors = [
@@ -94,18 +93,18 @@ export const createAxisFormatter = (data: Record<string, any>[], dataKey: string
   };
 };
 
-export const generateChartConfig = (yColumns: ColumnInfo[]): ChartConfig =>
-  yColumns.reduce((config, column, index) => {
-    config[column.name] = {
-      label: column.name,
+export const generateChartConfig = (columns: string[]): ChartConfig =>
+  columns.reduce((config, columnName, index) => {
+    config[columnName] = {
+      label: columnName,
       color: chartColors[index % chartColors.length],
     };
     return config;
   }, {} as ChartConfig);
 
-export const calculateDataMax = (data: Record<string, any>[], yColumns: ColumnInfo[]): number =>
+export const calculateDataMax = (data: Record<string, any>[], yColumns: string[]): number =>
   data.reduce((max, d) => {
-    const values = yColumns.map((col) => Number(d[col.name])).filter((value) => !isNaN(value));
+    const values = yColumns.map((colName) => Number(d[colName])).filter((value) => !isNaN(value));
     return Math.max(max, ...values);
   }, 0);
 
@@ -135,15 +134,15 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
 
 const selectColumnsFromData = (
   data: Record<string, any>[],
-  xColumn: ColumnInfo,
-  yColumns: ColumnInfo[]
+  xColumn: string,
+  yColumns: string[]
 ): Record<string, any>[] =>
   data.map((row) => {
     const selectedRow: Record<string, any> = {
-      [xColumn.name]: row[xColumn.name],
+      [xColumn]: row[xColumn],
     };
     yColumns.forEach((yColumn) => {
-      selectedRow[yColumn.name] = row[yColumn.name];
+      selectedRow[yColumn] = row[yColumn];
     });
     return selectedRow;
   });
@@ -161,17 +160,17 @@ const createChartConfig = (columns: string[]): ChartConfig =>
 
 export const transformDataForBreakdown = (
   data: Record<string, any>[],
-  xColumn: ColumnInfo,
-  yColumn: ColumnInfo,
-  breakdownColumn: ColumnInfo
+  xColumn: string,
+  yColumn: string,
+  breakdownColumn: string
 ) => {
   const groupedByX = new Map<string, Record<string, number>>();
   const allBreakdownValues = new Set<string>();
 
   data.forEach((row) => {
-    const xValue = String(row[xColumn.name]);
-    const breakdownValue = String(row[breakdownColumn.name]);
-    const yValue = Number(row[yColumn.name]) || 0;
+    const xValue = String(row[xColumn]);
+    const breakdownValue = String(row[breakdownColumn]);
+    const yValue = Number(row[yColumn]) || 0;
 
     allBreakdownValues.add(breakdownValue);
 
@@ -186,7 +185,7 @@ export const transformDataForBreakdown = (
   });
 
   const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
-    [xColumn.name]: xValue,
+    [xColumn]: xValue,
     ...Object.fromEntries(Array.from(allBreakdownValues).map((value) => [value, 0])),
     ...breakdownGroups,
   }));
@@ -198,17 +197,12 @@ export const transformDataForBreakdown = (
   };
 };
 
-export const transformDataForSimpleChart = (
-  data: Record<string, any>[],
-  xColumn: ColumnInfo,
-  yColumns: ColumnInfo[]
-) => {
+export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
   const chartData = selectColumnsFromData(data, xColumn, yColumns);
-  const columnNames = yColumns.map((col) => col.name);
 
   return {
     chartData,
-    keys: new Set(columnNames),
-    chartConfig: createChartConfig(columnNames),
+    keys: new Set(yColumns),
+    chartConfig: createChartConfig(yColumns),
   };
 };

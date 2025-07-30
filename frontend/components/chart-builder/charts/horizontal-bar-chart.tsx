@@ -1,15 +1,17 @@
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
-import { ColumnInfo } from "@/components/chart-builder/utils";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { calculateDataMax, createAxisFormatter, generateChartConfig, getChartMargins } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
-  yAxisKey: string;
-  xColumns: ColumnInfo[];
+  x: string;
+  y: string[];
+  keys?: Set<string>;
+  chartConfig?: ChartConfig;
+  total?: boolean;
 }
 
 const measureText14Inter = (text: string): number => {
@@ -24,73 +26,103 @@ const measureText14Inter = (text: string): number => {
   return ctx.measureText(text).width;
 };
 
-const HorizontalBarChart = ({ data, yAxisKey, xColumns }: HorizontalBarChartProps) => {
-  const chartConfig = useMemo(() => generateChartConfig(xColumns), [xColumns]);
-  const dataMax = useMemo(() => calculateDataMax(data, xColumns), [data, xColumns]);
-  const yAxisFormatter = useMemo(() => createAxisFormatter(data, yAxisKey), [data, yAxisKey]);
-  const xAxisFormatter = useMemo(() => createAxisFormatter(data, xColumns[0]?.name || ""), [data, xColumns]);
+const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: HorizontalBarChartProps) => {
+  const valueColumn = x;
+  const categoryColumn = y[0];
+
+  const finalChartConfig = useMemo(() => {
+    if (chartConfig) return chartConfig;
+    return generateChartConfig([valueColumn]);
+  }, [chartConfig, valueColumn]);
+
+  const finalKeys = useMemo(() => {
+    if (keys) return Array.from(keys);
+    return [valueColumn];
+  }, [keys, valueColumn]);
+
+  const dataMax = useMemo(() => calculateDataMax(data, [valueColumn]), [data, valueColumn]);
+  const yAxisFormatter = useMemo(() => createAxisFormatter(data, categoryColumn), [data, categoryColumn]);
+  const xAxisFormatter = useMemo(() => createAxisFormatter(data, valueColumn), [data, valueColumn]);
 
   const maxTextWidth = useMemo(
     () =>
       data.reduce((acc, cur) => {
-        const value = cur[xColumns?.[0]?.name];
-        const width = measureText14Inter(value.toLocaleString());
+        const value = cur[valueColumn];
+        const width = measureText14Inter(yAxisFormatter(value));
         if (width > acc) {
           return width;
         }
         return acc;
-      }, 0) + 8,
-    [data, xColumns]
+      }, 0) + 16,
+    [data, valueColumn, yAxisFormatter]
   );
 
-  return (
-    <ChartContainer config={chartConfig} className="aspect-auto w-full h-full">
-      <RechartsBarChart layout="vertical" data={data} margin={{ ...getChartMargins(), right: maxTextWidth }}>
-        <XAxis
-          hide
-          type="number"
-          tickLine={false}
-          tickMargin={8}
-          domain={["auto", dataMax]}
-          tickFormatter={xAxisFormatter}
-        />
-        <YAxis
-          type="category"
-          hide
-          yAxisId={0}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          dataKey={yAxisKey}
-          tickFormatter={yAxisFormatter}
-        />
-        <YAxis
-          orientation="right"
-          yAxisId={1}
-          dataKey={xColumns[0]?.name || ""}
-          type="category"
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(value) => value.toLocaleString()}
-          mirror
-          style={{ fill: "#E8E3E3", fontSize: 14 }}
-          tick={{
-            transform: `translate(${maxTextWidth}, 0)`,
-          }}
-        />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        {xColumns.map((column) => {
-          const config = chartConfig[column.name];
-          if (!config) return null;
+  const totalSum = useMemo(() => {
+    if (!total) return 0;
+    return data.reduce((sum, row) => {
+      const value = Number(row[valueColumn]) || 0;
+      return sum + value;
+    }, 0);
+  }, [data, valueColumn, total]);
 
-          return (
-            <Bar key={column.name} dataKey={column.name} fill={config.color} radius={4}>
-              <LabelList style={{ fill: "#E8E3E3", fontSize: 14 }} position="insideLeft" dataKey={yAxisKey} />
-            </Bar>
-          );
-        })}
-      </RechartsBarChart>
-    </ChartContainer>
+  return (
+    <div className="flex flex-col overflow-hidden h-full">
+      {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
+      <ChartContainer config={finalChartConfig} className="aspect-auto h-full w-full">
+        <RechartsBarChart
+          barSize={32}
+          barGap={1}
+          barCategoryGap={1}
+          layout="vertical"
+          data={data}
+          margin={{ ...getChartMargins(), right: maxTextWidth }}
+        >
+          <XAxis
+            hide
+            type="number"
+            tickLine={false}
+            tickMargin={8}
+            domain={[0, dataMax]}
+            tickFormatter={xAxisFormatter}
+          />
+          <YAxis
+            type="category"
+            hide
+            yAxisId={0}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            dataKey={categoryColumn}
+            tickFormatter={yAxisFormatter}
+          />
+          <YAxis
+            orientation="right"
+            yAxisId={1}
+            dataKey={valueColumn}
+            type="category"
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={xAxisFormatter}
+            mirror
+            style={{ fill: "#E8E3E3", fontSize: 14 }}
+            tick={{
+              transform: `translate(${maxTextWidth}, 0)`,
+            }}
+          />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          {finalKeys.map((key) => {
+            const config = finalChartConfig[key];
+            if (!config) return null;
+
+            return (
+              <Bar key={valueColumn} dataKey={valueColumn} fill={config.color} radius={4}>
+                <LabelList style={{ fill: "#E8E3E3", fontSize: 14 }} position="insideLeft" dataKey={categoryColumn} />
+              </Bar>
+            );
+          })}
+        </RechartsBarChart>
+      </ChartContainer>
+    </div>
   );
 };
 

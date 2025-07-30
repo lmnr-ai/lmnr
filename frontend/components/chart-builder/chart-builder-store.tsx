@@ -20,11 +20,13 @@ type ChartBuilderState = {
 
 type ChartBuilderActions = {
   setChartConfig: (config: Partial<ChartConfig>) => void;
+  setChartName: (name?: string) => void;
   setChartType: (type: ChartType) => void;
   setXColumn: (columnName?: string) => void;
   setYColumns: (columnNames: string[]) => void;
   toggleYColumn: (columnName: string) => void;
   setBreakdownColumn: (columnName?: string) => void;
+  setShowTotal: (total: boolean) => void;
 
   getSelectedXColumn: () => ColumnInfo | undefined;
   getSelectedYColumns: () => ColumnInfo[];
@@ -36,20 +38,20 @@ type ChartBuilderActions = {
 };
 
 const defaultConfig: ChartConfig = {
+  name: undefined,
   type: undefined,
   x: undefined,
   y: [],
   breakdown: undefined,
+  total: false,
 };
 
 type ChartBuilderStore = ChartBuilderState & ChartBuilderActions;
 type ChartBuilderStoreApi = ReturnType<typeof createChartBuilderStore>;
 
-type ChartBuilderProps = {
-  data?: DataRow[];
-};
-
-const ChartBuilderContext = createContext<ChartBuilderStoreApi | undefined>(undefined);
+interface ChartBuilderProps {
+  data: DataRow[];
+}
 
 const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
   const chartState: ChartBuilderState = {
@@ -65,6 +67,11 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
         setChartConfig: (config) =>
           set((state) => ({
             chartConfig: { ...state.chartConfig, ...config },
+          })),
+
+        setChartName: (name) =>
+          set((state) => ({
+            chartConfig: { ...state.chartConfig, name },
           })),
 
         setChartType: (type) =>
@@ -102,6 +109,11 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
         setBreakdownColumn: (columnName) =>
           set((state) => ({
             chartConfig: { ...state.chartConfig, breakdown: columnName },
+          })),
+
+        setShowTotal: (total) =>
+          set((state) => ({
+            chartConfig: { ...state.chartConfig, total },
           })),
 
         getSelectedXColumn: () => {
@@ -146,9 +158,13 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
   );
 };
 
-export const useChartBuilderStoreContext = <T,>(selector: (state: ChartBuilderStore) => T): T => {
-  const store = useContext(ChartBuilderContext);
-  if (!store) throw new Error("Missing ChartBuilderContext.Provider in the tree");
+const ChartBuilderStoreContext = createContext<ChartBuilderStoreApi | null>(null);
+
+export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderStore) => T): T => {
+  const store = useContext(ChartBuilderStoreContext);
+  if (!store) {
+    throw new Error("useChartBuilderStoreContext must be used within a ChartBuilderStoreProvider");
+  }
   return useStore(store, selector);
 };
 
@@ -158,6 +174,5 @@ export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChild
   if (!storeRef.current) {
     storeRef.current = createChartBuilderStore(props);
   }
-
-  return <ChartBuilderContext.Provider value={storeRef.current}>{children}</ChartBuilderContext.Provider>;
+  return <ChartBuilderStoreContext.Provider value={storeRef.current}>{children}</ChartBuilderStoreContext.Provider>;
 };

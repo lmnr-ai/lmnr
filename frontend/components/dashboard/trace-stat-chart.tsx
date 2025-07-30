@@ -52,7 +52,7 @@ const TraceStatChart = memo<TraceStatChartProps>(
       if (pastHours) {
         queryParams["pastHours"] = pastHours;
       } else {
-        queryParams["startDate"] = startDate;
+        queryParams["startTime"] = startDate;
         queryParams["endDate"] = endDate;
       }
 

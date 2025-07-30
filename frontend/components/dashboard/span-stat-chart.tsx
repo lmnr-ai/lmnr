@@ -65,7 +65,7 @@ const SpanStatChart = memo<SpanStatChartProps>(
       if (pastHours) {
         queryParams["pastHours"] = pastHours;
       } else {
-        queryParams["startDate"] = startDate;
+        queryParams["startTime"] = startDate;
         queryParams["endDate"] = endDate;
       }
 

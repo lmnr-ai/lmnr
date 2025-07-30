@@ -8,10 +8,12 @@ export enum ChartType {
 }
 
 export interface ChartConfig {
+  name?: string;
   type?: ChartType;
   x?: string;
   y: string[];
   breakdown?: string;
+  total?: boolean;
 }
 
 export const chartTypeLabelMap: Record<ChartType, { label: string; icon: ReactNode }> = {

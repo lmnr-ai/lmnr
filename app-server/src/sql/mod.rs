@@ -5,6 +5,7 @@ use uuid::Uuid;
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
+    parameters: Option<Value>,
     client: &Arc<reqwest::Client>,
 ) -> Result<Value, anyhow::Error> {
     let query_engine_url = env::var("QUERY_ENGINE_URL").map_err(|_| {
@@ -16,6 +17,7 @@ pub async fn execute_sql_query(
         .json(&serde_json::json!({
             "query": query,
             "project_id": project_id,
+            "parameters": parameters,
         }))
         .send()
         .await

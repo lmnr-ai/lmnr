@@ -5,91 +5,93 @@ import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
 import { transformDataForBreakdown, transformDataForSimpleChart } from "@/components/chart-builder/charts/utils";
-import { ChartType } from "@/components/chart-builder/types";
+import { ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { ColumnInfo } from "@/components/chart-builder/utils";
 
-const ChartRenderer = () => {
-  const {
-    chartConfig,
-    getSelectedXColumn,
-    getSelectedYColumns,
-    getSelectedBreakdownColumn,
-    isValidChartConfiguration,
-    data,
-  } = useChartBuilderStoreContext((state) => ({
-    chartConfig: state.chartConfig,
-    getSelectedXColumn: state.getSelectedXColumn,
-    getSelectedYColumns: state.getSelectedYColumns,
-    getSelectedBreakdownColumn: state.getSelectedBreakdownColumn,
-    isValidChartConfiguration: state.isValidChartConfiguration,
-    data: state.data,
-  }));
+interface ChartRendererCoreProps {
+  config: ChartConfig;
+  data: Record<string, any>[];
+  columns: ColumnInfo[];
+}
 
-  const selectedXColumn = getSelectedXColumn();
-  const selectedYColumns = getSelectedYColumns();
-  const selectedBreakdownColumn = getSelectedBreakdownColumn();
-  const hasValidConfiguration = isValidChartConfiguration();
-
+export const ChartRendererCore = ({ config, data, columns }: ChartRendererCoreProps) => {
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!hasValidConfiguration || !selectedXColumn || selectedYColumns.length === 0) {
+    if (!config.type || !config.x || !config.y?.length) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
-    if (selectedBreakdownColumn) {
-      return transformDataForBreakdown(data, selectedXColumn, selectedYColumns[0], selectedBreakdownColumn);
+    const xColumn = columns.find((col) => col.name === config.x);
+    const yColumns = config.y.map((yName) => columns.find((col) => col.name === yName)).filter(Boolean) as ColumnInfo[];
+    const breakdownColumn = config.breakdown ? columns.find((col) => col.name === config.breakdown) : undefined;
+
+    if (!xColumn || !yColumns.length) {
+      return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
-    return transformDataForSimpleChart(data, selectedXColumn, selectedYColumns);
-  }, [data, selectedXColumn, selectedYColumns, selectedBreakdownColumn, hasValidConfiguration]);
+    if (breakdownColumn && yColumns.length === 1) {
+      return transformDataForBreakdown(data, config.x, config.y[0], config.breakdown!);
+    }
 
-  if (!hasValidConfiguration || !selectedXColumn) {
+    return transformDataForSimpleChart(data, config.x, config.y);
+  }, [config, data, columns]);
+
+  if (!config.type || !config.x || !config.y?.length) {
     return (
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
         <div className="text-center">
-          <p className="text">Select chart type, X-axis, and Y-axis columns to display chart</p>
-          {!chartConfig.type && <p className="text-sm mt-1">• Choose a chart type</p>}
-          {!selectedXColumn && <p className="text-sm mt-1">• Select one X-axis column</p>}
-          {selectedYColumns.length === 0 && <p className="text-sm mt-1">• Select at least one Y-axis column</p>}
-          {selectedBreakdownColumn && selectedYColumns.length > 1 && (
-            <p className="text-sm mt-1">• Breakdown requires exactly one Y-axis column</p>
-          )}
+          <p className="text">Invalid chart configuration</p>
+          {!config.type && <p className="text-sm mt-1">• Chart type is required</p>}
+          {!config.x && <p className="text-sm mt-1">• X-axis column is required</p>}
+          {!config.y?.length && <p className="text-sm mt-1">• At least one Y-axis column is required</p>}
         </div>
       </div>
     );
   }
 
-  const chartProps = selectedBreakdownColumn
+  const baseProps = {
+    data: chartData,
+    x: config.x,
+    y: config.y,
+    breakdown: config.breakdown,
+    total: config.total,
+  };
+
+  const props = config.breakdown
     ? {
-      data: chartData,
+      ...baseProps,
       keys: keys,
-      xAxisKey: selectedXColumn.name,
       chartConfig: uiChartConfig,
     }
-    : {
-      data: chartData,
-      xAxisKey: selectedXColumn.name,
-      yColumns: selectedYColumns,
-    };
+    : baseProps;
 
-  switch (chartConfig.type) {
+  switch (config.type) {
     case ChartType.LineChart:
-      return <LineChart {...chartProps} />;
+      return <LineChart {...props} />;
     case ChartType.BarChart:
-      return <BarChart data={chartData} xAxisKey={selectedXColumn.name} yColumns={selectedYColumns} />;
+      return <BarChart {...props} />;
     case ChartType.HorizontalBarChart:
-      return (
-        <HorizontalBarChart data={chartData} xColumns={[selectedXColumn]} yAxisKey={selectedYColumns[0]?.name || ""} />
-      );
+      return <HorizontalBarChart {...props} />;
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">
-          <p className="text-sm">Unsupported chart type</p>
+          <p className="text-sm">Unsupported chart type: {config.type}</p>
         </div>
       );
   }
+};
+
+const ChartRenderer = () => {
+  const { chartConfig, columns, data } = useChartBuilderStoreContext((state) => ({
+    chartConfig: state.chartConfig,
+    columns: state.columns,
+    data: state.data,
+  }));
+
+  return <ChartRendererCore config={chartConfig} data={data} columns={columns} />;
 };
 
 export default ChartRenderer;
