@@ -57,5 +57,6 @@ export interface ProjectStats {
 export interface WorkspaceUsage {
   spansBytesIngested: number;
   browserSessionEventsBytesIngested: number;
+  eventsBytesIngested: number;
   resetTime: Date;
 }

@@ -43,11 +43,19 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
       FROM browser_session_events
       WHERE project_id IN { projectIds: Array(UUID) }
       AND browser_session_events.timestamp >= { latestResetTime: DateTime(3, "UTC") }
+    ),
+    events_bytes_ingested AS (
+      SELECT
+        SUM(events.size_bytes) as events_bytes_ingested
+      FROM events
+      WHERE project_id IN { projectIds: Array(UUID) }
+      AND events.timestamp >= { latestResetTime: DateTime(3, "UTC") }
     )
     SELECT
       spans_bytes_ingested,
-      browser_session_events_bytes_ingested
-    FROM spans_bytes_ingested, browser_session_events_bytes_ingested`;
+      browser_session_events_bytes_ingested,
+      events_bytes_ingested
+    FROM spans_bytes_ingested, browser_session_events_bytes_ingested, events_bytes_ingested`;
 
   const bytesIngested = await clickhouseClient.query({
     query,
@@ -61,6 +69,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const result = await bytesIngested.json<{
     spans_bytes_ingested: number;
     browser_session_events_bytes_ingested: number;
+    events_bytes_ingested: number;
   }>();
 
   if (result.length === 0) {
@@ -70,6 +79,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   return {
     spansBytesIngested: Number(result[0].spans_bytes_ingested),
     browserSessionEventsBytesIngested: Number(result[0].browser_session_events_bytes_ingested),
+    eventsBytesIngested: Number(result[0].events_bytes_ingested),
     resetTime: latestResetTime,
   };
 };

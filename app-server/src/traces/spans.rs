@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     sync::{Arc, LazyLock},
 };
@@ -414,7 +414,12 @@ impl SpanAttributes {
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
         match attr_tags.or(attr_labels) {
-            Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
+            Some(Value::Array(arr)) => arr
+                .iter()
+                .map(|v| json_value_to_string(v))
+                .collect::<HashSet<String>>()
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         }
     }

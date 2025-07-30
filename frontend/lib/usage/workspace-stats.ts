@@ -44,7 +44,13 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
 
   const usage = await getWorkspaceUsage(workspaceId);
 
-  const gbUsedThisMonth = bytesToGB(Number(usage.spansBytesIngested + usage.browserSessionEventsBytesIngested));
+  const gbUsedThisMonth = bytesToGB(
+    Number(
+      usage.spansBytesIngested +
+      usage.browserSessionEventsBytesIngested +
+      usage.eventsBytesIngested
+    )
+  );
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
   // Calculate GB overages

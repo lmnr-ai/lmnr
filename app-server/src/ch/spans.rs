@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::spans::{Span, SpanType},
+    db::{
+        spans::{Span, SpanType},
+        trace::TraceType,
+    },
     traces::spans::SpanUsage,
     utils::sanitize_string,
 };
@@ -25,6 +28,20 @@ impl Into<u8> for SpanType {
             SpanType::EVALUATION => 5,
             SpanType::TOOL => 6,
             SpanType::HUMAN_EVALUATOR => 7,
+        }
+    }
+}
+
+/// for inserting into clickhouse
+///
+/// Don't change the order of the fields or their values
+impl Into<u8> for TraceType {
+    fn into(self) -> u8 {
+        match self {
+            TraceType::DEFAULT => 0,
+            TraceType::EVENT => 1,
+            TraceType::EVALUATION => 2,
+            TraceType::PLAYGROUND => 3,
         }
     }
 }
@@ -66,6 +83,7 @@ pub struct CHSpan {
     pub size_bytes: u64,
     pub attributes: String,
     pub trace_metadata: String,
+    pub trace_type: u8,
 }
 
 impl CHSpan {
@@ -130,6 +148,7 @@ impl CHSpan {
             size_bytes: size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
+            trace_type: span.attributes.trace_type().unwrap_or_default().into(),
         }
     }
 }

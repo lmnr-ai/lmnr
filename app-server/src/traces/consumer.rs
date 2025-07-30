@@ -150,16 +150,8 @@ async fn process_spans_and_events_batch(
 
             // Make sure we count the sizes before any processing
             let span_bytes = span.estimate_size_bytes();
-            let events_bytes = message
-                .events
-                .iter()
-                .map(|e| e.estimate_size_bytes())
-                .sum::<usize>();
 
-            let ingested_bytes = IngestedBytes {
-                span_bytes,
-                events_bytes,
-            };
+            let ingested_bytes = IngestedBytes { span_bytes };
 
             // Parse and enrich span attributes for input/output extraction
             span.parse_and_enrich_attributes();
@@ -296,7 +288,7 @@ async fn process_batch(
                 &span,
                 &span_usage,
                 span.project_id,
-                ingested_bytes.span_bytes + ingested_bytes.events_bytes,
+                ingested_bytes.span_bytes,
             )
         })
         .collect();
