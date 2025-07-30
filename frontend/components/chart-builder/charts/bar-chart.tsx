@@ -27,7 +27,7 @@ const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
+      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsBarChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />

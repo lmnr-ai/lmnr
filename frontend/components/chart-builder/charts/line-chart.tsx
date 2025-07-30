@@ -27,7 +27,7 @@ const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
+      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsLineChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />
@@ -37,6 +37,7 @@ const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
             axisLine={false}
             tickMargin={8}
             dataKey={x}
+            style={{ fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={xAxisFormatter}
           />
           <YAxis
@@ -46,6 +47,7 @@ const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
             tickCount={5}
             domain={["auto", totalMax]}
             width={32}
+            style={{ fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip content={<ChartTooltipContent />} />

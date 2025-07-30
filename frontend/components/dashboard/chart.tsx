@@ -1,9 +1,11 @@
+import { GripVertical } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
+import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { convertToTimeParameters } from "@/lib/time";
 
@@ -13,7 +15,7 @@ interface ChartProps {
   query: string;
 }
 
-export const Chart = ({ name, config, query }: ChartProps) => {
+const Chart = ({ name, config, query }: ChartProps) => {
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const [data, setData] = useState<Record<string, any>[]>([]);
@@ -64,8 +66,11 @@ export const Chart = ({ name, config, query }: ChartProps) => {
   }, [fetchData]);
 
   return (
-    <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border">
-      <span className="font-medium text-sm text-secondary-foreground">{name}</span>
+    <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border relative">
+      <div className="flex gap-2 items-center">
+        <GripVertical className="w-4 h-4 drag-handle cursor-pointer text-muted-foreground" />
+        <span className="font-medium text-lg text-secondary-foreground">{name}</span>
+      </div>
       {error ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <p className="text text-muted-foreground">Error loading chart data</p>
@@ -76,6 +81,9 @@ export const Chart = ({ name, config, query }: ChartProps) => {
       ) : (
         <ChartRendererCore config={config} data={data} columns={columns} />
       )}
+      <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
     </div>
   );
 };
+
+export default memo(Chart);
