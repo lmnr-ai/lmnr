@@ -206,3 +206,21 @@ export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn
     chartConfig: createChartConfig(yColumns),
   };
 };
+
+export const calculateChartTotals = (data: Record<string, any>[], keys: string[], showTotal: boolean = false) => {
+  if (!showTotal) return { totalSum: 0, totalMax: 0 };
+
+  const totalSum = data.reduce(
+    (sum, row) =>
+      sum +
+      keys.reduce((keySum, key) => {
+        const value = Number(row[key]) || 0;
+        return keySum + value;
+      }, 0),
+    0
+  );
+
+  const totalMax = calculateDataMax(data, keys);
+
+  return { totalSum, totalMax };
+};

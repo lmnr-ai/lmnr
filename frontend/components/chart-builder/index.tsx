@@ -19,7 +19,7 @@ const ChartBuilderCore = () => {
     chartConfig,
     setChartType,
     setXColumn,
-    toggleYColumn,
+    setYColumn,
     setBreakdownColumn,
     setShowTotal,
     columns,
@@ -31,7 +31,7 @@ const ChartBuilderCore = () => {
     chartConfig: state.chartConfig,
     setChartType: state.setChartType,
     setXColumn: state.setXColumn,
-    toggleYColumn: state.toggleYColumn,
+    setYColumn: state.setYColumn,
     setBreakdownColumn: state.setBreakdownColumn,
     setShowTotal: state.setShowTotal,
     columns: state.columns,
@@ -50,7 +50,7 @@ const ChartBuilderCore = () => {
       case "x":
         return chartConfig.x === columnName;
       case "y":
-        return chartConfig.y.includes(columnName);
+        return chartConfig.y === columnName;
       case "breakdown":
         return chartConfig.breakdown === columnName;
       default:
@@ -154,7 +154,7 @@ const ChartBuilderCore = () => {
                                   <div>
                                     <Switch
                                       checked={isColumnSelected(column.name, "y")}
-                                      onCheckedChange={() => toggleYColumn(column.name)}
+                                      onCheckedChange={(checked) => setYColumn(checked ? column.name : undefined)}
                                       disabled={
                                         !canSelectForYAxis(column.name) || isColumnSelected(column.name, "breakdown")
                                       }

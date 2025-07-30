@@ -3,14 +3,14 @@ import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "rech
 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateDataMax, createAxisFormatter, generateChartConfig, getChartMargins } from "./utils";
+import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
   x: string;
-  y: string[];
-  keys?: Set<string>;
-  chartConfig?: ChartConfig;
+  y: string;
+  keys: string[];
+  chartConfig: ChartConfig;
   total?: boolean;
 }
 
@@ -28,19 +28,8 @@ const measureText14Inter = (text: string): number => {
 
 const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: HorizontalBarChartProps) => {
   const valueColumn = x;
-  const categoryColumn = y[0];
+  const categoryColumn = y;
 
-  const finalChartConfig = useMemo(() => {
-    if (chartConfig) return chartConfig;
-    return generateChartConfig([valueColumn]);
-  }, [chartConfig, valueColumn]);
-
-  const finalKeys = useMemo(() => {
-    if (keys) return Array.from(keys);
-    return [valueColumn];
-  }, [keys, valueColumn]);
-
-  const dataMax = useMemo(() => calculateDataMax(data, [valueColumn]), [data, valueColumn]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, categoryColumn), [data, categoryColumn]);
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, valueColumn), [data, valueColumn]);
 
@@ -57,22 +46,27 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
     [data, valueColumn, yAxisFormatter]
   );
 
-  const totalSum = useMemo(() => {
-    if (!total) return 0;
-    return data.reduce((sum, row) => {
-      const value = Number(row[valueColumn]) || 0;
-      return sum + value;
-    }, 0);
-  }, [data, valueColumn, total]);
+  const { totalSum, totalMax } = useMemo(
+    () => calculateChartTotals(data, [valueColumn], total),
+    [data, valueColumn, total]
+  );
+
+  const chartHeight = useMemo(() => {
+    const barSize = 32;
+    const barGap = 0;
+    const margins = 24;
+
+    return data.length * (barSize + barGap) + margins;
+  }, [data.length]);
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
       {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
-      <ChartContainer config={finalChartConfig} className="aspect-auto h-full w-full">
+      <ChartContainer config={chartConfig} className="w-full" style={{ height: chartHeight }}>
         <RechartsBarChart
           barSize={32}
-          barGap={1}
-          barCategoryGap={1}
+          barGap={0}
+          barCategoryGap={0}
           layout="vertical"
           data={data}
           margin={{ ...getChartMargins(), right: maxTextWidth }}
@@ -82,7 +76,7 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
             type="number"
             tickLine={false}
             tickMargin={8}
-            domain={[0, dataMax]}
+            domain={[0, totalMax]}
             tickFormatter={xAxisFormatter}
           />
           <YAxis
@@ -110,8 +104,8 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
             }}
           />
           <ChartTooltip content={<ChartTooltipContent />} />
-          {finalKeys.map((key) => {
-            const config = finalChartConfig[key];
+          {keys.map((key) => {
+            const config = chartConfig[key];
             if (!config) return null;
 
             return (

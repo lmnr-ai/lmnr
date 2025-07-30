@@ -11,28 +11,26 @@ import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 
-const SQL_SPAN_SUMMARY_CHARTS = [
+const CHARTS: { title: string; query: string; chartConfig: ChartConfig }[] = [
   {
-    title: "Spans",
+    title: "Top Spans",
     query: `
         SELECT
             name,
             COUNT(span_id) AS value
         FROM spans
         WHERE
-            name != '<null>'
-          AND span_type in [0, 1]
-          AND start_time >= fromUnixTimestamp({start_time: UInt32})
+          start_time >= fromUnixTimestamp({start_time: UInt32})
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY name
         ORDER BY value DESC
-            LIMIT 5
+        LIMIT 5
     `,
     chartConfig: {
       total: true,
       type: ChartType.HorizontalBarChart,
       x: "value",
-      y: ["name"],
+      y: "name",
     },
   },
   {
@@ -44,20 +42,19 @@ const SQL_SPAN_SUMMARY_CHARTS = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type in [0, 1]
+          AND span_type = 1
           AND start_time >= fromUnixTimestamp({start_time: UInt32})
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY model
         ORDER BY value DESC
-            LIMIT 5
+        LIMIT 5
     `,
     chartConfig: {
       total: true,
       type: ChartType.HorizontalBarChart,
       x: "value",
-      y: ["model"],
+      y: "model",
     },
-    addDollarSign: true,
   },
   {
     title: "Top Model Tokens",
@@ -68,18 +65,18 @@ const SQL_SPAN_SUMMARY_CHARTS = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type in [0, 1]
+          AND span_type = 1
           AND start_time >= fromUnixTimestamp({start_time: UInt32})
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY model
         ORDER BY value DESC
-            LIMIT 5
+        LIMIT 5
     `,
     chartConfig: {
       total: true,
       type: ChartType.HorizontalBarChart,
       x: "value",
-      y: ["model"],
+      y: "model",
     },
   },
   {
@@ -91,7 +88,7 @@ const SQL_SPAN_SUMMARY_CHARTS = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type in [0, 1]
+          AND span_type = 1
           AND start_time >= fromUnixTimestamp({start_time: UInt32})
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY model
@@ -102,20 +99,18 @@ const SQL_SPAN_SUMMARY_CHARTS = [
       total: true,
       type: ChartType.HorizontalBarChart,
       x: "value",
-      y: ["model"],
+      y: "model",
     },
   },
-];
 
-const SQL_LINE_CHARTS: { title: string; query: string; chartConfig: ChartConfig }[] = [
   {
-    title: "Latency by model",
+    title: "Latency by model (p90)",
     query: `
         SELECT
             CASE
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
-                ELSE toStartOfDay(start_time)
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
                 END AS time,
             model,
             quantile(0.9)(end_time - start_time) AS value
@@ -126,23 +121,30 @@ const SQL_LINE_CHARTS: { title: string; query: string; chartConfig: ChartConfig 
           AND start_time >= fromUnixTimestamp({start_time: UInt32})
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY time, model
-        ORDER BY time, model
-    `,
+        ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
+            `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
       breakdown: "model",
     },
   },
   {
-    title: "Tokens by model",
+    title: "Tokens by model (sum)",
     query: `
         SELECT
             CASE 
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
-                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
             END AS time,
             model,
             sum(total_tokens) AS value
@@ -153,23 +155,30 @@ const SQL_LINE_CHARTS: { title: string; query: string; chartConfig: ChartConfig 
             AND start_time >= fromUnixTimestamp({start_time: UInt32})
             AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY time, model
-        ORDER BY time, model
+        ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
     `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
       breakdown: "model",
     },
   },
   {
-    title: "Cost by model",
+    title: "Cost by model (sum)",
     query: `
         SELECT
             CASE 
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
-                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
             END AS time,
             model,
             sum(total_cost) AS value
@@ -180,33 +189,32 @@ const SQL_LINE_CHARTS: { title: string; query: string; chartConfig: ChartConfig 
             AND start_time >= fromUnixTimestamp({start_time: UInt32})
             AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY time, model
-        ORDER BY time, model
+        ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
     `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
       breakdown: "model",
     },
   },
-];
 
-const SQL_TRACE_LINE_CHARTS: {
-  title: string;
-  query: string;
-  chartConfig: ChartConfig;
-  addDollarSign?: boolean;
-  showTotal?: boolean;
-}[] = [
   {
     title: "Trace latency (p90)",
     query: `
         WITH trace_durations AS (
             SELECT
                 CASE
-                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
-                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)
-                    ELSE toStartOfDay(start_time)
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                    ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
                     END as time,
             toFloat64(COALESCE((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1e9, 0)) as duration
         FROM traces
@@ -219,11 +227,18 @@ const SQL_TRACE_LINE_CHARTS: {
         FROM trace_durations
         GROUP BY time
         ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
     `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
     },
   },
   {
@@ -231,9 +246,9 @@ const SQL_TRACE_LINE_CHARTS: {
     query: `
         SELECT
             CASE
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time) 
-                ELSE toStartOfDay(start_time)
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
                 END AS time,
             sum(total_tokens) AS value
         FROM spans
@@ -243,23 +258,29 @@ const SQL_TRACE_LINE_CHARTS: {
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY time
         ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
     `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
       total: true,
     },
-    showTotal: true,
   },
   {
     title: "Total cost",
     query: `
         SELECT
             CASE
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)  -- 1 hour or less: minute intervals
-                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 1 day or less: hour intervals  
-                ELSE toStartOfDay(start_time)  -- More than 1 day: day intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
                 END AS time,
             sum(total_cost) AS value
         FROM spans
@@ -269,35 +290,54 @@ const SQL_TRACE_LINE_CHARTS: {
           AND start_time <= fromUnixTimestamp({end_time: UInt32})
         GROUP BY time
         ORDER BY time
+        WITH FILL
+        FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+            STEP CASE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+            WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+            ELSE INTERVAL 1 DAY
+        END
     `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["value"],
+      y: "value",
       total: true,
     },
-    addDollarSign: true,
-    showTotal: true,
   },
   {
     title: "Trace Status",
     query: `SELECT
                 CASE
-                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfMinute(start_time)
-                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)
-                    ELSE toStartOfDay(start_time)
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)   -- 1 hour or less: 5-minute intervals
+                    WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN toStartOfHour(start_time)   -- 24 hours or less: hour intervals
+                    ELSE toStartOfDay(start_time)  -- More than 24 hours: day intervals
                     END as time,
-            countIf(status = '') as success,
-            countIf(status = 'error') as error
-            FROM traces
-            WHERE start_time >= fromUnixTimestamp({start_time: UInt32})
-              AND start_time <= fromUnixTimestamp({end_time: UInt32})
-            GROUP BY time
-            ORDER BY time`,
+              CASE 
+                  WHEN status = '' THEN 'success'
+                  ELSE 'error'
+            END as trace_status,
+              count() as value
+          FROM traces
+          WHERE start_time >= fromUnixTimestamp({start_time: UInt32})
+            AND start_time <= fromUnixTimestamp({end_time: UInt32})
+            AND trace_type = 0
+            AND status IN ('', 'error')
+          GROUP BY time, trace_status
+          ORDER BY time
+          WITH FILL
+          FROM fromUnixTimestamp({start_time: UInt32}) TO fromUnixTimestamp({end_time: UInt32})
+              STEP CASE
+              WHEN {end_time: UInt32} - {start_time: UInt32} <= 3600 THEN INTERVAL 5 MINUTE
+              WHEN {end_time: UInt32} - {start_time: UInt32} <= 86400 THEN INTERVAL 1 HOUR
+              ELSE INTERVAL 1 DAY
+          END
+            `,
     chartConfig: {
       type: ChartType.LineChart,
       x: "time",
-      y: ["success", "error"],
+      y: "value",
+      breakdown: "trace_status",
     },
   },
 ];
@@ -332,17 +372,7 @@ export default function Dashboard() {
       <div className="flex-grow flex flex-col h-0">
         <ScrollArea className="h-full">
           <div className="grid grid-cols-3 gap-4 p-4">
-            {SQL_SPAN_SUMMARY_CHARTS.map((chart) => (
-              <div className="col-span-1 h-72" key={chart.title}>
-                <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
-              </div>
-            ))}
-            {SQL_LINE_CHARTS.map((chart) => (
-              <div className="col-span-1 h-72" key={chart.title}>
-                <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
-              </div>
-            ))}
-            {SQL_TRACE_LINE_CHARTS.map((chart) => (
+            {CHARTS.map((chart) => (
               <div className="col-span-1 h-72" key={chart.title}>
                 <Chart name={chart.title} config={chart.chartConfig} query={chart.query} />
               </div>

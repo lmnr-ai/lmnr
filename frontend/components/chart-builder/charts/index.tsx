@@ -4,7 +4,11 @@ import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-bu
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
-import { transformDataForBreakdown, transformDataForSimpleChart } from "@/components/chart-builder/charts/utils";
+import {
+  generateChartConfig,
+  transformDataForBreakdown,
+  transformDataForSimpleChart,
+} from "@/components/chart-builder/charts/utils";
 import { ChartConfig, ChartType } from "@/components/chart-builder/types";
 import { ColumnInfo } from "@/components/chart-builder/utils";
 
@@ -20,53 +24,55 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || !config.x || !config.y?.length) {
+    if (!config.type || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
     const xColumn = columns.find((col) => col.name === config.x);
-    const yColumns = config.y.map((yName) => columns.find((col) => col.name === yName)).filter(Boolean) as ColumnInfo[];
+    const yColumn = columns.find((col) => col.name === config.y);
     const breakdownColumn = config.breakdown ? columns.find((col) => col.name === config.breakdown) : undefined;
 
-    if (!xColumn || !yColumns.length) {
+    if (!xColumn || !yColumn) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
-    if (breakdownColumn && yColumns.length === 1) {
-      return transformDataForBreakdown(data, config.x, config.y[0], config.breakdown!);
+    if (breakdownColumn) {
+      return transformDataForBreakdown(data, config.x, config.y, config.breakdown!);
     }
 
-    return transformDataForSimpleChart(data, config.x, config.y);
+    return transformDataForSimpleChart(data, config.x, [config.y]);
   }, [config, data, columns]);
 
-  if (!config.type || !config.x || !config.y?.length) {
+  if (!config.type || !config.x || !config.y) {
     return (
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
         <div className="text-center">
           <p className="text">Invalid chart configuration</p>
           {!config.type && <p className="text-sm mt-1">• Chart type is required</p>}
           {!config.x && <p className="text-sm mt-1">• X-axis column is required</p>}
-          {!config.y?.length && <p className="text-sm mt-1">• At least one Y-axis column is required</p>}
+          {!config.y && <p className="text-sm mt-1">• Y-axis column is required</p>}
         </div>
       </div>
     );
   }
 
-  const baseProps = {
+  const props = {
     data: chartData,
     x: config.x,
     y: config.y,
     breakdown: config.breakdown,
     total: config.total,
+    keys: Array.from(keys),
+    chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
   };
 
-  const props = config.breakdown
-    ? {
-      ...baseProps,
-      keys: keys,
-      chartConfig: uiChartConfig,
-    }
-    : baseProps;
+  if (keys.size === 0) {
+    return (
+      <div className="flex flex-1 justify-center items-center bg-muted/30 rounded-lg">
+        <span className="text-muted-foreground text-sm">No data during this period</span>
+      </div>
+    );
+  }
 
   switch (config.type) {
     case ChartType.LineChart:

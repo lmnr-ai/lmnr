@@ -11,7 +11,7 @@ export interface ChartConfig {
   name?: string;
   type?: ChartType;
   x?: string;
-  y: string[];
+  y?: string;
   breakdown?: string;
   total?: boolean;
 }

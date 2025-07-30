@@ -63,25 +63,19 @@ export const Chart = ({ name, config, query }: ChartProps) => {
     fetchData();
   }, [fetchData]);
 
-  if (isLoading) {
-    return <Skeleton className="h-full w-full" />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full w-full text-muted-foreground">
-        <div className="text-center">
-          <p className="text">Error loading chart data</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col border rounded-lg p-4 h-full border-dashed border-border">
+    <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border">
       <span className="font-medium text-sm text-secondary-foreground">{name}</span>
-      <ChartRendererCore config={config} data={data} columns={columns} />
+      {error ? (
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <p className="text text-muted-foreground">Error loading chart data</p>
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : isLoading ? (
+        <Skeleton className="h-full w-full" />
+      ) : (
+        <ChartRendererCore config={config} data={data} columns={columns} />
+      )}
     </div>
   );
 };

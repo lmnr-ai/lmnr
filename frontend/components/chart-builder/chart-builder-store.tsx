@@ -23,13 +23,12 @@ type ChartBuilderActions = {
   setChartName: (name?: string) => void;
   setChartType: (type: ChartType) => void;
   setXColumn: (columnName?: string) => void;
-  setYColumns: (columnNames: string[]) => void;
-  toggleYColumn: (columnName: string) => void;
+  setYColumn: (columnName?: string) => void;
   setBreakdownColumn: (columnName?: string) => void;
   setShowTotal: (total: boolean) => void;
 
   getSelectedXColumn: () => ColumnInfo | undefined;
-  getSelectedYColumns: () => ColumnInfo[];
+  getSelectedYColumn: () => ColumnInfo | undefined;
   getSelectedBreakdownColumn: () => ColumnInfo | undefined;
   getAvailableBreakdownColumns: () => ColumnInfo[];
 
@@ -41,7 +40,7 @@ const defaultConfig: ChartConfig = {
   name: undefined,
   type: undefined,
   x: undefined,
-  y: [],
+  y: undefined,
   breakdown: undefined,
   total: false,
 };
@@ -80,7 +79,7 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
               ...state.chartConfig,
               type,
               x: undefined,
-              y: [],
+              y: undefined,
               breakdown: undefined,
             },
           })),
@@ -90,21 +89,10 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
             chartConfig: { ...state.chartConfig, x: columnName },
           })),
 
-        setYColumns: (columnNames) =>
+        setYColumn: (columnName) =>
           set((state) => ({
-            chartConfig: { ...state.chartConfig, y: columnNames },
+            chartConfig: { ...state.chartConfig, y: columnName },
           })),
-
-        toggleYColumn: (columnName) =>
-          set((state) => {
-            const currentY = state.chartConfig.y || [];
-            const newY = currentY.includes(columnName)
-              ? currentY.filter((name) => name !== columnName)
-              : [...currentY, columnName];
-            return {
-              chartConfig: { ...state.chartConfig, y: newY },
-            };
-          }),
 
         setBreakdownColumn: (columnName) =>
           set((state) => ({
@@ -121,11 +109,9 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
           return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
         },
 
-        getSelectedYColumns: () => {
+        getSelectedYColumn: () => {
           const { chartConfig, columns } = get();
-          return chartConfig.y
-            .map((yName) => columns.find((col) => col.name === yName))
-            .filter(Boolean) as ColumnInfo[];
+          return chartConfig.y ? columns.find((col) => col.name === chartConfig.y) : undefined;
         },
 
         getSelectedBreakdownColumn: () => {

@@ -3,55 +3,32 @@ import { CartesianGrid, Line, LineChart as RechartsLineChart, XAxis, YAxis } fro
 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateDataMax, createAxisFormatter, generateChartConfig, getChartMargins } from "./utils";
+import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
 
 interface LineChartProps {
   data: Record<string, any>[];
   x: string;
-  y: string[];
-  keys?: Set<string>;
-  chartConfig?: ChartConfig;
+  y: string;
+  keys: string[];
+  chartConfig: ChartConfig;
   total?: boolean;
 }
 
-const LineChart = ({ data, x, y, keys, chartConfig, total }: LineChartProps) => {
-  const finalChartConfig = useMemo(() => {
-    if (chartConfig) return chartConfig;
-    return generateChartConfig(y);
-  }, [chartConfig, y]);
-
-  const finalKeys = useMemo(() => {
-    if (keys) return Array.from(keys);
-    return y;
-  }, [keys, y]);
-
-  const dataMax = useMemo(() => calculateDataMax(data, y), [data, y]);
-
+const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
-  const yAxisFormatter = useMemo(() => createAxisFormatter(data, y[0] || finalKeys[0] || ""), [data, y, finalKeys]);
+  const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
   const chartMargins = useMemo(() => {
-    const yValues = data.flatMap((row) => finalKeys.map((key) => row[key])).filter((value) => value != null);
+    const yValues = data.flatMap((row) => keys.map((key) => row[key])).filter((value) => value != null);
     return getChartMargins(yValues, yAxisFormatter);
-  }, [data, finalKeys, yAxisFormatter]);
+  }, [data, keys, yAxisFormatter]);
 
-  const totalSum = useMemo(() => {
-    if (!total) return 0;
-    return data.reduce(
-      (sum, row) =>
-        sum +
-        finalKeys.reduce((keySum, key) => {
-          const value = Number(row[key]) || 0;
-          return keySum + value;
-        }, 0),
-      0
-    );
-  }, [data, finalKeys, total]);
+  const { totalSum, totalMax } = useMemo(() => calculateChartTotals(data, keys, total), [data, keys, total]);
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
       {total && <span className="font-medium text-2xl mb-2 truncate">{totalSum.toLocaleString()}</span>}
-      <ChartContainer config={finalChartConfig} className="aspect-auto h-full w-full">
+      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsLineChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />
           <XAxis
@@ -67,13 +44,13 @@ const LineChart = ({ data, x, y, keys, chartConfig, total }: LineChartProps) => 
             axisLine={false}
             tickMargin={8}
             tickCount={5}
-            domain={["auto", dataMax]}
+            domain={["auto", totalMax]}
             width={32}
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip content={<ChartTooltipContent />} />
-          {finalKeys.map((key) => {
-            const config = finalChartConfig[key];
+          {keys.map((key) => {
+            const config = chartConfig[key];
             if (!config) return null;
             return <Line key={key} dataKey={key} dot={false} stroke={config.color} fill={config.color} />;
           })}
