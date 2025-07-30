@@ -23,9 +23,18 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     },
   });
 
-  if (projectIds.length === 0 || !resetTime) {
+  if (!resetTime) {
     throw new Error("Workspace not found");
   }
+
+  if (projectIds.length === 0) {
+    return {
+      spansBytesIngested: 0,
+      browserSessionEventsBytesIngested: 0,
+      resetTime: new Date(resetTime.resetTime),
+    };
+  }
+
 
   const resetTimeDate = new Date(resetTime.resetTime);
 

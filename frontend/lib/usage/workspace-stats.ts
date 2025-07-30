@@ -5,7 +5,6 @@ import {
   membersOfWorkspaces,
   subscriptionTiers,
   workspaces,
-  workspaceUsage,
 } from "@/lib/db/migrations/schema";
 
 import { getWorkspaceUsage } from "../actions/workspaces";
@@ -30,10 +29,9 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
       storageLimit: subscriptionTiers.storageMib,
       bytesLimit: subscriptionTiers.bytesIngested,
     })
-    .from(workspaceUsage)
-    .innerJoin(workspaces, eq(workspaces.id, workspaceUsage.workspaceId))
+    .from(workspaces)
     .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
-    .where(eq(workspaceUsage.workspaceId, workspaceId))
+    .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
   if (!limitsRows[0]) {
