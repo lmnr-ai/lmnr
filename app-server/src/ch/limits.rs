@@ -54,20 +54,27 @@ pub async fn is_workspace_over_limit(
       FROM browser_session_events
       WHERE project_id IN { project_ids: Array(UUID) }
       AND browser_session_events.timestamp >= { latest_reset_time: DateTime(6) }
+    ),
+    events_bytes_ingested AS (
+      SELECT
+        SUM(events.size_bytes) as events_bytes_ingested
+      FROM events
+      WHERE project_id IN { project_ids: Array(UUID) }
+      AND events.timestamp >= { latest_reset_time: DateTime(6) }
     )
     SELECT
-      spans_bytes_ingested + browser_session_events_bytes_ingested as total_bytes_ingested
-    FROM spans_bytes_ingested, browser_session_events_bytes_ingested
+      spans_bytes_ingested + browser_session_events_bytes_ingested + events_bytes_ingested as total_bytes_ingested
+    FROM spans_bytes_ingested, browser_session_events_bytes_ingested, events_bytes_ingested
     ";
 
     let total_bytes_ingested = clickhouse
         .query(&query)
         .param("project_ids", project_ids)
         .param("latest_reset_time", latest_reset_time.naive_utc())
-        .fetch_all::<usize>()
+        .fetch_optional::<usize>()
         .await?;
 
-    let Some(bytes_ingested) = total_bytes_ingested.get(0) else {
+    let Some(bytes_ingested) = total_bytes_ingested else {
         log::error!("No bytes ingested found for workspace in ClickHouse");
         return Ok(WorkspaceLimitsExceeded {
             steps: false,
@@ -76,7 +83,7 @@ pub async fn is_workspace_over_limit(
     };
 
     Ok(WorkspaceLimitsExceeded {
-        bytes_ingested: *bytes_ingested > (bytes_limit.abs() as usize),
+        bytes_ingested: bytes_ingested > (bytes_limit.abs() as usize),
         steps: false,
     })
 }

@@ -85,6 +85,7 @@ export async function register() {
       console.log("✓ Postgres data initialized successfully");
 
       // Run ClickHouse schema application
+      console.log("Applying ClickHouse schema. This may take a while...");
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
     } else {
