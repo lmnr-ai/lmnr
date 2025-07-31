@@ -1,11 +1,11 @@
 use serde_json::Value;
-use std::{env, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 use uuid::Uuid;
 
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
-    parameters: Option<Value>,
+    parameters: HashMap<String, Value>,
     client: &Arc<reqwest::Client>,
 ) -> Result<Value, anyhow::Error> {
     let query_engine_url = env::var("QUERY_ENGINE_URL").map_err(|_| {

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
@@ -13,7 +13,7 @@ use super::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
-    pub parameters: Option<Value>,
+    pub parameters: HashMap<String, Value>,
 }
 
 #[post("sql/query")]

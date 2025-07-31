@@ -1,25 +1,21 @@
-'use client';
+"use client";
 
-import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
 }
 
-export default function CreateFirstWorkspaceAndProject({
-  name
-}: CreateFirstWorkspaceAndProjectProps) {
-  const [workspaceName, setWorkspaceName] = useState(
-    name ? `${name}'s workspace` : ''
-  );
-  const [projectName, setProjectName] = useState('');
+export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWorkspaceAndProjectProps) {
+  const [workspaceName, setWorkspaceName] = useState(name ? `${name}'s workspace` : "");
+  const [projectName, setProjectName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
@@ -28,31 +24,21 @@ export default function CreateFirstWorkspaceAndProject({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/workspaces', {
-        method: 'POST',
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
         body: JSON.stringify({
           name: workspaceName,
-          projectName
-        })
+          projectName,
+        }),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create workspace');
+        throw new Error("Failed to create workspace");
       }
 
       const newWorkspace = (await res.json()) as WorkspaceWithProjects;
 
       // Populate default dashboard charts for the created project
-      if (newWorkspace.projects.length > 0) {
-        try {
-          await fetch(`/api/projects/${newWorkspace.projects[0].id}/dashboard-charts`, {
-            method: 'POST'
-          });
-        } catch (error) {
-          console.error('Failed to populate dashboard charts:', error);
-          // Continue without failing the onboarding process
-        }
-      }
 
       // As we want user to start from traces page, redirect to it
       // Expect the workspace to contain exactly one created project
@@ -60,7 +46,7 @@ export default function CreateFirstWorkspaceAndProject({
       // We don't need to set isLoading to false, as we are redirecting.
       // Redirect itself takes some time, so we need the button to be disabled
     } catch (error) {
-      console.error('Error during onboarding:', error);
+      console.error("Error during onboarding:", error);
       setIsLoading(false);
     }
   };
@@ -68,13 +54,9 @@ export default function CreateFirstWorkspaceAndProject({
   return (
     <div className="max-w-4xl mx-auto mt-12 p-6 rounded-lg shadow-md">
       <div className="flex flex-col">
-        <h2 className="text-2xl font-semibold mb-4">
-          Create workspace and first project
-        </h2>
+        <h2 className="text-2xl font-semibold mb-4">Create workspace and first project</h2>
         <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">
-            Workspace Name
-          </Label>
+          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Workspace Name</Label>
           <Input
             type="text"
             placeholder="Workspace name"
@@ -83,9 +65,7 @@ export default function CreateFirstWorkspaceAndProject({
           />
         </div>
         <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">
-            Project Name
-          </Label>
+          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Project Name</Label>
           <Input
             type="text"
             placeholder="Project name"
