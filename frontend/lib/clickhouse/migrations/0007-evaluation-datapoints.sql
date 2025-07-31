@@ -7,9 +7,9 @@ CREATE TABLE IF NOT EXISTS default.evaluation_datapoints
     `created_at` DateTime64(9, 'UTC'),
     `data` String CODEC(ZSTD(3)),
     `target` String CODEC(ZSTD(3)),
-    `metadata` String CODEC(ZSTD(3))
+    `metadata` String CODEC(ZSTD(3)),
     `index` UInt64
 )
 ENGINE = MergeTree()
 ORDER BY (project_id, evaluation_id, `index`)
-SETTINGS index_granularity = 8192; 
+SETTINGS index_granularity = 8192;
