@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::trace::TraceType;
@@ -21,7 +22,7 @@ pub struct TraceAttributes {
     pub session_id: Option<String>,
     pub trace_type: Option<TraceType>,
     pub status: Option<String>,
-    pub metadata: Option<HashMap<String, String>>,
+    pub metadata: Option<HashMap<String, Value>>,
     pub has_browser_session: Option<bool>,
     pub top_span_id: Option<Uuid>,
     pub user_id: Option<String>,
@@ -83,7 +84,7 @@ impl TraceAttributes {
         self.trace_type = trace_type;
     }
 
-    pub fn set_metadata(&mut self, metadata: Option<HashMap<String, String>>) {
+    pub fn set_metadata(&mut self, metadata: Option<HashMap<String, Value>>) {
         self.metadata = metadata;
     }
 

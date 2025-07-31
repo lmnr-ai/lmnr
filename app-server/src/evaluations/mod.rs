@@ -5,7 +5,10 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::{
-    ch::evaluation_scores::{EvaluationScore, insert_evaluation_scores},
+    ch::{
+        evaluation_datapoints::insert_evaluation_datapoints,
+        evaluation_scores::{EvaluationScore, insert_evaluation_scores},
+    },
     db::{self, DB},
 };
 use utils::{EvaluationDatapointResult, get_columns_from_points};
@@ -54,9 +57,16 @@ pub async fn save_evaluation_scores(
         Utc::now(),
     );
 
-    let ch_task = tokio::spawn(insert_evaluation_scores(
+    let ch_task_scores = tokio::spawn(insert_evaluation_scores(
         clickhouse.clone(),
         ch_evaluation_scores,
+    ));
+
+    let ch_task_datapoints = tokio::spawn(insert_evaluation_datapoints(
+        clickhouse.clone(),
+        points,
+        evaluation_id,
+        project_id,
     ));
 
     // Update trace types synchronously (upsert eliminates race conditions)
@@ -70,10 +80,12 @@ pub async fn save_evaluation_scores(
         .await?;
     }
 
-    let (db_result, ch_result) = tokio::join!(db_task, ch_task);
+    let (db_result, ch_result_scores, ch_result_datapoints) =
+        tokio::join!(db_task, ch_task_scores, ch_task_datapoints);
 
     db_result.map_err(|e| anyhow::anyhow!("Database task failed: {}", e))??;
-    ch_result.map_err(|e| anyhow::anyhow!("Clickhouse task failed: {}", e))??;
+    ch_result_scores.map_err(|e| anyhow::anyhow!("Clickhouse task failed: {}", e))??;
+    ch_result_datapoints.map_err(|e| anyhow::anyhow!("Clickhouse task failed: {}", e))??;
 
     Ok(())
 }
