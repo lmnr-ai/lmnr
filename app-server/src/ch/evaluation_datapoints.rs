@@ -57,6 +57,17 @@ pub async fn insert_evaluation_datapoints(
         return Ok(());
     }
 
+    // The function is called twice - on datapoint creation and on datapoint update
+    // We check if there any scores to only insert datapoints once
+    let num_scores = evaluation_datapoints
+        .iter()
+        .map(|point| point.scores.len())
+        .sum::<usize>();
+
+    if num_scores == 0 {
+        return Ok(());
+    }
+
     let ch_insert = clickhouse.insert("evaluation_datapoints");
     match ch_insert {
         Ok(mut ch_insert) => {
