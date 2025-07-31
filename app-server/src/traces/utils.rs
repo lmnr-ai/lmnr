@@ -142,7 +142,7 @@ pub async fn record_spans<'a>(
     Ok(())
 }
 
-pub async fn record_spans_batch<'a>(
+pub async fn record_spans_batch(
     db: Arc<DB>,
     spans: &[Span],
     trace_attributes_vec: &[TraceAttributes],

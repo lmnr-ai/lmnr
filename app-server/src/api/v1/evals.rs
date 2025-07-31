@@ -108,7 +108,7 @@ pub async fn update_eval_datapoint(
             .await?;
 
     // Update database (PostgreSQL)
-    db::evaluations::update_evaluation_datapoint(
+    let trace_id = db::evaluations::update_evaluation_datapoint_and_get_trace_id(
         &db.pool,
         eval_id,
         datapoint_id,
@@ -124,6 +124,7 @@ pub async fn update_eval_datapoint(
         group_id,
         eval_id,
         datapoint_id,
+        trace_id,
         scores_clone,
     )
     .await?;

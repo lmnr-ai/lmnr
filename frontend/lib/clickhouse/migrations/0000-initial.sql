@@ -47,12 +47,11 @@ CREATE TABLE IF NOT EXISTS default.evaluation_scores (
     evaluation_id UUID,
     result_id UUID,
     name String,
-    value Nullable(Float64),
+    value Float64,
     label_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'
 ) ENGINE = MergeTree()
 ORDER BY (project_id, group_id, timestamp, evaluation_id, name)
-SETTINGS index_granularity = 8192
-SETTINGS flatten_nested=0;
+SETTINGS index_granularity = 8192;
 
 CREATE TABLE IF NOT EXISTS default.labels
 (
@@ -80,8 +79,7 @@ CREATE TABLE IF NOT EXISTS default.browser_session_events
     `project_id` UUID,
 )
 ENGINE = MergeTree
-PARTITION BY (toYYYYMM(timestamp), project_id)
-ORDER BY (session_id, timestamp)
+ORDER BY (project_id, trace_id, timestamp)
 SETTINGS index_granularity = 8192;
 
 

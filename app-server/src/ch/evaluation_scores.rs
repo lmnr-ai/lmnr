@@ -31,6 +31,8 @@ pub struct EvaluationScore {
     pub value: f64,
     #[serde(serialize_with = "serialize_timestamp")]
     pub timestamp: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
 }
 
 impl EvaluationScore {
@@ -65,6 +67,7 @@ impl EvaluationScore {
                         // produce a score.
                         value: value.unwrap_or(0.0),
                         timestamp,
+                        trace_id: point.trace_id,
                     }
                 })
             })
@@ -283,6 +286,7 @@ pub async fn insert_updated_evaluation_scores(
     group_id: String,
     evaluation_id: Uuid,
     result_id: Uuid,
+    trace_id: Uuid,
     scores: HashMap<String, Option<f64>>,
 ) -> Result<()> {
     if scores.is_empty() {
@@ -298,6 +302,7 @@ pub async fn insert_updated_evaluation_scores(
             result_id,
             name,
             value: value.unwrap_or(0.0), // Replace None with 0.0 for ClickHouse
+            trace_id,
             timestamp: Utc::now(),
         })
         .collect();

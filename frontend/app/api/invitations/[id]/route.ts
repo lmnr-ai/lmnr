@@ -16,9 +16,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { workspaceId, action } = (await req.json()) as {
+  const { workspaceId, action, email } = (await req.json()) as {
     workspaceId: string;
     action: "accept" | "decline";
+    email: string;
   };
 
   if (!workspaceId) {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   const invitation = await db.query.workspaceInvitations.findFirst({
-    where: and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.email, user.email ?? "")),
+    where: and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.email, email)),
   });
 
   if (!invitation) {

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     sync::{Arc, LazyLock},
 };
@@ -414,24 +414,24 @@ impl SpanAttributes {
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
         match attr_tags.or(attr_labels) {
-            Some(Value::Array(arr)) => arr.iter().map(|v| json_value_to_string(v)).collect(),
+            Some(Value::Array(arr)) => arr
+                .iter()
+                .map(|v| json_value_to_string(v))
+                .collect::<HashSet<String>>()
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         }
     }
 
-    pub fn metadata(&self) -> Option<HashMap<String, String>> {
+    pub fn metadata(&self) -> Option<HashMap<String, Value>> {
         let mut metadata = self.get_flattened_association_properties("metadata");
         let ai_sdk_metadata = self.get_flattened_properties("ai", "telemetry.metadata");
         metadata.extend(ai_sdk_metadata);
         if metadata.is_empty() {
             None
         } else {
-            Some(
-                metadata
-                    .into_iter()
-                    .map(|(k, v)| (k, json_value_to_string(&v)))
-                    .collect(),
-            )
+            Some(metadata)
         }
     }
 

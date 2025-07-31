@@ -19,17 +19,14 @@ interface WorkspaceUsageProps {
 const TIER_USAGE_HINTS = {
   free: {
     data: "1GB",
-    steps: "500",
     isOverageAllowed: false,
   },
   hobby: {
     data: "2GB",
-    steps: "2500",
     isOverageAllowed: true,
   },
   pro: {
     data: "5GB",
-    steps: "5000",
     isOverageAllowed: true,
   },
 };
@@ -54,13 +51,12 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
 
   const tierHintInfo = TIER_USAGE_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_USAGE_HINTS];
   const tierHint =
-    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data and ` +
-    `${tierHintInfo?.steps ?? "unlimited"} Index agent steps included per month.`;
+    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data per month.`;
 
   const tierHintOverages =
     "If you exceed this limit, " +
     (tierHintInfo?.isOverageAllowed
-      ? "you will be charged $2 per GB for additional data and $10 per 1k agent steps."
+      ? "you will be charged $2 per GB for additional data."
       : "you won't be able to send any more data during current billing cycle.");
 
   return (
@@ -104,9 +100,8 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
       <div className="flex flex-col gap-8 mt-4">
         <div className="flex flex-col gap-2">
           <span className="font-semibold text-lg">Usage Summary</span>
-          <p className="text-secondary-foreground text-sm mb-2">
-            {tierHint} <br />
-            {tierHintOverages}
+          <p className="text-secondary-foreground text-sm mb-2 max-w-lg">
+            {tierHint} {tierHintOverages}
           </p>
         </div>
         <div className="grid grid-cols-1 max-w-xl md:grid-cols-2 sm:divide-y md:divide-y-0 md:divide-x">

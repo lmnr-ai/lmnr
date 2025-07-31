@@ -32,7 +32,6 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
               "1GB data / month",
               "15 day data retention",
               "1 team member",
-              "500 Index agent steps / month",
               "Community support",
             ]}
           />
@@ -54,14 +53,12 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
               "2GB data / month included",
               "30 day data retention",
               "2 team members",
-              "2500 Index agent steps / month",
               "Priority email support",
             ]}
             subfeatures={[
               "then $2 per 1GB of additional data",
               null,
               null,
-              "then $10 per 1k steps",
               null,
             ]}
           />
@@ -83,14 +80,12 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
               "5GB data / month included",
               "90 day data retention",
               "3 team members included",
-              "5000 Index agent steps / month",
               "Private Slack channel",
             ]}
             subfeatures={[
               "then $2 per 1GB of additional data",
               null,
               "then $25 per additional team member",
-              "then $10 per 1k steps",
               null,
             ]}
           />
@@ -123,7 +118,6 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
             features={[
               "Custom data retention",
               "Custom team members",
-              "Custom agent steps",
               "On-premise deployment",
               "Dedicated support",
             ]}
