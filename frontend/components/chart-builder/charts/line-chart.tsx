@@ -9,12 +9,13 @@ interface LineChartProps {
   data: Record<string, any>[];
   x: string;
   y: string;
+  breakdown?: string;
   keys: string[];
   chartConfig: ChartConfig;
   total?: boolean;
 }
 
-const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
+const LineChart = ({ data, x, y, breakdown, keys, chartConfig, total }: LineChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
@@ -27,7 +28,11 @@ const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
+      {total && (
+        <span className="font-medium text-2xl mb-2 truncate min-h-fit" style={{ marginLeft: chartMargins.left }}>
+          {totalSum.toLocaleString()}
+        </span>
+      )}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsLineChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />
@@ -50,7 +55,14 @@ const LineChart = ({ data, x, keys, chartConfig, total }: LineChartProps) => {
             style={{ fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={yAxisFormatter}
           />
-          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelKey={breakdown || x}
+                labelFormatter={(_, p) => xAxisFormatter(p[0].payload[breakdown || x])}
+              />
+            }
+          />
           {keys.map((key) => {
             const config = chartConfig[key];
             if (!config) return null;

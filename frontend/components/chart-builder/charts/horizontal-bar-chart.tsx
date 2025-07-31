@@ -103,7 +103,9 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
               transform: `translate(${maxTextWidth}, 0)`,
             }}
           />
-          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartTooltip
+            content={<ChartTooltipContent labelKey={x} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[x])} />}
+          />
           {keys.map((key) => {
             const config = chartConfig[key];
             if (!config) return null;

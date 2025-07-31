@@ -1,7 +1,11 @@
 import { Upload } from "lucide-react";
 import React from "react";
 
-import { ChartBuilderStoreProvider, useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
+import {
+  ChartBuilderProps,
+  ChartBuilderStoreProvider,
+  useChartBuilderStoreContext,
+} from "@/components/chart-builder/chart-builder-store";
 import ChartRenderer from "@/components/chart-builder/charts";
 import ExportChartDialog from "@/components/chart-builder/export-chart-dialog";
 import { ChartType, chartTypeLabelMap } from "@/components/chart-builder/types";
@@ -223,12 +227,8 @@ const ChartBuilderCore = () => {
   );
 };
 
-interface ChartBuilderProps {
-  data: Record<string, any>[];
-}
-
-const ChartBuilder = ({ data }: ChartBuilderProps) => (
-  <ChartBuilderStoreProvider data={data}>
+const ChartBuilder = ({ data, query }: ChartBuilderProps) => (
+  <ChartBuilderStoreProvider data={data} query={query}>
     <ChartBuilderCore />
   </ChartBuilderStoreProvider>
 );

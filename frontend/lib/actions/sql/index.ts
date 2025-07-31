@@ -11,8 +11,8 @@ const ExecuteQuerySchema = z.object({
   apiKey: z.string().min(1, { error: "API key is required" }),
   parameters: z
     .object({
-      start_time: z.string(),
-      end_time: z.string(),
+      start_time: z.string().optional(),
+      end_time: z.string().optional(),
     })
     .optional(),
 });

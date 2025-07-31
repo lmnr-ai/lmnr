@@ -16,6 +16,8 @@ type ChartBuilderState = {
   chartConfig: ChartConfig;
   columns: ColumnInfo[];
   data: DataRow[];
+  name: string | undefined;
+  query: string;
 };
 
 type ChartBuilderActions = {
@@ -37,7 +39,6 @@ type ChartBuilderActions = {
 };
 
 const defaultConfig: ChartConfig = {
-  name: undefined,
   type: undefined,
   x: undefined,
   y: undefined,
@@ -48,12 +49,15 @@ const defaultConfig: ChartConfig = {
 type ChartBuilderStore = ChartBuilderState & ChartBuilderActions;
 type ChartBuilderStoreApi = ReturnType<typeof createChartBuilderStore>;
 
-interface ChartBuilderProps {
+export interface ChartBuilderProps {
   data: DataRow[];
+  query: string;
 }
 
-const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
+const createChartBuilderStore = (props: ChartBuilderProps) => {
   const chartState: ChartBuilderState = {
+    query: props.query,
+    name: undefined,
     chartConfig: defaultConfig,
     columns: transformDataToColumns(props?.data || []),
     data: props?.data || [],
@@ -69,8 +73,8 @@ const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
           })),
 
         setChartName: (name) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, name },
+          set(() => ({
+            name: name,
           })),
 
         setChartType: (type) =>

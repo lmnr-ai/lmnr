@@ -1,4 +1,4 @@
-import { format, isValid, parseISO } from "date-fns";
+import { format, intervalToDuration, isValid, parseISO } from "date-fns";
 
 import { ChartConfig } from "@/components/ui/chart";
 
@@ -15,31 +15,27 @@ export const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
-export const tryFormatAsDate = (value: any, formatPattern: string = "MMM dd"): string => {
+const tryFormatAsDate = (value: any, formatPattern: string = "M/dd"): string => {
+  const toUtcString = (str: string) => (str.includes("T") && !str.endsWith("Z") ? str + "Z" : str);
+
+  const parseValue = (val: any) =>
+    val instanceof Date
+      ? val
+      : typeof val === "string"
+        ? parseISO(toUtcString(val))
+        : typeof val === "number"
+          ? new Date(val)
+          : null;
+
   try {
-    let date: Date;
-
-    if (value instanceof Date) {
-      date = value;
-    } else if (typeof value === "string") {
-      date = value.includes("T") ? parseISO(value) : new Date(value);
-    } else if (typeof value === "number") {
-      date = new Date(value);
-    } else {
-      return String(value);
-    }
-
-    if (isValid(date)) {
-      return format(date, formatPattern);
-    }
-
-    return String(value);
+    const date = parseValue(value);
+    return date && isValid(date) ? format(date, formatPattern) : String(value);
   } catch {
     return String(value);
   }
 };
 
-export const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): string => {
+const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): string => {
   try {
     const dates = data
       .map((row) => {
@@ -55,22 +51,20 @@ export const getOptimalDateFormat = (data: Record<string, any>[], dataKey: strin
       })
       .filter((date) => date && isValid(date)) as Date[];
 
-    if (dates.length < 2) return "MMM dd";
+    if (dates.length < 2) return "M/dd";
 
     const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
 
-    if (minDate.toDateString() === maxDate.toDateString()) {
+    const duration = intervalToDuration({ start: minDate, end: maxDate });
+
+    if (duration.days && duration.days > 0) {
+      return "M/dd";
+    } else {
       return "HH:mm";
     }
-
-    if (minDate.getFullYear() !== maxDate.getFullYear()) {
-      return "MMM dd, yyyy";
-    }
-
-    return "MMM dd";
   } catch {
-    return "MMM dd";
+    return "M/dd";
   }
 };
 
@@ -117,7 +111,7 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
     );
 
     return {
-      left: Math.max(12, longestLabel.length * 3),
+      left: Math.max(4, longestLabel.length * 3),
       right: 0,
       top: 0,
       bottom: 0,

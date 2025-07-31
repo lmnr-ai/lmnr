@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
 import {
   AlertCircle,
+  Braces,
   ChartArea,
   ChevronDown,
   Database,
@@ -13,11 +14,12 @@ import {
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { ReactNode, useCallback, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import SQLEditor from "@/components/sql/editor";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
+import { ParametersPanel } from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
@@ -33,8 +35,9 @@ export default function EditorPanel() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { template } = useSqlEditorStore((state) => ({
+  const { template, getFormattedParameters } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
+    getFormattedParameters: state.getFormattedParameters,
   }));
 
   const hasQuery = Boolean(template?.query?.trim());
@@ -77,10 +80,11 @@ export default function EditorPanel() {
     setError(null);
 
     try {
+      const parameters = getFormattedParameters();
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, parameters }),
       });
 
       const data = await response.json();
@@ -98,7 +102,7 @@ export default function EditorPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, template?.query, toast]);
+  }, [projectId, template?.query, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input", "textarea"],
@@ -111,8 +115,8 @@ export default function EditorPanel() {
       default: defaultContent,
       loadingText = "Executing query...",
     }: {
-      success: () => React.ReactNode;
-      default: () => React.ReactNode;
+      success: () => ReactNode;
+      default: () => ReactNode;
       loadingText?: string;
     }) => {
       if (isLoading) {
@@ -171,6 +175,10 @@ export default function EditorPanel() {
               <ChartArea className="mr-2 w-4 h-4" />
               <span>Chart</span>
             </TabsTrigger>
+            <TabsTrigger value="parameters">
+              <Braces className="mr-2 w-4 h-4" />
+              <span>Parameters</span>
+            </TabsTrigger>
             <div className="ml-auto py-2">
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tr-none rounded-br-none border-r-0">
@@ -194,6 +202,7 @@ export default function EditorPanel() {
               </Button>
             </div>
           </TabsList>
+
           <TabsContent asChild value="table">
             <div className="size-full">
               {renderContent({
@@ -236,7 +245,7 @@ export default function EditorPanel() {
           <TabsContent asChild value="chart">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: () => <ChartBuilder data={results || []} />,
+                success: () => <ChartBuilder query={template?.query || ""} data={results || []} />,
                 loadingText: "Generating chart...",
                 default: () => (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
@@ -245,6 +254,12 @@ export default function EditorPanel() {
                   </div>
                 ),
               })}
+            </div>
+          </TabsContent>
+
+          <TabsContent asChild value="parameters">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <ParametersPanel />
             </div>
           </TabsContent>
         </Tabs>

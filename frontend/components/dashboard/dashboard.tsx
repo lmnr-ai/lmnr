@@ -39,7 +39,7 @@ export default function Dashboard() {
       </Header>
       <div className="flex-grow flex flex-col h-0">
         <ScrollArea className="h-full">
-          <div className="p-4">
+          <div className="h-full p-4">
             <GridLayout />
           </div>
         </ScrollArea>

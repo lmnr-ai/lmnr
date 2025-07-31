@@ -351,6 +351,13 @@
       "when": 1753705492930,
       "tag": "0049_harsh_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1753911968613,
+      "tag": "0050_woozy_hairball",
+      "breakpoints": true
     }
   ]
 }

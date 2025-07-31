@@ -27,23 +27,42 @@ export default function CreateFirstWorkspaceAndProject({
   const handleButtonClick = async () => {
     setIsLoading(true);
 
-    // TODO: Handle errors
+    try {
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: workspaceName,
+          projectName
+        })
+      });
 
-    const res = await fetch('/api/workspaces', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: workspaceName,
-        projectName
-      })
-    });
+      if (!res.ok) {
+        throw new Error('Failed to create workspace');
+      }
 
-    const newWorkspace = (await res.json()) as WorkspaceWithProjects;
+      const newWorkspace = (await res.json()) as WorkspaceWithProjects;
 
-    // As we want user to start from traces page, redirect to it
-    // Expect the workspace to contain exactly one created project
-    router.push(`/project/${newWorkspace.projects[0].id}/traces`);
-    // We don't need to set isLoading to false, as we are redirecting.
-    // Redirect itself takes some time, so we need the button to be disabled
+      // Populate default dashboard charts for the created project
+      if (newWorkspace.projects.length > 0) {
+        try {
+          await fetch(`/api/projects/${newWorkspace.projects[0].id}/dashboard-charts`, {
+            method: 'POST'
+          });
+        } catch (error) {
+          console.error('Failed to populate dashboard charts:', error);
+          // Continue without failing the onboarding process
+        }
+      }
+
+      // As we want user to start from traces page, redirect to it
+      // Expect the workspace to contain exactly one created project
+      router.push(`/project/${newWorkspace.projects[0].id}/traces`);
+      // We don't need to set isLoading to false, as we are redirecting.
+      // Redirect itself takes some time, so we need the button to be disabled
+    } catch (error) {
+      console.error('Error during onboarding:', error);
+      setIsLoading(false);
+    }
   };
 
   return (

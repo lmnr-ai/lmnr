@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, datapointToSpan,datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, events, labelClasses, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans, sqlTemplates, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, dashboardCharts, datapointToSpan,datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, events, labelClasses, labelingQueueItems, labelingQueues, labels, machines, membersOfWorkspaces, pipelines, pipelineVersions, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans, sqlTemplates, subscriptionTiers, targetPipelineVersions, traces, userCookies, users, userSubscriptionInfo, userSubscriptionTiers, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
   dataset: one(datasets, {
@@ -18,7 +18,15 @@ export const datasetsRelations = relations(datasets, ({one, many}) => ({
   datasetDatapoints: many(datasetDatapoints),
 }));
 
+export const dashboardChartsRelations = relations(dashboardCharts, ({one}) => ({
+  project: one(projects, {
+    fields: [dashboardCharts.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const projectsRelations = relations(projects, ({one, many}) => ({
+  dashboardCharts: many(dashboardCharts),
   datasets: many(datasets),
   workspace: one(workspaces, {
     fields: [projects.workspaceId],

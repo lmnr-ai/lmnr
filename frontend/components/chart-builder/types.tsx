@@ -8,7 +8,6 @@ export enum ChartType {
 }
 
 export interface ChartConfig {
-  name?: string;
   type?: ChartType;
   x?: string;
   y?: string;
