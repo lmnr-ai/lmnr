@@ -95,7 +95,12 @@ fn truncate_json_value(value: &Value) -> Value {
         //
         Value::String(s) if s.len() < MAX_JSON_VALUE_LENGTH => value.clone(),
         Value::Null | Value::Bool(_) | Value::Number(_) => value.clone(),
-        _ => serde_json::to_value(json_value_to_string(value).truncate(MAX_JSON_VALUE_LENGTH))
-            .unwrap_or_default(),
+        _ => serde_json::to_value(
+            json_value_to_string(value)
+                .chars()
+                .take(MAX_JSON_VALUE_LENGTH)
+                .collect::<String>(),
+        )
+        .unwrap_or_default(),
     }
 }
