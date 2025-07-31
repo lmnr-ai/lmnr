@@ -43,7 +43,7 @@ export async function PATCH(
     }
 
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart layouts. Please try again." },
+      { error: error instanceof Error ? error.message : "Failed to update chart name. Please try again." },
       { status: 500 }
     );
   }

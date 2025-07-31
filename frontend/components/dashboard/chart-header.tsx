@@ -85,7 +85,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         }
       } catch (e) {
         toast({
-          title: "Failed to delete chart. Please try again.",
+          title: "Failed to update chart. Please try again.",
           variant: "destructive",
         });
       }
