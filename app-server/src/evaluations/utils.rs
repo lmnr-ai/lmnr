@@ -4,6 +4,10 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::utils::json_value_to_string;
+
+const MAX_JSON_VALUE_LENGTH: usize = 1000;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointResult {
@@ -39,12 +43,12 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
     let ids = points.iter().map(|point| point.id).collect::<Vec<_>>();
     let datas = points
         .iter()
-        .map(|point| point.data.clone())
+        .map(|point| truncate_json_value(&point.data))
         .collect::<Vec<_>>();
 
     let targets = points
         .iter()
-        .map(|point| point.target.clone())
+        .map(|point| truncate_json_value(&point.target))
         .collect::<Vec<_>>();
 
     let metadatas = points
@@ -54,7 +58,12 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
 
     let executor_outputs = points
         .iter()
-        .map(|point| point.executor_output.clone())
+        .map(|point| {
+            point
+                .executor_output
+                .as_ref()
+                .map(|output| truncate_json_value(output))
+        })
         .collect::<Vec<_>>();
 
     let scores = points
@@ -78,5 +87,20 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         trace_ids,
         scores,
         indices,
+    }
+}
+
+fn truncate_json_value(value: &Value) -> Value {
+    match value {
+        //
+        Value::String(s) if s.len() < MAX_JSON_VALUE_LENGTH => value.clone(),
+        Value::Null | Value::Bool(_) | Value::Number(_) => value.clone(),
+        _ => serde_json::to_value(
+            json_value_to_string(value)
+                .chars()
+                .take(MAX_JSON_VALUE_LENGTH)
+                .collect::<String>(),
+        )
+        .unwrap_or_default(),
     }
 }

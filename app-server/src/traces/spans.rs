@@ -424,19 +424,14 @@ impl SpanAttributes {
         }
     }
 
-    pub fn metadata(&self) -> Option<HashMap<String, String>> {
+    pub fn metadata(&self) -> Option<HashMap<String, Value>> {
         let mut metadata = self.get_flattened_association_properties("metadata");
         let ai_sdk_metadata = self.get_flattened_properties("ai", "telemetry.metadata");
         metadata.extend(ai_sdk_metadata);
         if metadata.is_empty() {
             None
         } else {
-            Some(
-                metadata
-                    .into_iter()
-                    .map(|(k, v)| (k, json_value_to_string(&v)))
-                    .collect(),
-            )
+            Some(metadata)
         }
     }
 
