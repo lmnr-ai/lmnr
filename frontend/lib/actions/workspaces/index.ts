@@ -31,6 +31,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     return {
       spansBytesIngested: 0,
       browserSessionEventsBytesIngested: 0,
+      eventsBytesIngested: 0,
       resetTime: new Date(resetTime.resetTime),
     };
   }
