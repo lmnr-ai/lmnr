@@ -16,6 +16,8 @@ pub struct CHEvent {
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
     /// Timestamp in nanoseconds
     pub timestamp: i64,
     pub name: String,
@@ -30,6 +32,7 @@ impl CHEvent {
         CHEvent {
             id: event.id,
             span_id: event.span_id,
+            trace_id: event.trace_id,
             timestamp: chrono_to_nanoseconds(event.timestamp),
             name: event.name.clone(),
             project_id: event.project_id,

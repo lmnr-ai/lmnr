@@ -49,7 +49,7 @@ export async function updateEvaluationScore(input: z.infer<typeof UpdateEvaluati
     query: `
         ALTER TABLE default.evaluation_scores 
         UPDATE value = {score: Float64}
-        WHERE result_id = {resultId: UUID} AND name = {name: String}
+        WHERE evaluation_datapoint_id = {resultId: UUID} AND name = {name: String}
       `,
     query_params: {
       score: score,

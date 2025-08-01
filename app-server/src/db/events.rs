@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 
 use crate::traces::utils::convert_any_value_to_json_value;
 
-#[derive(Deserialize, Serialize, Clone, FromRow, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     pub id: Uuid,
@@ -22,6 +22,7 @@ pub struct Event {
     pub timestamp: DateTime<Utc>,
     pub name: String,
     pub attributes: Value,
+    pub trace_id: Uuid,
 }
 
 impl Event {
@@ -36,7 +37,7 @@ impl Event {
 }
 
 impl Event {
-    pub fn from_otel(event: OtelEvent, span_id: Uuid, project_id: Uuid) -> Self {
+    pub fn from_otel(event: OtelEvent, span_id: Uuid, project_id: Uuid, trace_id: Uuid) -> Self {
         let attributes = event
             .attributes
             .into_iter()
@@ -51,6 +52,7 @@ impl Event {
             timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
             name: event.name,
             attributes: Value::Object(attributes),
+            trace_id,
         }
     }
 }
