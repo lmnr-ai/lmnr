@@ -66,13 +66,15 @@ pub async fn execute_sql_query(
         .fetch_bytes("JSON")
         .context("Failed to execute ClickHouse query")?;
 
-    let data = rows
-        .collect()
-        .await
-        .context("Failed to collect query response data")?;
+    let data = rows.collect().await.map_err(|e| {
+        log::error!("Failed to collect query response data: {}", e);
+        anyhow::anyhow!("Failed to collect query response data")
+    })?;
 
-    let results: Value =
-        serde_json::from_slice(&data).context("Failed to parse ClickHouse response as JSON")?;
+    let results: Value = serde_json::from_slice(&data).map_err(|e| {
+        log::error!("Failed to parse ClickHouse response as JSON: {}", e);
+        anyhow::anyhow!("Failed to parse ClickHouse response as JSON")
+    })?;
 
     let data_array = results
         .get("data")

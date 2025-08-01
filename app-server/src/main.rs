@@ -462,43 +462,9 @@ fn main() -> anyhow::Result<()> {
                     String::new()
                 };
 
-
-                // == Evaluator client ==
-                let sql_query_engine_client = if is_feature_enabled(Feature::SqlQueryEngine) {
-                    let mut headers = reqwest::header::HeaderMap::new();
-
-                    let sql_query_engine_secret_key = env::var("QUERY_ENGINE_SECRET_KEY").expect("QUERY_ENGINE_SECRET_KEY must be set");
-
-                    headers.insert(
-                        reqwest::header::AUTHORIZATION,
-                        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", sql_query_engine_secret_key)).expect("Invalid SQL_QUERY_ENGINE_SECRET_KEY format")
-                    );
-                    headers.insert(
-                        reqwest::header::CONTENT_TYPE,
-                        reqwest::header::HeaderValue::from_static("application/json")
-                    );
-
-                    Arc::new(
-                        reqwest::Client::builder()
-                            .user_agent("lmnr-query-engine/1.0")
-                            .timeout(Duration::from_secs(300)) // 5 minutes timeout
-                            .default_headers(headers)
-                            .build()
-                            .expect("Failed to create query engine HTTP client")
-                    )
-                } else {
-                    log::info!("Using mock query engine client");
-                    Arc::new(
-                        reqwest::Client::builder()
-                        .user_agent("lmnr-query-engine-mock/1.0")
-                        .build()
-                        .expect("Failed to create mock query engine HTTP client")
-                    )
-                };
-
                 // == Query Engine ==
                 let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
-                    let query_engine_url = env::var("QUERY_ENGINE_GRPC_URL").expect("QUERY_ENGINE_GRPC_URL must be set");
+                    let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
                     let query_engine_grpc_client = Arc::new(
                         QueryEngineServiceClient::connect(query_engine_url)
                             .await
@@ -600,7 +566,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
-                        .app_data(web::Data::new(sql_query_engine_client.clone()))
                         .app_data(web::Data::new(query_engine.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
