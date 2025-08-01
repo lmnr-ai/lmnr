@@ -35,10 +35,9 @@ export default function EditorPanel() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { template, getFormattedParameters, parameters } = useSqlEditorStore((state) => ({
+  const { template, getFormattedParameters } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
     getFormattedParameters: state.getFormattedParameters,
-    parameters: state.parameters,
   }));
 
   const hasQuery = Boolean(template?.query?.trim());
