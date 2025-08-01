@@ -2,11 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
-use uuid::Uuid;
 
 use crate::{
-    query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient},
+    db::project_api_keys::ProjectApiKey, query_engine::QueryEngine, sql::{self, ClickhouseReadonlyClient}
 };
 
 use crate::routes::types::ResponseResult;
@@ -20,11 +18,11 @@ pub struct SqlQueryRequest {
 #[post("sql/query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
-    path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
 ) -> ResponseResult {
-    let project_id = path.into_inner();
+    let project_id = project_api_key.project_id;
     let SqlQueryRequest { query } = req.into_inner();
 
     match clickhouse_ro.as_ref() {

@@ -5,9 +5,7 @@ use uuid::Uuid;
 
 use crate::query_engine::{QueryEngine, QueryEngineTrait};
 
-pub struct ClickhouseReadonlyClient {
-    client: clickhouse::Client,
-}
+pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
 impl ClickhouseReadonlyClient {
     pub fn new(url: String, user: String, password: Option<String>) -> Self {
@@ -20,11 +18,11 @@ impl ClickhouseReadonlyClient {
             client = client.with_password(password);
         }
 
-        Self { client }
+        Self(client)
     }
 
     pub fn query(&self, sql: &str) -> clickhouse::query::Query {
-        self.client.query(sql)
+        self.0.query(sql)
     }
 }
 
