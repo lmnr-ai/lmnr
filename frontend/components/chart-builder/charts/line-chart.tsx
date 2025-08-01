@@ -56,12 +56,7 @@ const LineChart = ({ data, x, y, breakdown, keys, chartConfig, total }: LineChar
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelKey={breakdown || x}
-                labelFormatter={(_, p) => xAxisFormatter(p[0].payload[breakdown || x])}
-              />
-            }
+            content={<ChartTooltipContent labelKey={x} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[x])} />}
           />
           {keys.map((key) => {
             const config = chartConfig[key];

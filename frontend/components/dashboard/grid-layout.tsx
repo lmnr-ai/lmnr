@@ -9,7 +9,7 @@ import { Responsive, ResponsiveProps, WidthProvider } from "react-grid-layout";
 import useSWR from "swr";
 
 import Chart from "@/components/dashboard/chart";
-import { DashboardChart } from "@/components/dashboard/types";
+import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -117,11 +117,11 @@ const GridLayout = () => {
       layouts={{ lg: layout, md: layout }}
       breakpoints={{ lg: 1200, md: 996 }}
       cols={{ lg: 12, md: 12 }}
-      rowHeight={72}
+      rowHeight={36}
       isDraggable={true}
       isResizable={true}
       margin={[16, 16]}
-      draggableHandle=".drag-handle"
+      draggableHandle={`.${dragHandleKey}`}
       containerPadding={[0, 0]}
     >
       {children}

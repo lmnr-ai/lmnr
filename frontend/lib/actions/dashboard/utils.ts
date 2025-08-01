@@ -8,8 +8,9 @@ export const repositionCharts = (charts: z.infer<typeof ChartUpdatesSchema>) =>
     (acc, chart) => {
       const { currentX, currentY, charts } = acc;
       const chartWidth = chart.settings.layout.w;
+      const chartHeight = chart.settings.layout.h;
       const nextX = currentX + chartWidth > 12 ? 0 : currentX;
-      const nextY = currentX + chartWidth > 12 ? currentY + 4 : currentY;
+      const nextY = currentX + chartWidth > 12 ? currentY + chartHeight : currentY;
 
       return {
         currentX: nextX + chartWidth,

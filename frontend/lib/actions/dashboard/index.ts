@@ -113,7 +113,7 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
     projectId,
     settings: {
       config,
-      layout: { x: 0, y: 0, w: 4, h: 4 },
+      layout: { x: 0, y: 0, w: 4, h: 6 },
     },
   };
 

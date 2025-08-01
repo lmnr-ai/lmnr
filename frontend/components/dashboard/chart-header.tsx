@@ -2,7 +2,7 @@ import { Edit, EllipsisVertical, GripVertical, Trash2 } from "lucide-react";
 import React, { FocusEvent, KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { DashboardChart } from "@/components/dashboard/types";
+import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface ChartHeaderProps {
   name: string;
@@ -113,7 +114,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
 
   return (
     <div className="flex gap-2 items-center">
-      <GripVertical className="w-4 h-4 min-w-4 min-h-4 drag-handle cursor-pointer text-muted-foreground" />
+      <GripVertical className={cn("w-4 h-4 min-w-4 min-h-4 cursor-pointer text-muted-foreground", dragHandleKey)} />
       {isEditing ? (
         <Input
           ref={inputRef}

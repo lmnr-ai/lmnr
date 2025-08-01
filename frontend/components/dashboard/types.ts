@@ -15,3 +15,5 @@ export interface DashboardChart {
   query: string;
   createdAt: string;
 }
+
+export const dragHandleKey = "drag-handle";

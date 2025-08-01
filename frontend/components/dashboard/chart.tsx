@@ -75,7 +75,7 @@ const Chart = ({ chart }: ChartProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, query, searchParams]);
+  }, [projectId, query, timeParameters]);
 
   useEffect(() => {
     fetchData();
