@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
@@ -33,8 +34,11 @@ pub async fn execute_sql_query(
     parameters: HashMap<String, Value>,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
-) -> Result<Value, anyhow::Error> {
-    let validation_result = query_engine.validate_query(query, project_id).await?;
+) -> Result<Value> {
+    let validation_result = query_engine
+        .validate_query(query, project_id)
+        .await
+        .context("Failed to validate query")?;
 
     let validated_query = match validation_result {
         crate::query_engine::QueryEngineValidationResult::Success {
@@ -53,27 +57,31 @@ pub async fn execute_sql_query(
 
     let mut clickhouse_query = clickhouse_ro
         .query(&validated_query)
-        .with_option("default_format", "JSONEachRow");
+        .with_option("default_format", "JSON")
+        .with_option("output_format_json_quote_64bit_integers", "0");
 
     for (key, value) in parameters {
         clickhouse_query = clickhouse_query.param(&key, value);
     }
 
-    let rows = clickhouse_query
-        .fetch_all::<String>()
+    let mut rows = clickhouse_query
+        .fetch_bytes("JSON")
+        .context("Failed to execute ClickHouse query")?;
+
+    let data = rows
+        .collect()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to execute ClickHouse query: {}", e))?;
+        .context("Failed to collect query response data")?;
 
-    let mut results = Vec::new();
-    for row in rows {
-        match serde_json::from_str::<serde_json::Value>(&row) {
-            Ok(json) => results.push(json),
-            Err(e) => {
-                log::warn!("Failed to parse row as JSON: {}, row: {}", e, row);
-                results.push(serde_json::Value::String(row));
-            }
-        }
-    }
+    let slice = data.iter().as_slice();
+    let results: Value =
+        serde_json::from_reader(slice).context("Failed to parse ClickHouse response as JSON")?;
 
-    Ok(serde_json::Value::Array(results))
+    let data_array = results
+        .get("data")
+        .context("Response missing 'data' field")?
+        .as_array()
+        .context("Response 'data' field is not an array")?;
+
+    Ok(Value::Array(data_array.clone()))
 }
