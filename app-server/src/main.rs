@@ -14,6 +14,10 @@ use agent_manager::{
     AgentManager, agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
     agent_manager_impl::AgentManagerImpl, channel::AgentManagerWorkers,
 };
+use query_engine::{
+    query_engine::query_engine_service_client::QueryEngineServiceClient,
+    QueryEngine, query_engine_impl::QueryEngineImpl,
+};
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
@@ -63,6 +67,7 @@ mod names;
 mod opentelemetry;
 mod project_api_keys;
 mod provider_api_keys;
+mod query_engine;
 mod routes;
 mod runtime;
 mod sql;
@@ -473,6 +478,20 @@ fn main() -> anyhow::Result<()> {
                     )
                 };
 
+                // == Query Engine ==
+                let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
+                    let query_engine_url = env::var("QUERY_ENGINE_GRPC_URL").expect("QUERY_ENGINE_GRPC_URL must be set");
+                    let query_engine_grpc_client = Arc::new(
+                        QueryEngineServiceClient::connect(query_engine_url)
+                            .await
+                            .map_err(tonic_error_to_io_error)?
+                    );
+                    Arc::new(QueryEngineImpl::new(query_engine_grpc_client).into())
+                } else {
+                    log::info!("Using mock query engine");
+                    Arc::new(query_engine::mock::MockQueryEngine {}.into())
+                };
+
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -563,6 +582,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         .app_data(web::Data::new(sql_query_engine_client.clone()))
+                        .app_data(web::Data::new(query_engine.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package query_engine;
+
+message QueryRequest {
+    string query = 1;
+    string project_id = 3;
+}
+
+message QueryResponse {
+    oneof result {
+        SuccessResponse success = 1;
+        ErrorResponse error = 2;
+    }
+}
+
+message SuccessResponse {
+    string query = 1;
+    bool success = 2;
+}
+
+message ErrorResponse {
+    string error = 1;
+}
+
+service QueryEngineService {
+    rpc ValidateQuery(QueryRequest) returns (QueryResponse);
+}

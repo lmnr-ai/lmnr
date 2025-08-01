@@ -1,30 +1,54 @@
 use serde_json::Value;
-use std::{env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
+
+use crate::query_engine::{QueryEngine, QueryEngineTrait};
 
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
-    client: &Arc<reqwest::Client>,
+    parameters: HashMap<String, Value>,
+    clickhouse: clickhouse::Client,
+    query_engine: Arc<QueryEngine>,
 ) -> Result<Value, anyhow::Error> {
-    let query_engine_url = env::var("QUERY_ENGINE_URL").map_err(|_| {
-        anyhow::anyhow!("Server not configured to run SQL queries. QUERY_ENGINE_URL is not set.")
-    })?;
+    let validation_result = query_engine.validate_query(query, project_id).await?;
 
-    let result = client
-        .post(format!("{}", query_engine_url))
-        .json(&serde_json::json!({
-            "query": query,
-            "project_id": project_id,
-        }))
-        .send()
+    let validated_query = match validation_result {
+        crate::query_engine::QueryEngineValidationResult::Success {
+            success,
+            validated_query,
+        } => {
+            if !success {
+                return Err(anyhow::anyhow!("Query validation reported unsuccessful"));
+            }
+            validated_query
+        }
+        crate::query_engine::QueryEngineValidationResult::Error { error } => {
+            return Err(anyhow::anyhow!("Query validation failed: {}", error));
+        }
+    };
+
+    let mut clickhouse_query = clickhouse.query(&format!("{} FORMAT JSONEachRow", validated_query));
+
+    for (key, value) in parameters {
+        clickhouse_query = clickhouse_query.param(&key, value);
+    }
+
+    let rows = clickhouse_query
+        .fetch_all::<String>()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to execute SQL query: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to execute ClickHouse query: {}", e))?;
 
-    let result_json = result
-        .json::<Value>()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to parse SQL query result: {}", e))?;
+    let mut results = Vec::new();
+    for row in rows {
+        match serde_json::from_str::<serde_json::Value>(&row) {
+            Ok(json) => results.push(json),
+            Err(e) => {
+                log::warn!("Failed to parse row as JSON: {}, row: {}", e, row);
+                results.push(serde_json::Value::String(row));
+            }
+        }
+    }
 
-    Ok(result_json)
+    Ok(serde_json::Value::Array(results))
 }
