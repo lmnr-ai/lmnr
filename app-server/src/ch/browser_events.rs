@@ -12,7 +12,8 @@ pub struct BrowserEventCHRow<'a> {
     pub session_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
-    pub timestamp: i64,
+    // This column is DateTime64(3, 'UTC'), we assume that the timestamp is in milliseconds
+    pub timestamp: u64,
     pub event_type: u8,
     pub data: &'a [u8],
     #[serde(with = "clickhouse::serde::uuid")]
@@ -47,7 +48,7 @@ pub async fn insert_browser_events(
                 event_id: Uuid::new_v4(),
                 session_id: event_batch.session_id,
                 trace_id: event_batch.trace_id,
-                timestamp: event.timestamp,
+                timestamp: event.timestamp.abs() as u64,
                 event_type: event.event_type,
                 data: &event.data,
                 project_id: project_id,

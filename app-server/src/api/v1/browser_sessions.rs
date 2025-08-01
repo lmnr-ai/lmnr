@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, options, post, web};
+use actix_web::{HttpResponse, post, web};
 use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ where
 pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: u8,
-    pub timestamp: i64,
+    pub timestamp: f64, // milliseconds
     #[serde(deserialize_with = "deserialize_data")]
     pub data: Vec<u8>,
 }
@@ -64,19 +64,6 @@ pub struct EventBatch {
     pub source: Option<String>,
     #[serde(default)]
     pub sdk_version: Option<String>,
-}
-
-#[options("events")]
-async fn options_handler() -> ResponseResult {
-    Ok(HttpResponse::Ok()
-        .insert_header(("Access-Control-Allow-Origin", "*"))
-        .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-        .insert_header((
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type, Content-Encoding, Accept",
-        ))
-        .insert_header(("Access-Control-Max-Age", "86400"))
-        .finish())
 }
 
 #[post("events")]

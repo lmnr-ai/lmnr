@@ -565,7 +565,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(sql_query_engine_client.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
-                                .service(api::v1::browser_sessions::options_handler)
                                 .service(
                                     web::scope("")
                                         .wrap(project_auth.clone())
