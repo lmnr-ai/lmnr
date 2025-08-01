@@ -361,7 +361,7 @@ fn main() -> anyhow::Result<()> {
     let clickhouse_readonly_client = if is_feature_enabled(Feature::ClickhouseReadOnly) {
         let clickhouse_ro_user = 
             env::var("CLICKHOUSE_RO_USER").expect("CLICKHOUSE_RO_USER must be set");
-        let clickhouse_ro_password = env::var("CLICKHOUSE_RO_PASSWORD").ok();
+        let clickhouse_ro_password = env::var("CLICKHOUSE_RO_PASSWORD").expect("CLICKHOUSE_RO_PASSWORD must be set");
         
         Some(Arc::new(
             crate::sql::ClickhouseReadonlyClient::new(

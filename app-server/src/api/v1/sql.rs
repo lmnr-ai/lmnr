@@ -4,7 +4,9 @@ use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey, query_engine::QueryEngine, sql::{self, ClickhouseReadonlyClient}
+    db::project_api_keys::ProjectApiKey,
+    query_engine::QueryEngine,
+    sql::{self, ClickhouseReadonlyClient},
 };
 
 use crate::routes::types::ResponseResult;

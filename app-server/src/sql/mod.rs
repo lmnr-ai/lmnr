@@ -8,15 +8,12 @@ use crate::query_engine::{QueryEngine, QueryEngineTrait};
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
 impl ClickhouseReadonlyClient {
-    pub fn new(url: String, user: String, password: Option<String>) -> Self {
-        let mut client = clickhouse::Client::default()
+    pub fn new(url: String, user: String, password: String) -> Self {
+        let client = clickhouse::Client::default()
             .with_url(url)
             .with_user(user)
-            .with_database("default");
-
-        if let Some(password) = password {
-            client = client.with_password(password);
-        }
+            .with_database("default")
+            .with_password(password);
 
         Self(client)
     }
