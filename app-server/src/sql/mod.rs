@@ -73,9 +73,8 @@ pub async fn execute_sql_query(
         .await
         .context("Failed to collect query response data")?;
 
-    let slice = data.iter().as_slice();
     let results: Value =
-        serde_json::from_reader(slice).context("Failed to parse ClickHouse response as JSON")?;
+        serde_json::from_slice(&data).context("Failed to parse ClickHouse response as JSON")?;
 
     let data_array = results
         .get("data")
