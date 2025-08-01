@@ -78,7 +78,7 @@ pub async fn insert_datapoints(
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("datapoints");
+    let ch_insert = clickhouse.insert("dataset_datapoints");
     match ch_insert {
         Ok(mut ch_insert) => {
             for datapoint in datapoints {
@@ -117,7 +117,7 @@ pub async fn get_datapoints_paginated(
             data,
             target,
             metadata
-        FROM datapoints
+        FROM dataset_datapoints
         WHERE project_id = ? AND dataset_id = ?
         ORDER BY created_at DESC",
     );
@@ -151,7 +151,7 @@ pub async fn count_datapoints(
     dataset_id: Uuid,
 ) -> Result<u64> {
     let result = clickhouse
-        .query("SELECT COUNT(*) as count FROM datapoints WHERE project_id = ? AND dataset_id = ?")
+        .query("SELECT COUNT(*) as count FROM dataset_datapoints WHERE project_id = ? AND dataset_id = ?")
         .bind(project_id)
         .bind(dataset_id)
         .fetch_one::<CountResult>()
