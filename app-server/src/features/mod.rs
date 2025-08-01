@@ -14,6 +14,7 @@ pub enum Feature {
     Evaluators,
     RabbitMQ,
     SqlQueryEngine,
+    ClickhouseReadOnly,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -37,6 +38,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
         Feature::SqlQueryEngine => {
             env::var("QUERY_ENGINE_URL").is_ok() && env::var("QUERY_ENGINE_SECRET_KEY").is_ok()
+        }
+        Feature::ClickhouseReadOnly => {
+            env::var("CLICKHOUSE_RO_USER").is_ok() && env::var("CLICKHOUSE_RO_PASSWORD").is_ok()
         }
     }
 }

@@ -4,11 +4,34 @@ use uuid::Uuid;
 
 use crate::query_engine::{QueryEngine, QueryEngineTrait};
 
+pub struct ClickhouseReadonlyClient {
+    client: clickhouse::Client,
+}
+
+impl ClickhouseReadonlyClient {
+    pub fn new(url: String, user: String, password: Option<String>) -> Self {
+        let mut client = clickhouse::Client::default()
+            .with_url(url)
+            .with_user(user)
+            .with_database("default");
+
+        if let Some(password) = password {
+            client = client.with_password(password);
+        }
+
+        Self { client }
+    }
+
+    pub fn query(&self, sql: &str) -> clickhouse::query::Query {
+        self.client.query(sql)
+    }
+}
+
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
     parameters: HashMap<String, Value>,
-    clickhouse: clickhouse::Client,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
 ) -> Result<Value, anyhow::Error> {
     let validation_result = query_engine.validate_query(query, project_id).await?;
@@ -28,7 +51,8 @@ pub async fn execute_sql_query(
         }
     };
 
-    let mut clickhouse_query = clickhouse.query(&format!("{} FORMAT JSONEachRow", validated_query));
+    let mut clickhouse_query =
+        clickhouse_ro.query(&format!("{} FORMAT JSONEachRow", validated_query));
 
     for (key, value) in parameters {
         clickhouse_query = clickhouse_query.param(&key, value);

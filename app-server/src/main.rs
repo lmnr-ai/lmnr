@@ -342,7 +342,7 @@ fn main() -> anyhow::Result<()> {
         env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
     let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
     let clickhouse_client = clickhouse::Client::default()
-        .with_url(clickhouse_url)
+        .with_url(clickhouse_url.clone())
         .with_user(clickhouse_user)
         .with_database("default")
         .with_option("async_insert", "1")
@@ -356,6 +356,24 @@ fn main() -> anyhow::Result<()> {
         }
     };
     let clickhouse_for_grpc = clickhouse.clone();
+
+    // == Clickhouse Read-Only Client ==
+    let clickhouse_readonly_client = if is_feature_enabled(Feature::ClickhouseReadOnly) {
+        let clickhouse_ro_user = 
+            env::var("CLICKHOUSE_RO_USER").expect("CLICKHOUSE_RO_USER must be set");
+        let clickhouse_ro_password = env::var("CLICKHOUSE_RO_PASSWORD").ok();
+        
+        Some(Arc::new(
+            crate::sql::ClickhouseReadonlyClient::new(
+                clickhouse_url,
+                clickhouse_ro_user,
+                clickhouse_ro_password,
+            )
+        ))
+    } else {
+        log::info!("ClickHouse read-only client disabled");
+        None
+    };
 
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
@@ -576,6 +594,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
+                        .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
