@@ -4,7 +4,7 @@ package query_engine;
 
 message QueryRequest {
     string query = 1;
-    string project_id = 3;
+    string project_id = 2;
 }
 
 message QueryResponse {

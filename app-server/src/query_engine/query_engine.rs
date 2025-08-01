@@ -3,7 +3,7 @@
 pub struct QueryRequest {
     #[prost(string, tag = "1")]
     pub query: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
+    #[prost(string, tag = "2")]
     pub project_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -51,8 +51,9 @@ pub async fn execute_sql_query(
         }
     };
 
-    let mut clickhouse_query =
-        clickhouse_ro.query(&format!("{} FORMAT JSONEachRow", validated_query));
+    let mut clickhouse_query = clickhouse_ro
+        .query(&validated_query)
+        .with_option("default_format", "JSONEachRow");
 
     for (key, value) in parameters {
         clickhouse_query = clickhouse_query.param(&key, value);
