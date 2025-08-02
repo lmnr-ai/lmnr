@@ -16,6 +16,7 @@ use super::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
+    #[serde(default)]
     pub parameters: HashMap<String, Value>,
 }
 
