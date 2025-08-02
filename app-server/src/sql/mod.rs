@@ -1,30 +1,83 @@
+use anyhow::{Context, Result};
 use serde_json::Value;
-use std::{env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
+
+use crate::query_engine::{QueryEngine, QueryEngineTrait};
+
+pub struct ClickhouseReadonlyClient(clickhouse::Client);
+
+impl ClickhouseReadonlyClient {
+    pub fn new(url: String, user: String, password: String) -> Self {
+        let client = clickhouse::Client::default()
+            .with_url(url)
+            .with_user(user)
+            .with_database("default")
+            .with_password(password);
+
+        Self(client)
+    }
+
+    pub fn query(&self, sql: &str) -> clickhouse::query::Query {
+        self.0.query(sql)
+    }
+}
 
 pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
-    client: &Arc<reqwest::Client>,
-) -> Result<Value, anyhow::Error> {
-    let query_engine_url = env::var("QUERY_ENGINE_URL").map_err(|_| {
-        anyhow::anyhow!("Server not configured to run SQL queries. QUERY_ENGINE_URL is not set.")
+    parameters: HashMap<String, Value>,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    query_engine: Arc<QueryEngine>,
+) -> Result<Value> {
+    let validation_result = query_engine
+        .validate_query(query, project_id)
+        .await
+        .context("Failed to validate query")?;
+
+    let validated_query = match validation_result {
+        crate::query_engine::QueryEngineValidationResult::Success {
+            success,
+            validated_query,
+        } => {
+            if !success {
+                return Err(anyhow::anyhow!("Query validation reported unsuccessful"));
+            }
+            validated_query
+        }
+        crate::query_engine::QueryEngineValidationResult::Error { error } => {
+            return Err(anyhow::anyhow!("Query validation failed: {}", error));
+        }
+    };
+
+    let mut clickhouse_query = clickhouse_ro
+        .query(&validated_query)
+        .with_option("default_format", "JSON")
+        .with_option("output_format_json_quote_64bit_integers", "0");
+
+    for (key, value) in parameters {
+        clickhouse_query = clickhouse_query.param(&key, value);
+    }
+
+    let mut rows = clickhouse_query
+        .fetch_bytes("JSON")
+        .context("Failed to execute ClickHouse query")?;
+
+    let data = rows.collect().await.map_err(|e| {
+        log::error!("Failed to collect query response data: {}", e);
+        anyhow::anyhow!("Failed to collect query response data")
     })?;
 
-    let result = client
-        .post(format!("{}", query_engine_url))
-        .json(&serde_json::json!({
-            "query": query,
-            "project_id": project_id,
-        }))
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to execute SQL query: {}", e))?;
+    let results: Value = serde_json::from_slice(&data).map_err(|e| {
+        log::error!("Failed to parse ClickHouse response as JSON: {}", e);
+        anyhow::anyhow!("Failed to parse ClickHouse response as JSON")
+    })?;
 
-    let result_json = result
-        .json::<Value>()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to parse SQL query result: {}", e))?;
+    let data_array = results
+        .get("data")
+        .context("Response missing 'data' field")?
+        .as_array()
+        .context("Response 'data' field is not an array")?;
 
-    Ok(result_json)
+    Ok(Value::Array(data_array.clone()))
 }
