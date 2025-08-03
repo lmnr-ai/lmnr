@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::{
     db::project_api_keys::ProjectApiKey,
@@ -16,7 +15,6 @@ use crate::routes::types::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
-    pub parameters: HashMap<String, Value>,
 }
 
 #[post("sql/query")]
