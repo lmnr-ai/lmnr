@@ -54,7 +54,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const chResult = await clickhouseClient.query({
     query: `
       SELECT dataset_id, COUNT(*) as count
-      FROM datapoints
+      FROM dataset_datapoints
       WHERE project_id = {projectId: UUID}
       AND dataset_id IN {datasetIds: Array(UUID)}
       GROUP BY dataset_id
