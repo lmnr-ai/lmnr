@@ -1,5 +1,6 @@
-import { fetcherJSON } from "@/lib/utils";
 import { z } from "zod";
+
+import { fetcherJSON } from "@/lib/utils";
 
 export const ValidateQuerySchema = z.object({
   projectId: z.string(),

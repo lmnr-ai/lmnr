@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
 import { db } from "@/lib/db/drizzle";
-import { datasetDatapoints, datasets } from "@/lib/db/migrations/schema";
+import { datasets } from "@/lib/db/migrations/schema";
 import { downloadS3ObjectHttp } from "@/lib/s3";
 import { Semaphore } from "@/lib/semaphore";
 import { inferImageType } from "@/lib/utils";
