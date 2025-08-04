@@ -7,6 +7,7 @@ import ChartHeader from "@/components/dashboard/chart-header";
 import { DashboardChart } from "@/components/dashboard/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
 interface ChartProps {
@@ -24,10 +25,12 @@ const Chart = ({ chart }: ChartProps) => {
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
   const timeParameters = useMemo(() => {
+    const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
     const pastHours = searchParams.get("pastHours");
     if (pastHours) {
       return {
         pastHours,
+        ...(groupByInterval && { groupByInterval }),
       };
     }
 
@@ -38,16 +41,19 @@ const Chart = ({ chart }: ChartProps) => {
       return {
         startTime,
         endTime,
+        ...(groupByInterval && { groupByInterval }),
       };
     }
     return {
       pastHours: 24,
+      ...(groupByInterval && { groupByInterval }),
     };
   }, [searchParams]);
 
   const fetchData = useCallback(async () => {
     try {
-      const parameters = convertToTimeParameters(timeParameters);
+      const { groupByInterval, ...rest } = timeParameters;
+      const parameters = convertToTimeParameters(rest, groupByInterval);
       setIsLoading(true);
       setError(null);
 

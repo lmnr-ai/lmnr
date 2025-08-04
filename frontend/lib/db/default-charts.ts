@@ -128,13 +128,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Latency by model (p90)",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             model,
             quantile(0.9)(end_time - start_time) AS value
         FROM spans
@@ -146,30 +140,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -190,13 +163,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Tokens by model (sum)",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             model,
             sum(total_tokens) AS value
         FROM spans
@@ -208,30 +175,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -252,13 +198,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Cost by model (sum)",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             model,
             sum(total_cost) AS value
         FROM spans
@@ -270,30 +210,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -314,17 +233,11 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Trace Status",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             CASE 
                 WHEN status = '' THEN 'success'
                 ELSE 'error'
-            END AS trace_status,
+        END AS trace_status,
             count() AS value
         FROM traces
         WHERE
@@ -335,30 +248,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time, trace_status
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -380,13 +272,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     query: `
         WITH trace_durations AS (
             SELECT
-                CASE
-                    WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                        THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                    WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                        THEN toStartOfHour(start_time)
-                    ELSE toStartOfDay(start_time)
-                END AS time,
+                toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
                 toFloat64(COALESCE((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1e9, 0)) AS duration
             FROM traces
             WHERE
@@ -400,30 +286,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -443,13 +308,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Total Tokens",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             sum(total_tokens) AS value
         FROM spans
         WHERE
@@ -459,30 +318,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -503,13 +341,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Total cost",
     query: `
         SELECT
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval(start_time, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour(start_time)
-                ELSE toStartOfDay(start_time)
-            END AS time,
+            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
             sum(total_cost) AS value
         FROM spans
         WHERE
@@ -519,30 +351,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({start_time:DateTime64})
-                ELSE toStartOfDay({start_time:DateTime64})
-            END
-        ) TO (
-            CASE
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                    THEN toStartOfInterval({end_time:DateTime64}, INTERVAL 5 MINUTE)
-                WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                    THEN toStartOfHour({end_time:DateTime64})
-                ELSE toStartOfDay({end_time:DateTime64})
-            END
-        )
-        STEP CASE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 3600
-                THEN INTERVAL 5 MINUTE
-            WHEN toUnixTimestamp({end_time:DateTime64}) - toUnixTimestamp({start_time:DateTime64}) <= 86400
-                THEN INTERVAL 1 HOUR
-            ELSE INTERVAL 1 DAY
-        END
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
+        STEP toInterval({interval_number:Int8}, {interval_unit:String})
     `,
     settings: {
       config: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { format, startOfToday, subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject, map } from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
@@ -17,23 +17,40 @@ type DashboardEditorState = {
   data: Record<string, string | number | boolean>[];
   columns: ColumnDef<any>[];
   parameters: SQLParameter[];
+  tab: TabType;
 };
 
 type DashboardEditorActions = {
+  setTab: (tab: TabType) => void;
   setChart: (chart: DashboardChart) => void;
   setQuery: (query: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
-  setParameterValue: (name: string, value?: Date) => void;
+  setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
   executeQuery: (projectId: string) => Promise<void>;
-  reset: () => void;
 };
 
+enum TabType {
+  Table = "table",
+  Chart = "chart",
+  Parameters = "parameters",
+}
+
 const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: undefined, type: "date" },
-  { name: "end_time", value: undefined, type: "date" },
+  { name: "start_time", value: subDays(startOfToday(), 7), type: "date" },
+  { name: "end_time", value: startOfToday(), type: "date" },
+  {
+    name: "interval_number",
+    value: 1,
+    type: "number",
+  },
+  {
+    name: "interval_unit",
+    value: "HOUR",
+    type: "string",
+  },
 ];
 
 type DashboardEditorStore = DashboardEditorState & DashboardEditorActions;
@@ -45,7 +62,22 @@ export interface DashboardEditorProps {
 
 const defaultChart: DashboardEditorState["chart"] = {
   name: "",
-  query: "",
+  query:
+    "-- Top 5 most frequent span names within a time range\n" +
+    "-- This example shows how to use parameterized queries with time filters\n" +
+    "\n" +
+    "SELECT \n" +
+    "    name,\n" +
+    "    COUNT(span_id) AS value\n" +
+    "FROM spans\n" +
+    "WHERE\n" +
+    "    -- Parameters are defined using {param_name:Type} syntax\n" +
+    '    -- Configure these values in the "Parameters" tab below\n' +
+    "    start_time >= {start_time:DateTime64}\n" +
+    "    AND start_time <= {end_time:DateTime64}\n" +
+    "GROUP BY name\n" +
+    "ORDER BY value DESC\n" +
+    "LIMIT 5",
   settings: {
     config: {
       x: undefined,
@@ -65,6 +97,7 @@ const defaultChart: DashboardEditorState["chart"] = {
 
 const createDashboardEditorStore = (props: DashboardEditorProps) => {
   const editorState: DashboardEditorState = {
+    tab: TabType.Chart,
     chart: props.chart || defaultChart,
     columns: [],
     isLoading: false,
@@ -78,6 +111,9 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       (set, get) => ({
         ...editorState,
 
+        setTab: (tab) => {
+          set({ tab });
+        },
         setChart: (chart) => {
           set({ chart });
         },
@@ -101,20 +137,29 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
         setParameterValue: (name, value) =>
           set((state) => ({
-            parameters: state.parameters.map((param) => (param.name === name ? { ...param, value } : param)),
+            parameters: state.parameters.map((param) =>
+              param.name === name ? { ...param, value } : param
+            ) as SQLParameter[],
           })),
 
         getFormattedParameters: () => {
           const { parameters } = get();
-          const formatted: Record<string, string | number> = {};
 
-          parameters.forEach((variable) => {
-            if (!isNil(variable.value) && isDate(variable.value)) {
-              formatted[variable.name] = format(variable.value, "yyyy-MM-dd HH:mm:ss.SSS");
-            }
-          });
-
-          return formatted;
+          return parameters.reduce(
+            (formatted, param) => {
+              if (!isNil(param.value)) {
+                if (isDate(param.value)) {
+                  formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+                } else if (param.type === "number") {
+                  formatted[param.name] = Number(param.value);
+                } else {
+                  formatted[param.name] = param.value;
+                }
+              }
+              return formatted;
+            },
+            {} as Record<string, string | number>
+          );
         },
 
         executeQuery: async (projectId: string) => {
@@ -168,12 +213,9 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
             setError(errorMessage);
             setData([]);
           } finally {
+            set({ tab: TabType.Chart });
             setLoading(false);
           }
-        },
-
-        reset: () => {
-          set(editorState);
         },
       }),
       {

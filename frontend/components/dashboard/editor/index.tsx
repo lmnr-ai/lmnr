@@ -2,7 +2,7 @@
 
 import CodeMirror from "@uiw/react-codemirror";
 import { filter, isEmpty, map, some } from "lodash";
-import { AlertCircle, Braces, ChartArea, FileJson2, Loader, Loader2, PlayIcon, TableProperties } from "lucide-react";
+import { AlertCircle, Braces, ChartArea, Loader, Loader2, PlayIcon, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { ReactNode, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -16,7 +16,6 @@ import {
 import ParametersPanel from "@/components/sql/parameters-panel";
 import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { DataTable } from "@/components/ui/datatable";
 import Header from "@/components/ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -26,10 +25,12 @@ import { cn } from "@/lib/utils";
 const DashboardEditorCore = () => {
   const { projectId, id } = useParams();
 
-  const { query, columns, onChange, executeQuery, isLoading, error, data, onParameterChange, parameters } =
+  const { query, columns, tab, setTab, onChange, executeQuery, isLoading, error, data, onParameterChange, parameters } =
     useDashboardEditorStoreContext((state) => ({
       columns: state.columns,
       query: state.chart.query,
+      tab: state.tab,
+      setTab: state.setTab,
       onChange: state.setQuery,
       executeQuery: state.executeQuery,
       isLoading: state.isLoading,
@@ -107,15 +108,15 @@ const DashboardEditorCore = () => {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel className="flex flex-col" defaultSize={60} minSize={20}>
-          <Tabs className="flex flex-col flex-1 overflow-hidden" defaultValue="chart">
+          <Tabs
+            value={tab}
+            className="flex flex-col flex-1 overflow-hidden"
+            onValueChange={(v) => setTab(v as typeof tab)}
+          >
             <TabsList className="px-4 py-1 border-b text-sm">
               <TabsTrigger value="table">
                 <TableProperties className="mr-2 w-4 h-4" />
                 <span>Table</span>
-              </TabsTrigger>
-              <TabsTrigger value="json">
-                <FileJson2 className="mr-2 w-4 h-4" />
-                <span>JSON</span>
               </TabsTrigger>
               <TabsTrigger value="chart">
                 <ChartArea className="mr-2 w-4 h-4" />
@@ -149,27 +150,6 @@ const DashboardEditorCore = () => {
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
                       <TableProperties className="w-8 h-8 opacity-50" />
                       <p className="text">Execute a query to see table results</p>
-                    </div>
-                  ),
-                })}
-              </div>
-            </TabsContent>
-            <TabsContent asChild value="json">
-              <div className="flex flex-col flex-1 overflow-hidden">
-                {renderContent({
-                  success: (
-                    <CodeHighlighter
-                      readOnly
-                      className="border-0"
-                      value={JSON.stringify(data, null, 2)}
-                      defaultMode="json"
-                    />
-                  ),
-                  loadingText: "Processing results...",
-                  default: (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
-                      <FileJson2 className="w-8 h-8 opacity-50" />
-                      <p className="text">Execute a query to see JSON results</p>
                     </div>
                   ),
                 })}

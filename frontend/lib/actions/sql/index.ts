@@ -13,6 +13,8 @@ const ExecuteQuerySchema = z.object({
     .object({
       start_time: z.string().optional(),
       end_time: z.string().optional(),
+      interval_number: z.number().optional(),
+      interval_unit: z.string().optional(),
     })
     .optional(),
 });

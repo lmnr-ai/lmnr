@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, startOfToday, subDays } from "date-fns";
 import { isDate, isNil } from "lodash";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -11,11 +11,13 @@ export interface SQLTemplate {
   projectId: string;
 }
 
-export interface SQLParameter {
+export type SQLParameter = {
   name: string;
-  value?: Date;
-  type: "date";
-}
+} & (DateParameter | StringParameter | NumberParameter);
+
+type DateParameter = { value?: Date; type: "date" };
+type StringParameter = { value?: string; type: "string" };
+type NumberParameter = { value?: number; type: "number" };
 
 export type SqlEditorState = {
   editTemplate: SQLTemplate | undefined;
@@ -27,13 +29,23 @@ export type SqlEditorActions = {
   setEditTemplate: (query: SQLTemplate | undefined) => void;
   setCurrentTemplate: (query: SQLTemplate | undefined) => void;
   onCurrentTemplateChange: (e: string) => void;
-  setParameterValue: (name: string, value?: Date) => void;
+  setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
 };
 
 const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: undefined, type: "date" },
-  { name: "end_time", value: undefined, type: "date" },
+  { name: "start_time", value: subDays(startOfToday(), 7), type: "date" },
+  { name: "end_time", value: startOfToday(), type: "date" },
+  {
+    name: "interval_number",
+    value: 1,
+    type: "number",
+  },
+  {
+    name: "interval_unit",
+    value: "HOUR",
+    type: "string",
+  },
 ];
 
 const initialState: SqlEditorState = {
@@ -63,20 +75,29 @@ export const useSqlEditorStore = create<SqlEditorStore>()(
       },
       setParameterValue: (name, value) => {
         set((state) => ({
-          parameters: state.parameters.map((param) => (param.name === name ? { ...param, value } : param)),
+          parameters: state.parameters.map((param) =>
+            param.name === name ? { ...param, value: value } : param
+          ) as SQLParameter[],
         }));
       },
       getFormattedParameters: () => {
         const { parameters } = get();
-        const formatted: Record<string, string | number> = {};
 
-        parameters.forEach((variable) => {
-          if (!isNil(variable.value) && isDate(variable.value)) {
-            formatted[variable.name] = format(variable.value, "yyyy-MM-dd HH:mm:ss.SSS");
-          }
-        });
-
-        return formatted;
+        return parameters.reduce(
+          (formatted, param) => {
+            if (!isNil(param.value)) {
+              if (isDate(param.value)) {
+                formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+              } else if (param.type === "number") {
+                formatted[param.name] = Number(param.value);
+              } else {
+                formatted[param.name] = param.value;
+              }
+            }
+            return formatted;
+          },
+          {} as Record<string, string | number>
+        );
       },
     }),
     {
