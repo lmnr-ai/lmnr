@@ -37,7 +37,7 @@ pub async fn get_llm_usage_for_span(
     attributes: &mut SpanAttributes,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    span_name: &String,
+    span_name: &str,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();

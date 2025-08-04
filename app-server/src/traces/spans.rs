@@ -238,7 +238,7 @@ impl SpanAttributes {
         }
     }
 
-    pub fn provider_name(&self, span_name: &String) -> Option<String> {
+    pub fn provider_name(&self, span_name: &str) -> Option<String> {
         let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
             // For several versions prior to https://github.com/traceloop/openllmetry/pull/3165
             // and thus before `opentelemetry-instrumentation-langchain` 0.43.1, OpenLLMetry used
