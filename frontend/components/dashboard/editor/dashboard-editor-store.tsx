@@ -58,21 +58,32 @@ export interface DashboardEditorProps {
 const defaultChart: DashboardEditorState["chart"] = {
   name: "",
   query:
-    "-- Top 5 most frequent span names within a time range\n" +
-    "-- This example shows how to use parameterized queries with time filters\n" +
+    "-- Model Performance Analysis: 90th Percentile Latency Over Time\n" +
+    "-- This query analyzes model execution latency grouped by time intervals and model type\n" +
+    "-- Returns continuous time series data with 90th percentile response times\n" +
     "\n" +
-    "SELECT \n" +
-    "    name,\n" +
-    "    COUNT(span_id) AS value\n" +
+    "SELECT\n" +
+    "    -- Round timestamps to interval boundaries (hour, day, etc.)\n" +
+    "    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,\n" +
+    "    model,\n" +
+    "    -- Calculate 90th percentile of execution duration\n" +
+    "    quantile(0.9)(end_time - start_time) AS value\n" +
     "FROM spans\n" +
     "WHERE\n" +
+    "    -- Filter out null models and focus on LLM/generation spans\n" +
+    "    model != '<null>'\n" +
+    "  AND span_type IN [0, 1]\n" +
     "    -- Parameters are defined using {param_name:Type} syntax\n" +
     '    -- Configure these values in the "Parameters" tab below\n' +
-    "    start_time >= {start_time:DateTime64}\n" +
-    "    AND start_time <= {end_time:DateTime64}\n" +
-    "GROUP BY name\n" +
-    "ORDER BY value DESC\n" +
-    "LIMIT 5",
+    "  AND start_time >= {start_time:DateTime64}\n" +
+    "  AND start_time <= {end_time:DateTime64}\n" +
+    "GROUP BY time, model\n" +
+    "ORDER BY time\n" +
+    "-- WITH FILL ensures continuous time series even for periods with no data\n" +
+    "WITH FILL\n" +
+    "FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))\n" +
+    "    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))\n" +
+    "    STEP toInterval(1, {interval_unit:String})",
   settings: {
     config: {
       x: undefined,
