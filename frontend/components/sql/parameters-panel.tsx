@@ -88,7 +88,7 @@ const CellRenderer = ({
           className="hide-arrow h-7"
           type="number"
           value={parameter.value}
-          onChange={(e) => onChange(parameter.name, e.target.value)}
+          onChange={(e) => onChange(parameter.name, Number(e.target.value))}
         />
       );
   }
