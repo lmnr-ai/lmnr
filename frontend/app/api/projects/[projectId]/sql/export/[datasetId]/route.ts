@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-import { CreateDatapointsSchema } from "@/lib/actions/datapoints";
+import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { datasetDatapoints, datasets } from "@/lib/db/migrations/schema";
 import { downloadS3ObjectHttp } from "@/lib/s3";
@@ -41,9 +41,9 @@ const downloadImage = async (
   projectId: string
 ): Promise<
   | {
-      blob: Blob;
-      mediaType?: string;
-    }
+    blob: Blob;
+    mediaType?: string;
+  }
   | undefined
 > => {
   const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}";
@@ -137,21 +137,11 @@ export async function POST(
     }))
   );
 
-  const res = await db
-    .insert(datasetDatapoints)
-    .values(
-      materializedDatapoints.map((datapoint) => ({
-        ...datapoint,
-        data: datapoint.data,
-        createdAt: new Date().toUTCString(),
-        datasetId,
-      }))
-    )
-    .returning();
+  await createDatapoints({
+    projectId,
+    datasetId,
+    datapoints: materializedDatapoints,
+  });
 
-  if (res.length === 0) {
-    return NextResponse.json({ error: "Error creating datasetDatapoints" }, { status: 500 });
-  }
-
-  return NextResponse.json(res[0], { status: 200 });
+  return NextResponse.json({ success: true }, { status: 200 });
 }

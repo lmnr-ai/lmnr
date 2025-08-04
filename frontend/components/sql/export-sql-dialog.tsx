@@ -27,6 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import ExportJobDialog from "./export-job-dialog";
 
 interface ExportResultsDialogProps {
   results: Record<string, any>[] | null;
@@ -266,13 +267,12 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
             Export to Dataset
           </DropdownMenuItem>
         </ExportDatasetDialog>
-        {/*NOTE: uncomment when data exporter is ready to operate.*/}
-        {/*<ExportJobDialog sqlQuery={sqlQuery}>*/}
-        {/*  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>*/}
-        {/*    <Database className="w-4 h-4 mr-2" />*/}
-        {/*    Export to Dataset as Job*/}
-        {/*  </DropdownMenuItem>*/}
-        {/*</ExportJobDialog>*/}
+        <ExportJobDialog sqlQuery={sqlQuery}>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Database className="w-4 h-4 mr-2" />
+            Export to Dataset as Job
+          </DropdownMenuItem>
+        </ExportJobDialog>
       </DropdownMenuContent>
     </DropdownMenu>
   );

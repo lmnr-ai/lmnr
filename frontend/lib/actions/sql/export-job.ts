@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
+import { validateQuery } from "./validate-query";
 
 export const CreateExportJobSchema = z.object({
   projectId: z.string(),
@@ -45,6 +46,20 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
     max_retries: config?.max_retries ?? 3,
   };
 
+  // Validate the SQL query using the same gRPC service as the Rust backend
+  const validationResult = await validateQuery({
+    projectId,
+    query: sqlQuery,
+  });
+
+  if (!validationResult.success) {
+    console.log("validationResult", validationResult);
+    throw new Error(`Query validation failed: ${validationResult.error}`);
+  }
+
+  // Use the validated query from the query engine
+  const validatedQuery = validationResult.validatedQuery || sqlQuery;
+
   const exportResponse = await fetch(dataExporterUrl, {
     method: "POST",
     headers: {
@@ -52,7 +67,7 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
       Authorization: `Bearer ${process.env.DATA_EXPORTER_SECRET_KEY}`,
     },
     body: JSON.stringify({
-      sql: sqlQuery,
+      sql: validatedQuery,
       // args: result.args,
       project_id: projectId,
       dataset_id: datasetId,
@@ -70,6 +85,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
-    // warnings: result.warnings,
+    warnings: validationResult.error ? [`Query was validated and may have been modified: ${validationResult.error}`] : undefined,
   };
 }
