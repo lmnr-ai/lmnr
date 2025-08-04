@@ -1,4 +1,4 @@
-import { format, intervalToDuration, isValid, parseISO } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 
 import { ChartConfig } from "@/components/ui/chart";
 
@@ -51,18 +51,18 @@ const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): str
       })
       .filter((date) => date && isValid(date)) as Date[];
 
-    if (dates.length < 2) return "M/dd";
+    if (dates.length < 2) return "M/dd HH:mm";
 
-    const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
-    const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+    const timeDifferences = dates
+      .sort((a, b) => a.getTime() - b.getTime())
+      .slice(1)
+      .map((date, index) => date.getTime() - dates[index].getTime());
 
-    const duration = intervalToDuration({ start: minDate, end: maxDate });
+    const medianDiff = timeDifferences.sort((a, b) => a - b)[Math.floor(timeDifferences.length / 2)];
 
-    if (duration.days && duration.days > 0) {
-      return "M/dd";
-    } else {
-      return "HH:mm";
-    }
+    const medianDiffHours = medianDiff / (1000 * 60 * 60);
+
+    return medianDiffHours > 6 ? "M/dd" : "HH:mm";
   } catch {
     return "M/dd";
   }
