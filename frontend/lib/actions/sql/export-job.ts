@@ -54,7 +54,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   });
 
   if (!validationResult.success) {
-    console.log("validationResult", validationResult);
     throw new Error(`Query validation failed: ${validationResult.error}`);
   }
 
@@ -69,7 +68,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
     },
     body: JSON.stringify({
       sql: validatedQuery,
-      // args: result.args,
       project_id: projectId,
       dataset_id: datasetId,
       config: exportConfig,
