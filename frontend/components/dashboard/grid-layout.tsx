@@ -2,7 +2,6 @@ import "react-grid-layout/css/styles.css";
 import "./styles.css";
 
 import { compact, debounce, isEqual, pick } from "lodash";
-import { Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useMemo } from "react";
 import { Responsive, ResponsiveProps, WidthProvider } from "react-grid-layout";
@@ -10,6 +9,7 @@ import useSWR from "swr";
 
 import Chart from "@/components/dashboard/chart";
 import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -104,8 +104,10 @@ const GridLayout = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 h-full justify-center items-center">
-        <Loader className="animate-spin h-8 w-8 text-secondary-foreground" />
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: 9 }).map((_, item) => (
+          <Skeleton key={item} className="w-full h-[296px]" />
+        ))}
       </div>
     );
   }

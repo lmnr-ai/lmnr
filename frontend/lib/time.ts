@@ -3,15 +3,6 @@ import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 
-const groupByIntervalMap: Record<GroupByInterval, { interval_number: number; interval_unit: string }> = {
-  [GroupByInterval.Minute]: {
-    interval_number: 5,
-    interval_unit: "MINUTE",
-  },
-  [GroupByInterval.Hour]: { interval_number: 1, interval_unit: "HOUR" },
-  [GroupByInterval.Day]: { interval_number: 1, interval_unit: "DAY" },
-};
-
 const RelativeTimeInputSchema = z.object({
   pastHours: z.union([z.string(), z.number()]).refine(
     (hours) => {
@@ -50,7 +41,6 @@ const TimeInputSchema = z.union([RelativeTimeInputSchema, AbsoluteTimeInputSchem
 const TimeParametersSchema = z.object({
   start_time: z.string(),
   end_time: z.string(),
-  interval_number: z.number(),
   interval_unit: z.string(),
 });
 
@@ -81,7 +71,7 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
     return TimeParametersSchema.parse({
       start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
       end_time: format(end, "yyyy-MM-dd HH:mm:ss.SSS"),
-      ...groupByIntervalMap[interval],
+      interval_unit: interval.toUpperCase(),
     });
   }
 
@@ -96,6 +86,6 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
   return TimeParametersSchema.parse({
     start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
     end_time: format(now, "yyyy-MM-dd HH:mm:ss.SSS"),
-    ...groupByIntervalMap[interval],
+    interval_unit: interval.toUpperCase(),
   });
 };

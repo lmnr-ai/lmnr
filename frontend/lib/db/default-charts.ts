@@ -11,10 +11,10 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY name
         ORDER BY value DESC
-        LIMIT 5
+            LIMIT 5
     `,
     settings: {
       config: {
@@ -40,12 +40,12 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type = 1
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type = 1
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY model
         ORDER BY value DESC
-        LIMIT 5
+            LIMIT 5
     `,
     settings: {
       config: {
@@ -71,12 +71,12 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type = 1
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type = 1
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY model
         ORDER BY value DESC
-        LIMIT 5
+            LIMIT 5
     `,
     settings: {
       config: {
@@ -102,12 +102,12 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type = 1
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type = 1
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY model
         ORDER BY value DESC
-        LIMIT 5
+            LIMIT 5
     `,
     settings: {
       config: {
@@ -128,21 +128,21 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Latency by model (p90)",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             model,
             quantile(0.9)(end_time - start_time) AS value
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type IN [0, 1]
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type IN [0, 1]
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -163,21 +163,21 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Tokens by model (sum)",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             model,
             sum(total_tokens) AS value
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type IN [0, 1]
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type IN [0, 1]
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -198,21 +198,21 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Cost by model (sum)",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             model,
             sum(total_cost) AS value
         FROM spans
         WHERE
             model != '<null>'
-            AND span_type IN [0, 1]
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND span_type IN [0, 1]
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -233,7 +233,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Trace Status",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             CASE 
                 WHEN status = '' THEN 'success'
                 ELSE 'error'
@@ -248,9 +248,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time, trace_status
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+        TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+        STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -272,13 +272,13 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     query: `
         WITH trace_durations AS (
             SELECT
-                toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
-                toFloat64(COALESCE((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1e9, 0)) AS duration
-            FROM traces
-            WHERE
-                start_time >= {start_time:DateTime64}
-                AND start_time <= {end_time:DateTime64}
-        )
+                toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
+            toFloat64(COALESCE((toUnixTimestamp64Nano(end_time) - toUnixTimestamp64Nano(start_time)) / 1e9, 0)) AS duration
+        FROM traces
+        WHERE
+            start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
+            )
         SELECT
             time,
             toFloat64(COALESCE(quantileExact(0.90)(duration), 0)) AS value
@@ -286,9 +286,9 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -308,19 +308,19 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Total Tokens",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             sum(total_tokens) AS value
         FROM spans
         WHERE
             span_type IN [0, 1]
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
@@ -341,19 +341,19 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     name: "Total cost",
     query: `
         SELECT
-            toStartOfInterval(start_time, toInterval({interval_number:Int8}, {interval_unit:String})) AS time,
+            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
             sum(total_cost) AS value
         FROM spans
         WHERE
             span_type IN [0, 1]
-            AND start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
+          AND start_time >= {start_time:DateTime64}
+          AND start_time <= {end_time:DateTime64}
         GROUP BY time
         ORDER BY time
         WITH FILL
-        FROM toStartOfInterval({start_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval({interval_number:Int8}, {interval_unit:String}))
-        STEP toInterval({interval_number:Int8}, {interval_unit:String})
+        FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
     `,
     settings: {
       config: {
