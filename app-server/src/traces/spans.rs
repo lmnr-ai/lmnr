@@ -562,7 +562,7 @@ impl Span {
                     }
                 }
 
-                if let Some(output) = try_parse_ai_sdk_output(&self.attributes.raw_attributes) {
+                if let Some(output) = try_parse_ai_sdk_output(&mut self.attributes.raw_attributes) {
                     self.output = Some(output);
                 }
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
@@ -629,7 +629,7 @@ impl Span {
             self.output = self
                 .output
                 .take()
-                .or(try_parse_ai_sdk_output(&self.attributes.raw_attributes));
+                .or(try_parse_ai_sdk_output(&mut self.attributes.raw_attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
             if let Some(Value::String(s)) = self.attributes.raw_attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
@@ -1130,48 +1130,45 @@ fn parse_tool_calls(attributes: &HashMap<String, Value>, prefix: &str) -> Vec<Ch
     tool_calls
 }
 
-fn try_parse_ai_sdk_output(attributes: &HashMap<String, Value>) -> Option<serde_json::Value> {
-    let mut messages = Vec::new();
-    // let mut out_vals: Vec<serde_json::Value> = Vec::new();
-    if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-        messages.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: ChatMessageContent::Text(s.clone()),
-            tool_call_id: None,
-        });
-    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-        let content = serde_json::from_str::<serde_json::Value>(s)
+fn try_parse_ai_sdk_output(attributes: &mut HashMap<String, Value>) -> Option<serde_json::Value> {
+    let mut content_parts = Vec::new();
+
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.text") {
+        if !s.is_empty() {
+            content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text: s }));
+        }
+    }
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.object") {
+        let content = serde_json::from_str::<serde_json::Value>(&s)
             .unwrap_or(serde_json::Value::String(s.clone()));
-        messages.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: ChatMessageContent::Text(json_value_to_string(&content)),
-            tool_call_id: None,
-        });
-    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
+        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+            text: json_value_to_string(&content),
+        }));
+    }
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.toolCalls") {
         if let Ok(tool_call_values) =
-            serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
+            serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(&s)
         {
             let tool_calls = parse_ai_sdk_tool_calls(tool_call_values)
                 .iter()
                 .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call.clone()))
                 .collect::<Vec<_>>();
-            messages.push(ChatMessage {
-                role: "assistant".to_string(),
-                content: ChatMessageContent::ContentPartList(tool_calls),
-                tool_call_id: None,
-            });
+            content_parts.extend(tool_calls);
         }
     }
 
-    if messages.is_empty() {
+    if content_parts.is_empty() {
         None
     } else {
-        Some(serde_json::Value::Array(
-            messages
-                .into_iter()
-                .map(|message| serde_json::to_value(message).unwrap())
-                .collect(),
-        ))
+        // form as a message array
+        Some(serde_json::Value::Array(vec![
+            serde_json::to_value(ChatMessage {
+                role: "assistant".to_string(),
+                content: ChatMessageContent::ContentPartList(content_parts),
+                tool_call_id: None,
+            })
+            .unwrap(),
+        ]))
     }
 }
 
