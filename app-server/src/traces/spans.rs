@@ -648,6 +648,38 @@ impl Span {
             convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
         }
 
+        if self.is_ai_sdk_tool_call_span() {
+            self.span_type = SpanType::TOOL;
+            if let Some(Value::String(name)) =
+                self.attributes.raw_attributes.remove("ai.toolCall.name")
+            {
+                self.name = name;
+            }
+            if let Some(args_value) = self.attributes.raw_attributes.remove("ai.toolCall.args") {
+                if let Value::String(s) = &args_value {
+                    if let Ok(args) = serde_json::from_str::<Value>(s) {
+                        self.input = Some(args);
+                    } else {
+                        self.input = Some(args_value);
+                    }
+                } else {
+                    self.input = Some(args_value);
+                }
+            }
+            if let Some(result_value) = self.attributes.raw_attributes.remove("ai.toolCall.result")
+            {
+                if let Value::String(s) = &result_value {
+                    if let Ok(result) = serde_json::from_str::<Value>(s) {
+                        self.output = Some(result);
+                    } else {
+                        self.output = Some(result_value);
+                    }
+                } else {
+                    self.output = Some(result_value);
+                }
+            }
+        }
+
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
         // Take their values if input/output are not already set.
         self.input = self.input.take().or(self
@@ -785,6 +817,22 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>();
+    }
+
+    /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
+    /// of the user, when `execute` was register in tool definitions when calling
+    /// `generateText`
+    fn is_ai_sdk_tool_call_span(&self) -> bool {
+        // "or" here so this doesn't break if AI SDK renames the span
+        self.name == "ai.toolCall"
+            || (self
+                .attributes
+                .raw_attributes
+                .contains_key("ai.toolCall.name")
+                || self
+                    .attributes
+                    .raw_attributes
+                    .contains_key("ai.toolCall.id"))
     }
 }
 
