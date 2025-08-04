@@ -1,3 +1,4 @@
+import { format, parseISO } from "date-fns";
 import { z } from "zod/v4";
 
 const RelativeTimeInputSchema = z.object({
@@ -43,16 +44,16 @@ const TimeParametersSchema = z.object({
 export type TimeInput = z.infer<typeof TimeInputSchema>;
 export type TimeParameters = z.infer<typeof TimeParametersSchema>;
 
-export function convertToTimeParameters(input: TimeInput, defaultHours: number = 24): TimeParameters {
+export function convertToTimeParameters(input: TimeInput): TimeParameters {
   const validatedInput = TimeInputSchema.parse(input);
 
   if ("startTime" in validatedInput && "endTime" in validatedInput) {
-    const start = new Date(validatedInput.startTime);
-    const end = new Date(validatedInput.endTime);
+    const start = parseISO(validatedInput.startTime);
+    const end = parseISO(validatedInput.endTime);
 
     return TimeParametersSchema.parse({
-      start_time: start.toISOString().slice(0, -1).replace("T", " "),
-      end_time: end.toISOString().slice(0, -1).replace("T", " "),
+      start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
+      end_time: format(end, "yyyy-MM-dd HH:mm:ss.SSS"),
     });
   }
 
@@ -63,7 +64,7 @@ export function convertToTimeParameters(input: TimeInput, defaultHours: number =
   const start = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
   return TimeParametersSchema.parse({
-    start_time: start.toISOString().slice(0, -1).replace("T", " "),
-    end_time: now.toISOString().slice(0, -1).replace("T", " "),
+    start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
+    end_time: format(now, "yyyy-MM-dd HH:mm:ss.SSS"),
   });
 }

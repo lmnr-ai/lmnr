@@ -1,15 +1,18 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
 import CodeMirror from "@uiw/react-codemirror";
-import { filter, isEmpty, isNil, isObject, map, some } from "lodash";
+import { filter, isEmpty, map, some } from "lodash";
 import { AlertCircle, Braces, ChartArea, FileJson2, Loader, Loader2, PlayIcon, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { ReactNode, useCallback, useMemo } from "react";
+import React, { ReactNode, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import ChartBuilder from "@/components/chart-builder";
-import { useDashboardEditorStore } from "@/components/dashboard/editor/dashboard-editor-store";
+import {
+  DashboardEditorProps,
+  DashboardEditorStoreProvider,
+  useDashboardEditorStoreContext,
+} from "@/components/dashboard/editor/dashboard-editor-store";
 import ParametersPanel from "@/components/sql/parameters-panel";
 import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
@@ -20,12 +23,13 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-const DashboardEditor = () => {
+const DashboardEditorCore = () => {
   const { projectId, id } = useParams();
 
-  const { query, onChange, executeQuery, isLoading, error, data, onParameterChange, parameters } =
-    useDashboardEditorStore((state) => ({
-      query: state.query,
+  const { query, columns, onChange, executeQuery, isLoading, error, data, onParameterChange, parameters } =
+    useDashboardEditorStoreContext((state) => ({
+      columns: state.columns,
+      query: state.chart.query,
       onChange: state.setQuery,
       executeQuery: state.executeQuery,
       isLoading: state.isLoading,
@@ -34,28 +38,6 @@ const DashboardEditor = () => {
       parameters: state.parameters,
       onParameterChange: state.setParameterValue,
     }));
-
-  const columns = useMemo<ColumnDef<any>[]>(() => {
-    if (!isEmpty(data)) {
-      return Object.keys(data?.[0]).map((column) => ({
-        header: column,
-        accessorFn: (row: any) => {
-          const value = row[column];
-          if (isNil(value)) return "NULL";
-          if (isObject(value)) {
-            try {
-              const serialized = JSON.stringify(value);
-              return serialized.length > 100 ? `${serialized.slice(0, 100)}...` : serialized;
-            } catch {
-              return "[Object]";
-            }
-          }
-          return String(value);
-        },
-      }));
-    }
-    return [];
-  }, [data]);
 
   const handleExecuteQuery = useCallback(() => executeQuery(projectId as string), [executeQuery, projectId]);
 
@@ -96,12 +78,8 @@ const DashboardEditor = () => {
         return success;
       }
 
-      if (data && data.length === 0) {
-        return (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Query executed successfully but returned no results
-          </div>
-        );
+      if (data.length === 0) {
+        return <div className="flex items-center justify-center h-full text-muted-foreground">No results</div>;
       }
 
       return defaultContent;
@@ -220,5 +198,11 @@ const DashboardEditor = () => {
     </>
   );
 };
+
+const DashboardEditor = ({ chart }: DashboardEditorProps) => (
+  <DashboardEditorStoreProvider chart={chart}>
+    <DashboardEditorCore />
+  </DashboardEditorStoreProvider>
+);
 
 export default DashboardEditor;

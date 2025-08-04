@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+import { isDate, isNil } from "lodash";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -26,7 +28,7 @@ export type SqlEditorActions = {
   setCurrentTemplate: (query: SQLTemplate | undefined) => void;
   onCurrentTemplateChange: (e: string) => void;
   setParameterValue: (name: string, value?: Date) => void;
-  getFormattedParameters: () => Record<string, string>;
+  getFormattedParameters: () => Record<string, string | number>;
 };
 
 const initialParameters: SQLParameter[] = [
@@ -66,11 +68,11 @@ export const useSqlEditorStore = create<SqlEditorStore>()(
       },
       getFormattedParameters: () => {
         const { parameters } = get();
-        const formatted: Record<string, string> = {};
+        const formatted: Record<string, string | number> = {};
 
         parameters.forEach((variable) => {
-          if (variable.value) {
-            formatted[variable.name] = variable.value.toISOString().slice(0, -1).replace("T", " ");
+          if (!isNil(variable.value) && isDate(variable.value)) {
+            formatted[variable.name] = format(variable.value, "yyyy-MM-dd HH:mm:ss.SSS");
           }
         });
 

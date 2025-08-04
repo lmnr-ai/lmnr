@@ -70,6 +70,16 @@ export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
   return charts as DashboardChart[];
 };
 
+export const getChart = async (input: z.infer<typeof DeleteChartSchema>) => {
+  const { projectId, id } = DeleteChartSchema.parse(input);
+
+  const chart = await db.query.dashboardCharts.findFirst({
+    where: and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)),
+  });
+
+  return chart as DashboardChart | undefined;
+};
+
 export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayoutSchema>) => {
   const { projectId, updates } = UpdateChartsLayoutSchema.parse(input);
 
