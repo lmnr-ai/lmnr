@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import GridLayout from "@/components/dashboard/grid-layout";
+import { Button } from "@/components/ui/button";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -32,18 +34,19 @@ export default function Dashboard() {
   return (
     <>
       <Header path={"dashboard"}>
-        <div className="h-12 flex space-x-2 items-center">
+        <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
+          <Link passHref className="ml-auto mr-2" href={{ pathname: "dashboard/new" }}>
+            <Button variant="outlinePrimary">New Chart</Button>
+          </Link>
         </div>
       </Header>
-      <div className="flex-grow flex flex-col h-0">
-        <ScrollArea className="h-full">
-          <div className="h-full p-4">
-            <GridLayout />
-          </div>
-        </ScrollArea>
-      </div>
+      <ScrollArea className="h-full">
+        <div className="h-full p-4">
+          <GridLayout />
+        </div>
+      </ScrollArea>
     </>
   );
 }

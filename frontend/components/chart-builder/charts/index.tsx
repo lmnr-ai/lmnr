@@ -68,8 +68,8 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
 
   if (keys.size === 0) {
     return (
-      <div className="flex flex-1 justify-center items-center bg-muted/30 rounded-lg">
-        <span className="text-muted-foreground text-sm">No data during this period</span>
+      <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
+        <span className="text-muted-foreground">No data during this period</span>
       </div>
     );
   }
