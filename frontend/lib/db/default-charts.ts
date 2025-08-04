@@ -232,25 +232,33 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
   {
     name: "Trace Status",
     query: `
-        SELECT
-            toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-            CASE 
-                WHEN status = '' THEN 'success'
-                ELSE 'error'
-        END AS trace_status,
+        WITH traces_data AS (
+            SELECT
+                toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
+            status,
             count() AS value
         FROM traces
         WHERE
             start_time >= {start_time:DateTime64}
-            AND start_time <= {end_time:DateTime64}
-            AND trace_type = 0
-            AND status IN ('', 'error')
-        GROUP BY time, trace_status
+          AND start_time <= {end_time:DateTime64}
+          AND trace_type = 0
+          AND status IN ('', 'error')
+        GROUP BY time, status
         ORDER BY time
         WITH FILL
         FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
-        TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
-        STEP toInterval(1, {interval_unit:String})
+            TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+            STEP toInterval(1, {interval_unit:String})
+            )
+        SELECT
+            time,
+            CASE
+            WHEN status = 'error' THEN 'error'
+            ELSE 'success'
+        END AS trace_status,
+        value
+        FROM traces_data
+        ORDER BY time, trace_status
     `,
     settings: {
       config: {
