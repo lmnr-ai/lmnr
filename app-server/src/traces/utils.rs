@@ -37,6 +37,7 @@ pub async fn get_llm_usage_for_span(
     attributes: &mut SpanAttributes,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    span_name: &String,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
@@ -48,7 +49,7 @@ pub async fn get_llm_usage_for_span(
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
     let model_name = response_model.clone().or(attributes.request_model());
-    let provider_name = attributes.provider_name();
+    let provider_name = attributes.provider_name(span_name);
 
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
