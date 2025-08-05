@@ -82,6 +82,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     events_bytes_ingested: number;
   }>();
 
+  console.log("result", result, latestResetTime.toISOString().replace(/Z$/, ""));
+
   if (result.length === 0) {
     throw new Error("Error getting workspace usage");
   }

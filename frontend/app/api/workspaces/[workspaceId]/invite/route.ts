@@ -34,9 +34,10 @@ export async function POST(req: Request, props: { params: Promise<{ workspaceId:
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const body = (await req.json()) as { email: string; workspaceId: string };
+  const body = (await req.json()) as { email: string; workspaceId: string; role?: "member" | "admin" };
 
   const email: string = body.email;
+  const role: "member" | "admin" = body.role || "member";
   const workspaceId: string = params.workspaceId;
 
   const workspace = await db.query.workspaces.findFirst({

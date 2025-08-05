@@ -3,8 +3,10 @@
 import { isEmpty } from "lodash";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
@@ -12,7 +14,7 @@ import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import { useUserContext } from "@/contexts/user-context";
 import { WorkspaceStats } from "@/lib/usage/types";
 import { formatTimestamp } from "@/lib/utils";
-import { WorkspaceInvitation, WorkspaceUser, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { WorkspaceInvitation, WorkspaceRole, WorkspaceUser, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
@@ -23,24 +25,65 @@ interface WorkspaceUsersProps {
   workspace: WorkspaceWithUsers;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
+  currentUserRole: WorkspaceRole;
 }
 
-export default function WorkspaceUsers({ invitations, workspace, workspaceStats, isOwner }: WorkspaceUsersProps) {
+export default function WorkspaceUsers({ invitations, workspace, workspaceStats, isOwner, currentUserRole }: WorkspaceUsersProps) {
   const { email } = useUserContext();
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isRemoveUserDialogOpen, setIsRemoveUserDialogOpen] = useState(false);
   const [isLeaveWorkspaceDialogOpen, setIsLeaveWorkspaceDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
   const [targetUser, setTargetUser] = useState<WorkspaceUser | undefined>(undefined);
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
+
   const handleRemoveUser = useCallback((user: WorkspaceUser) => {
     setTargetUser(user);
     setIsRemoveUserDialogOpen(true);
   }, []);
 
-  const router = useRouter();
+  const handleRoleChange = useCallback(async (userId: string, newRole: WorkspaceRole) => {
+    if (newRole === "owner") {
+      toast({
+        title: "Cannot change role to owner",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdatingRoleUserId(userId);
+    try {
+      const response = await fetch(`/api/workspaces/${workspace.id}/update-user-role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId, newRole }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update role");
+      }
+
+      toast({
+        title: "Role updated successfully",
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to update role",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingRoleUserId(null);
+    }
+  }, [workspace.id, router]);
 
   const isDeletable = useMemo(() => isOwner && workspace.users?.length > 1, [isOwner, workspace.users?.length]);
-
+  const canChangeRoles = useMemo(() => currentUserRole === "owner" || currentUserRole === "admin", [currentUserRole]);
   const hasLeavePermission = useMemo(() => !isOwner && workspace.users?.length > 1, [isOwner, workspace.users?.length]);
 
   return (
@@ -86,6 +129,7 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
               <TableHead className="p-2">Email</TableHead>
               <TableHead className="p-2">Role</TableHead>
               <TableHead className="p-2">Added</TableHead>
+              {canChangeRoles && <TableHead className="p-2">Change Role</TableHead>}
               {isDeletable && <TableHead className="p-2" />}
               {hasLeavePermission && <TableHead className="p-2" />}
             </TableRow>
@@ -94,8 +138,33 @@ export default function WorkspaceUsers({ invitations, workspace, workspaceStats,
             {workspace.users.map((user, i) => (
               <TableRow key={user.id} className="h-14">
                 <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role}</TableCell>
+                <TableCell>
+                  {user.role}
+                </TableCell>
                 <TableCell>{formatTimestamp(user.createdAt)}</TableCell>
+                {canChangeRoles && (
+                  <TableCell>
+                    {user.role !== "owner" && user.email !== email ? (
+                      <Select
+                        value={user.role}
+                        onValueChange={(newRole: WorkspaceRole) => handleRoleChange(user.id, newRole)}
+                        disabled={updatingRoleUserId === user.id}
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {user.role === "owner" ? "Owner" : "You"}
+                      </span>
+                    )}
+                  </TableCell>
+                )}
                 {isDeletable && email !== user.email && (
                   <TableCell align="center">
                     <Button onClick={() => handleRemoveUser(user)} variant="destructive" className="mx-auto">
