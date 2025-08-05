@@ -238,17 +238,36 @@ impl SpanAttributes {
         }
     }
 
-    pub fn provider_name(&self) -> Option<String> {
+    pub fn provider_name(&self, span_name: &str) -> Option<String> {
         let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
-            // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
-            // name as an attribute `association_properties.ls_provider`.
-            if provider == "Langchain" {
+            // For several versions prior to https://github.com/traceloop/openllmetry/pull/3165
+            // and thus before `opentelemetry-instrumentation-langchain` 0.43.1, OpenLLMetry used
+            // to send the provider name as "Langchain" and the actual provider.
+
+            // TODO: Since `lmnr 0.7.2` in Python, we have upgraded to OpenLLMetry >= 0.44.0,
+            // which correctly sends the provider name as the actual provider name, so
+            // this logic can be removed in a few months. We should also stop passing
+            // the span name all the way to here when we remove this logic.
+            if provider.to_lowercase().trim() == "langchain" {
+                // In some old versions, they would add an association property `ls_provider`
+                // to the span attributes.
                 let ls_provider = self
                     .raw_attributes
                     .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
+                } else if span_name.contains(".")
+                    && span_name.to_lowercase().trim().starts_with("chat")
+                {
+                    // If there is no `ls_provider` attribute, we can try to extract the provider
+                    // name from the span name.
+                    span_name
+                        .to_lowercase()
+                        .replacen("chat", "", 1)
+                        .split(".")
+                        .next()
+                        .map(String::from)
                 } else {
                     Some(provider.clone())
                 }

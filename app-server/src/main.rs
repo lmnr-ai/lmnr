@@ -44,7 +44,6 @@ use sodiumoxide;
 use std::{
     env,
     io::{self, Error},
-    time::Duration,
     sync::Arc,
     thread::{self, JoinHandle},
 };

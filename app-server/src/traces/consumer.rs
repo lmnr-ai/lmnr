@@ -231,7 +231,8 @@ async fn process_batch(
 
     for span in &mut spans {
         let span_usage =
-            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone()).await;
+            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
+                .await;
 
         // Filter events for this span
         let span_events: Vec<Event> = events
