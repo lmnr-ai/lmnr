@@ -79,7 +79,7 @@ async function handleSubscriptionChange(
         });
       } else {
         if (!userId) {
-          console.log(`subscription updated event. No userId found.`);
+          console.log(`subscription updated event. No userId found. subscriptionId: ${subscription.id}`);
           continue;
         }
         await manageUserSubscriptionEvent({
