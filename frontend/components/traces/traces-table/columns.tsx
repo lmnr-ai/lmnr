@@ -182,7 +182,13 @@ export const columns: ColumnDef<Trace, any>[] = [
             </div>
           </TooltipTrigger>
           {row.getValue() !== undefined && (
-            <TooltipContent side="bottom" className="p-2 border">
+            <TooltipContent
+              side="bottom"
+              className="p-2 border"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <div className="whitespace-pre-wrap">{row.getValue()}</div>
             </TooltipContent>
           )}
