@@ -66,7 +66,7 @@ async function handleSubscriptionChange(
       );
       if (subscriptionType === 'workspace') {
         if (!workspaceId) {
-          console.log(`subscription updated event. No workspaceId found.`);
+          console.log(`subscription updated event. No workspaceId found. subscriptionId: ${subscription.id}`);
           continue;
         }
         await manageWorkspaceSubscriptionEvent({
