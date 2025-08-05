@@ -7,14 +7,16 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 
 use actix_web::{
-    App, HttpServer,
-    middleware::{Logger, NormalizePath},
-    web::{self, JsonConfig, PayloadConfig},
+    dev, http::StatusCode, middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath}, web::{self, JsonConfig, PayloadConfig}, App, HttpServer
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use agent_manager::{
     AgentManager, agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
     agent_manager_impl::AgentManagerImpl, channel::AgentManagerWorkers,
+};
+use query_engine::{
+    query_engine::query_engine_service_client::QueryEngineServiceClient,
+    QueryEngine, query_engine_impl::QueryEngineImpl,
 };
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
@@ -64,8 +66,10 @@ mod names;
 mod opentelemetry;
 mod project_api_keys;
 mod provider_api_keys;
+mod query_engine;
 mod routes;
 mod runtime;
+mod sql;
 mod storage;
 mod traces;
 mod utils;
@@ -330,6 +334,46 @@ fn main() -> anyhow::Result<()> {
     let cache_for_http = cache.clone();
     let mq_for_http = queue.clone();
 
+        // == Clickhouse ==
+    let clickhouse_url =
+        env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user =
+        env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(clickhouse_url.clone())
+        .with_user(clickhouse_user)
+        .with_database("default")
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "0");
+
+    let clickhouse = match clickhouse_password {
+        Ok(password) => clickhouse_client.with_password(password),
+        _ => {
+            log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
+            clickhouse_client
+        }
+    };
+    let clickhouse_for_grpc = clickhouse.clone();
+
+    // == Clickhouse Read-Only Client ==
+    let clickhouse_readonly_client = if is_feature_enabled(Feature::ClickhouseReadOnly) {
+        let clickhouse_ro_user = 
+            env::var("CLICKHOUSE_RO_USER").expect("CLICKHOUSE_RO_USER must be set");
+        let clickhouse_ro_password = env::var("CLICKHOUSE_RO_PASSWORD").expect("CLICKHOUSE_RO_PASSWORD must be set");
+        
+        Some(Arc::new(
+            crate::sql::ClickhouseReadonlyClient::new(
+                clickhouse_url,
+                clickhouse_ro_user,
+                clickhouse_ro_password,
+            )
+        ))
+    } else {
+        log::info!("ClickHouse read-only client disabled");
+        None
+    };
+
     // == HTTP server and listener workers ==
     let http_server_handle = thread::Builder::new()
         .name("http".to_string())
@@ -357,27 +401,6 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     log::info!("using mock storage");
                     Arc::new(MockStorage {}.into())
-                };
-
-                // == Clickhouse ==
-                let clickhouse_url =
-                    env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-                let clickhouse_user =
-                    env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-                let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
-                let clickhouse_client = clickhouse::Client::default()
-                    .with_url(clickhouse_url)
-                    .with_user(clickhouse_user)
-                    .with_database("default")
-                    .with_option("async_insert", "1")
-                    .with_option("wait_for_async_insert", "0");
-
-                let clickhouse = match clickhouse_password {
-                    Ok(password) => clickhouse_client.with_password(password),
-                    _ => {
-                        log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
-                        clickhouse_client
-                    }
                 };
 
                 // == Browser agent ==
@@ -438,6 +461,20 @@ fn main() -> anyhow::Result<()> {
                     String::new()
                 };
 
+                // == Query Engine ==
+                let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
+                    let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
+                    let query_engine_grpc_client = Arc::new(
+                        QueryEngineServiceClient::connect(query_engine_url)
+                            .await
+                            .map_err(tonic_error_to_io_error)?
+                    );
+                    Arc::new(QueryEngineImpl::new(query_engine_grpc_client).into())
+                } else {
+                    log::info!("Using mock query engine");
+                    Arc::new(query_engine::mock::MockQueryEngine {}.into())
+                };
+
                 let num_spans_workers_per_thread = env::var("NUM_SPANS_WORKERS_PER_THREAD")
                     .unwrap_or(String::from("4"))
                     .parse::<u8>()
@@ -485,7 +522,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
-                            db_for_http.clone(),
                             clickhouse.clone(),
                             mq_for_http.clone(),
                         ));
@@ -509,6 +545,12 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
+                    .wrap( ErrorHandlers::new()
+                            .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
+                                log::error!("Bad request: {:?}", res.response().body());
+                                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+                            })
+                        )
                         .wrap(Logger::default().exclude("/health").exclude("/ready"))
                         .wrap(NormalizePath::trim())
                         .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -517,14 +559,15 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::from(db_for_http.clone()))
                         .app_data(web::Data::new(mq_for_http.clone()))
                         .app_data(web::Data::new(clickhouse.clone()))
+                        .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
+                        .app_data(web::Data::new(query_engine.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
-                                .service(api::v1::browser_sessions::options_handler)
                                 .service(
                                     web::scope("")
                                         .wrap(project_auth.clone())
@@ -541,6 +584,7 @@ fn main() -> anyhow::Result<()> {
                                 .wrap(project_auth.clone())
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
+                                .service(api::v1::datasets::create_datapoints)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
@@ -548,7 +592,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evals::update_eval_datapoint)
                                 .service(api::v1::evaluators::create_evaluator_score)
                                 .service(api::v1::tag::tag_trace)
-                                .service(api::v1::agent::run_agent_manager),
+                                .service(api::v1::agent::run_agent_manager)
+                                .service(api::v1::sql::execute_sql_query),
                         )
                         // Scopes with generic auth
                         .service(
@@ -568,6 +613,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::evaluations::get_evaluation_score_distribution)
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
+                                .service(routes::sql::execute_sql_query)
+                                .service(routes::sql::validate_sql_query),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)
@@ -587,6 +634,7 @@ fn main() -> anyhow::Result<()> {
                 let process_traces_service = ProcessTracesService::new(
                     db.clone(),
                     cache.clone(),
+                    clickhouse_for_grpc,
                     queue.clone(),
                 );
 

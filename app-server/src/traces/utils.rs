@@ -37,6 +37,7 @@ pub async fn get_llm_usage_for_span(
     attributes: &mut SpanAttributes,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    span_name: &str,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
@@ -44,21 +45,24 @@ pub async fn get_llm_usage_for_span(
 
     let input_cost = attributes.input_cost();
     let output_cost = attributes.output_cost();
+    let total_cost = attributes.total_cost();
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
     let model_name = response_model.clone().or(attributes.request_model());
-    let provider_name = attributes.provider_name();
+    let provider_name = attributes.provider_name(span_name);
 
-    if input_cost.is_some_and(|c| c > 0.0) || output_cost.is_some_and(|c| c > 0.0) {
-        // do not proceed with cost estimation if
-        // either input or output cost is reported manually
+    if input_cost.is_some_and(|c| c > 0.0)
+        || output_cost.is_some_and(|c| c > 0.0)
+        || total_cost.is_some_and(|c| c > 0.0)
+    {
         return SpanUsage {
             input_tokens: input_tokens.total(),
             output_tokens,
             total_tokens,
             input_cost: input_cost.unwrap_or(0.0),
             output_cost: output_cost.unwrap_or(0.0),
-            total_cost: input_cost.unwrap_or(0.0) + output_cost.unwrap_or(0.0),
+            total_cost: total_cost
+                .unwrap_or(input_cost.unwrap_or(0.0) + output_cost.unwrap_or(0.0)),
             response_model: response_model.clone(),
             request_model: request_model.clone(),
             provider_name,
@@ -67,7 +71,7 @@ pub async fn get_llm_usage_for_span(
 
     let mut input_cost = input_cost.unwrap_or(0.0);
     let mut output_cost = output_cost.unwrap_or(0.0);
-    let mut total_cost = input_cost + output_cost;
+    let mut total_cost = total_cost.unwrap_or(input_cost + output_cost);
 
     if let Some(model) = model_name.as_deref() {
         if let Some(provider) = &provider_name {
@@ -83,8 +87,8 @@ pub async fn get_llm_usage_for_span(
             if let Some(cost_entry) = cost_entry {
                 input_cost = cost_entry.input_cost;
                 output_cost = cost_entry.output_cost;
+                total_cost = input_cost + output_cost;
             }
-            total_cost = input_cost + output_cost;
         }
     }
 
@@ -139,7 +143,7 @@ pub async fn record_spans<'a>(
     Ok(())
 }
 
-pub async fn record_spans_batch<'a>(
+pub async fn record_spans_batch(
     db: Arc<DB>,
     spans: &[Span],
     trace_attributes_vec: &[TraceAttributes],

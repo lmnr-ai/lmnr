@@ -25,18 +25,20 @@ pub struct EvaluationScore {
     #[serde(with = "clickhouse::serde::uuid")]
     pub evaluation_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
-    pub result_id: Uuid,
+    pub evaluation_datapoint_id: Uuid,
     // Note that one evaluator can produce multiple scores
     pub name: String,
     pub value: f64,
     #[serde(serialize_with = "serialize_timestamp")]
     pub timestamp: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
 }
 
 impl EvaluationScore {
     pub fn from_evaluation_datapoint_results(
         points: &Vec<EvaluationDatapointResult>,
-        result_ids: &Vec<Uuid>,
+        evaluation_datapoint_ids: &Vec<Uuid>,
         project_id: Uuid,
         group_id: String,
         evaluation_id: Uuid,
@@ -47,8 +49,8 @@ impl EvaluationScore {
     ) -> Vec<EvaluationScore> {
         points
             .iter()
-            .zip(result_ids.iter())
-            .flat_map(|(point, result_id)| {
+            .zip(evaluation_datapoint_ids.iter())
+            .flat_map(|(point, evaluation_datapoint_id)| {
                 point.scores.iter().map(|(name, value)| {
                     let name = name.to_string();
                     let value = value.clone();
@@ -56,7 +58,7 @@ impl EvaluationScore {
                         project_id,
                         group_id: group_id.clone(),
                         evaluation_id,
-                        result_id: *result_id,
+                        evaluation_datapoint_id: *evaluation_datapoint_id,
                         name: name.to_string(),
                         // Replace None values with 0.0 before inserting because
                         // we don't want to (and essentially can't) insert NULL values into Clickhouse.
@@ -65,6 +67,7 @@ impl EvaluationScore {
                         // produce a score.
                         value: value.unwrap_or(0.0),
                         timestamp,
+                        trace_id: point.trace_id,
                     }
                 })
             })
@@ -282,7 +285,8 @@ pub async fn insert_updated_evaluation_scores(
     project_id: Uuid,
     group_id: String,
     evaluation_id: Uuid,
-    result_id: Uuid,
+    evaluation_datapoint_id: Uuid,
+    trace_id: Uuid,
     scores: HashMap<String, Option<f64>>,
 ) -> Result<()> {
     if scores.is_empty() {
@@ -295,9 +299,10 @@ pub async fn insert_updated_evaluation_scores(
             project_id,
             group_id: group_id.clone(),
             evaluation_id,
-            result_id,
+            evaluation_datapoint_id,
             name,
             value: value.unwrap_or(0.0), // Replace None with 0.0 for ClickHouse
+            trace_id,
             timestamp: Utc::now(),
         })
         .collect();

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, options, post, web};
-use serde::{Deserialize, Serialize};
+use actix_web::{HttpResponse, post, web};
+use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -15,18 +15,42 @@ pub const BROWSER_SESSIONS_QUEUE: &str = "browser_sessions_queue";
 pub const BROWSER_SESSIONS_EXCHANGE: &str = "browser_sessions_exchange";
 pub const BROWSER_SESSIONS_ROUTING_KEY: &str = "browser_sessions_routing_key";
 
+// Custom deserializer for the data field to support both Vec<u8> and base64 string
+fn deserialize_data<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum DataFormat {
+        Bytes(Vec<u8>),
+        Base64String(String),
+    }
+
+    match DataFormat::deserialize(deserializer)? {
+        DataFormat::Bytes(bytes) => Ok(bytes),
+        DataFormat::Base64String(s) => {
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &s)
+                .map_err(|e| Error::custom(format!("Invalid base64: {}", e)))
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RRWebEvent {
     #[serde(rename = "type")]
     pub event_type: u8,
-    pub timestamp: i64,
+    pub timestamp: f64, // milliseconds
+    #[serde(deserialize_with = "deserialize_data")]
     pub data: Vec<u8>,
 }
 
 impl RRWebEvent {
     pub fn estimate_size_bytes(&self) -> usize {
         // 1 byte for event_type, 8 bytes for timestamp
-        return 9 + self.data.len();
+        9 + self.data.len()
     }
 }
 
@@ -40,19 +64,6 @@ pub struct EventBatch {
     pub source: Option<String>,
     #[serde(default)]
     pub sdk_version: Option<String>,
-}
-
-#[options("events")]
-async fn options_handler() -> ResponseResult {
-    Ok(HttpResponse::Ok()
-        .insert_header(("Access-Control-Allow-Origin", "*"))
-        .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-        .insert_header((
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type, Content-Encoding, Accept",
-        ))
-        .insert_header(("Access-Control-Max-Age", "86400"))
-        .finish())
 }
 
 #[post("events")]

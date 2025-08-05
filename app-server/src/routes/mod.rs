@@ -5,6 +5,7 @@ pub mod evaluations;
 pub mod probes;
 pub mod provider_api_keys;
 pub mod spans;
+pub mod sql;
 pub mod types;
 pub mod workspace;
 use serde::Serialize;

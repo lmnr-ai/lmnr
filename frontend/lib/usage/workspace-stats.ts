@@ -5,10 +5,12 @@ import {
   membersOfWorkspaces,
   subscriptionTiers,
   workspaces,
-  workspaceUsage,
 } from "@/lib/db/migrations/schema";
 
+import { getWorkspaceUsage } from "../actions/workspaces";
 import { WorkspaceStats } from "./types";
+
+const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
 export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceStats> {
   // First, get member count for the workspace
@@ -19,62 +21,46 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
 
   const members = membersCount[0]?.count || 0;
 
-  const result = await db
+  const limitsRows = await db
     .select({
       tierName: subscriptionTiers.name,
       seatsIncludedInTier: subscriptionTiers.membersPerWorkspace,
-      totalSpans: workspaceUsage.spanCount,
-      spansThisMonth: workspaceUsage.spanCountSinceReset,
-      totalSteps: workspaceUsage.stepCount,
-      stepsThisMonth: workspaceUsage.stepCountSinceReset,
-      stepsLimit: subscriptionTiers.steps,
-      stepsOverLimit: sql<number>`GREATEST(${workspaceUsage.stepCountSinceReset} - ${subscriptionTiers.steps}, 0)`,
-      stepsOverLimitCost: sql<number>`GREATEST(${workspaceUsage.stepCountSinceReset} - ${subscriptionTiers.steps}, 0)::float8 * ${subscriptionTiers.extraStepPrice}`,
       membersLimit: sql<number>`${subscriptionTiers.membersPerWorkspace} + ${workspaces.additionalSeats}`,
       storageLimit: subscriptionTiers.storageMib,
-      resetTime: workspaceUsage.resetTime,
-      // Bytes ingested fields for GB calculation
-      totalBytesIngested: sql<number>`${workspaceUsage.spansBytesIngested} + ${workspaceUsage.browserSessionEventsBytesIngested}`,
-      bytesIngestedThisMonth: sql<number>`${workspaceUsage.spansBytesIngestedSinceReset} + ${workspaceUsage.browserSessionEventsBytesIngestedSinceReset}`,
       bytesLimit: subscriptionTiers.bytesIngested,
     })
-    .from(workspaceUsage)
-    .innerJoin(workspaces, eq(workspaces.id, workspaceUsage.workspaceId))
+    .from(workspaces)
     .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
-    .where(eq(workspaceUsage.workspaceId, workspaceId))
+    .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
-  if (!result[0]) {
+  if (!limitsRows[0]) {
     throw new Error(`Workspace stats not found for workspace ${workspaceId}`);
   }
 
-  const stats = result[0];
+  const limits = limitsRows[0];
 
-  // Convert bytes to GB (1 GB = 1024^3 bytes)
-  const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
+  const usage = await getWorkspaceUsage(workspaceId);
 
-  const totalGBUsed = bytesToGB(Number(stats.totalBytesIngested));
-  const gbUsedThisMonth = bytesToGB(Number(stats.bytesIngestedThisMonth));
-  const gbLimit = bytesToGB(Number(stats.bytesLimit));
+  const gbUsedThisMonth = bytesToGB(
+    Number(
+      usage.spansBytesIngested +
+      usage.browserSessionEventsBytesIngested +
+      usage.eventsBytesIngested
+    )
+  );
+  const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
   // Calculate GB overages
   const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);
   const gbOverLimitCost = gbOverLimit * 2; // $2 per GB overage based on pricing
 
   return {
-    tierName: stats.tierName,
-    seatsIncludedInTier: Number(stats.seatsIncludedInTier),
-    totalSpans: Number(stats.totalSpans),
-    spansThisMonth: Number(stats.spansThisMonth),
+    tierName: limits.tierName,
+    seatsIncludedInTier: Number(limits.seatsIncludedInTier),
     members: Number(members),
-    membersLimit: Number(stats.membersLimit),
-    resetTime: stats.resetTime,
-    stepsLimit: Number(stats.stepsLimit),
-    stepsOverLimit: Number(stats.stepsOverLimit),
-    stepsOverLimitCost: Number(stats.stepsOverLimitCost),
-    stepsThisMonth: Number(stats.stepsThisMonth),
-    // GB usage fields
-    totalGBUsed,
+    membersLimit: Number(limits.membersLimit),
+    resetTime: usage.resetTime.toISOString(),
     gbUsedThisMonth,
     gbLimit,
     gbOverLimit,

@@ -12,7 +12,8 @@ pub struct BrowserEventCHRow<'a> {
     pub session_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
-    pub timestamp: i64,
+    // This column is DateTime64(3, 'UTC'), we assume that the timestamp is in milliseconds
+    pub timestamp: u64,
     pub event_type: u8,
     pub data: &'a [u8],
     #[serde(with = "clickhouse::serde::uuid")]
@@ -25,7 +26,7 @@ pub async fn insert_browser_events(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     event_batch: &EventBatch,
-) -> Result<usize, clickhouse::error::Error> {
+) -> Result<(), clickhouse::error::Error> {
     let mut insert = clickhouse
         .insert("browser_session_events")
         .map_err(|e| {
@@ -40,8 +41,6 @@ pub async fn insert_browser_events(
         })?
         .with_option("async_insert", "1");
 
-    let mut total_size_bytes = 0;
-
     for event in event_batch.events.iter() {
         let size_bytes = event.estimate_size_bytes();
         insert
@@ -49,7 +48,7 @@ pub async fn insert_browser_events(
                 event_id: Uuid::new_v4(),
                 session_id: event_batch.session_id,
                 trace_id: event_batch.trace_id,
-                timestamp: event.timestamp,
+                timestamp: event.timestamp.abs() as u64,
                 event_type: event.event_type,
                 data: &event.data,
                 project_id: project_id,
@@ -63,8 +62,6 @@ pub async fn insert_browser_events(
                 );
                 e
             })?;
-
-        total_size_bytes += size_bytes;
     }
 
     insert.end().await.map_err(|e| {
@@ -75,5 +72,5 @@ pub async fn insert_browser_events(
         e
     })?;
 
-    Ok(total_size_bytes)
+    Ok(())
 }

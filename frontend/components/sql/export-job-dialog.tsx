@@ -55,10 +55,9 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
       });
 
       if (!res.ok) {
-        throw new Error("Failed to export data as job");
+        const errorText = await res.text();
+        throw new Error(`Failed to export data as job: ${errorText}`);
       }
-
-      const response = await res.json();
 
       toast({
         title: `Export job started`,

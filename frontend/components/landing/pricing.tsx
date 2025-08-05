@@ -391,7 +391,6 @@ export default function Pricing() {
             features={[
               'Custom data retention',
               'Custom team members',
-              'Custom agent steps',
               'On-premise deployment',
               'Dedicated support',
             ]}

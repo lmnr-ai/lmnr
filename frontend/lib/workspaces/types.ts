@@ -42,20 +42,21 @@ export type GetProjectResponse = {
   id: string;
   name: string;
   workspaceId: string;
-  // Legacy span fields (deprecated but kept for compatibility)
-  spansThisMonth: number;
-  eventsThisMonth: number;
-  eventsLimit: number;
   // New GB-based usage fields
   gbUsedThisMonth: number;
   gbLimit: number;
   isFreeTier: boolean;
-  agentStepsThisMonth: number;
-  agentStepsLimit: number;
 };
 
 export interface ProjectStats {
   datasetsCount: number;
   spansCount: number;
   evaluationsCount: number;
+}
+
+export interface WorkspaceUsage {
+  spansBytesIngested: number;
+  browserSessionEventsBytesIngested: number;
+  eventsBytesIngested: number;
+  resetTime: Date;
 }

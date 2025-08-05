@@ -28,7 +28,7 @@ export const getDatapoint = async (projectId: string, datapointId: string, datas
       data,
       target,
       metadata
-    FROM datapoints
+    FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
     AND id = {datapointId: UUID}
     AND dataset_id = {datasetId: UUID}
@@ -67,7 +67,7 @@ export const getDatapointsByIds = async (
       data,
       target,
       metadata
-    FROM datapoints
+    FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
     AND id IN ({datapointIds: Array(UUID)})
   `;
@@ -104,7 +104,7 @@ export const getAllDatapointsForDataset = async (
       data,
       target,
       metadata
-    FROM datapoints
+    FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
     AND dataset_id = {datasetId: UUID}
     ORDER BY created_at ASC
@@ -134,7 +134,7 @@ export const getDatapoints = async (params: DatapointSearchParams): Promise<Data
       substring(data, 1, 100) as data,
       substring(target, 1, 100) as target,
       metadata
-    FROM datapoints
+    FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
   `;
 
@@ -175,7 +175,7 @@ export const getDatapointCount = async (params: Omit<DatapointSearchParams, 'pag
 
   let baseQuery = `
     SELECT COUNT(*) as count
-    FROM datapoints
+    FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
   `;
 
@@ -233,7 +233,7 @@ export const createDatapoints = async (
 
   // Use batch insert similar to Rust implementation
   const insert = clickhouseClient.insert({
-    table: 'datapoints',
+    table: 'dataset_datapoints',
     values: rows,
     format: 'JSONEachRow',
     clickhouse_settings: {
@@ -280,7 +280,7 @@ export const deleteDatapoints = async (
   }
 
   const query = `
-    DELETE FROM datapoints
+    DELETE FROM dataset_datapoints
     WHERE project_id = {projectId: UUID}
     AND id IN ({datapointIds: Array(UUID)})
   `;

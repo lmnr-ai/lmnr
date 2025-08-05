@@ -18,6 +18,7 @@ const verifyToken = (token: string): JwtPayload => {
   try {
     return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as JwtPayload;
   } catch (error) {
+    console.error("Token verification failed:", token);
     notFound();
   }
 };
@@ -81,8 +82,10 @@ export default async function InvitationsPage(props: {
     return notFound();
   }
 
+  console.log("passed token");
   const decoded = verifyToken(token);
 
+  console.log("workspace here", decoded);
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, decoded.workspaceId),
   });

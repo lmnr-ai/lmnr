@@ -1,14 +1,15 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { capitalize } from "lodash";
 import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
-import SpanTypeIcon from "@/components/traces/span-type-icon";
+import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Trace } from "@/lib/traces/types";
+import { SpanType, Trace } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
 
 const renderCost = (val: any) => {
@@ -181,7 +182,13 @@ export const columns: ColumnDef<Trace, any>[] = [
             </div>
           </TooltipTrigger>
           {row.getValue() !== undefined && (
-            <TooltipContent side="bottom" className="p-2 border">
+            <TooltipContent
+              side="bottom"
+              className="p-2 border"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <div className="whitespace-pre-wrap">{row.getValue()}</div>
             </TooltipContent>
           )}
@@ -212,7 +219,12 @@ export const filters: ColumnFilter[] = [
   {
     name: "Top level span",
     key: "span_type",
-    dataType: "json",
+    dataType: "enum",
+    options: Object.values(SpanType).map((v) => ({
+      label: v,
+      value: v,
+      icon: createSpanTypeIcon(v, "w-4 h-4", 14),
+    })),
   },
   {
     name: "Top span name",
@@ -248,6 +260,15 @@ export const filters: ColumnFilter[] = [
     name: "Total tokens",
     key: "total_token_count",
     dataType: "number",
+  },
+  {
+    name: "Status",
+    dataType: "enum",
+    key: "status",
+    options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
   },
   {
     name: "Metadata",

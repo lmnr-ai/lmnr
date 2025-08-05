@@ -315,6 +315,7 @@ export const getDurationString = (startTime: string, endTime: string) => {
 
   return `${(duration / 1000).toFixed(2)}s`;
 };
+
 export const getDuration = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);

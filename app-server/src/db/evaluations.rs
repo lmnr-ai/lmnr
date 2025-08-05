@@ -187,23 +187,24 @@ pub async fn get_evaluation_group_id(
 }
 
 /// Update executor output and scores for a single evaluation datapoint.
-pub async fn update_evaluation_datapoint(
+pub async fn update_evaluation_datapoint_and_get_trace_id(
     pool: &PgPool,
     evaluation_id: Uuid,
     datapoint_id: Uuid,
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
-) -> Result<()> {
+) -> Result<Uuid> {
     // Update the executor output in the evaluation_results table
-    sqlx::query(
+    let trace_id = sqlx::query_scalar(
         r"UPDATE evaluation_results 
         SET executor_output = $1
-        WHERE id = $2 AND evaluation_id = $3",
+        WHERE id = $2 AND evaluation_id = $3
+        RETURNING trace_id",
     )
     .bind(&executor_output)
     .bind(datapoint_id)
     .bind(evaluation_id)
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
 
     // Insert new scores into PostgreSQL
@@ -230,5 +231,5 @@ pub async fn update_evaluation_datapoint(
         .await?;
     }
 
-    Ok(())
+    Ok(trace_id)
 }

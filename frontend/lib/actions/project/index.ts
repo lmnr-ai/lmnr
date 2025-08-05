@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
+import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys, projects } from "@/lib/db/migrations/schema";
@@ -23,14 +23,24 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     // cascade deleted from db once we delete the project.
     const result = await deleteProjectApiKeysFromCache(projectId);
     if (!result.success) {
-      console.error(
-        "Failed to delete project api keys from cache. Failed keys:",
-        result.failedKeys
-      );
+      console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
     }
   } catch (error) {
     console.error("Failed to delete project api keys from cache", error);
   }
+
+  const workspaceId = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: {
+      workspaceId: true,
+    },
+  });
+
+  if (!workspaceId) {
+    throw new Error("Project not found");
+  }
+
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
 
   await db.delete(projects).where(eq(projects.id, projectId));
   const result = await deleteProjectDataFromClickHouse(projectId);
@@ -129,4 +139,43 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
     },
     { success: true }
   );
+}
+
+interface ProjectApiKeyData {
+  projectId: string;
+  name: string | null;
+  hash: string;
+  shorthand: string;
+}
+
+function isValidProjectApiKeyData(data: any): data is ProjectApiKeyData {
+  return (
+    data &&
+    typeof data.projectId === "string" &&
+    (data.name === null || typeof data.name === "string") &&
+    typeof data.hash === "string" &&
+    typeof data.shorthand === "string"
+  );
+}
+
+export async function deleteAllProjectsWorkspaceInfoFromCache(workspaceId: string) {
+  // Cache carries information about the projects in the workspace, so we need to delete it
+  // when we delete or create a project in the workspace.
+  const projectRows = await db.query.projects.findMany({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: {
+      id: true,
+    },
+  });
+
+  await Promise.allSettled(
+    projectRows.map(async (project) => {
+      await deleteProjectWorkspaceInfoFromCache(project.id);
+    })
+  );
+}
+
+async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
+  const cacheKey = `${PROJECT_CACHE_KEY}:${projectId}`;
+  await cache.remove(cacheKey);
 }

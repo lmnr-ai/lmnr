@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { spans } from "@/lib/db/migrations/schema";
 import { downloadSpanImages } from "@/lib/spans/utils";
@@ -40,15 +41,49 @@ export const PushSpanSchema = z.object({
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   const { spanId, projectId } = GetSpanSchema.parse(input);
 
-  const span = await db.query.spans.findFirst({
-    where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
-  });
+  const [dbSpan, chResult] = await Promise.all([
+    db.query.spans.findFirst({
+      where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
+      columns: {
+        spanId: true,
+        createdAt: true,
+        parentSpanId: true,
+        name: true,
+        attributes: true,
+        spanType: true,
+        startTime: true,
+        endTime: true,
+        traceId: true,
+        projectId: true,
+        inputUrl: true,
+        outputUrl: true,
+        status: true,
+      },
+    }),
+    clickhouseClient.query({
+      query: `
+        SELECT input, output
+        FROM spans
+        WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
+        LIMIT 1
+      `,
+      format: "JSONEachRow",
+      query_params: { spanId, projectId },
+    }),
+  ]);
 
-  if (!span) {
+  if (!dbSpan) {
     throw new Error("Span not found");
   }
 
-  return span;
+  const chData = (await chResult.json()) as [{ input: string; output: string }];
+  const { input: spanInput, output: spanOutput } = chData[0] || {};
+
+  return {
+    ...dbSpan,
+    input: tryParseJson(spanInput),
+    output: tryParseJson(spanOutput),
+  };
 }
 
 export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
@@ -109,3 +144,19 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
+
+const tryParseJson = (value: string) => {
+  if (value === "") return null;
+
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    // Parse with brackets because we stringify array using comma separator on server.
+    try {
+      return JSON.parse(`[${value}]`);
+    } catch (e2) {
+      console.log("Failed to parse JSON with brackets:", e2);
+      return value;
+    }
+  }
+};

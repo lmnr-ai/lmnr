@@ -34,14 +34,16 @@ pub async fn push_spans_to_queue(
                     scope_span.spans.into_iter().filter_map(|otel_span| {
                         let span_id = span_id_to_uuid(&otel_span.span_id);
 
-                        let events = otel_span
-                            .events
-                            .clone()
-                            .into_iter()
-                            .map(|event| Event::from_otel(event, span_id, project_id))
-                            .collect::<Vec<Event>>();
+                        let otel_events = otel_span.events.clone();
 
                         let span = Span::from_otel_span(otel_span, project_id);
+
+                        let events = otel_events
+                            .into_iter()
+                            .map(|event| {
+                                Event::from_otel(event, span_id, project_id, span.trace_id)
+                            })
+                            .collect::<Vec<Event>>();
 
                         if span.should_save() {
                             Some(RabbitMqSpanMessage { span, events })
