@@ -134,7 +134,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type IN [0, 1]
+          AND span_type = 1
           AND start_time >= {start_time:DateTime64}
           AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
@@ -169,7 +169,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type IN [0, 1]
+          AND span_type = 1
           AND start_time >= {start_time:DateTime64}
           AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
@@ -204,7 +204,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
         FROM spans
         WHERE
             model != '<null>'
-          AND span_type IN [0, 1]
+          AND span_type = 1
           AND start_time >= {start_time:DateTime64}
           AND start_time <= {end_time:DateTime64}
         GROUP BY time, model
@@ -320,7 +320,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
             sum(total_tokens) AS value
         FROM spans
         WHERE
-            span_type IN [0, 1]
+            span_type = 1
           AND start_time >= {start_time:DateTime64}
           AND start_time <= {end_time:DateTime64}
         GROUP BY time
@@ -353,7 +353,7 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
             sum(total_cost) AS value
         FROM spans
         WHERE
-            span_type IN [0, 1]
+            span_type = 1
           AND start_time >= {start_time:DateTime64}
           AND start_time <= {end_time:DateTime64}
         GROUP BY time

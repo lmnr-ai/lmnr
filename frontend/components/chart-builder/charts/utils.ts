@@ -166,6 +166,10 @@ export const transformDataForBreakdown = (
     const breakdownValue = String(row[breakdownColumn]);
     const yValue = Number(row[yColumn]) || 0;
 
+    if (breakdownValue === "") {
+      return;
+    }
+
     allBreakdownValues.add(breakdownValue);
 
     if (!groupedByX.has(xValue)) {
