@@ -982,7 +982,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                 let Some(otel_content) = message.get("content") else {
                     return Err(anyhow::anyhow!("Can't find content in message"));
                 };
-                let tool_call_id = message
+                let mut tool_call_id = message
                     .get("tool_call_id")
                     .and_then(|v| v.as_str())
                     .map(String::from);
@@ -999,7 +999,33 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                         }
                         ChatMessageContent::ContentPartList(parts)
                     }
-                    Err(_) => ChatMessageContent::Text(json_value_to_string(otel_content)),
+                    Err(_) => {
+                        if let Value::Array(parts) = otel_content {
+                            let ai_sdk_tool_result_msg = parts.iter().find(|part| {
+                                if let Value::Object(obj) = part {
+                                    obj.get("type")
+                                        == Some(&Value::String("tool-result".to_string()))
+                                        && obj.get("toolCallId").is_some()
+                                        && obj.get("output").is_some()
+                                } else {
+                                    false
+                                }
+                            });
+                            if let Some(Value::Object(obj)) = ai_sdk_tool_result_msg {
+                                tool_call_id = obj.get("toolCallId").map(|v| v.to_string());
+                                let output = obj.get("output").unwrap_or(&Value::Null);
+                                ChatMessageContent::ContentPartList(vec![
+                                    ChatMessageContentPart::Text(ChatMessageText {
+                                        text: json_value_to_string(output),
+                                    }),
+                                ])
+                            } else {
+                                ChatMessageContent::Text(json_value_to_string(&otel_content))
+                            }
+                        } else {
+                            ChatMessageContent::Text(json_value_to_string(otel_content))
+                        }
+                    }
                 };
                 Ok(ChatMessage {
                     role: role.to_string(),
