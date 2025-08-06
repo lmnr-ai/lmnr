@@ -566,7 +566,6 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         .app_data(web::Data::new(query_engine.clone()))
-                        .app_data(web::Data::new(storage.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(
