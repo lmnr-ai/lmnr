@@ -1,6 +1,7 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use aws_sdk_s3::Client;
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 
 use crate::{
     mq::{MessageQueue, MessageQueueTrait},
@@ -33,7 +34,10 @@ impl S3Storage {
     }
 }
 
+#[async_trait]
 impl super::StorageTrait for S3Storage {
+    type StorageBytesStream =
+        Pin<Box<dyn futures_util::stream::Stream<Item = Vec<u8>> + Send + 'static>>;
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String> {
         // Push to queue instead of storing directly
         let message = QueuePayloadMessage {
@@ -77,5 +81,24 @@ impl super::StorageTrait for S3Storage {
 
         let bytes = response.body.collect().await?.into_bytes();
         Ok(bytes.to_vec())
+    }
+
+    async fn get_stream(&self, key: &str) -> Result<Self::StorageBytesStream> {
+        let response = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await?;
+
+        Ok(Box::pin(futures_util::stream::unfold(
+            response.body,
+            |mut body| async move {
+                let chunk = body.next().await?.ok()?;
+                let bytes = chunk.to_vec();
+                Some((bytes, body))
+            },
+        )))
     }
 }

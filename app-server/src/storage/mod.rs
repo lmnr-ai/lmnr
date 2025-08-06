@@ -1,7 +1,8 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use base64::{Engine, prelude::BASE64_STANDARD};
-use enum_dispatch::enum_dispatch;
+use enum_delegate;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -26,17 +27,20 @@ pub struct QueuePayloadMessage {
 use mock::MockStorage;
 use s3::S3Storage;
 
-#[enum_dispatch]
+#[enum_delegate::implement(StorageTrait)]
 pub enum Storage {
     Mock(MockStorage),
     S3(S3Storage),
 }
 
-#[enum_dispatch(Storage)]
+#[async_trait]
+#[enum_delegate::register]
 pub trait StorageTrait {
+    type StorageBytesStream: futures_util::stream::Stream<Item = Vec<u8>>;
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
     async fn store_direct(&self, data: Vec<u8>, key: &str) -> Result<String>;
     async fn get(&self, key: &str) -> Result<Vec<u8>>;
+    async fn get_stream(&self, key: &str) -> Result<Self::StorageBytesStream>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {
