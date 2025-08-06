@@ -79,7 +79,6 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
 
     const parquets = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/parquets`);
     const parquetsData = await parquets.json();
-    console.log(parquetsData);
     setParquets(parquetsData);
 
     setIsLoading(false);
@@ -104,7 +103,6 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
       });
     }
   };
-  console.log(parquets);
 
   return (
     <Dialog
