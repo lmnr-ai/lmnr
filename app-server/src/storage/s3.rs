@@ -70,11 +70,11 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
-    async fn get(&self, key: &str) -> Result<Vec<u8>> {
+    async fn get(&self, key: &str, bucket: &Option<String>) -> Result<Vec<u8>> {
         let response = self
             .client
             .get_object()
-            .bucket(&self.bucket)
+            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
             .key(key)
             .send()
             .await?;
@@ -83,11 +83,15 @@ impl super::StorageTrait for S3Storage {
         Ok(bytes.to_vec())
     }
 
-    async fn get_stream(&self, key: &str) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(
+        &self,
+        key: &str,
+        bucket: &Option<String>,
+    ) -> Result<Self::StorageBytesStream> {
         let response = self
             .client
             .get_object()
-            .bucket(&self.bucket)
+            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
             .key(key)
             .send()
             .await?;
@@ -99,5 +103,20 @@ impl super::StorageTrait for S3Storage {
                 Some((chunk, body))
             },
         )))
+    }
+
+    async fn get_size(&self, key: &str, bucket: &Option<String>) -> Result<u64> {
+        let response = self
+            .client
+            .head_object()
+            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
+            .key(key)
+            .send()
+            .await?;
+
+        response
+            .content_length
+            .ok_or(anyhow::anyhow!("Content length not found"))
+            .map(|l| l as u64)
     }
 }

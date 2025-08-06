@@ -39,8 +39,13 @@ pub trait StorageTrait {
     type StorageBytesStream: futures_util::stream::Stream<Item = bytes::Bytes>;
     async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
     async fn store_direct(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn get(&self, key: &str) -> Result<Vec<u8>>;
-    async fn get_stream(&self, key: &str) -> Result<Self::StorageBytesStream>;
+    async fn get(&self, key: &str, bucket: &Option<String>) -> Result<Vec<u8>>;
+    async fn get_stream(
+        &self,
+        key: &str,
+        bucket: &Option<String>,
+    ) -> Result<Self::StorageBytesStream>;
+    async fn get_size(&self, key: &str, bucket: &Option<String>) -> Result<u64>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {

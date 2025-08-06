@@ -30,7 +30,7 @@ pub async fn get_payload(
     let key = format!("project/{}/{}", project_id, payload_id);
 
     // Get the payload data from storage
-    let bytes = match storage.as_ref().get(&key).await {
+    let bytes = match storage.as_ref().get(&key, &None).await {
         Ok(bytes) => bytes,
         Err(e) => {
             log::error!("Failed to retrieve payload from storage: {:?}", e);

@@ -1,5 +1,7 @@
+use std::{env, sync::Arc};
+
 use actix_web::{HttpResponse, get, post, web};
-use aws_sdk_s3::Client as S3Client;
+use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -8,6 +10,7 @@ use crate::{
     datasets::datapoints::Datapoint,
     db::{self, DB, project_api_keys::ProjectApiKey},
     routes::{PaginatedResponse, types::ResponseResult},
+    storage::{Storage, StorageTrait},
 };
 
 #[derive(Deserialize)]
@@ -135,7 +138,7 @@ async fn create_datapoints(
 async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
-    s3_client: web::Data<Option<S3Client>>,
+    storage: web::Data<Arc<Storage>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
@@ -144,12 +147,6 @@ async fn get_parquet(
 
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
-
-    // Get S3 client or return 500 if not available
-    let s3_client = s3_client
-        .as_ref()
-        .as_ref()
-        .ok_or(anyhow::anyhow!("S3 client not available"))?;
 
     // Get parquet paths from database
     let parquet_path =
@@ -161,32 +158,17 @@ async fn get_parquet(
         })));
     };
 
-    // Get the S3 exports bucket from environment
-    let bucket = std::env::var("S3_EXPORTS_BUCKET")
-        .map_err(|_| anyhow::anyhow!("S3_EXPORTS_BUCKET not configured"))?;
-
     // Get object metadata to determine file size
-    let head_response = s3_client
-        .head_object()
-        .bucket(&bucket)
-        .key(&parquet_path)
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("S3 head error: {}", e))?;
+    let content_length = storage
+        .get_size(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
+        .await?;
 
     // Stream the file from S3
-    let get_response = s3_client
-        .get_object()
-        .bucket(&bucket)
-        .key(&parquet_path)
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("S3 get error: {}", e))?;
+    let get_response = storage
+        .get_stream(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
+        .await?;
 
     let filename = parquet_path.split('/').last().unwrap_or(&name);
-
-    // Convert ByteStream to bytes and return as response body
-    let mut body_bytes = get_response.body;
 
     let mut response = HttpResponse::Ok();
 
@@ -196,18 +178,8 @@ async fn get_parquet(
             "Content-Disposition",
             format!("attachment; filename=\"{}\"", filename),
         ))
-        .insert_header(("Cache-Control", "no-cache"));
+        .insert_header(("Cache-Control", "no-cache"))
+        .insert_header(("Content-Length", content_length.to_string()));
 
-    // Add Content-Length if available
-    if let Some(content_length) = head_response.content_length {
-        response.insert_header(("Content-Length", content_length.to_string()));
-    }
-
-    let restream = async_stream::stream! {
-        while let Some(chunk) = body_bytes.next().await {
-            yield chunk;
-        }
-    };
-
-    Ok(response.streaming(restream))
+    Ok(response.streaming(get_response.map(|e| Ok::<_, anyhow::Error>(e))))
 }

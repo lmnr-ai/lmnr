@@ -17,13 +17,21 @@ impl super::StorageTrait for MockStorage {
         Ok("mock".to_string())
     }
 
-    async fn get(&self, _key: &str) -> Result<Vec<u8>> {
+    async fn get(&self, _key: &str, _bucket: &Option<String>) -> Result<Vec<u8>> {
         Ok(b"mock data".to_vec())
     }
 
-    async fn get_stream(&self, _key: &str) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(
+        &self,
+        _key: &str,
+        _bucket: &Option<String>,
+    ) -> Result<Self::StorageBytesStream> {
         Ok(Box::pin(futures_util::stream::once(async move {
             bytes::Bytes::new()
         })))
+    }
+
+    async fn get_size(&self, _key: &str, _bucket: &Option<String>) -> Result<u64> {
+        Ok(0)
     }
 }
