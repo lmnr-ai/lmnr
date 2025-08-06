@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::{HttpResponse, get, web};
+use futures_util::StreamExt;
 use serde::Deserialize;
 
 use crate::{
@@ -29,9 +30,9 @@ pub async fn get_payload(
     // Construct the S3 key following the same pattern as the storage module
     let key = format!("project/{}/{}", project_id, payload_id);
 
-    // Get the payload data from storage
-    let bytes = match storage.as_ref().get(&key).await {
-        Ok(bytes) => bytes,
+    // Get the payload stream from storage
+    let mut stream = match storage.as_ref().get_stream(&key).await {
+        Ok(stream) => stream,
         Err(e) => {
             log::error!("Failed to retrieve payload from storage: {:?}", e);
             return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -40,25 +41,64 @@ pub async fn get_payload(
         }
     };
 
-    // Determine content type - first try to infer from bytes, then from filename
-    let content_type = infer_content_type_from_bytes(&bytes)
+    // Peek at the first chunk to determine content type
+    let first_chunk = match stream.next().await {
+        Some(chunk) => chunk,
+        None => {
+            // Empty stream
+            let content_type = get_content_type_from_filename(&payload_id)
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+
+            let response = match query.payload_type.as_deref() {
+                Some("image") => HttpResponse::Ok()
+                    .content_type(content_type)
+                    .insert_header(("Content-Disposition", "inline"))
+                    .streaming(futures_util::stream::empty::<
+                        Result<bytes::Bytes, actix_web::Error>,
+                    >()),
+                Some("raw") => HttpResponse::Ok().content_type(content_type).streaming(
+                    futures_util::stream::empty::<Result<bytes::Bytes, actix_web::Error>>(),
+                ),
+                _ => {
+                    let filename_header = format!("attachment; filename=\"{}\"", payload_id);
+                    HttpResponse::Ok()
+                        .content_type(content_type)
+                        .insert_header(("Content-Disposition", filename_header))
+                        .streaming(futures_util::stream::empty::<
+                            Result<bytes::Bytes, actix_web::Error>,
+                        >())
+                }
+            };
+            return Ok(response);
+        }
+    };
+
+    // Determine content type from first chunk and filename
+    let content_type = infer_content_type_from_bytes(&first_chunk)
         .or_else(|| get_content_type_from_filename(&payload_id))
         .unwrap_or_else(|| "application/octet-stream".to_string());
+
+    // Create a stream that starts with the first chunk and continues with the rest
+    let full_stream =
+        futures_util::stream::once(async move { Ok::<_, actix_web::Error>(first_chunk) })
+            .chain(stream.map(|chunk| Ok::<_, actix_web::Error>(chunk)));
 
     // Build response with appropriate headers based on payload_type
     let response = match query.payload_type.as_deref() {
         Some("image") => HttpResponse::Ok()
             .content_type(content_type)
             .insert_header(("Content-Disposition", "inline"))
-            .body(bytes),
-        Some("raw") => HttpResponse::Ok().content_type(content_type).body(bytes),
+            .streaming(full_stream),
+        Some("raw") => HttpResponse::Ok()
+            .content_type(content_type)
+            .streaming(full_stream),
         _ => {
             // Default behavior - attachment with filename
             let filename_header = format!("attachment; filename=\"{}\"", payload_id);
             HttpResponse::Ok()
                 .content_type(content_type)
                 .insert_header(("Content-Disposition", filename_header))
-                .body(bytes)
+                .streaming(full_stream)
         }
     };
 
