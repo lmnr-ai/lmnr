@@ -403,6 +403,15 @@ fn main() -> anyhow::Result<()> {
                     Arc::new(MockStorage {}.into())
                 };
 
+                // == S3 Client for exports ==
+                let s3_exports_client: Option<aws_sdk_s3::Client> = if is_feature_enabled(Feature::S3Exports) {
+                    log::info!("S3 exports client enabled");
+                    Some(aws_sdk_s3::Client::new(&aws_sdk_config))
+                } else {
+                    log::info!("S3 exports client disabled");
+                    None
+                };
+
                 // == Browser agent ==
                 let browser_agent: Arc<AgentManager> = if is_feature_enabled(Feature::AgentManager)
                 {
@@ -562,6 +571,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                         .app_data(web::Data::new(name_generator.clone()))
                         .app_data(web::Data::new(storage.clone()))
+                        .app_data(web::Data::new(s3_exports_client.clone()))
                         .app_data(web::Data::new(agent_manager_workers.clone()))
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
@@ -585,6 +595,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::datasets::create_datapoints)
+                                .service(api::v1::datasets::get_parquet)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
