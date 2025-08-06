@@ -566,6 +566,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         .app_data(web::Data::new(query_engine.clone()))
+                        .app_data(web::Data::new(storage.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(
@@ -593,7 +594,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evaluators::create_evaluator_score)
                                 .service(api::v1::tag::tag_trace)
                                 .service(api::v1::agent::run_agent_manager)
-                                .service(api::v1::sql::execute_sql_query),
+                                .service(api::v1::sql::execute_sql_query)
+                                .service(api::v1::payloads::get_payload),
                         )
                         // Scopes with generic auth
                         .service(
