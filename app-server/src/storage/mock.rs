@@ -17,10 +17,6 @@ impl super::StorageTrait for MockStorage {
         Ok("mock".to_string())
     }
 
-    async fn get(&self, _key: &str, _bucket: &Option<String>) -> Result<Vec<u8>> {
-        Ok(b"mock data".to_vec())
-    }
-
     async fn get_stream(
         &self,
         _key: &str,

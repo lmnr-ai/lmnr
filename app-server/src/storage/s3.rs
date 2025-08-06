@@ -70,19 +70,6 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
-    async fn get(&self, key: &str, bucket: &Option<String>) -> Result<Vec<u8>> {
-        let response = self
-            .client
-            .get_object()
-            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
-            .key(key)
-            .send()
-            .await?;
-
-        let bytes = response.body.collect().await?.into_bytes();
-        Ok(bytes.to_vec())
-    }
-
     async fn get_stream(
         &self,
         key: &str,
