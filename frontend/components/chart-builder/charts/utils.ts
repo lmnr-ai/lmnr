@@ -1,4 +1,5 @@
 import { format, isValid, parseISO } from "date-fns";
+import { isNil } from "lodash";
 
 import { ChartConfig } from "@/components/ui/chart";
 
@@ -166,42 +167,44 @@ export const transformDataForBreakdown = (
     const breakdownValue = String(row[breakdownColumn]);
     const yValue = Number(row[yColumn]) || 0;
 
-    if (breakdownValue === "") {
-      return;
+    if (!isNil(breakdownValue)) {
+      allBreakdownValues.add(breakdownValue);
     }
-
-    allBreakdownValues.add(breakdownValue);
 
     if (!groupedByX.has(xValue)) {
       groupedByX.set(xValue, {});
     }
 
     const xGroup = groupedByX.get(xValue);
-    if (xGroup) {
+    if (xGroup && !isNil(breakdownValue)) {
       xGroup[breakdownValue] = yValue;
     }
   });
 
+  const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => !isNil(value));
+
   const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
     [xColumn]: xValue,
-    ...Object.fromEntries(Array.from(allBreakdownValues).map((value) => [value, 0])),
+    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, 0])),
     ...breakdownGroups,
   }));
 
   return {
     chartData,
-    keys: allBreakdownValues,
-    chartConfig: createChartConfig(Array.from(allBreakdownValues)),
+    keys: new Set(filteredBreakdownValues),
+    chartConfig: createChartConfig(filteredBreakdownValues),
   };
 };
 
 export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
   const chartData = selectColumnsFromData(data, xColumn, yColumns);
 
+  const filteredYColumns = yColumns.filter((column) => !isNil(column));
+
   return {
     chartData,
-    keys: new Set(yColumns),
-    chartConfig: createChartConfig(yColumns),
+    keys: new Set(filteredYColumns),
+    chartConfig: createChartConfig(filteredYColumns),
   };
 };
 
