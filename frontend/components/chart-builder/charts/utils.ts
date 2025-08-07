@@ -167,7 +167,7 @@ export const transformDataForBreakdown = (
     const breakdownValue = String(row[breakdownColumn]);
     const yValue = Number(row[yColumn]) || 0;
 
-    if (!isNil(breakdownValue)) {
+    if (breakdownValue && !isNil(breakdownValue)) {
       allBreakdownValues.add(breakdownValue);
     }
 
@@ -181,7 +181,7 @@ export const transformDataForBreakdown = (
     }
   });
 
-  const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => !isNil(value));
+  const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => value && !isNil(value));
 
   const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
     [xColumn]: xValue,
@@ -199,7 +199,7 @@ export const transformDataForBreakdown = (
 export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
   const chartData = selectColumnsFromData(data, xColumn, yColumns);
 
-  const filteredYColumns = yColumns.filter((column) => !isNil(column));
+  const filteredYColumns = yColumns.filter((column) => column && !isNil(column));
 
   return {
     chartData,
