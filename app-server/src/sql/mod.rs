@@ -29,7 +29,7 @@ pub async fn execute_sql_query(
     parameters: HashMap<String, Value>,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
-) -> Result<Value> {
+) -> Result<Vec<Value>> {
     let validation_result = query_engine
         .validate_query(query, project_id)
         .await
@@ -79,5 +79,5 @@ pub async fn execute_sql_query(
         .as_array()
         .context("Response 'data' field is not an array")?;
 
-    Ok(Value::Array(data_array.clone()))
+    Ok(data_array.clone())
 }
