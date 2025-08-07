@@ -37,14 +37,10 @@ pub enum Storage {
 #[enum_delegate::register]
 pub trait StorageTrait {
     type StorageBytesStream: futures_util::stream::Stream<Item = bytes::Bytes>;
-    async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn store_direct(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn get_stream(
-        &self,
-        key: &str,
-        bucket: &Option<String>,
-    ) -> Result<Self::StorageBytesStream>;
-    async fn get_size(&self, key: &str, bucket: &Option<String>) -> Result<u64>;
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String>;
+    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String>;
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream>;
+    async fn get_size(&self, bucket: &str, key: &str) -> Result<u64>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {
@@ -65,13 +61,17 @@ pub fn base64_to_bytes(base64: &str) -> Result<Vec<u8>> {
 }
 
 pub async fn process_payloads(storage: Arc<Storage>, payloads_message_queue: Arc<MessageQueue>) {
+    let Ok(bucket) = std::env::var("S3_TRACE_PAYLOADS_BUCKET") else {
+        log::error!("S3_TRACE_PAYLOADS_BUCKET is not set");
+        return;
+    };
     loop {
-        inner_process_payloads(storage.clone(), payloads_message_queue.clone()).await;
+        inner_process_payloads(storage.clone(), payloads_message_queue.clone(), &bucket).await;
         log::warn!("Payload listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>) {
+async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>, bucket: &String) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -118,7 +118,7 @@ async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>)
         };
 
         let store_payload = || async {
-            storage.store_direct(message.data.clone(), &message.key).await.map_err(|e| {
+            storage.store_direct(&bucket, &message.key, message.data.clone()).await.map_err(|e| {
                 log::error!("Failed attempt to store payload. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
             })

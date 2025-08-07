@@ -400,6 +400,7 @@ impl ChatMessageContentPart {
         &self,
         project_id: &Uuid,
         storage: Arc<Storage>,
+        bucket: &str,
     ) -> Result<ChatMessageContentPart> {
         match self {
             ChatMessageContentPart::Image(image) => {
@@ -415,7 +416,7 @@ impl ChatMessageContentPart {
                     let key = crate::storage::create_key(project_id, &None);
                     let data = crate::storage::base64_to_bytes(&image.data)?;
                     let media_type = image.media_type.clone();
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(&bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: Some(format!("media_type:{};base64", media_type)),
@@ -430,7 +431,7 @@ impl ChatMessageContentPart {
                 };
                 let key = crate::storage::create_key(project_id, &file_extension);
                 let data = crate::storage::base64_to_bytes(&document.source.data)?;
-                let url = storage.store(data, &key).await?;
+                let url = storage.store(&bucket, &key, data).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
                         media_type: document.source.media_type.clone(),
@@ -442,7 +443,7 @@ impl ChatMessageContentPart {
                 if let Some(base64_data) = raw_base64_from_data_url(&image_url.url) {
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(&bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: image_url.detail.clone(),
@@ -454,7 +455,7 @@ impl ChatMessageContentPart {
             }
             ChatMessageContentPart::ImageRawBytes(image) => {
                 let key = crate::storage::create_key(project_id, &None);
-                let url = storage.store(image.image.clone(), &key).await?;
+                let url = storage.store(&bucket, &key, image.image.clone()).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
                     detail: image
