@@ -179,7 +179,7 @@ async fn get_parquet(
             format!("attachment; filename=\"{}\"", filename),
         ))
         .insert_header(("Cache-Control", "no-cache"))
-        .insert_header(("Content-Length", content_length.to_string()));
+        .no_chunking(content_length);
 
     Ok(response.streaming(get_response.map(|e| Ok::<_, anyhow::Error>(e))))
 }
