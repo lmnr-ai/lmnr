@@ -1,7 +1,6 @@
 import { format, startOfToday, subDays } from "date-fns";
 import { isDate, isNil } from "lodash";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export interface SQLTemplate {
   id: string;
@@ -51,55 +50,45 @@ const initialState: SqlEditorState = {
 
 export type SqlEditorStore = SqlEditorState & SqlEditorActions;
 
-export const useSqlEditorStore = create<SqlEditorStore>()(
-  persist(
-    (set, get) => ({
-      ...initialState,
+export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => ({
+  ...initialState,
 
-      setEditTemplate: (template) => {
-        set({ editTemplate: template });
-      },
-      setCurrentTemplate: (template) => {
-        set({ currentTemplate: template });
-      },
-      onCurrentTemplateChange: (e) => {
-        const current = get().currentTemplate;
-        if (current) {
-          set({ currentTemplate: { ...current, query: e } });
-        }
-      },
-      setParameterValue: (name, value) => {
-        set((state) => ({
-          parameters: state.parameters.map((param) =>
-            param.name === name ? { ...param, value: value } : param
-          ) as SQLParameter[],
-        }));
-      },
-      getFormattedParameters: () => {
-        const { parameters } = get();
-
-        return parameters.reduce(
-          (formatted, param) => {
-            if (!isNil(param.value)) {
-              if (isDate(param.value)) {
-                formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
-              } else if (param.type === "number") {
-                formatted[param.name] = Number(param.value);
-              } else {
-                formatted[param.name] = param.value;
-              }
-            }
-            return formatted;
-          },
-          {} as Record<string, string | number>
-        );
-      },
-    }),
-    {
-      name: "sql-editor-storage",
-      partialize: (state) => ({
-        selectedQueryId: state.currentTemplate?.id,
-      }),
+  setEditTemplate: (template) => {
+    set({ editTemplate: template });
+  },
+  setCurrentTemplate: (template) => {
+    set({ currentTemplate: template });
+  },
+  onCurrentTemplateChange: (e) => {
+    const current = get().currentTemplate;
+    if (current) {
+      set({ currentTemplate: { ...current, query: e } });
     }
-  )
-);
+  },
+  setParameterValue: (name, value) => {
+    set((state) => ({
+      parameters: state.parameters.map((param) =>
+        param.name === name ? { ...param, value: value } : param
+      ) as SQLParameter[],
+    }));
+  },
+  getFormattedParameters: () => {
+    const { parameters } = get();
+
+    return parameters.reduce(
+      (formatted, param) => {
+        if (!isNil(param.value)) {
+          if (isDate(param.value)) {
+            formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+          } else if (param.type === "number") {
+            formatted[param.name] = Number(param.value);
+          } else {
+            formatted[param.name] = param.value;
+          }
+        }
+        return formatted;
+      },
+      {} as Record<string, string | number>
+    );
+  },
+}));
