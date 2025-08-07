@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 interface DownloadParquetDialogProps {
   datasetId: string;
+  publicApiBaseUrl?: string;
 }
 
 // Dialog to add a single datapoint to a dataset by manually typing
-export default function DownloadParquetDialog({ datasetId }: DownloadParquetDialogProps) {
+export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: DownloadParquetDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -172,7 +173,9 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="outline" size="sm" onClick={() => {
-                        navigator.clipboard.writeText(`https://api.lmnr.ai/v1/datasets/${datasetId}/parquets/${parquet.fileName}`);
+                        navigator.clipboard.writeText(
+                          `${publicApiBaseUrl ?? "https://api.lmnr.ai"}/v1/datasets/${datasetId}/parquets/${parquet.fileName}`
+                        );
                         toast({
                           title: "Copied to clipboard",
                           description: "Direct download URL copied to clipboard",
