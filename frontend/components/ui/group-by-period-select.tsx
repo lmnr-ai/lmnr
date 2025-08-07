@@ -43,20 +43,20 @@ export function GroupByPeriodSelect() {
             endDate,
             'minute'
           ) && (
-              <SelectItem key="By minute" value="minute">
+            <SelectItem key="By minute" value="minute">
                 By minute
-              </SelectItem>
-            )}
+            </SelectItem>
+          )}
           {isGroupByIntervalAvailable(
             pastHours,
             startDate,
             endDate,
             'hour'
           ) && (
-              <SelectItem key="By hour" value="hour">
+            <SelectItem key="By hour" value="hour">
                 By hour
-              </SelectItem>
-            )}
+            </SelectItem>
+          )}
           <SelectItem key="By day" value="day">
             By day
           </SelectItem>

@@ -1,6 +1,5 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
-import { persist } from "zustand/middleware";
 
 import { ChartConfig, ChartType } from "@/components/chart-builder/types";
 import {
@@ -63,89 +62,81 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     data: props?.data || [],
   };
 
-  return createStore<ChartBuilderStore>()(
-    persist(
-      (set, get) => ({
-        ...chartState,
-        setChartConfig: (config) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, ...config },
-          })),
+  return createStore<ChartBuilderStore>()((set, get) => ({
+    ...chartState,
+    setChartConfig: (config) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, ...config },
+      })),
 
-        setChartName: (name) =>
-          set(() => ({
-            name: name,
-          })),
+    setChartName: (name) =>
+      set(() => ({
+        name: name,
+      })),
 
-        setChartType: (type) =>
-          set((state) => ({
-            chartConfig: {
-              ...state.chartConfig,
-              type,
-              x: undefined,
-              y: undefined,
-              breakdown: undefined,
-            },
-          })),
-
-        setXColumn: (columnName) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, x: columnName },
-          })),
-
-        setYColumn: (columnName) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, y: columnName },
-          })),
-
-        setBreakdownColumn: (columnName) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, breakdown: columnName },
-          })),
-
-        setShowTotal: (total) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, total },
-          })),
-
-        getSelectedXColumn: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
+    setChartType: (type) =>
+      set((state) => ({
+        chartConfig: {
+          ...state.chartConfig,
+          type,
+          x: undefined,
+          y: undefined,
+          breakdown: undefined,
         },
+      })),
 
-        getSelectedYColumn: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.y ? columns.find((col) => col.name === chartConfig.y) : undefined;
-        },
+    setXColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, x: columnName },
+      })),
 
-        getSelectedBreakdownColumn: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.breakdown ? columns.find((col) => col.name === chartConfig.breakdown) : undefined;
-        },
+    setYColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, y: columnName },
+      })),
 
-        getAvailableBreakdownColumns: () => {
-          const { chartConfig, columns } = get();
-          return utilGetAvailableBreakdownColumns(chartConfig, columns);
-        },
+    setBreakdownColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, breakdown: columnName },
+      })),
 
-        canSelectForYAxis: (columnName: string) => {
-          const { chartConfig, columns } = get();
-          const column = columns.find((col) => col.name === columnName);
-          if (!column) return false;
-          return utilCanSelectForYAxis(column, chartConfig.type);
-        },
+    setShowTotal: (total) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, total },
+      })),
 
-        isValidChartConfiguration: () => {
-          const { chartConfig, columns } = get();
-          return utilIsValidChartConfiguration(chartConfig, columns);
-        },
-      }),
-      {
-        name: "chart-builder-config",
-        partialize: (state) => ({ chartConfig: state.chartConfig }),
-      }
-    )
-  );
+    getSelectedXColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
+    },
+
+    getSelectedYColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.y ? columns.find((col) => col.name === chartConfig.y) : undefined;
+    },
+
+    getSelectedBreakdownColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.breakdown ? columns.find((col) => col.name === chartConfig.breakdown) : undefined;
+    },
+
+    getAvailableBreakdownColumns: () => {
+      const { chartConfig, columns } = get();
+      return utilGetAvailableBreakdownColumns(chartConfig, columns);
+    },
+
+    canSelectForYAxis: (columnName: string) => {
+      const { chartConfig, columns } = get();
+      const column = columns.find((col) => col.name === columnName);
+      if (!column) return false;
+      return utilCanSelectForYAxis(column, chartConfig.type);
+    },
+
+    isValidChartConfiguration: () => {
+      const { chartConfig, columns } = get();
+      return utilIsValidChartConfiguration(chartConfig, columns);
+    },
+  }));
 };
 
 const ChartBuilderStoreContext = createContext<ChartBuilderStoreApi | null>(null);

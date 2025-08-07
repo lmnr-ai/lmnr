@@ -58,6 +58,7 @@ export interface DashboardEditorProps {
 const defaultChart: DashboardEditorState["chart"] = {
   name: "",
   query:
+    "-- Example Query:" +
     "-- Model Performance Analysis: 90th Percentile Latency Over Time\n" +
     "-- This query analyzes model execution latency grouped by time intervals and model type\n" +
     "-- Returns continuous time series data with 90th percentile response times\n" +
