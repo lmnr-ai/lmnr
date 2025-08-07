@@ -1,4 +1,4 @@
-import { Download, Loader2,Rows2 } from "lucide-react";
+import { CopyIcon, Download, Loader2, Rows2 } from "lucide-react";
 import React, { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 interface DownloadParquetDialogProps {
   datasetId: string;
+  publicApiBaseUrl?: string;
 }
 
 // Dialog to add a single datapoint to a dataset by manually typing
-export default function DownloadParquetDialog({ datasetId }: DownloadParquetDialogProps) {
+export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: DownloadParquetDialogProps) {
   const { projectId } = useProjectContext();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +26,7 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
     datasetId: string;
     projectId: string;
     size: number;
+    id: string;
   }[]>([]);
   const [jobStarted, setJobStarted] = useState(false);
   const { toast } = useToast();
@@ -119,7 +121,7 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
           <span className="text-xs">Parquets</span>
         </Badge>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Parquet Files</DialogTitle>
         </DialogHeader>
@@ -145,16 +147,17 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
+                  <TableHead className="text-center">Size</TableHead>
+                  <TableHead className="w-[100px] text-center">Download</TableHead>
+                  <TableHead className="w-[200px] text-center">API Download URL</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {parquets.map((parquet, idx) => (
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{parquet.fileName}</TableCell>
-                    <TableCell>{formatFileSize(parquet.size)}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">{formatFileSize(parquet.size)}</TableCell>
+                    <TableCell className="text-center">
                       <Button
                         variant="outline"
                         size="sm"
@@ -166,6 +169,20 @@ export default function DownloadParquetDialog({ datasetId }: DownloadParquetDial
                         ) : (
                           <Download className="size-4" />
                         )}
+                      </Button>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="sm" onClick={() => {
+                        navigator.clipboard.writeText(
+                          `${publicApiBaseUrl ?? "https://api.lmnr.ai"}/v1/datasets/${datasetId}/parquets/${parquet.fileName}`
+                        );
+                        toast({
+                          title: "Copied to clipboard",
+                          description: "Direct download URL copied to clipboard",
+                          duration: 1500,
+                        });
+                      }}>
+                        <CopyIcon className="size-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

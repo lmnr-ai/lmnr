@@ -1,4 +1,7 @@
+use std::{env, sync::Arc};
+
 use actix_web::{HttpResponse, get, post, web};
+use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -7,6 +10,7 @@ use crate::{
     datasets::datapoints::Datapoint,
     db::{self, DB, project_api_keys::ProjectApiKey},
     routes::{PaginatedResponse, types::ResponseResult},
+    storage::{Storage, StorageTrait},
 };
 
 #[derive(Deserialize)]
@@ -128,4 +132,54 @@ async fn create_datapoints(
         "message": "Datapoints created successfully",
         "count": datapoints.len()
     })))
+}
+
+#[get("/datasets/{dataset_id}/parquets/{idx}")]
+async fn get_parquet(
+    path: web::Path<(String, String)>,
+    db: web::Data<DB>,
+    storage: web::Data<Arc<Storage>>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let (dataset_id_str, name) = path.into_inner();
+    let dataset_id =
+        Uuid::parse_str(&dataset_id_str).map_err(|_| anyhow::anyhow!("Invalid dataset ID"))?;
+
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+
+    // Get parquet paths from database
+    let parquet_path =
+        db::datasets::get_parquet_path(&db.pool, project_id, dataset_id, &name).await?;
+
+    let Some(parquet_path) = parquet_path else {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Parquet not found"
+        })));
+    };
+
+    // Get object metadata to determine file size
+    let content_length = storage
+        .get_size(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
+        .await?;
+
+    // Stream the file from S3
+    let get_response = storage
+        .get_stream(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
+        .await?;
+
+    let filename = parquet_path.split('/').last().unwrap_or(&name);
+
+    let mut response = HttpResponse::Ok();
+
+    response
+        .content_type("application/octet-stream")
+        .insert_header((
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", filename),
+        ))
+        .insert_header(("Cache-Control", "no-cache"))
+        .no_chunking(content_length);
+
+    Ok(response.streaming(get_response.map(|e| Ok::<_, anyhow::Error>(e))))
 }
