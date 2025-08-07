@@ -295,7 +295,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
     settings: {
       config: {
         type: ChartType.LineChart,
-        x: "duration",
+        x: "time",
         y: "value",
       },
       layout: {

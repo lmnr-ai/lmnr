@@ -1,5 +1,5 @@
-import { Upload } from "lucide-react";
-import React from "react";
+import { ChartBar, ChartColumn, ChartLine, Upload } from "lucide-react";
+import React, { ReactNode } from "react";
 
 import {
   ChartBuilderProps,
@@ -8,7 +8,7 @@ import {
 } from "@/components/chart-builder/chart-builder-store";
 import ChartRenderer from "@/components/chart-builder/charts";
 import ExportChartDialog from "@/components/chart-builder/export-chart-dialog";
-import { ChartType, chartTypeLabelMap } from "@/components/chart-builder/types";
+import { ChartType } from "@/components/chart-builder/types";
 import { ColumnInfo } from "@/components/chart-builder/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -234,3 +234,18 @@ const ChartBuilder = ({ data, query }: ChartBuilderProps) => (
 );
 
 export default ChartBuilder;
+
+export const chartTypeLabelMap: Record<ChartType, { label: string; icon: ReactNode }> = {
+  [ChartType.LineChart]: {
+    label: "Line Chart",
+    icon: <ChartLine className="w-4 h-4 mr-2" />,
+  },
+  [ChartType.BarChart]: {
+    label: "Bar Chart",
+    icon: <ChartColumn className="w-4 h-4 mr-2" />,
+  },
+  [ChartType.HorizontalBarChart]: {
+    label: "Horizontal Bar Chart",
+    icon: <ChartBar className="w-4 h-4 mr-2" />,
+  },
+};

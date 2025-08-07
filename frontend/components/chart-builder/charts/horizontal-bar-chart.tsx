@@ -104,7 +104,8 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
             }}
           />
           <ChartTooltip
-            content={<ChartTooltipContent labelKey={x} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[x])} />}
+            cursor={false}
+            content={<ChartTooltipContent labelKey={y} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[y])} />}
           />
           {keys.map((key) => {
             const config = chartConfig[key];
