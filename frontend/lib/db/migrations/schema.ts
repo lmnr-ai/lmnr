@@ -53,6 +53,25 @@ export const datasetParquets = pgTable(
   ]
 );
 
+export const dashboardCharts = pgTable(
+  "dashboard_charts",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    query: text().notNull(),
+    settings: jsonb().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_dashboard_charts_project_id",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
