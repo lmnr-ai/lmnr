@@ -72,7 +72,7 @@ const defaultChart: DashboardEditorState["chart"] = {
     "WHERE\n" +
     "    -- Filter out null models and focus on LLM/generation spans\n" +
     "    model != '<null>'\n" +
-    "  AND span_type IN [0, 1]\n" +
+    "  AND span_type = 1\n" +
     "    -- Parameters are defined using {param_name:Type} syntax\n" +
     '    -- Configure these values in the "Parameters" tab below\n' +
     "  AND start_time >= {start_time:DateTime64}\n" +
