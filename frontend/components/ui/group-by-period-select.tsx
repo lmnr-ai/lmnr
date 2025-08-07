@@ -33,7 +33,7 @@ export function GroupByPeriodSelect() {
           router.push(`?${searchParams.toString()}`);
         }}
       >
-        <SelectTrigger className="text-sm min-w-4 h-8">
+        <SelectTrigger className="text-sm min-w-4 h-7">
           <SelectValue placeholder="Select a fruit" />
         </SelectTrigger>
         <SelectContent className="text-sm">
@@ -43,20 +43,20 @@ export function GroupByPeriodSelect() {
             endDate,
             'minute'
           ) && (
-            <SelectItem key="By minute" value="minute">
-              By minute
-            </SelectItem>
-          )}
+              <SelectItem key="By minute" value="minute">
+                By minute
+              </SelectItem>
+            )}
           {isGroupByIntervalAvailable(
             pastHours,
             startDate,
             endDate,
             'hour'
           ) && (
-            <SelectItem key="By hour" value="hour">
-              By hour
-            </SelectItem>
-          )}
+              <SelectItem key="By hour" value="hour">
+                By hour
+              </SelectItem>
+            )}
           <SelectItem key="By day" value="day">
             By day
           </SelectItem>
