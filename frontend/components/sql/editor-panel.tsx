@@ -83,11 +83,23 @@ export default function EditorPanel() {
         body: JSON.stringify({ sqlQuery: query }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data?.error || `Query failed with status ${response.status}`);
+        let error;
+        try {
+          const data = await response.json();
+          error = data?.error;
+        } catch {
+          try {
+            error = await response.text();
+          } catch {
+            error = response.statusText !== "" ? response.statusText : "Failed to execute query";
+          }
+        }
+        console.error(error);
+        throw new Error(error);
       }
+
+      const data = await response.json();
 
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
