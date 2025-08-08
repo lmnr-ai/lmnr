@@ -44,6 +44,7 @@ serde-jsonlines = "0.7.0"
 serde_json = {version = "1.0.140", features = ["preserve_order", "raw_value"]}
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
+sqlparser = "0.58.0"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal"]}
 thiserror = "2"
 tikv-jemallocator = "0.6"

@@ -24,13 +24,17 @@ struct ClickhouseBadResponseError {
     exception: Option<String>,
 }
 
+const VERSION_REGEX_RAW: &str = r"\s*\(version\s+\d+(?:\.\d+){0,3}(?:\s+\([^)]*\))?\)$";
+
 // Removes any settings explicitly set in the query.
 const SETTING_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\s*SETTINGS\s+[A-Za-z_]*\s*=\s*'(?:[^'\\]|\\.)*'(?:\s*,\s*[A-Za-z_]*\s*=\s*'(?:[^'\\]|\\.)*')*\s*").unwrap()
 });
 // Removes clickhouse version info from the end of the error message.
-const VERSION_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\s*\(version\s+\d+(?:\.\d+){0,3}(?:\s+\([^)]*\))?\)$").unwrap());
+const VERSION_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(VERSION_REGEX_RAW).unwrap());
+
+const ERROR_END_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(format!(r"\. \([A-Z_]+\)*{VERSION_REGEX_RAW}").as_str()).unwrap());
 
 const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
 const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "134217728"; // 128MB
@@ -41,8 +45,34 @@ impl SqlQueryError {
             Self::ValidationError(e) => e.to_string(),
             Self::InternalError(e) => {
                 let error_message = e.to_string();
-                let without_settings = SETTING_REGEX.replace_all(&error_message, "");
-                VERSION_REGEX.replace_all(&without_settings, "").to_string()
+                // Always assume the query starts with "WITH"
+                let query_start_idx = error_message.find("WITH").unwrap_or(0);
+                let error_code_idx = ERROR_END_REGEX
+                    .find(&error_message)
+                    .map(|m| m.start())
+                    .unwrap_or(error_message.len());
+                let query = error_message[query_start_idx..error_code_idx].to_string();
+                let dialect = sqlparser::dialect::GenericDialect {};
+                let query = SETTING_REGEX.replace_all(&query, "");
+                let parsed = sqlparser::parser::Parser::parse_sql(&dialect, &query);
+                let full_error_message = match parsed {
+                    Ok(statements) => {
+                        let last_statement = statements[statements.len() - 1].clone();
+                        let pretified_query = format!("{:#}", last_statement);
+                        format!(
+                            "{}{pretified_query}{}",
+                            &error_message[..query_start_idx],
+                            &error_message[error_code_idx..]
+                        )
+                    }
+                    Err(e) => {
+                        log::error!("Failed to parse query from error message: {}", e);
+                        error_message.clone()
+                    }
+                };
+                VERSION_REGEX
+                    .replace_all(&full_error_message, "")
+                    .to_string()
             }
         }
     }
@@ -54,7 +84,9 @@ impl std::fmt::Display for SqlQueryError {
             Self::ValidationError(_) => {
                 write!(f, "Query validation failed: {}", self.sanitize_error())
             }
-            Self::InternalError(_) => write!(f, "Error executing query: {}", self.sanitize_error()),
+            Self::InternalError(_) => {
+                write!(f, "Error executing query: {}", self.sanitize_error())
+            }
         }
     }
 }

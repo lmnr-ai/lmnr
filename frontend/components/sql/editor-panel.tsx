@@ -3,7 +3,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
 import {
-  AlertCircle,
   ChartArea,
   ChevronDown,
   Database,
@@ -25,6 +24,8 @@ import { DataTable } from "@/components/ui/datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
+
+import { ScrollArea } from "../ui/scroll-area";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -138,10 +139,12 @@ export default function EditorPanel() {
 
       if (error) {
         return (
-          <div className="flex items-center justify-center h-full space-x-2 text-destructive">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-sm">{error}</span>
-          </div>
+          // TODO: don't hard code huge bottom padding
+          <ScrollArea className="h-full px-2 pb-12">
+            <div className="flex items-center justify-center space-x-2 text-destructive">
+              <div className="text-sm whitespace-pre-wrap">{error}</div>
+            </div>
+          </ScrollArea>
         );
       }
 
