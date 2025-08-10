@@ -51,28 +51,17 @@ impl SqlQueryError {
                     .find(&error_message)
                     .map(|m| m.start())
                     .unwrap_or(error_message.len());
-                let query = error_message[query_start_idx..error_code_idx].to_string();
-                let dialect = sqlparser::dialect::GenericDialect {};
-                let query = SETTING_REGEX.replace_all(&query, "");
-                let parsed = sqlparser::parser::Parser::parse_sql(&dialect, &query);
-                let full_error_message = match parsed {
-                    Ok(statements) => {
-                        let last_statement = statements[statements.len() - 1].clone();
-                        let pretified_query = format!("{:#}", last_statement);
-                        format!(
-                            "{}{pretified_query}{}",
-                            &error_message[..query_start_idx],
-                            &error_message[error_code_idx..]
-                        )
-                    }
-                    Err(e) => {
-                        log::error!("Failed to parse query from error message: {}", e);
-                        error_message.clone()
-                    }
-                };
-                VERSION_REGEX
-                    .replace_all(&full_error_message, "")
-                    .to_string()
+                // remove the query from the error message
+                let error_message = format!(
+                    "{} {}",
+                    &error_message[..query_start_idx],
+                    &error_message[error_code_idx..]
+                );
+                // Although settings are part of the query, they won't be removed if
+                // we fail to locate the query in the first place, so as a safety measure
+                // also remove them manually
+                let without_settings = SETTING_REGEX.replace_all(&error_message, "").to_string();
+                VERSION_REGEX.replace_all(&without_settings, "").to_string()
             }
         }
     }
