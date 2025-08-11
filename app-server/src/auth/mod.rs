@@ -1,19 +1,19 @@
 use anyhow::Result;
-use std::future::{ready, Ready};
+use std::future::{Ready, ready};
 
+use actix_web::Error;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
 use actix_web::web;
-use actix_web::Error;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
-use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
+use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 
 use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
-use crate::db::project_api_keys::ProjectApiKey;
-use crate::db::user::{get_user_from_api_key, User};
 use crate::db::DB;
+use crate::db::project_api_keys::ProjectApiKey;
+use crate::db::user::User;
 
 impl FromRequest for User {
     type Error = Error;
@@ -37,37 +37,6 @@ impl FromRequest for ProjectApiKey {
             None => return ready(Err(actix_web::error::ParseError::Incomplete.into())),
         };
     }
-}
-
-pub async fn validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let config = req
-        .app_data::<Config>()
-        .map(|data| data.clone())
-        .unwrap_or_else(Default::default);
-
-    let db = req
-        .app_data::<web::Data<DB>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
-
-    match validate_token(&db, credentials.token().to_string()).await {
-        Ok(user) => {
-            req.extensions_mut().insert(user);
-            Ok(req)
-        }
-        Err(e) => {
-            log::error!("Error validating token: {}", e);
-            Err((AuthenticationError::from(config).into(), req))
-        }
-    }
-}
-
-async fn validate_token(db: &DB, token: String) -> Result<User> {
-    get_user_from_api_key(&db.pool, token).await
 }
 
 pub async fn project_validator(
