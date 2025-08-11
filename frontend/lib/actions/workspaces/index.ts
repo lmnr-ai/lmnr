@@ -140,7 +140,7 @@ export const getWorkspaces = async () => {
       return {
         id: workspace.id,
         name: workspace.name,
-        tierName: workspace.tierName as "Free" | "Pro",
+        tierName: workspace.tierName as WorkspaceTier,
         projects: prjs,
       };
     })
@@ -171,7 +171,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     throw new Error("Workspace not found");
   }
 
-  const workspaceUsers = await db
+  const workspaceUsers = (await db
     .select({
       id: users.id,
       name: users.name,
@@ -181,30 +181,14 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     })
     .from(users)
     .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
-    .where(eq(membersOfWorkspaces.workspaceId, workspaceId));
-
-  const workspaceUserInfos: WorkspaceUser[] = workspaceUsers.map((user) => ({
-    id: user.id,
-    name: user.name ?? "",
-    email: user.email ?? "",
-    role: user.role ?? "member",
-    createdAt: user.createdAt,
-  }));
+    .where(eq(membersOfWorkspaces.workspaceId, workspaceId))) as WorkspaceUser[];
 
   return {
     id: workspace[0].id,
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
-    users: workspaceUserInfos,
+    users: workspaceUsers,
   };
-};
-
-export const addOwnerToWorkspace = async (userId: string, workspaceId: string) => {
-  await db.insert(membersOfWorkspaces).values({
-    userId,
-    workspaceId,
-    memberRole: "owner",
-  });
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
