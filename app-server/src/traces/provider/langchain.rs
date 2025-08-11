@@ -8,10 +8,10 @@
 //!   to this format, which is closer to anthropic. LangChain supports these,
 //!   but it *also* supports tool calls besides content (OpenAI format), and that's
 //!   what we collect tool calls to.
-//!
-//! Things we do not allow
 //! - A tool message without a `tool_call_id`
 //! - Tool calls in an assistant message that do not have an `id`
+
+const DEFAULT_TOOL_CALL_ID: &str = "";
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -211,9 +211,13 @@ fn convert_system_message(message: ChatMessage) -> Result<LangChainChatMessage> 
 }
 
 fn convert_tool_message(message: ChatMessage) -> Result<LangChainChatMessage> {
-    let tool_call_id = message
-        .tool_call_id
-        .ok_or(anyhow::anyhow!("Tool call ID is required in tool message"))?;
+    let tool_call_id = message.tool_call_id.unwrap_or_else(|| {
+        log::warn!(
+            "[LangChain] No tool call ID in tool message. Defaulting to '{}'.",
+            DEFAULT_TOOL_CALL_ID
+        );
+        String::from(DEFAULT_TOOL_CALL_ID)
+    });
     Ok(LangChainChatMessage::Tool(LangChainToolChatMessage {
         content: match message.content {
             ChatMessageContent::Text(text) => Value::String(text),
@@ -290,25 +294,25 @@ fn tool_calls_from_content_parts(
         .into_iter()
         .filter_map(|v| match v {
             ChatMessageContentPart::ToolCall(tool_call) => {
-                // Tool call ID is required
-                let id = tool_call
-                    .id
-                    .clone()
-                    .ok_or(anyhow::anyhow!("Tool call ID is required in tool call"));
-                Some(id.map(|id| {
-                    let args = match tool_call.arguments.clone() {
-                        Some(Value::String(s)) => {
-                            serde_json::from_str::<IndexMap<String, Value>>(&s).unwrap_or_default()
-                        }
-                        Some(Value::Object(o)) => o.into_iter().collect(),
-                        _ => IndexMap::new(),
-                    };
-                    LangChainChatMessageToolCall {
-                        id,
-                        name: tool_call.name.clone(),
-                        arguments: args,
-                        block_type: "tool_call".to_string(),
+                let id = tool_call.id.clone().unwrap_or_else(|| {
+                    log::warn!(
+                        "[LangChain] No tool call ID in tool call. Defaulting to '{}'.",
+                        DEFAULT_TOOL_CALL_ID
+                    );
+                    String::from(DEFAULT_TOOL_CALL_ID)
+                });
+                let args = match tool_call.arguments.clone() {
+                    Some(Value::String(s)) => {
+                        serde_json::from_str::<IndexMap<String, Value>>(&s).unwrap_or_default()
                     }
+                    Some(Value::Object(o)) => o.into_iter().collect(),
+                    _ => IndexMap::new(),
+                };
+                Some(Ok(LangChainChatMessageToolCall {
+                    id,
+                    name: tool_call.name.clone(),
+                    arguments: args,
+                    block_type: "tool_call".to_string(),
                 }))
             }
             _ => None,
@@ -687,13 +691,8 @@ mod tests {
 
         // Should return an error because tool call ID is required
         let result = message_to_langchain_format(message);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Tool call ID is required")
-        );
+        assert!(result.is_ok());
+        assert!(result.unwrap()["tool_calls"].as_array().unwrap()[0]["id"] == "");
     }
 
     #[test]
@@ -1180,27 +1179,22 @@ mod tests {
 
     // Error handling tests
     #[test]
-    fn test_tool_message_without_tool_call_id_error() {
+    fn test_tool_message_without_tool_call_id_default() {
         let message = ChatMessage {
             role: "tool".to_string(),
             content: ChatMessageContent::Text("Tool response".to_string()),
-            tool_call_id: None, // Missing required tool_call_id
+            tool_call_id: None,
         };
 
         let result = message_to_langchain_format(message);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Tool call ID is required")
-        );
+        assert!(result.is_ok());
+        assert!(result.unwrap()["tool_call_id"] == "");
     }
 
     #[test]
-    fn test_assistant_tool_call_without_id_error() {
+    fn test_assistant_tool_call_without_id_default() {
         let tool_call = ChatMessageToolCall {
-            id: None, // Missing required ID
+            id: None,
             name: "test_function".to_string(),
             arguments: Some(json!({})),
         };
@@ -1214,13 +1208,8 @@ mod tests {
         };
 
         let result = message_to_langchain_format(message);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Tool call ID is required")
-        );
+        assert!(result.is_ok());
+        assert!(result.unwrap()["tool_calls"].as_array().unwrap()[0]["id"] == "");
     }
 
     #[test]
@@ -1246,9 +1235,9 @@ mod tests {
     fn test_span_remains_intact_on_input_conversion_error() {
         // Tool message without tool_call_id
         let invalid_input_messages = vec![ChatMessage {
-            role: "tool".to_string(),
+            role: "unknown".to_string(),
             content: ChatMessageContent::Text("Tool response".to_string()),
-            tool_call_id: None, // Missing required tool_call_id
+            tool_call_id: None,
         }];
 
         let valid_output_messages = vec![ChatMessage {
@@ -1282,10 +1271,10 @@ mod tests {
         }];
 
         let invalid_output_messages = vec![ChatMessage {
-            role: "assistant".to_string(),
+            role: "unknown".to_string(),
             content: ChatMessageContent::ContentPartList(vec![ChatMessageContentPart::ToolCall(
                 ChatMessageToolCall {
-                    id: None, // Missing required ID
+                    id: None,
                     name: "test".to_string(),
                     arguments: Some(json!({})),
                 },
@@ -1343,7 +1332,7 @@ mod tests {
     fn test_span_partial_conversion_success_still_leaves_intact() {
         // Test case where input conversion succeeds but output fails
         let valid_input_messages = vec![ChatMessage {
-            role: "user".to_string(),
+            role: "unknown".to_string(),
             content: ChatMessageContent::Text("Valid input".to_string()),
             tool_call_id: None,
         }];
@@ -1381,11 +1370,10 @@ mod tests {
                 content: ChatMessageContent::Text("Valid message".to_string()),
                 tool_call_id: None,
             },
-            // tool message without tool_call_id
             ChatMessage {
-                role: "tool".to_string(),
+                role: "unknown".to_string(),
                 content: ChatMessageContent::Text("Tool response".to_string()),
-                tool_call_id: None, // Missing required tool_call_id
+                tool_call_id: None,
             },
         ];
 
