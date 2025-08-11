@@ -507,7 +507,6 @@ fn main() -> anyhow::Result<()> {
                 );
 
                 HttpServer::new(move || {
-                    let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
 
                     for _ in 0..num_spans_workers_per_thread {
@@ -596,14 +595,6 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::agent::run_agent_manager)
                                 .service(api::v1::sql::execute_sql_query)
                                 .service(api::v1::payloads::get_payload),
-                        )
-                        // Scopes with generic auth
-                        .service(
-                            web::scope("/api/v1/workspaces")
-                                .wrap(auth.clone())
-                                .service(routes::workspace::get_all_workspaces_of_user)
-                                .service(routes::workspace::get_workspace)
-                                .service(routes::workspace::create_workspace),
                         )
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js

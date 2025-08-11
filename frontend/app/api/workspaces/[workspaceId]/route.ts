@@ -1,20 +1,18 @@
-import { getServerSession } from 'next-auth';
+import { prettifyError, ZodError } from "zod/v4";
 
-import { authOptions } from '@/lib/auth';
-import { fetcher } from '@/lib/utils';
+import { getWorkspace } from "@/lib/actions/workspaces";
 
-export async function GET(req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
+export async function GET(_req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
+  try {
+    const params = await props.params;
+    const workspace = await getWorkspace({ workspaceId: params.workspaceId });
 
-  const res = await fetcher(`/workspaces/${params.workspaceId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${user.apiKey}`
+    return Response.json(workspace);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
-  });
 
-  return new Response(res.body);
+    return Response.json({ error: "Failed to get workspace. Please try again." }, { status: 500 });
+  }
 }
