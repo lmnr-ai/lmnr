@@ -138,7 +138,6 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
   return (
     <div className="flex flex-col space-y-8 p-4">
-      {/* Rename Workspace Section */}
       <div className="flex flex-col items-start space-y-4">
         <h1 className="text-lg">Rename workspace</h1>
         <Label className="text-sm text-secondary-foreground">
@@ -146,7 +145,12 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         </Label>
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="h-8 max-w-80">
+            <Button
+              disabled={!isOwner}
+              onClick={() => setIsRenameDialogOpen(true)}
+              variant="outline"
+              className="h-8 max-w-80"
+            >
               <Edit className="w-4 mr-1" />
               Rename workspace
             </Button>
@@ -178,7 +182,6 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         </Dialog>
       </div>
 
-      {/* Delete Workspace Section */}
       <div className="space-y-4">
         <div className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Delete workspace</h2>
@@ -189,6 +192,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         <Dialog open={isDeleteDialogOpen} onOpenChange={resetAndCloseDeleteDialog}>
           <DialogTrigger asChild>
             <Button
+              disabled={!isOwner}
               onClick={() => setIsDeleteDialogOpen(true)}
               variant="outline"
               className="h-8 text-destructive border-destructive"

@@ -4,9 +4,9 @@ import { WorkspaceStats } from "@/lib/usage/types";
 import { WorkspaceInvitation, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
-import WorkspaceSettings from "./workspace-settings";
 
 interface WorkspaceProps {
   invitations: WorkspaceInvitation[];

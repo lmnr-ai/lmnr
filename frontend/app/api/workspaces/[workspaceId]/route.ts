@@ -1,9 +1,10 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
-import { and, eq } from "drizzle-orm";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { authOptions } from "@/lib/auth";
 import { deleteWorkspace, updateWorkspace, UpdateWorkspaceSchema } from "@/lib/actions/workspaces";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { apiKeys, membersOfWorkspaces, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
 
@@ -65,52 +66,45 @@ export async function POST(req: NextRequest, props: { params: Promise<{ workspac
 
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    return new Response("Unauthorized", { status: 401 });
+    return Response.json("Unauthorized", { status: 401 });
   }
 
   try {
-    // Check if user is owner of workspace  
+    // Check if user is owner of workspace
     const userApiKey = await db.query.apiKeys.findFirst({
       where: eq(apiKeys.apiKey, session.user.apiKey),
     });
 
     if (!userApiKey) {
-      return new Response("User not found", { status: 401 });
+      return Response.json("User not found", { status: 401 });
     }
 
     const membership = await db.query.membersOfWorkspaces.findFirst({
-      where: and(
-        eq(membersOfWorkspaces.workspaceId, workspaceId),
-        eq(membersOfWorkspaces.userId, userApiKey.userId)
-      ),
+      where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userApiKey.userId)),
     });
 
     if (!membership || membership.memberRole !== "owner") {
-      return new Response("Forbidden: Only workspace owners can rename workspaces", { status: 403 });
+      return Response.json("Forbidden: Only workspace owners can rename workspaces", { status: 403 });
     }
 
     const { name } = await req.json();
     const result = UpdateWorkspaceSchema.safeParse({ name, workspaceId });
 
     if (!result.success) {
-      return new Response("Invalid request body", { status: 400 });
+      return Response.json("Invalid request body", { status: 400 });
     }
 
     await updateWorkspace({ workspaceId, name });
 
-    return new Response(JSON.stringify({ message: "Workspace renamed successfully." }), {
-      status: 200,
-    });
+    return Response.json({ message: "Workspace renamed successfully." });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        message: "Failed to update the workspace",
-      }),
-      {
-        status: 500,
-      }
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update workspace." },
+      { status: 500 }
     );
   }
 }
@@ -121,45 +115,37 @@ export async function DELETE(_req: Request, props: { params: Promise<{ workspace
 
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    return new Response("Unauthorized", { status: 401 });
+    return Response.json("Unauthorized", { status: 401 });
   }
 
   try {
-    // Check if user is owner of workspace
     const userApiKey = await db.query.apiKeys.findFirst({
       where: eq(apiKeys.apiKey, session.user.apiKey),
     });
 
     if (!userApiKey) {
-      return new Response("User not found", { status: 401 });
+      return Response.json("User not found", { status: 401 });
     }
 
     const membership = await db.query.membersOfWorkspaces.findFirst({
-      where: and(
-        eq(membersOfWorkspaces.workspaceId, workspaceId),
-        eq(membersOfWorkspaces.userId, userApiKey.userId)
-      ),
+      where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userApiKey.userId)),
     });
 
     if (!membership || membership.memberRole !== "owner") {
-      return new Response("Forbidden: Only workspace owners can delete workspaces", { status: 403 });
+      return Response.json("Forbidden: Only workspace owners can delete workspaces", { status: 403 });
     }
 
     await deleteWorkspace({ workspaceId });
 
-    return new Response(JSON.stringify({ message: "Workspace deleted successfully." }), {
-      status: 200,
-    });
+    return Response.json({ success: true });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        message: "Failed to delete the workspace",
-      }),
-      {
-        status: 500,
-      }
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to delete workspace. Please try again." },
+      { status: 500 }
     );
   }
 }
