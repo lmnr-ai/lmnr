@@ -3,15 +3,25 @@
 import { Edit, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { useSWRConfig } from "swr";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { WorkspaceWithProjects, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+
+interface RenameWorkspaceForm {
+  name: string;
+}
+
+interface DeleteWorkspaceForm {
+  confirmationName: string;
+}
 
 interface WorkspaceSettingsProps {
   workspace: WorkspaceWithUsers;
@@ -21,18 +31,26 @@ interface WorkspaceSettingsProps {
 export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSettingsProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { mutate } = useSWRConfig();
 
-  const [newWorkspaceName, setNewWorkspaceName] = useState<string>("");
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [isRenameLoading, setIsRenameLoading] = useState<boolean>(false);
-
-  const [inputWorkspaceName, setInputWorkspaceName] = useState<string>("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
 
-  const renameWorkspace = async () => {
-    setIsRenameLoading(true);
+  const renameForm = useForm<RenameWorkspaceForm>({
+    defaultValues: {
+      name: "",
+    },
+    mode: "onChange",
+  });
 
+  const deleteForm = useForm<DeleteWorkspaceForm>({
+    defaultValues: {
+      confirmationName: "",
+    },
+    mode: "onChange",
+  });
+
+  const renameWorkspace = renameForm.handleSubmit(async (data) => {
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}`, {
         method: "POST",
@@ -40,18 +58,24 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: newWorkspaceName,
+          name: data.name,
         }),
       });
 
       if (res.ok) {
+        await mutate<WorkspaceWithProjects[]>(
+          "/api/workspaces",
+          (currentData) => currentData?.map((ws) => (ws.id === workspace.id ? { ...ws, name: data.name } : ws)),
+          { revalidate: false, populateCache: true, rollbackOnError: true }
+        );
+
         toast({
           title: "Workspace Renamed",
           description: "Workspace renamed successfully!",
         });
         router.refresh();
         setIsRenameDialogOpen(false);
-        setNewWorkspaceName("");
+        renameForm.reset();
       } else {
         const errorData = await res.json();
         toast({
@@ -67,23 +91,10 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         description: "Something went wrong. Please try again later.",
       });
     }
+  });
 
-    setIsRenameLoading(false);
-  };
-
-  const deleteWorkspace = useCallback(async () => {
-    if (inputWorkspaceName !== workspace.name) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Workspace name does not match",
-      });
-      return;
-    }
-
+  const deleteWorkspace = deleteForm.handleSubmit(async (data) => {
     try {
-      setIsDeleteLoading(true);
-
       const res = await fetch(`/api/workspaces/${workspace.id}`, {
         method: "DELETE",
       });
@@ -98,6 +109,12 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         return;
       }
 
+      await mutate<WorkspaceWithProjects[]>(
+        "/api/workspaces",
+        (currentData) => currentData?.filter((ws) => ws.id !== workspace.id),
+        { revalidate: false, populateCache: true, rollbackOnError: true }
+      );
+
       toast({
         title: "Workspace deleted successfully",
         description: "Redirecting to workspaces page...",
@@ -111,22 +128,30 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete the workspace. Please try again.",
       });
-    } finally {
-      setIsDeleteLoading(false);
     }
-  }, [inputWorkspaceName, workspace.name, workspace.id, toast, router]);
+  });
 
-  const resetAndCloseDeleteDialog = useCallback((open: boolean) => {
-    setIsDeleteDialogOpen(open);
-    setInputWorkspaceName("");
-  }, []);
+  const resetAndCloseDeleteDialog = useCallback(
+    (open: boolean) => {
+      setIsDeleteDialogOpen(open);
+      if (!open) {
+        deleteForm.reset();
+      }
+    },
+    [deleteForm]
+  );
 
-  const resetAndCloseRenameDialog = useCallback((open: boolean) => {
-    setIsRenameDialogOpen(open);
-    setNewWorkspaceName("");
-  }, []);
+  const resetAndCloseRenameDialog = useCallback(
+    (open: boolean) => {
+      setIsRenameDialogOpen(open);
+      if (!open) {
+        renameForm.reset();
+      }
+    },
+    [renameForm]
+  );
 
-  const isDeleteEnabled = inputWorkspaceName === workspace.name && !isDeleteLoading;
+  const isDeleteEnabled = deleteForm.formState.isValid && !deleteForm.formState.isSubmitting;
 
   if (!isOwner) {
     return (
@@ -159,25 +184,42 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
             <DialogHeader>
               <DialogTitle>Rename workspace</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label>Enter new workspace name</Label>
-              <Input
-                autoFocus
-                placeholder={workspace.name}
-                value={newWorkspaceName}
-                onChange={(e) => setNewWorkspaceName(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                disabled={!newWorkspaceName.trim() || isRenameLoading}
-                onClick={renameWorkspace}
-                handleEnter={true}
-              >
-                <Loader2 className={cn("mr-2 hidden", isRenameLoading ? "animate-spin block" : "")} size={16} />
-                Rename
-              </Button>
-            </DialogFooter>
+            <form onSubmit={renameWorkspace} className="space-y-4">
+              <div className="grid gap-4 py-4">
+                <Label>Enter new workspace name</Label>
+                <Controller
+                  name="name"
+                  control={renameForm.control}
+                  rules={{
+                    required: "Workspace name is required",
+                    validate: (value) => value.trim().length > 0 || "Workspace name cannot be empty",
+                  }}
+                  render={({ field, fieldState }) => (
+                    <div className="space-y-1">
+                      <Input
+                        {...field}
+                        autoFocus
+                        placeholder={workspace.name}
+                        className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                      />
+                      {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                    </div>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
+                  handleEnter={true}
+                >
+                  <Loader2
+                    className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
+                  />
+                  Rename
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -206,44 +248,58 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
             <DialogHeader>
               <DialogTitle className="text-destructive">Delete workspace</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                This will permanently delete <span className="font-medium text-foreground">{workspace.name}</span> and
-                all of its data, including all projects and their associated traces, evaluations, and datasets. This
-                action cannot be undone.
-              </p>
+            <form onSubmit={deleteWorkspace} className="space-y-4">
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  This will permanently delete <span className="font-medium text-foreground">{workspace.name}</span> and
+                  all of its data, including all projects and their associated traces, evaluations, and datasets. This
+                  action cannot be undone.
+                </p>
 
-              <div className="space-y-2">
-                <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
-                  Type <span className="font-medium text-white">{workspace.name}</span> to confirm
-                </Label>
-                <Input
-                  id="workspace-name-input"
-                  autoFocus
-                  placeholder={workspace.name}
-                  value={inputWorkspaceName}
-                  onChange={(e) => setInputWorkspaceName(e.target.value)}
-                  className={cn(
-                    inputWorkspaceName &&
-                      inputWorkspaceName !== workspace.name &&
-                      "border-destructive focus-visible:ring-destructive"
-                  )}
-                />
-                {inputWorkspaceName && inputWorkspaceName !== workspace.name && (
-                  <p className="text-xs text-destructive">Workspace name does not match</p>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
+                    Type <span className="font-medium text-white">{workspace.name}</span> to confirm
+                  </Label>
+                  <Controller
+                    name="confirmationName"
+                    control={deleteForm.control}
+                    rules={{
+                      required: "Please enter the workspace name to confirm",
+                      validate: (value) => value === workspace.name || "Workspace name does not match",
+                    }}
+                    render={({ field, fieldState }) => (
+                      <div className="space-y-1">
+                        <Input
+                          {...field}
+                          id="workspace-name-input"
+                          autoFocus
+                          placeholder={workspace.name}
+                          className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                        />
+                        {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => resetAndCloseDeleteDialog(false)} disabled={isDeleteLoading}>
-                Cancel
-              </Button>
-              <Button variant="destructive" disabled={!isDeleteEnabled} onClick={deleteWorkspace}>
-                <Loader2 className={cn("mr-2 h-4 w-4", isDeleteLoading ? "animate-spin" : "hidden")} />
-                Delete
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => resetAndCloseDeleteDialog(false)}
+                  disabled={deleteForm.formState.isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="destructive" disabled={!isDeleteEnabled}>
+                  <Loader2
+                    className={cn("mr-2 h-4 w-4", deleteForm.formState.isSubmitting ? "animate-spin" : "hidden")}
+                  />
+                  Delete
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
