@@ -1,54 +1,26 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-import SpanStatChart from "@/components/dashboard/span-stat-chart";
-import SpanSummaryChart from "@/components/dashboard/span-summary-chart";
-import TraceStatChart from "@/components/dashboard/trace-stat-chart";
-import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { AggregationFunction, SpanMetric, SpanMetricGroupBy } from "@/lib/clickhouse/types";
-import { getGroupByInterval } from "@/lib/utils";
+import GridLayout from "@/components/dashboard/grid-layout";
+import { Button } from "@/components/ui/button";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
-import { TraceStatusChart } from "./trace-status-chart";
-
-const SPAN_SUMMARY_CHARTS = [
-  {
-    title: "Spans",
-    metric: SpanMetric.Count,
-    groupBy: SpanMetricGroupBy.Name,
-  },
-  {
-    title: "Top Model Cost",
-    metric: SpanMetric.TotalCost,
-    groupBy: SpanMetricGroupBy.Model,
-  },
-  {
-    title: "Top Model Tokens",
-    metric: SpanMetric.TotalTokens,
-    groupBy: SpanMetricGroupBy.Model,
-  },
-  {
-    title: "Top LLM Spans",
-    metric: SpanMetric.Count,
-    groupBy: SpanMetricGroupBy.Model,
-  },
-];
 
 export default function Dashboard() {
   const params = useParams();
   const projectId = params?.projectId as string;
 
-  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const searchParams = useSearchParams();
   const pastHours = searchParams.get("pastHours") || undefined;
   const startDate = searchParams.get("startDate") || undefined;
   const endDate = searchParams.get("endDate") || undefined;
-  const groupByInterval =
-    searchParams.get("groupByInterval") ?? getGroupByInterval(pastHours, startDate, endDate, undefined);
 
   const router = useRouter();
 
@@ -63,121 +35,22 @@ export default function Dashboard() {
   return (
     <>
       <Header path={"dashboard"}>
-        <div className="h-12 flex space-x-2 items-center">
+        <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
+          <Link passHref className="ml-auto mr-2" href={{ pathname: "dashboard/new" }}>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              New Chart
+            </Button>
+          </Link>
         </div>
       </Header>
-      <div className="flex-grow flex flex-col h-0">
-        <ScrollArea className="h-full">
-          <div className="grid grid-cols-3 gap-4 p-4">
-            {SPAN_SUMMARY_CHARTS.map((chart) => (
-              <div className="col-span-1 h-72" key={chart.title}>
-                <SpanSummaryChart
-                  {...chart}
-                  className="w-full"
-                  projectId={projectId}
-                  pastHours={pastHours ?? ""}
-                  startDate={startDate ?? ""}
-                  endDate={endDate ?? ""}
-                  addDollarSign={chart.metric === SpanMetric.TotalCost}
-                />
-              </div>
-            ))}
-            <div className="col-span-1">
-              <SpanStatChart
-                title="Latency by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.Latency}
-                defaultAggregation={AggregationFunction.p90}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <SpanStatChart
-                title="Tokens by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.TotalTokens}
-                defaultAggregation={AggregationFunction.SUM}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <SpanStatChart
-                title="Cost by model"
-                projectId={projectId}
-                className="w-full"
-                metric={SpanMetric.TotalCost}
-                defaultAggregation={AggregationFunction.SUM}
-                groupBy={SpanMetricGroupBy.Model}
-                pastHours={pastHours ?? ""}
-                startDate={startDate ?? ""}
-                endDate={endDate ?? ""}
-                groupByInterval={groupByInterval as GroupByInterval}
-              />
-            </div>
-            <div className="col-span-2 h-72">
-              <TraceStatusChart
-                projectId={projectId}
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                title="Trace Status"
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="traceLatencySeconds"
-                aggregation={AggregationFunction.p90}
-                title="Trace latency (p90)"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="totalTokenCount"
-                aggregation={AggregationFunction.SUM}
-                title="Total Tokens"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                showTotal
-              />
-            </div>
-            <div className="col-span-1 h-72">
-              <TraceStatChart
-                projectId={projectId}
-                metric="costUsd"
-                aggregation={AggregationFunction.SUM}
-                title="Total cost"
-                pastHours={pastHours}
-                startDate={startDate}
-                endDate={endDate}
-                defaultGroupByInterval={groupByInterval}
-                addDollarSign={true}
-                showTotal
-              />
-            </div>
-          </div>
-        </ScrollArea>
-      </div>
+      <ScrollArea className="h-full">
+        <div className="h-full p-4">
+          <GridLayout />
+        </div>
+      </ScrollArea>
     </>
   );
 }

@@ -65,6 +65,10 @@ async function handleSubscriptionChange(
         productId
       );
       if (subscriptionType === 'workspace') {
+        if (!workspaceId) {
+          console.log(`subscription updated event. No workspaceId found. subscriptionId: ${subscription.id}`);
+          continue;
+        }
         await manageWorkspaceSubscriptionEvent({
           stripeCustomerId,
           productId,
@@ -74,6 +78,10 @@ async function handleSubscriptionChange(
           cancel: true
         });
       } else {
+        if (!userId) {
+          console.log(`subscription updated event. No userId found. subscriptionId: ${subscription.id}`);
+          continue;
+        }
         await manageUserSubscriptionEvent({
           stripeCustomerId,
           productId,

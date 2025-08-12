@@ -4,6 +4,7 @@ import { WorkspaceStats } from "@/lib/usage/types";
 import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
 
@@ -22,6 +23,7 @@ export default function WorkspaceComponent({ invitations, workspace, workspaceSt
         <TabsList className="px-4">
           <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="users">Team</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <div className="flex flex-col space-y-4">
           <TabsContent value="usage">
@@ -35,6 +37,9 @@ export default function WorkspaceComponent({ invitations, workspace, workspaceSt
               isOwner={isOwner}
               currentUserRole={currentUserRole}
             />
+          </TabsContent>
+          <TabsContent value="settings">
+            <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
           </TabsContent>
         </div>
       </Tabs>

@@ -1,95 +1,144 @@
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import {
-  getLabelMetricsOverTime,
-  getSpanMetricsOverTime,
-  getSpanMetricsSummary,
-  getTraceMetricsOverTime,
-  getTraceStatusMetricsOverTime,
-} from "@/lib/clickhouse/spans";
-import { AggregationFunction, SpanMetric, SpanMetricGroupBy, TraceMetric } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
+import { ChartType } from "@/components/chart-builder/types";
+import { DashboardChart } from "@/components/dashboard/types";
+import { repositionCharts } from "@/lib/actions/dashboard/utils";
+import { db } from "@/lib/db/drizzle";
+import { dashboardCharts } from "@/lib/db/migrations/schema";
 
-const BaseMetricsSchema = z.object({
+const GetChartsSchema = z.object({
   projectId: z.string(),
-  pastHours: z.string().nullable(),
-  startDate: z.string().nullable(),
-  endDate: z.string().nullable(),
 });
 
-const OptionalGroupByIntervalSchema = z.object({
-  groupByInterval: z.enum(GroupByInterval).optional().default(GroupByInterval.Hour),
+const ChartSettingsSchema = z.object({
+  config: z.object({
+    type: z.enum(ChartType),
+    x: z.string(),
+    y: z.string(),
+    breakdown: z.string().optional(),
+    total: z.boolean().optional(),
+  }),
+  layout: z.object({
+    x: z.number(),
+    y: z.number(),
+    w: z.number(),
+    h: z.number(),
+  }),
 });
 
-const SpanGroupBySchema = z.object({
-  groupBy: z.enum(SpanMetricGroupBy),
+export const ChartUpdatesSchema = z.array(
+  z.object({
+    id: z.string(),
+    settings: ChartSettingsSchema,
+  })
+);
+
+const UpdateChartsLayoutSchema = z.object({
+  projectId: z.uuid(),
+  updates: z.array(
+    z.object({
+      id: z.string(),
+      settings: ChartSettingsSchema,
+    })
+  ),
 });
 
-export const GetSpanMetricsTimeSchema = BaseMetricsSchema.extend({
-  metric: z.enum(SpanMetric),
-  aggregation: z.enum(AggregationFunction),
-  groupByInterval: z.enum(GroupByInterval),
-}).extend(SpanGroupBySchema.shape);
+const DeleteChartSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
 
-export const GetSpanMetricsSummarySchema = BaseMetricsSchema.extend({
-  metric: z.enum(SpanMetric),
-  aggregation: z.enum(AggregationFunction),
-}).extend(SpanGroupBySchema.shape);
+const UpdateChartNameSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  name: z.string().min(1, "Name is required"),
+});
 
-export const GetLabelMetricsSchema = BaseMetricsSchema.extend(OptionalGroupByIntervalSchema.shape);
+const CreateChartSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1, "Name is required"),
+  query: z.string(),
+  config: ChartSettingsSchema.shape["config"],
+});
 
-export const GetTraceMetricsSchema = BaseMetricsSchema.extend({
-  metric: z.enum(TraceMetric),
-  aggregation: z.enum(AggregationFunction),
-}).extend(OptionalGroupByIntervalSchema.shape);
+export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
+  const { projectId } = GetChartsSchema.parse(input);
 
-export const GetTraceStatusMetricsSchema = BaseMetricsSchema.extend(OptionalGroupByIntervalSchema.shape);
+  const charts = await db.select().from(dashboardCharts).where(eq(dashboardCharts.projectId, projectId));
 
-export async function getSpanMetricsOverTimeAction(input: z.infer<typeof GetSpanMetricsTimeSchema>) {
-  const { projectId, metric, aggregation, groupByInterval, groupBy, pastHours, startDate, endDate } =
-    GetSpanMetricsTimeSchema.parse(input);
+  return charts as DashboardChart[];
+};
 
-  const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
-  const metrics = await getSpanMetricsOverTime(projectId, metric, groupByInterval, timeRange, groupBy, aggregation);
+export const getChart = async (input: z.infer<typeof DeleteChartSchema>) => {
+  const { projectId, id } = DeleteChartSchema.parse(input);
 
-  return metrics;
-}
+  const chart = await db.query.dashboardCharts.findFirst({
+    where: and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)),
+  });
 
-export async function getSpanMetricsSummaryAction(input: z.infer<typeof GetSpanMetricsSummarySchema>) {
-  const { projectId, metric, aggregation, groupBy, pastHours, startDate, endDate } =
-    GetSpanMetricsSummarySchema.parse(input);
+  return chart as DashboardChart | undefined;
+};
 
-  const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
-  const metrics = await getSpanMetricsSummary(projectId, metric, timeRange, groupBy, aggregation);
+export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayoutSchema>) => {
+  const { projectId, updates } = UpdateChartsLayoutSchema.parse(input);
 
-  return metrics;
-}
+  if (updates.length === 0) return;
 
-export async function getLabelMetricsAction(input: z.infer<typeof GetLabelMetricsSchema>) {
-  const { projectId, groupByInterval, pastHours, startDate, endDate } = GetLabelMetricsSchema.parse(input);
+  const values = sql.join(
+    updates.map(({ id, settings }) => sql`(${id}::uuid, ${JSON.stringify(settings)}::jsonb)`),
+    sql`, `
+  );
 
-  const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
-  const metrics = await getLabelMetricsOverTime(projectId, groupByInterval, timeRange);
+  await db
+    .update(dashboardCharts)
+    .set({
+      settings: sql`update_data.settings`,
+    })
+    .from(sql`(VALUES ${values}) AS update_data(id, settings)`)
+    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, sql`update_data.id`)));
+};
 
-  return metrics;
-}
+export const deleteDashboardChart = async (input: z.infer<typeof DeleteChartSchema>) => {
+  const { id, projectId } = DeleteChartSchema.parse(input);
 
-export async function getTraceMetricsAction(input: z.infer<typeof GetTraceMetricsSchema>) {
-  const { projectId, metric, aggregation, groupByInterval, pastHours, startDate, endDate } =
-    GetTraceMetricsSchema.parse(input);
+  await db.delete(dashboardCharts).where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+};
 
-  const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
-  const metrics = await getTraceMetricsOverTime(projectId, metric, groupByInterval, timeRange, aggregation);
+export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchema>) => {
+  const { projectId, name, id } = UpdateChartNameSchema.parse(input);
 
-  return metrics;
-}
+  await db
+    .update(dashboardCharts)
+    .set({ name })
+    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+};
 
-export async function getTraceStatusMetricsAction(input: z.infer<typeof GetTraceStatusMetricsSchema>) {
-  const { projectId, groupByInterval, pastHours, startDate, endDate } = GetTraceStatusMetricsSchema.parse(input);
+export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
+  const { name, config, projectId, query } = CreateChartSchema.parse(input);
 
-  const timeRange = getTimeRange(pastHours || undefined, startDate || undefined, endDate || undefined);
-  const metrics = await getTraceStatusMetricsOverTime(projectId, groupByInterval, timeRange);
+  const newChart = {
+    name,
+    query,
+    projectId,
+    settings: {
+      config,
+      layout: { x: 0, y: 0, w: 4, h: 6 },
+    },
+  };
 
-  return metrics;
-}
+  const chartSettings = (await db.query.dashboardCharts.findMany({
+    where: eq(dashboardCharts.projectId, projectId),
+    columns: {
+      id: true,
+      settings: true,
+    },
+  })) as z.infer<typeof ChartUpdatesSchema>;
+
+  const reorderedCharts = repositionCharts(chartSettings);
+
+  await db.transaction(async (tx) => {
+    await tx.insert(dashboardCharts).values(newChart);
+    await updateChartsLayout({ projectId, updates: reorderedCharts });
+  });
+};

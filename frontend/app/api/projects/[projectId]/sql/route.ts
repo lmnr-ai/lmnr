@@ -1,37 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
+import { prettifyError, ZodError } from "zod/v4";
 
+import { executeQuery } from "@/lib/actions/sql";
 import { authOptions } from "@/lib/auth";
-import { fetcherJSON } from "@/lib/utils";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   try {
     const session = await getServerSession(authOptions);
-    const { sqlQuery } = await request.json();
+    const body = await request.json();
     const projectId = (await params).projectId;
 
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!sqlQuery?.trim()) {
-      return NextResponse.json({ error: "SQL query is required" }, { status: 400 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = session.user;
 
-    const res = await fetcherJSON(`/projects/${projectId}/sql/query`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user.apiKey}`,
-      },
-      body: JSON.stringify({ query: sqlQuery }),
-    });
+    const data = await executeQuery({ ...body, projectId, apiKey: user.apiKey });
 
-    return NextResponse.json(res);
+    return Response.json(data);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: errorMessage, success: false, result: null, warnings: null }, { status: 500 });
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to execute query." },
+      { status: 500 }
+    );
   }
 }

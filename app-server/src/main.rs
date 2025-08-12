@@ -44,7 +44,6 @@ use sodiumoxide;
 use std::{
     env,
     io::{self, Error},
-    time::Duration,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -508,7 +507,6 @@ fn main() -> anyhow::Result<()> {
                 );
 
                 HttpServer::new(move || {
-                    let auth = HttpAuthentication::bearer(auth::validator);
                     let project_auth = HttpAuthentication::bearer(auth::project_validator);
 
                     for _ in 0..num_spans_workers_per_thread {
@@ -586,6 +584,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::traces::process_traces)
                                 .service(api::v1::datasets::get_datapoints)
                                 .service(api::v1::datasets::create_datapoints)
+                                .service(api::v1::datasets::get_parquet)
                                 .service(api::v1::metrics::process_metrics)
                                 .service(api::v1::browser_sessions::create_session_event)
                                 .service(api::v1::evals::init_eval)
@@ -594,15 +593,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(api::v1::evaluators::create_evaluator_score)
                                 .service(api::v1::tag::tag_trace)
                                 .service(api::v1::agent::run_agent_manager)
-                                .service(api::v1::sql::execute_sql_query),
-                        )
-                        // Scopes with generic auth
-                        .service(
-                            web::scope("/api/v1/workspaces")
-                                .wrap(auth.clone())
-                                .service(routes::workspace::get_all_workspaces_of_user)
-                                .service(routes::workspace::get_workspace)
-                                .service(routes::workspace::create_workspace),
+                                .service(api::v1::sql::execute_sql_query)
+                                .service(api::v1::payloads::get_payload),
                         )
                         .service(
                             // auth on path projects/{project_id} is handled by middleware on Next.js

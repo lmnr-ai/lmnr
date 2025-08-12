@@ -238,17 +238,36 @@ impl SpanAttributes {
         }
     }
 
-    pub fn provider_name(&self) -> Option<String> {
+    pub fn provider_name(&self, span_name: &str) -> Option<String> {
         let name = if let Some(Value::String(provider)) = self.raw_attributes.get(GEN_AI_SYSTEM) {
-            // Traceloop's auto-instrumentation sends the provider name as "Langchain" and the actual provider
-            // name as an attribute `association_properties.ls_provider`.
-            if provider == "Langchain" {
+            // For several versions prior to https://github.com/traceloop/openllmetry/pull/3165
+            // and thus before `opentelemetry-instrumentation-langchain` 0.43.1, OpenLLMetry used
+            // to send the provider name as "Langchain" and the actual provider.
+
+            // TODO: Since `lmnr 0.7.2` in Python, we have upgraded to OpenLLMetry >= 0.44.0,
+            // which correctly sends the provider name as the actual provider name, so
+            // this logic can be removed in a few months. We should also stop passing
+            // the span name all the way to here when we remove this logic.
+            if provider.to_lowercase().trim() == "langchain" {
+                // In some old versions, they would add an association property `ls_provider`
+                // to the span attributes.
                 let ls_provider = self
                     .raw_attributes
                     .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
                     .and_then(|s| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
+                } else if span_name.contains(".")
+                    && span_name.to_lowercase().trim().starts_with("chat")
+                {
+                    // If there is no `ls_provider` attribute, we can try to extract the provider
+                    // name from the span name.
+                    span_name
+                        .to_lowercase()
+                        .replacen("chat", "", 1)
+                        .split(".")
+                        .next()
+                        .map(String::from)
                 } else {
                     Some(provider.clone())
                 }
@@ -562,7 +581,7 @@ impl Span {
                     }
                 }
 
-                if let Some(output) = try_parse_ai_sdk_output(&self.attributes.raw_attributes) {
+                if let Some(output) = try_parse_ai_sdk_output(&mut self.attributes.raw_attributes) {
                     self.output = Some(output);
                 }
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
@@ -629,7 +648,7 @@ impl Span {
             self.output = self
                 .output
                 .take()
-                .or(try_parse_ai_sdk_output(&self.attributes.raw_attributes));
+                .or(try_parse_ai_sdk_output(&mut self.attributes.raw_attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
             if let Some(Value::String(s)) = self.attributes.raw_attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
@@ -646,6 +665,38 @@ impl Span {
                 }
             }
             convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
+        }
+
+        if self.is_ai_sdk_tool_call_span() {
+            self.span_type = SpanType::TOOL;
+            if let Some(Value::String(name)) =
+                self.attributes.raw_attributes.remove("ai.toolCall.name")
+            {
+                self.name = name;
+            }
+            if let Some(args_value) = self.attributes.raw_attributes.remove("ai.toolCall.args") {
+                if let Value::String(s) = &args_value {
+                    if let Ok(args) = serde_json::from_str::<Value>(s) {
+                        self.input = Some(args);
+                    } else {
+                        self.input = Some(args_value);
+                    }
+                } else {
+                    self.input = Some(args_value);
+                }
+            }
+            if let Some(result_value) = self.attributes.raw_attributes.remove("ai.toolCall.result")
+            {
+                if let Value::String(s) = &result_value {
+                    if let Ok(result) = serde_json::from_str::<Value>(s) {
+                        self.output = Some(result);
+                    } else {
+                        self.output = Some(result_value);
+                    }
+                } else {
+                    self.output = Some(result_value);
+                }
+            }
         }
 
         // Traceloop hard-codes these attributes to LangChain auto-instrumented spans.
@@ -785,6 +836,22 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>();
+    }
+
+    /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
+    /// of the user, when `execute` was register in tool definitions when calling
+    /// `generateText`
+    fn is_ai_sdk_tool_call_span(&self) -> bool {
+        // "or" here so this doesn't break if AI SDK renames the span
+        self.name == "ai.toolCall"
+            || (self
+                .attributes
+                .raw_attributes
+                .contains_key("ai.toolCall.name")
+                || self
+                    .attributes
+                    .raw_attributes
+                    .contains_key("ai.toolCall.id"))
     }
 }
 
@@ -934,7 +1001,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                 let Some(otel_content) = message.get("content") else {
                     return Err(anyhow::anyhow!("Can't find content in message"));
                 };
-                let tool_call_id = message
+                let mut tool_call_id = message
                     .get("tool_call_id")
                     .and_then(|v| v.as_str())
                     .map(String::from);
@@ -951,7 +1018,33 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                         }
                         ChatMessageContent::ContentPartList(parts)
                     }
-                    Err(_) => ChatMessageContent::Text(json_value_to_string(otel_content)),
+                    Err(_) => {
+                        if let Value::Array(parts) = otel_content {
+                            let ai_sdk_tool_result_msg = parts.iter().find(|part| {
+                                if let Value::Object(obj) = part {
+                                    obj.get("type")
+                                        == Some(&Value::String("tool-result".to_string()))
+                                        && obj.get("toolCallId").is_some()
+                                        && obj.get("output").is_some()
+                                } else {
+                                    false
+                                }
+                            });
+                            if let Some(Value::Object(obj)) = ai_sdk_tool_result_msg {
+                                tool_call_id = obj.get("toolCallId").map(|v| v.to_string());
+                                let output = obj.get("output").unwrap_or(&Value::Null);
+                                ChatMessageContent::ContentPartList(vec![
+                                    ChatMessageContentPart::Text(ChatMessageText {
+                                        text: json_value_to_string(output),
+                                    }),
+                                ])
+                            } else {
+                                ChatMessageContent::Text(json_value_to_string(&otel_content))
+                            }
+                        } else {
+                            ChatMessageContent::Text(json_value_to_string(otel_content))
+                        }
+                    }
                 };
                 Ok(ChatMessage {
                     role: role.to_string(),
@@ -1130,48 +1223,45 @@ fn parse_tool_calls(attributes: &HashMap<String, Value>, prefix: &str) -> Vec<Ch
     tool_calls
 }
 
-fn try_parse_ai_sdk_output(attributes: &HashMap<String, Value>) -> Option<serde_json::Value> {
-    let mut messages = Vec::new();
-    // let mut out_vals: Vec<serde_json::Value> = Vec::new();
-    if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.text") {
-        messages.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: ChatMessageContent::Text(s.clone()),
-            tool_call_id: None,
-        });
-    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.object") {
-        let content = serde_json::from_str::<serde_json::Value>(s)
+fn try_parse_ai_sdk_output(attributes: &mut HashMap<String, Value>) -> Option<serde_json::Value> {
+    let mut content_parts = Vec::new();
+
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.text") {
+        if !s.is_empty() {
+            content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text: s }));
+        }
+    }
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.object") {
+        let content = serde_json::from_str::<serde_json::Value>(&s)
             .unwrap_or(serde_json::Value::String(s.clone()));
-        messages.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: ChatMessageContent::Text(json_value_to_string(&content)),
-            tool_call_id: None,
-        });
-    } else if let Some(serde_json::Value::String(s)) = attributes.get("ai.response.toolCalls") {
+        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+            text: json_value_to_string(&content),
+        }));
+    }
+    if let Some(serde_json::Value::String(s)) = attributes.remove("ai.response.toolCalls") {
         if let Ok(tool_call_values) =
-            serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(s)
+            serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(&s)
         {
             let tool_calls = parse_ai_sdk_tool_calls(tool_call_values)
                 .iter()
                 .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call.clone()))
                 .collect::<Vec<_>>();
-            messages.push(ChatMessage {
-                role: "assistant".to_string(),
-                content: ChatMessageContent::ContentPartList(tool_calls),
-                tool_call_id: None,
-            });
+            content_parts.extend(tool_calls);
         }
     }
 
-    if messages.is_empty() {
+    if content_parts.is_empty() {
         None
     } else {
-        Some(serde_json::Value::Array(
-            messages
-                .into_iter()
-                .map(|message| serde_json::to_value(message).unwrap())
-                .collect(),
-        ))
+        // form as a message array
+        Some(serde_json::Value::Array(vec![
+            serde_json::to_value(ChatMessage {
+                role: "assistant".to_string(),
+                content: ChatMessageContent::ContentPartList(content_parts),
+                tool_call_id: None,
+            })
+            .unwrap(),
+        ]))
     }
 }
 

@@ -1,6 +1,5 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
-import { persist } from "zustand/middleware";
 
 import { ChartConfig, ChartType } from "@/components/chart-builder/types";
 import {
@@ -16,18 +15,21 @@ type ChartBuilderState = {
   chartConfig: ChartConfig;
   columns: ColumnInfo[];
   data: DataRow[];
+  name: string | undefined;
+  query: string;
 };
 
 type ChartBuilderActions = {
   setChartConfig: (config: Partial<ChartConfig>) => void;
+  setChartName: (name?: string) => void;
   setChartType: (type: ChartType) => void;
   setXColumn: (columnName?: string) => void;
-  setYColumns: (columnNames: string[]) => void;
-  toggleYColumn: (columnName: string) => void;
+  setYColumn: (columnName?: string) => void;
   setBreakdownColumn: (columnName?: string) => void;
+  setShowTotal: (total: boolean) => void;
 
   getSelectedXColumn: () => ColumnInfo | undefined;
-  getSelectedYColumns: () => ColumnInfo[];
+  getSelectedYColumn: () => ColumnInfo | undefined;
   getSelectedBreakdownColumn: () => ColumnInfo | undefined;
   getAvailableBreakdownColumns: () => ColumnInfo[];
 
@@ -38,117 +40,112 @@ type ChartBuilderActions = {
 const defaultConfig: ChartConfig = {
   type: undefined,
   x: undefined,
-  y: [],
+  y: undefined,
   breakdown: undefined,
+  total: false,
 };
 
 type ChartBuilderStore = ChartBuilderState & ChartBuilderActions;
 type ChartBuilderStoreApi = ReturnType<typeof createChartBuilderStore>;
 
-type ChartBuilderProps = {
-  data?: DataRow[];
-};
+export interface ChartBuilderProps {
+  data: DataRow[];
+  query: string;
+}
 
-const ChartBuilderContext = createContext<ChartBuilderStoreApi | undefined>(undefined);
-
-const createChartBuilderStore = (props: Partial<ChartBuilderProps>) => {
+const createChartBuilderStore = (props: ChartBuilderProps) => {
   const chartState: ChartBuilderState = {
+    query: props.query,
+    name: undefined,
     chartConfig: defaultConfig,
     columns: transformDataToColumns(props?.data || []),
     data: props?.data || [],
   };
 
-  return createStore<ChartBuilderStore>()(
-    persist(
-      (set, get) => ({
-        ...chartState,
-        setChartConfig: (config) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, ...config },
-          })),
+  return createStore<ChartBuilderStore>()((set, get) => ({
+    ...chartState,
+    setChartConfig: (config) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, ...config },
+      })),
 
-        setChartType: (type) =>
-          set((state) => ({
-            chartConfig: {
-              ...state.chartConfig,
-              type,
-              x: undefined,
-              y: [],
-              breakdown: undefined,
-            },
-          })),
+    setChartName: (name) =>
+      set(() => ({
+        name: name,
+      })),
 
-        setXColumn: (columnName) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, x: columnName },
-          })),
-
-        setYColumns: (columnNames) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, y: columnNames },
-          })),
-
-        toggleYColumn: (columnName) =>
-          set((state) => {
-            const currentY = state.chartConfig.y || [];
-            const newY = currentY.includes(columnName)
-              ? currentY.filter((name) => name !== columnName)
-              : [...currentY, columnName];
-            return {
-              chartConfig: { ...state.chartConfig, y: newY },
-            };
-          }),
-
-        setBreakdownColumn: (columnName) =>
-          set((state) => ({
-            chartConfig: { ...state.chartConfig, breakdown: columnName },
-          })),
-
-        getSelectedXColumn: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
+    setChartType: (type) =>
+      set((state) => ({
+        chartConfig: {
+          ...state.chartConfig,
+          type,
+          x: undefined,
+          y: undefined,
+          breakdown: undefined,
         },
+      })),
 
-        getSelectedYColumns: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.y
-            .map((yName) => columns.find((col) => col.name === yName))
-            .filter(Boolean) as ColumnInfo[];
-        },
+    setXColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, x: columnName },
+      })),
 
-        getSelectedBreakdownColumn: () => {
-          const { chartConfig, columns } = get();
-          return chartConfig.breakdown ? columns.find((col) => col.name === chartConfig.breakdown) : undefined;
-        },
+    setYColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, y: columnName },
+      })),
 
-        getAvailableBreakdownColumns: () => {
-          const { chartConfig, columns } = get();
-          return utilGetAvailableBreakdownColumns(chartConfig, columns);
-        },
+    setBreakdownColumn: (columnName) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, breakdown: columnName },
+      })),
 
-        canSelectForYAxis: (columnName: string) => {
-          const { chartConfig, columns } = get();
-          const column = columns.find((col) => col.name === columnName);
-          if (!column) return false;
-          return utilCanSelectForYAxis(column, chartConfig.type);
-        },
+    setShowTotal: (total) =>
+      set((state) => ({
+        chartConfig: { ...state.chartConfig, total },
+      })),
 
-        isValidChartConfiguration: () => {
-          const { chartConfig, columns } = get();
-          return utilIsValidChartConfiguration(chartConfig, columns);
-        },
-      }),
-      {
-        name: "chart-builder-config",
-        partialize: (state) => ({ chartConfig: state.chartConfig }),
-      }
-    )
-  );
+    getSelectedXColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.x ? columns.find((col) => col.name === chartConfig.x) : undefined;
+    },
+
+    getSelectedYColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.y ? columns.find((col) => col.name === chartConfig.y) : undefined;
+    },
+
+    getSelectedBreakdownColumn: () => {
+      const { chartConfig, columns } = get();
+      return chartConfig.breakdown ? columns.find((col) => col.name === chartConfig.breakdown) : undefined;
+    },
+
+    getAvailableBreakdownColumns: () => {
+      const { chartConfig, columns } = get();
+      return utilGetAvailableBreakdownColumns(chartConfig, columns);
+    },
+
+    canSelectForYAxis: (columnName: string) => {
+      const { chartConfig, columns } = get();
+      const column = columns.find((col) => col.name === columnName);
+      if (!column) return false;
+      return utilCanSelectForYAxis(column, chartConfig.type);
+    },
+
+    isValidChartConfiguration: () => {
+      const { chartConfig, columns } = get();
+      return utilIsValidChartConfiguration(chartConfig, columns);
+    },
+  }));
 };
 
-export const useChartBuilderStoreContext = <T,>(selector: (state: ChartBuilderStore) => T): T => {
-  const store = useContext(ChartBuilderContext);
-  if (!store) throw new Error("Missing ChartBuilderContext.Provider in the tree");
+const ChartBuilderStoreContext = createContext<ChartBuilderStoreApi | null>(null);
+
+export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderStore) => T): T => {
+  const store = useContext(ChartBuilderStoreContext);
+  if (!store) {
+    throw new Error("useChartBuilderStoreContext must be used within a ChartBuilderStoreProvider");
+  }
   return useStore(store, selector);
 };
 
@@ -158,6 +155,5 @@ export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChild
   if (!storeRef.current) {
     storeRef.current = createChartBuilderStore(props);
   }
-
-  return <ChartBuilderContext.Provider value={storeRef.current}>{children}</ChartBuilderContext.Provider>;
+  return <ChartBuilderStoreContext.Provider value={storeRef.current}>{children}</ChartBuilderStoreContext.Provider>;
 };

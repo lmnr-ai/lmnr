@@ -5,6 +5,7 @@ import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
+import { useParams } from "next/navigation";
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
@@ -16,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useProjectContext } from "@/contexts/project-context";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [currentUrl, setCurrentUrl] = useState<string>("");
     const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
     const currentUrlIndexRef = useRef<number>(0);
-    const { projectId } = useProjectContext();
+    const { projectId } = useParams();
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 

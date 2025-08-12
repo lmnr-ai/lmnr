@@ -2,22 +2,26 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
+import { isEmpty, isNil, isObject } from "lodash";
 import {
   AlertCircle,
+  Braces,
   ChartArea,
   ChevronDown,
   Database,
   FileJson2,
+  Loader,
   Loader2,
   PlayIcon,
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import React, { ReactNode, useCallback, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import SQLEditor from "@/components/sql/editor";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
+import ParametersPanel from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
@@ -28,39 +32,42 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
-  const [results, setResults] = useState<Record<string, any>[] | null>(null);
+  const [results, setResults] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { template } = useSqlEditorStore((state) => ({
+  const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore((state) => ({
     template: state.currentTemplate,
+    getFormattedParameters: state.getFormattedParameters,
+    parameters: state.parameters,
+    onChange: state.setParameterValue,
   }));
 
   const hasQuery = Boolean(template?.query?.trim());
-  const hasResults = results && results.length > 0;
+  const hasResults = results.length > 0;
 
   const columns = useMemo<ColumnDef<any>[]>(() => {
-    if (!hasResults) return [];
-
-    return Object.keys(results[0]).map((column: string) => ({
-      header: column,
-      accessorFn: (row: any) => {
-        const value = row[column];
-        if (value === null) return "NULL";
-        if (value === undefined) return "UNDEFINED";
-        if (typeof value === "object") {
-          try {
-            const serialized = JSON.stringify(value);
-            return serialized.length > 100 ? `${serialized.slice(0, 100)}...` : serialized;
-          } catch {
-            return "[Object]";
+    if (!isEmpty(results)) {
+      return Object.keys(results?.[0]).map((column) => ({
+        header: column,
+        accessorFn: (row: any) => {
+          const value = row[column];
+          if (isNil(value)) return "NULL";
+          if (isObject(value)) {
+            try {
+              const serialized = JSON.stringify(value);
+              return serialized.length > 100 ? `${serialized.slice(0, 100)}...` : serialized;
+            } catch {
+              return "[Object]";
+            }
           }
-        }
-        return String(value);
-      },
-    }));
-  }, [hasResults, results]);
+          return String(value);
+        },
+      }));
+    }
+    return [];
+  }, [results]);
 
   const executeQuery = useCallback(async () => {
     const query = template?.query?.trim();
@@ -77,10 +84,11 @@ export default function EditorPanel() {
     setError(null);
 
     try {
+      const parameters = getFormattedParameters();
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sqlQuery: query }),
+        body: JSON.stringify({ query, parameters }),
       });
 
       const data = await response.json();
@@ -94,11 +102,11 @@ export default function EditorPanel() {
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
       setError(errorMessage);
-      setResults(null);
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, template?.query, toast]);
+  }, [projectId, template?.query, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
     enableOnFormTags: ["input", "textarea"],
@@ -111,8 +119,8 @@ export default function EditorPanel() {
       default: defaultContent,
       loadingText = "Executing query...",
     }: {
-      success: () => React.ReactNode;
-      default: () => React.ReactNode;
+      success: ReactNode;
+      default: ReactNode;
       loadingText?: string;
     }) => {
       if (isLoading) {
@@ -134,7 +142,7 @@ export default function EditorPanel() {
       }
 
       if (hasResults) {
-        return success();
+        return success;
       }
 
       if (results && results.length === 0) {
@@ -145,7 +153,7 @@ export default function EditorPanel() {
         );
       }
 
-      return defaultContent();
+      return defaultContent;
     },
     [isLoading, error, hasResults, results]
   );
@@ -171,6 +179,10 @@ export default function EditorPanel() {
               <ChartArea className="mr-2 w-4 h-4" />
               <span>Chart</span>
             </TabsTrigger>
+            <TabsTrigger value="parameters">
+              <Braces className="mr-2 w-4 h-4" />
+              <span>Parameters</span>
+            </TabsTrigger>
             <div className="ml-auto py-2">
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tr-none rounded-br-none border-r-0">
@@ -185,7 +197,7 @@ export default function EditorPanel() {
                 className="ml-auto px-2 rounded-tl-none rounded-bl-none"
               >
                 {isLoading ? (
-                  <Loader2 size={14} className="mr-1 animate-spin" />
+                  <Loader size={14} className="mr-1 animate-spin" />
                 ) : (
                   <PlayIcon size={14} className="mr-1" />
                 )}
@@ -194,14 +206,13 @@ export default function EditorPanel() {
               </Button>
             </div>
           </TabsList>
+
           <TabsContent asChild value="table">
             <div className="size-full">
               {renderContent({
-                success: () => (
-                  <DataTable className="border-t-0 w-full" columns={columns} data={results || []} paginated />
-                ),
+                success: <DataTable className="border-t-0 w-full" columns={columns} data={results || []} paginated />,
                 loadingText: "Executing query...",
-                default: () => (
+                default: (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
                     <TableProperties className="w-8 h-8 opacity-50" />
                     <p className="text">Execute a query to see table results</p>
@@ -214,18 +225,16 @@ export default function EditorPanel() {
           <TabsContent asChild value="json">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: () => (
-                  <div className="flex flex-1 overflow-hidden">
-                    <CodeHighlighter
-                      readOnly
-                      className="border-0"
-                      value={JSON.stringify(results, null, 2)}
-                      defaultMode="json"
-                    />
-                  </div>
+                success: (
+                  <CodeHighlighter
+                    readOnly
+                    className="border-0"
+                    value={JSON.stringify(results, null, 2)}
+                    defaultMode="json"
+                  />
                 ),
                 loadingText: "Processing results...",
-                default: () => (
+                default: (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
                     <FileJson2 className="w-8 h-8 opacity-50" />
                     <p className="text">Execute a query to see JSON results</p>
@@ -238,19 +247,21 @@ export default function EditorPanel() {
           <TabsContent asChild value="chart">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: () => (
-                  <div className="overflow-hidden h-full">
-                    <ChartBuilder data={results || []} />
-                  </div>
-                ),
+                success: <ChartBuilder query={template?.query || ""} data={results || []} />,
                 loadingText: "Generating chart...",
-                default: () => (
+                default: (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
                     <ChartArea className="w-8 h-8 opacity-50" />
                     <p className="text">Execute a query to visualize results as charts</p>
                   </div>
                 ),
               })}
+            </div>
+          </TabsContent>
+
+          <TabsContent asChild value="parameters">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <ParametersPanel parameters={parameters} onChange={onChange} />
             </div>
           </TabsContent>
         </Tabs>
