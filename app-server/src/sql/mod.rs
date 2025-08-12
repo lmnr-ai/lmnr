@@ -37,7 +37,7 @@ const ERROR_END_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(format!(r"\. \([A-Z_]+\)*{VERSION_REGEX_RAW}").as_str()).unwrap());
 
 const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
-const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "134217728"; // 128MB
+const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
 
 impl SqlQueryError {
     fn sanitize_error(&self) -> String {
@@ -49,12 +49,17 @@ impl SqlQueryError {
                 let query_start_idx = find_query_start_idx(&error_message);
                 let error_code_idx = ERROR_END_REGEX
                     .find(&error_message)
-                    .map(|m| m.start())
+                    // +2 to skip the dot at the beginning of the error code
+                    .map(|m| m.start() + 2)
                     .unwrap_or(error_message.len());
                 // remove the query from the error message
                 let error_message = format!(
                     "{}{}",
-                    &error_message[..query_start_idx],
+                    if let Some(query_start_idx) = query_start_idx {
+                        &error_message[..query_start_idx]
+                    } else {
+                        &error_message[..error_code_idx]
+                    },
                     &error_message[error_code_idx..]
                 );
                 // Although settings are part of the query, they won't be removed if
@@ -180,10 +185,10 @@ pub async fn execute_sql_query(
     Ok(data_array.clone())
 }
 
-fn find_query_start_idx(error_message: &str) -> usize {
+fn find_query_start_idx(error_message: &str) -> Option<usize> {
     error_message
         .find("In scope")
         .or(error_message.find("In query"))
         .or(error_message.find("WITH").or(error_message.find("SELECT")))
-        .unwrap_or(0)
+        .or(error_message.find("AS"))
 }
