@@ -15,6 +15,7 @@ pub struct ClickhouseReadonlyClient(clickhouse::Client);
 #[derive(Debug, thiserror::Error)]
 pub enum SqlQueryError {
     ValidationError(String),
+    BadResponseError(String),
     InternalError(String),
 }
 
@@ -43,7 +44,8 @@ impl SqlQueryError {
     fn sanitize_error(&self) -> String {
         match self {
             Self::ValidationError(e) => e.to_string(),
-            Self::InternalError(e) => {
+            Self::InternalError(e) => e.to_string(),
+            Self::BadResponseError(e) => {
                 let error_message = e.to_string();
                 // Always assume the query starts with "WITH"
                 let query_start_idx = find_query_start_idx(&error_message);
@@ -74,16 +76,8 @@ impl SqlQueryError {
 
 impl std::fmt::Display for SqlQueryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ValidationError(_) => {
-                let error_message = format!("Query validation failed: {}", self.sanitize_error());
-                write!(f, "{}", json!({"error": error_message}))
-            }
-            Self::InternalError(_) => {
-                let error_message = format!("Error executing query: {}", self.sanitize_error());
-                write!(f, "{}", json!({"error": error_message}))
-            }
-        }
+        let error_message = format!("Query validation failed: {}", self.sanitize_error());
+        write!(f, "{}", json!({"error": error_message}))
     }
 }
 
@@ -159,7 +153,7 @@ pub async fn execute_sql_query(
             };
             let msg = error.exception.unwrap_or_default();
             log::warn!("Error executing user SQL query: {}", &msg);
-            SqlQueryError::InternalError(msg)
+            SqlQueryError::BadResponseError(msg)
         }
         _ => {
             log::error!("Failed to collect query response data: {}", e);

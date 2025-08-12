@@ -21,6 +21,7 @@ impl ResponseError for Error {
             Self::SqlQueryError(e) => match e {
                 SqlQueryError::ValidationError(_) => StatusCode::BAD_REQUEST,
                 SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                SqlQueryError::BadResponseError(_) => StatusCode::BAD_REQUEST,
             },
         }
     }
