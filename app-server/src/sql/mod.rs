@@ -52,7 +52,12 @@ impl SqlQueryError {
 
 impl std::fmt::Display for SqlQueryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let error_message = format!("Query validation failed: {}", self.sanitize_error());
+        let prefix = match self {
+            Self::ValidationError(_) => "Query validation failed",
+            Self::InternalError(_) => "Error executing query",
+            Self::BadResponseError(_) => "Error executing query",
+        };
+        let error_message = format!("{prefix}: {}", self.sanitize_error());
         write!(f, "{}", json!({"error": error_message}))
     }
 }
