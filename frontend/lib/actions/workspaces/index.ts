@@ -1,5 +1,5 @@
 import { addMonths } from "date-fns";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
@@ -23,8 +23,18 @@ import {
   WorkspaceWithUsers,
 } from "@/lib/workspaces/types";
 
+import { deleteProject } from "../project";
 import { createProject } from "../projects";
 import { completeMonthsElapsed } from "./utils";
+
+export const DeleteWorkspaceSchema = z.object({
+  workspaceId: z.string(),
+});
+
+export const UpdateWorkspaceSchema = z.object({
+  workspaceId: z.string(),
+  name: z.string().min(1, { error: "Workspace name is required" }),
+});
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -35,11 +45,52 @@ export const GetWorkspaceSchema = z.object({
   workspaceId: z.string(),
 });
 
+export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchema>) {
+  const { workspaceId } = DeleteWorkspaceSchema.parse(input);
+
+  await isOwnerOfWorkspace(workspaceId);
+
+  const projectsInWorkspace = await db.query.projects.findMany({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: {
+      id: true,
+    },
+  });
+
+  await Promise.all(
+    projectsInWorkspace.map(async (project) => {
+      await deleteProject({ projectId: project.id });
+    })
+  );
+
+  const result = await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+
+  if (result.count === 0) {
+    throw new Error("Workspace not found");
+  }
+
+  return { success: true, message: "Workspace deleted successfully" };
+}
+
+export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
+  const { workspaceId, name } = UpdateWorkspaceSchema.parse(input);
+
+  await isOwnerOfWorkspace(workspaceId);
+
+  const result = await db.update(workspaces).set({ name }).where(eq(workspaces.id, workspaceId));
+
+  if (result.count === 0) {
+    throw new Error("Workspace not found");
+  }
+
+  return { success: true, message: "Workspace renamed successfully" };
+}
+
 export async function createWorkspace(input: z.infer<typeof CreateWorkspaceSchema>): Promise<WorkspaceWithProjects> {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized: User not authenticated");
+    throw new Error("Unauthorized");
   }
 
   const { name, projectName } = CreateWorkspaceSchema.parse(input);
@@ -274,4 +325,27 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     eventsBytesIngested: Number(result[0].events_bytes_ingested),
     resetTime: latestResetTime,
   };
+};
+
+const isOwnerOfWorkspace = async (workspaceId: string) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    throw new Error("Unauthorized");
+  }
+
+  const userApiKey = await db.query.apiKeys.findFirst({
+    where: eq(apiKeys.apiKey, session.user.apiKey),
+  });
+
+  if (!userApiKey) {
+    throw new Error("User not found");
+  }
+
+  const membership = await db.query.membersOfWorkspaces.findFirst({
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userApiKey.userId)),
+  });
+
+  if (!membership || membership.memberRole !== "owner") {
+    throw new Error("Forbidden: Only workspace owners can perform this action");
+  }
 };
