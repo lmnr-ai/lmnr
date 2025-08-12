@@ -25,6 +25,7 @@ import CodeHighlighter from "../ui/code-highlighter";
 import { IconAmazonBedrock, IconAnthropic, IconBrowserUse, IconCrewAI, IconGemini, IconLangchain, IconMistral, IconOpenAI, IconOpenTelemetry, IconPlaywright, IconVercel } from "../ui/icons";
 import DatasetsAnimation from "./datasets-animation";
 import Footer from "./footer";
+import FeatureCard from "./feature-card";
 
 interface Section {
   id: string;
@@ -145,11 +146,11 @@ export default function Landing() {
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
-                <p className="text-[2.4rem] leading-tight tracking-[-0.027em] md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-manrope">
+                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-manrope">
                   How developers <br className="md:hidden" />{" "}
-                  <span className="text-primary">build reliable AI agents.</span>
+                  <span className="">build reliable AI agents.</span>
                 </p>
-                <p className="text-2xl text-white/70 font-medium px-2 md:px-0">
+                <p className="text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-manrope">
                   The single open-source platform to trace, evaluate, and analyze AI agents.
                 </p>
                 <div className="flex space-x-4 items-center">
@@ -179,7 +180,7 @@ export default function Landing() {
             <div className="flex flex-col w-full relative md:pb-0 rounded">
               <div
                 key={selectedSection.id}
-                className="z-20 col-span-2 px-4 sm:px-8 pt-8"
+                className="z-20 col-span-2 pt-8"
               >
                 <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center pb-8 text-lg font-semibold tracking-wide font-manrope">
                   {sections.map((section, i) => (
@@ -200,20 +201,35 @@ export default function Landing() {
                   alt={selectedSection.title}
                   src={selectedSection.image}
                   priority
-                  className="animate-in fade-in duration-500 rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
+                  className="animate-in fade-in duration-500 rounded-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[700px]"
                 />
               </div>
             </div>
-            <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-8 h-96">
-              <h1 className="text-4xl font-bold tracking-normal font-manrope">
-                With Laminar you can monitor your agent in production, <br />
-                understand how it fails. <br />
-                and create evals to improve it.
+            <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
+              <h1 className="text-4xl font-bold tracking-normal font-manrope text-white py-32">
+                With Laminar dev teams monitor agents in production, <br />
+                understand agent failure modes, and create evals to improve them.
               </h1>
-              <div className="flex flex-col">
-                <div className="flex flex-col">
-
-                </div>
+              <span className="text-white/80 text-base font-semibold font-manrope">
+                Why teams choose Laminar
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8 mb-24">
+                <FeatureCard
+                  title="Fully open source"
+                  subtitle="Self-host or use our cloud. Transparent, extensible, and community-driven."
+                />
+                <FeatureCard
+                  title="Highly scalable"
+                  subtitle="Optimized pipeline that scales with your traffic without breaking the bank."
+                />
+                <FeatureCard
+                  title="SQL editor"
+                  subtitle="Analyze traces and metrics with a built-in SQL workspace."
+                />
+                <FeatureCard
+                  title="Affordable pricing"
+                  subtitle="Simple, usage-based pricing designed for startups and scale-ups."
+                />
               </div>
             </div>
           </div>
@@ -248,6 +264,9 @@ export default function Landing() {
           </div>
         </div>
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
+          <h1 className="text-4xl font-bold tracking-normal font-manrope text-white pt-16 pb-8">
+            Traces
+          </h1>
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
@@ -649,7 +668,7 @@ function InfoCard({
           {title}
         </h3>
         <p
-          className="text-secondary-foreground/80 transition-all text-lg"
+          className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-manrope"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
