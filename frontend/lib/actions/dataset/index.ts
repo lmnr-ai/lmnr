@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/drizzle";
 import { datasetParquets, datasets } from "@/lib/db/migrations/schema";
-import { getExportsMetadataByPath,streamExportDataByPath } from "@/lib/s3";
+import { getExportsMetadataByPath, streamExportDataByPath } from "@/lib/s3";
 
 const getParquetInfo = async (projectId: string, datasetId: string) => {
   const parquets = await db.select().from(datasetParquets)
@@ -16,6 +16,7 @@ const getParquetInfo = async (projectId: string, datasetId: string) => {
     path: parquet.dataset_parquets.parquetPath,
     datasetId: parquet.dataset_parquets.datasetId,
     projectId: parquet.datasets.projectId,
+    id: parquet.dataset_parquets.id,
   }));
 };
 
@@ -48,6 +49,7 @@ export const getParquets = async (projectId: string, datasetId: string) => {
       datasetId: info.datasetId,
       projectId: info.projectId,
       size: metadata.size,
+      id: info.id,
     };
   }));
   const parquets = result.filter((r) => r.status === "fulfilled").map((r) => r.value);

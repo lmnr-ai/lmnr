@@ -15,6 +15,7 @@ export interface WorkspaceUser {
 export enum WorkspaceTier {
   FREE = "Free",
   PRO = "Pro",
+  HOBBY = "Hobby",
 }
 
 export interface Workspace {

@@ -1,0 +1,10 @@
+.react-grid-placeholder {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1)) !important;
+    border: 2px dashed rgb(59, 130, 246) !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05) !important;
+    opacity: 0.8 !important;
+    transition: all 0.2s ease !important;
+}
+
+.react-draggable-transparent-selection { user-select: none; }
