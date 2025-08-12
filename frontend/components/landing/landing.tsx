@@ -140,7 +140,7 @@ export default function Landing() {
 
   return (
     <>
-      <div className="flex flex-col z-30 items-center pt-28 space-y-8 px-0 md:px-6 lg:px-8">
+      <div className="flex flex-col z-30 items-center pt-28 space-y-8">
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] space-y-8">
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
@@ -173,44 +173,48 @@ export default function Landing() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
+        <div className="flex flex-col items-center bg-primary w-full">
+          <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
 
-          <div className="flex flex-col w-full relative md:pb-0 rounded">
-            <div
-              key={selectedSection.id}
-              className="z-20 col-span-2 md:block border bg-primary px-4 sm:px-8 pt-8 rounded-none md:rounded-lg"
-            >
-              <div className="flex flex-wrap border-none gap-2 sm:gap-4 font-medium col-span-1 overflow-x-auto justify-center pb-8">
-                {sections.map((section, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSectionSelect(section)}
-                    className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
-                      ? "bg-white/90 text-black/90 border-b-2"
-                      : "text-white hover:bg-white/20 "
-                      }`}
-                  >
-                    {section.title}
-                    {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
-                  </button>
-                ))}
+            <div className="flex flex-col w-full relative md:pb-0 rounded">
+              <div
+                key={selectedSection.id}
+                className="z-20 col-span-2 px-4 sm:px-8 pt-8"
+              >
+                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center pb-8 text-lg font-semibold tracking-wide font-manrope">
+                  {sections.map((section, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSectionSelect(section)}
+                      className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${selectedSection.id === section.id
+                        ? "bg-white/20 text-white"
+                        : "text-white/80 hover:text-white"
+                        }`}
+                    >
+                      {section.title}
+                      {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
+                    </button>
+                  ))}
+                </div>
+                <Image
+                  alt={selectedSection.title}
+                  src={selectedSection.image}
+                  priority
+                  className="animate-in fade-in duration-500 rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
+                />
               </div>
-              <Image
-                alt={selectedSection.title}
-                src={selectedSection.image}
-                priority
-                className="animate-in fade-in duration-500 rounded-t-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[600px]"
-              />
             </div>
-          </div>
-        </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] text-center py-8">
-          <h1 className="text-5xl font-semibold tracking-normal font-manrope">
-            With Laminar you understand how your agent fails
-          </h1>
-          <div className="flex flex-col">
-            <div className="flex flex-col">
+            <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-8 h-96">
+              <h1 className="text-4xl font-bold tracking-normal font-manrope">
+                With Laminar you can monitor your agent in production, <br />
+                understand how it fails. <br />
+                and create evals to improve it.
+              </h1>
+              <div className="flex flex-col">
+                <div className="flex flex-col">
 
+                </div>
+              </div>
             </div>
           </div>
         </div>
