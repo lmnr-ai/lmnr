@@ -57,19 +57,17 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     },
   });
 
-  await db.transaction(async (tx) => {
-    await Promise.all(
-      projectsInWorkspace.map(async (project) => {
-        await deleteProject({ projectId: project.id });
-      })
-    );
+  await Promise.all(
+    projectsInWorkspace.map(async (project) => {
+      await deleteProject({ projectId: project.id });
+    })
+  );
 
-    const result = await tx.delete(workspaces).where(eq(workspaces.id, workspaceId));
+  const result = await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
-    if (result.count === 0) {
-      throw new Error("Workspace not found");
-    }
-  });
+  if (result.count === 0) {
+    throw new Error("Workspace not found");
+  }
 
   return { success: true, message: "Workspace deleted successfully" };
 }
