@@ -14,7 +14,7 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
-import { Project } from "@/lib/workspaces/types";
+import { Project, WorkspaceTier } from "@/lib/workspaces/types";
 
 interface HeaderProps {
   path: string;
@@ -54,7 +54,11 @@ export default function Header({
             <div
               className={cn(
                 "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                workspace.tierName === "Pro" && "border-primary bg-primary/10 text-primary"
+                {
+                  "border-primary bg-primary/10 text-primary": [WorkspaceTier.PRO, WorkspaceTier.HOBBY].includes(
+                    workspace.tierName
+                  ),
+                }
               )}
             >
               {workspace.tierName}
