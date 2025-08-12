@@ -1,22 +1,19 @@
-import { Loader2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Loader2 } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useRef, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { useProjectContext } from '@/contexts/project-context';
-import { uploadFile } from '@/lib/dataset/utils';
-import { useToast } from '@/lib/hooks/use-toast';
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { uploadFile } from "@/lib/dataset/utils";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface DatasetUploadProps {
   datasetId: string;
   onSuccessfulUpload?: () => void;
 }
 
-export default function DatasetUpload({
-  datasetId,
-  onSuccessfulUpload
-}: DatasetUploadProps) {
-  const { projectId } = useProjectContext();
+export default function DatasetUpload({ datasetId, onSuccessfulUpload }: DatasetUploadProps) {
+  const { projectId } = useParams();
   const hiddenInput = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -24,14 +21,8 @@ export default function DatasetUpload({
   return (
     <>
       <div className="flex flex-col">
-        <Label className="mt-2 text-secondary-foreground">
-          Datapoints file formats: .jsonl, .json, .csv.
-        </Label>
-        <Button
-          variant={'secondary'}
-          className="mt-4 w-32"
-          onClick={() => hiddenInput.current?.click()}
-        >
+        <Label className="mt-2 text-secondary-foreground">Datapoints file formats: .jsonl, .json, .csv.</Label>
+        <Button variant={"secondary"} className="mt-4 w-32" onClick={() => hiddenInput.current?.click()}>
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           Select file
         </Button>
@@ -44,17 +35,14 @@ export default function DatasetUpload({
           onChange={(e) => {
             setIsLoading(true);
             const file = e.target.files![0];
-            uploadFile(
-              file,
-              `/api/projects/${projectId}/datasets/${datasetId}/file-upload`,
-            )
+            uploadFile(file, `/api/projects/${projectId}/datasets/${datasetId}/file-upload`)
               .then((_) => {
                 onSuccessfulUpload?.();
               })
               .catch((error) => {
                 toast({
-                  title: 'Error',
-                  description: 'Error uploading file' + error
+                  title: "Error",
+                  description: "Error uploading file" + error,
                 });
               })
               .finally(() => {

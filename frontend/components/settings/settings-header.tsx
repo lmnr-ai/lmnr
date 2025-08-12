@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useProjectContext } from '@/contexts/project-context';
+import { useProjectContext } from "@/contexts/project-context";
 
 export default function SettingsHeader() {
-  const { projectName } = useProjectContext();
+  const { project } = useProjectContext();
 
   return (
     <div className="flex-none font-medium flex items-center h-14 border-b">
       <div className="flex pl-4">
-        {projectName}
+        {project?.name}
         <div className="pl-4 pr-1 text-gray-400">/</div>
         <div className="px-3">settings</div>
       </div>
