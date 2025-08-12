@@ -1,8 +1,8 @@
 import { Loader2, Rows2 } from "lucide-react";
+import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { useProjectContext } from "@/contexts/project-context";
 import { isValidJsonObject } from "@/lib/utils";
 
 import { useToast } from "../../lib/hooks/use-toast";
@@ -19,7 +19,7 @@ interface TypeDatapointDialogProps {
 
 // Dialog to add a single datapoint to a dataset by manually typing
 export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDatapointDialogProps) {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);

@@ -1,12 +1,11 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { useProjectContext } from "@/contexts/project-context";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
@@ -19,7 +18,7 @@ import { TableCell, TableRow } from "../ui/table";
 import CreateDatasetDialog from "./create-dataset-dialog";
 
 export default function Datasets() {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const router = useRouter();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();

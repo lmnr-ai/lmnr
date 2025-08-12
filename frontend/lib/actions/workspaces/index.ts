@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/migrations/schema";
 import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 import {
+  Workspace,
   WorkspaceTier,
   WorkspaceUsage,
   WorkspaceUser,
@@ -240,6 +241,21 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     tierName: workspace[0].tierName as WorkspaceTier,
     users: workspaceUsers,
   };
+};
+
+export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> => {
+  const [workspace] = await db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      tierName: subscriptionTiers.name,
+    })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  return workspace as Workspace;
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {

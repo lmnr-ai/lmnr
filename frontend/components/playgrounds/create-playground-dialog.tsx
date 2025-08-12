@@ -1,12 +1,11 @@
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
 
 export default function CreatePlaygroundDialog() {
@@ -14,7 +13,7 @@ export default function CreatePlaygroundDialog() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const router = useRouter();
 
   const createNewPlayground = async () => {
