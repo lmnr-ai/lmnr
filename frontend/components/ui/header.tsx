@@ -47,11 +47,19 @@ export default function Header({
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="ml-2 -mr-2 hover:bg-secondary" />}
         {workspace && (
-          <Link href="/projects" className="flex items-center pl-4 space-x-3 text-secondary-foreground max-w-32">
+          <Link href="/projects" className="flex items-center pl-4 text-secondary-foreground max-w-64">
             <p title={workspace.name} className="truncate">
               {workspace.name}
             </p>
-            <div className="text-secondary-foreground/40">/</div>
+            <div
+              className={cn(
+                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                workspace.tierName === "Pro" && "border-primary bg-primary/10 text-primary"
+              )}
+            >
+              {workspace.tierName}
+            </div>
+            <div className="text-secondary-foreground/40 ml-2">/</div>
           </Link>
         )}
         {project && (
