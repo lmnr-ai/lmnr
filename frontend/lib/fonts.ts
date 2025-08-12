@@ -1,5 +1,6 @@
 import {
   Inter,
+  Manrope,
 } from 'next/font/google';
 
 export const sans = Inter({
@@ -7,4 +8,11 @@ export const sans = Inter({
   display: 'swap',
   style: 'normal',
   variable: '--font-inter'
+});
+
+export const manrope = Manrope({
+  subsets: ['latin'],
+  display: 'swap',
+  style: 'normal',
+  variable: '--font-manrope'
 });

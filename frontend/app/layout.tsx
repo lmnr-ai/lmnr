@@ -4,7 +4,7 @@ import { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import { Toaster } from '@/components/ui/toaster';
-import { sans } from '@/lib/fonts';
+import { sans, manrope } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 import PostHogPageView from './posthog-pageview';
@@ -41,7 +41,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn('h-full antialiased', sans.variable)}>
+    <html lang="en" className={cn('h-full antialiased', sans.variable, manrope.variable)}>
       <PHProvider>
         <body
           className="flex flex-col h-full"

@@ -143,18 +143,18 @@ export default function Landing() {
       <div className="flex flex-col z-30 items-center pt-28 space-y-8 px-0 md:px-6 lg:px-8">
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] space-y-8">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center py-6 md:py-8 text-center relative">
+            <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
-                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500">
+                <p className="text-[2.4rem] leading-tight tracking-[-0.027em] md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-manrope">
                   How developers <br className="md:hidden" />{" "}
-                  <span className="text-primary">build reliable AI products.</span>
+                  <span className="text-primary">build reliable AI agents.</span>
                 </p>
-                <p className="text-2xl text-white/80 font-medium px-2 md:px-0">
-                  The open-source platform for tracing and evaluating AI applications.
+                <p className="text-2xl text-white/70 font-medium px-2 md:px-0">
+                  The single open-source platform to trace, evaluate, and analyze AI agents.
                 </p>
                 <div className="flex space-x-4 items-center">
                   <Link href="/sign-up">
-                    <Button className="w-40 h-12 text-base font-semibold">Get started - free</Button>
+                    <Button className="w-40 h-12 text-base">Get started - free</Button>
                   </Link>
                   <Link target="_blank" href="https://docs.lmnr.ai">
                     <Button
@@ -188,7 +188,7 @@ export default function Landing() {
                     className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
                       ? "bg-white/90 text-black/90 border-b-2"
                       : "text-white hover:bg-white/20 "
-                    }`}
+                      }`}
                   >
                     {section.title}
                     {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -204,6 +204,17 @@ export default function Landing() {
             </div>
           </div>
         </div>
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] text-center py-8">
+          <h1 className="text-5xl font-semibold tracking-normal font-manrope">
+            With Laminar you understand how your agent fails
+          </h1>
+          <div className="flex flex-col">
+            <div className="flex flex-col">
+
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-4 sm:py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-8 md:px-0">
             <TestimonialCard
@@ -624,7 +635,7 @@ function InfoCard({
     >
       <div className="p-10 space-y-2 flex flex-col">
         <h3
-          className="text-2xl font-medium transition-all"
+          className="text-2xl font-semibold transition-all tracking-normal font-manrope"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -634,7 +645,7 @@ function InfoCard({
           {title}
         </h3>
         <p
-          className="text-secondary-foreground/80 transition-all text-sm"
+          className="text-secondary-foreground/80 transition-all text-lg"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -694,14 +705,14 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
         <button
           onClick={() => setSelectedLang("typescript")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
           className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-          }`}
+            }`}
         >
           Python
         </button>
