@@ -689,7 +689,6 @@ mod tests {
             tool_call_id: None,
         };
 
-        // Should return an error because tool call ID is required
         let result = message_to_langchain_format(message);
         assert!(result.is_ok());
         assert!(result.unwrap()["tool_calls"].as_array().unwrap()[0]["id"] == "");
@@ -1301,9 +1300,9 @@ mod tests {
     #[test]
     fn test_span_remains_intact_on_both_conversion_errors() {
         let invalid_input_messages = vec![ChatMessage {
-            role: "tool".to_string(),
+            role: "invalid_role".to_string(),
             content: ChatMessageContent::Text("Tool response".to_string()),
-            tool_call_id: None, // Missing required tool_call_id
+            tool_call_id: None,
         }];
 
         let invalid_output_messages = vec![ChatMessage {
@@ -1332,15 +1331,15 @@ mod tests {
     fn test_span_partial_conversion_success_still_leaves_intact() {
         // Test case where input conversion succeeds but output fails
         let valid_input_messages = vec![ChatMessage {
-            role: "unknown".to_string(),
+            role: "user".to_string(),
             content: ChatMessageContent::Text("Valid input".to_string()),
             tool_call_id: None,
         }];
 
         let invalid_output_messages = vec![ChatMessage {
-            role: "tool".to_string(),
+            role: "invalid_role".to_string(),
             content: ChatMessageContent::Text("Tool response".to_string()),
-            tool_call_id: None, // Missing required tool_call_id
+            tool_call_id: None,
         }];
 
         let original_input = serde_json::to_value(&valid_input_messages).unwrap();
