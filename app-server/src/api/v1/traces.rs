@@ -47,7 +47,7 @@ pub async fn process_traces(
         .await?;
 
         if limits_exceeded.bytes_ingested {
-            return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
+            return Ok(HttpResponse::PaymentRequired().json("Workspace data limit exceeded"));
         }
     }
 
