@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
 import {
+  AlertCircle,
   ChartArea,
   ChevronDown,
   Database,
@@ -25,7 +26,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { ScrollArea } from "../ui/scroll-area";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -106,7 +106,16 @@ export default function EditorPanel() {
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
-      setError(errorMessage);
+      try {
+        const error = JSON.parse(errorMessage).error;
+        if (error) {
+          setError(error);
+        } else {
+          setError(errorMessage);
+        }
+      } catch {
+        setError(errorMessage);
+      }
       setResults(null);
     } finally {
       setIsLoading(false);
@@ -139,12 +148,10 @@ export default function EditorPanel() {
 
       if (error) {
         return (
-          // TODO: don't hard code huge bottom padding
-          <ScrollArea className="h-full px-2 pb-12">
-            <div className="flex items-center justify-center space-x-2 text-destructive">
-              <div className="text-sm whitespace-pre-wrap">{error}</div>
-            </div>
-          </ScrollArea>
+          <div className="flex items-center justify-center h-full space-x-2 text-destructive">
+            <AlertCircle className="w-4 h-4" />
+            <div className="text-sm whitespace-pre-wrap">{error}</div>
+          </div>
         );
       }
 

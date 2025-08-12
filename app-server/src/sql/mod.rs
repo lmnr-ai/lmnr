@@ -1,6 +1,6 @@
 use regex::Regex;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     env,
@@ -71,10 +71,12 @@ impl std::fmt::Display for SqlQueryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ValidationError(_) => {
-                write!(f, "Query validation failed: {}", self.sanitize_error())
+                let error_message = format!("Query validation failed: {}", self.sanitize_error());
+                write!(f, "{}", json!({"error": error_message}))
             }
             Self::InternalError(_) => {
-                write!(f, "Error executing query: {}", self.sanitize_error())
+                let error_message = format!("Error executing query: {}", self.sanitize_error());
+                write!(f, "{}", json!({"error": error_message}))
             }
         }
     }
