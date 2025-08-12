@@ -44,32 +44,8 @@ impl SqlQueryError {
     fn sanitize_error(&self) -> String {
         match self {
             Self::ValidationError(e) => e.to_string(),
-            Self::InternalError(e) => e.to_string(),
-            Self::BadResponseError(e) => {
-                let error_message = e.to_string();
-                // Always assume the query starts with "WITH"
-                let query_start_idx = find_query_start_idx(&error_message);
-                let error_code_idx = ERROR_END_REGEX
-                    .find(&error_message)
-                    // +2 to skip the dot at the beginning of the error code
-                    .map(|m| m.start() + 2)
-                    .unwrap_or(error_message.len());
-                // remove the query from the error message
-                let error_message = format!(
-                    "{}{}",
-                    if let Some(query_start_idx) = query_start_idx {
-                        &error_message[..query_start_idx]
-                    } else {
-                        &error_message[..error_code_idx]
-                    },
-                    &error_message[error_code_idx..]
-                );
-                // Although settings are part of the query, they won't be removed if
-                // we fail to locate the query in the first place, so as a safety measure
-                // also remove them manually
-                let without_settings = SETTING_REGEX.replace_all(&error_message, "").to_string();
-                VERSION_REGEX.replace_all(&without_settings, "").to_string()
-            }
+            Self::InternalError(e) => remove_query_from_error_message(e),
+            Self::BadResponseError(e) => remove_query_from_error_message(e),
         }
     }
 }
@@ -185,4 +161,28 @@ fn find_query_start_idx(error_message: &str) -> Option<usize> {
         .or(error_message.find("In query"))
         .or(error_message.find("WITH").or(error_message.find("SELECT")))
         .or(error_message.find("AS"))
+}
+
+fn remove_query_from_error_message(error_message: &str) -> String {
+    let query_start_idx = find_query_start_idx(&error_message);
+    let error_code_idx = ERROR_END_REGEX
+        .find(&error_message)
+        // +2 to skip the dot at the beginning of the error code
+        .map(|m| m.start() + 2)
+        .unwrap_or(error_message.len());
+    // remove the query from the error message
+    let error_message = format!(
+        "{}{}",
+        if let Some(query_start_idx) = query_start_idx {
+            &error_message[..query_start_idx]
+        } else {
+            &error_message[..error_code_idx]
+        },
+        &error_message[error_code_idx..]
+    );
+    // Although settings are part of the query, they won't be removed if
+    // we fail to locate the query in the first place, so as a safety measure
+    // also remove them manually
+    let without_settings = SETTING_REGEX.replace_all(&error_message, "").to_string();
+    VERSION_REGEX.replace_all(&without_settings, "").to_string()
 }
