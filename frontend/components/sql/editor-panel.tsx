@@ -104,7 +104,6 @@ export default function EditorPanel() {
             error = response.statusText !== "" ? response.statusText : "Failed to execute query";
           }
         }
-        console.error(error);
         throw new Error(error);
       }
 
