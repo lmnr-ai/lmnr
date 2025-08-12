@@ -46,14 +46,14 @@ impl SqlQueryError {
             Self::InternalError(e) => {
                 let error_message = e.to_string();
                 // Always assume the query starts with "WITH"
-                let query_start_idx = error_message.find("WITH").unwrap_or(0);
+                let query_start_idx = find_query_start_idx(&error_message);
                 let error_code_idx = ERROR_END_REGEX
                     .find(&error_message)
                     .map(|m| m.start())
                     .unwrap_or(error_message.len());
                 // remove the query from the error message
                 let error_message = format!(
-                    "{} {}",
+                    "{}{}",
                     &error_message[..query_start_idx],
                     &error_message[error_code_idx..]
                 );
@@ -176,4 +176,12 @@ pub async fn execute_sql_query(
         ))?;
 
     Ok(data_array.clone())
+}
+
+fn find_query_start_idx(error_message: &str) -> usize {
+    error_message
+        .find("In scope")
+        .or(error_message.find("In query"))
+        .or(error_message.find("WITH").or(error_message.find("SELECT")))
+        .unwrap_or(0)
 }
