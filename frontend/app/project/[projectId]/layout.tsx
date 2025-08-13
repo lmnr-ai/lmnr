@@ -14,7 +14,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
-import { getWorkspaceInfo, getWorkspaceUsage } from "@/lib/actions/workspaces";
+import { getWorkspaceInfo, getWorkspaceUsage } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";

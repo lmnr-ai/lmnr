@@ -105,8 +105,8 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
           </p>
         </div>
         <div className="grid grid-cols-1 max-w-xl md:grid-cols-2 sm:divide-y md:divide-y-0 md:divide-x">
-          <div className="flex justify-between px-4 py-2">
-            <div className="flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col">
               <span className="text-sm">Data usage</span>
               <span className="text-sm text-secondary-foreground">
                 {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)} ({formatter.format(gbUsedThisMonth / gbLimit)})

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteWorkspace, getWorkspace, updateWorkspace } from "@/lib/actions/workspaces";
+import { deleteWorkspace, getWorkspace, updateWorkspace } from "@/lib/actions/workspace";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   const params = await props.params;
