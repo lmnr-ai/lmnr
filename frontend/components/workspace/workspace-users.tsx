@@ -110,8 +110,8 @@ export default function WorkspaceUsers({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="member">member</SelectItem>
+              <SelectItem value="admin">admin</SelectItem>
             </SelectContent>
           </Select>
         );
@@ -126,8 +126,8 @@ export default function WorkspaceUsers({
     (user: WorkspaceUser) => {
       if (isOwner && !isCurrentUser(user)) {
         return (
-          <TableCell align="center">
-            <Button onClick={() => openDialog("removeUser", user)} variant="destructive">
+          <TableCell>
+            <Button onClick={() => openDialog("removeUser", user)} variant="outline">
               Remove
             </Button>
           </TableCell>
@@ -136,8 +136,8 @@ export default function WorkspaceUsers({
 
       if (currentUserRole === "admin" && user.role === "member") {
         return (
-          <TableCell align="center">
-            <Button onClick={() => openDialog("removeUser", user)} variant="destructive">
+          <TableCell>
+            <Button onClick={() => openDialog("removeUser", user)} variant="outline">
               Remove
             </Button>
           </TableCell>
@@ -201,14 +201,13 @@ export default function WorkspaceUsers({
             />
           )}
         </div>
-
         <Table>
           <TableHeader>
             <TableRow className="border-none bg-card text-card-foreground rounded-lg overflow-hidden">
-              <TableHead className="p-2">Email</TableHead>
+              <TableHead className="p-2 rounded-l">Email</TableHead>
               <TableHead className="p-2">Role</TableHead>
               <TableHead className="p-2">Added</TableHead>
-              <TableHead className="p-2">Actions</TableHead>
+              <TableHead className="p-2 rounded-r">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
