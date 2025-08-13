@@ -4,23 +4,33 @@ import { cn } from "@/lib/utils";
 
 const createIframeContent = (templateCode: string, data: any): string => {
   const serializedData = JSON.stringify(data);
-  const escapedTemplateCode = templateCode.replace(/`/g, "\\`").replace(/\$/g, "\\$");
+  // Escape characters that would break the template literal embedding
+  const escapedTemplateCode = templateCode
+    .replace(/\\/g, "\\\\") // preserve backslashes (so '\n' stays two chars)
+    .replace(/`/g, "\\`") // avoid closing the template literal
+    .replace(/\$/g, "\\$") // avoid accidental interpolation
+    .replace(/<\\\/script>/gi, "<\\\\/script>"); // prevent breaking out of the script tag
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline';">
   
   <script type="importmap">
   {
     "imports": {
-      "preact": "https://esm.sh/preact@10.19.6/dist/preact.module.js",
-      "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6"
+      "preact": "https://esm.sh/preact@10.19.6",
+      "preact/hooks": "https://esm.sh/preact@10.19.6/hooks",
+      "@babel/standalone": "https://esm.sh/@babel/standalone@7.23.6",
+      "@twind/core": "https://esm.sh/@twind/core",
+      "@twind/preset-tailwind": "https://esm.sh/@twind/preset-tailwind",
+      "@twind/preset-autoprefix": "https://esm.sh/@twind/preset-autoprefix"
     }
   }
   </script>
+  
   <style>
        
     * { 
@@ -45,6 +55,7 @@ const createIframeContent = (templateCode: string, data: any): string => {
         this.root = document.getElementById('root');
         this.data = ${serializedData};
         this.templateCode = \`${escapedTemplateCode}\`;
+        this.unobserve = null;
       }
       
       showError(message, details = '') {
@@ -59,14 +70,27 @@ const createIframeContent = (templateCode: string, data: any): string => {
       
       async loadDependencies() {
         try {
-          const [preactModule, babelModule] = await Promise.all([
+          const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = await Promise.all([
             import('preact'),
-            import('@babel/standalone')
+            import('preact/hooks'),
+            import('@babel/standalone'),
+            import('@twind/core'),
+            import('@twind/preset-tailwind'),
+            import('@twind/preset-autoprefix')
           ]);
           
+          // Initialize Twind with Tailwind-compatible presets
+          const core = twindCore.default || twindCore;
+          const tailwind = presetTailwind.default || presetTailwind;
+          const autoprefix = presetAutoprefix.default || presetAutoprefix;
+          const { install, observe } = core;
+          install({ presets: [tailwind(), autoprefix()] });
+
           return {
             preact: preactModule,
-            babel: babelModule.default || babelModule
+            preactHooks: preactHooksModule,
+            babel: babelModule.default || babelModule,
+            twindObserve: observe
           };
         } catch (error) {
           throw new Error(\`Failed to load dependencies: \${error.message}\`);
@@ -90,21 +114,28 @@ const createIframeContent = (templateCode: string, data: any): string => {
         }
       }
       
-      executeTemplate(compiledCode, preact) {
+      executeTemplate(compiledCode, preact, preactHooks, twindObserve) {
         try {
           const { render, h, Fragment } = preact;
+          const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
           
-          const templateFunction = new Function('h', 'Fragment', 'return ' + compiledCode)(h, Fragment);
+          const templateFunction = new Function(
+            'h',
+            'Fragment',
+            'useState',
+            'useEffect',
+            'useMemo',
+            'useRef',
+            'useCallback',
+            'useContext',
+            'return ' + compiledCode
+          )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext);
           
           if (typeof templateFunction !== 'function') {
             throw new Error('Template must be a function');
           }
           
-          const element = templateFunction({ 
-            data: this.data, 
-            h, 
-            Fragment 
-          });
+          const element = h(templateFunction, { data: this.data });
           
           if (!element) {
             throw new Error('Template function must return a valid element');
@@ -112,6 +143,14 @@ const createIframeContent = (templateCode: string, data: any): string => {
           
           this.root.innerHTML = '';
           
+          // Start or refresh Twind DOM observer to process Tailwind classes
+          if (this.unobserve) {
+            try { this.unobserve(); } catch {}
+          }
+          try {
+            this.unobserve = twindObserve(this.root);
+          } catch {}
+
           render(element, this.root);
           
         } catch (error) {
@@ -121,9 +160,9 @@ const createIframeContent = (templateCode: string, data: any): string => {
       
       async render() {
         try {
-          const { preact, babel } = await this.loadDependencies();
+          const { preact, preactHooks, babel, twindObserve } = await this.loadDependencies();
           const compiledCode = this.compileTemplate(babel);
-          this.executeTemplate(compiledCode, preact);
+          this.executeTemplate(compiledCode, preact, preactHooks, twindObserve);
           
         } catch (error) {
           this.showError(
@@ -179,7 +218,7 @@ const normalizeTemplateCode = (code: string): string => {
   }
 
   if (!trimmedCode.startsWith("(") && !trimmedCode.startsWith("function")) {
-    return `({ data, h, Fragment }) => {${trimmedCode}}`;
+    return `({ data }) => {${trimmedCode}}`;
   }
 
   return trimmedCode;
