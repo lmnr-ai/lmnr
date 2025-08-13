@@ -216,7 +216,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
   const { workspaceId, userId, role } = UpdateRoleSchema.parse(input);
 
-  const currentRole = await checkUserWorkspaceRole({ workspaceId, roles: ["admin", "owner"] });
+  const currentRole = await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
   const [targetUser] = await db
     .select({ memberRole: membersOfWorkspaces.memberRole })
@@ -229,10 +229,6 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 
   if (targetUser.memberRole === "owner") {
     throw new Error("Cannot change owner role");
-  }
-
-  if (currentRole === "admin" && (role === "admin" || targetUser.memberRole === "admin")) {
-    throw new Error("Admins cannot promote users to admin or modify other admins");
   }
 
   await db

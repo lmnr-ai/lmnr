@@ -117,27 +117,9 @@ export default function WorkspaceUsers({
         );
       }
 
-      if (currentUserRole === "admin" && user.role === "admin" && !isCurrentUser(user)) {
-        return (
-          <Select
-            value={user.role}
-            onValueChange={(newRole: WorkspaceRole) => handleRoleChange(user.id, newRole)}
-            disabled={updatingRoleUserId === user.id}
-          >
-            <SelectTrigger className="w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-        );
-      }
-
       return <span className="text-sm">{user.role}</span>;
     },
-    [currentUserRole, handleRoleChange, isCurrentUser, isOwner, updatingRoleUserId]
+    [handleRoleChange, isCurrentUser, isOwner, updatingRoleUserId]
   );
 
   const renderActionCell = useCallback(
