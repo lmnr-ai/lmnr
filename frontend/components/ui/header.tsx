@@ -70,7 +70,7 @@ export default function Header({
           <div className="flex items-center gap-1 ml-1 text-secondary-foreground">
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center space-x-1 hover:bg-secondary rounded-lg px-2 py-1 transition-colors">
-                <span>{project.name}</span>
+                <span className="whitespace-nowrap truncate">{project.name}</span>
                 <ChevronDown className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">

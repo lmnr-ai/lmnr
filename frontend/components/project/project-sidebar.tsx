@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import smallLogo from "@/assets/logo/icon.svg";
 import fullLogo from "@/assets/logo/logo.svg";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Sidebar,
   SidebarContent,
@@ -39,9 +40,58 @@ interface ProjectSidebarProps {
   workspaceId: string;
   projectId: string;
   isFreeTier: boolean;
+  gbUsedThisMonth?: number;
+  gbLimit?: number;
 }
 
-export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: ProjectSidebarProps) {
+const UsageDisplay = ({
+  gbUsed,
+  gbLimit,
+  workspaceId,
+  open,
+}: {
+  gbUsed: number;
+  gbLimit: number;
+  workspaceId: string;
+  open: boolean;
+}) => {
+  const formatGB = (gb: number) => {
+    if (gb < 0.001) {
+      return `${(gb * 1024).toFixed(0)} MB`;
+    }
+    return `${gb.toFixed(1)} GB`;
+  };
+
+  const usagePercentage = gbLimit > 0 ? Math.min((gbUsed / gbLimit) * 100, 100) : 0;
+  const isNearLimit = usagePercentage >= 80;
+
+  const title = `${formatGB(gbUsed)} of ${formatGB(gbLimit)}`;
+
+  if (!open) return null;
+
+  return (
+    <div className="mx-4 mb-4 p-3 rounded-lg border bg-muted/30">
+      <div className="text-sm text-muted-foreground mb-2">Free plan usage</div>
+      <div className="flex flex-col gap-2">
+        <div title={title} className="text-xs font-medium truncate">
+          {title}
+        </div>
+        <Progress value={usagePercentage} className={cn("h-1", isNearLimit && "bg-destructive/20")} />
+        <Link href={`/workspace/${workspaceId}`}>
+          <Button className="w-full h-8 text-xs">Upgrade</Button>
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default function ProjectSidebar({
+  workspaceId,
+  projectId,
+  isFreeTier,
+  gbUsedThisMonth = 0,
+  gbLimit = 1,
+}: ProjectSidebarProps) {
   const pathname = usePathname();
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useState(false);
@@ -147,6 +197,16 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
           ))}
         </SidebarMenu>
         <div className="flex-1" />
+
+        {isFreeTier && (open || openMobile) && (
+          <UsageDisplay
+            gbUsed={gbUsedThisMonth}
+            gbLimit={gbLimit}
+            workspaceId={workspaceId}
+            open={open || openMobile}
+          />
+        )}
+
         {showStarCard && open && (
           <div
             className={cn(
@@ -185,11 +245,6 @@ export default function ProjectSidebar({ workspaceId, projectId, isFreeTier }: P
           <Book size={16} />
           {open || openMobile ? <span className="text-sm">Docs</span> : null}
         </Link>
-        {isFreeTier && (open || openMobile) && (
-          <Link passHref href={`/workspace/${workspaceId}`}>
-            <Button className="w-full">Upgrade</Button>
-          </Link>
-        )}
         <AvatarMenu showDetails={open || openMobile} />
       </SidebarFooter>
     </Sidebar>
