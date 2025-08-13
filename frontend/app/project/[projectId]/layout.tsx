@@ -128,7 +128,13 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
-            <ProjectSidebar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
+            <ProjectSidebar
+              workspaceId={project.workspaceId}
+              isFreeTier={project.isFreeTier}
+              projectId={projectId}
+              gbUsedThisMonth={project.gbUsedThisMonth}
+              gbLimit={project.gbLimit}
+            />
             <SidebarInset className="overflow-hidden">
               {showBanner && (
                 <ProjectUsageBanner
