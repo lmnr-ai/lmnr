@@ -1,13 +1,9 @@
 import { count, eq, sql } from "drizzle-orm";
 
+import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { db } from "@/lib/db/drizzle";
-import {
-  membersOfWorkspaces,
-  subscriptionTiers,
-  workspaces,
-} from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-import { getWorkspaceUsage } from "../actions/workspaces";
 import { WorkspaceStats } from "./types";
 
 const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
@@ -43,11 +39,7 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   const usage = await getWorkspaceUsage(workspaceId);
 
   const gbUsedThisMonth = bytesToGB(
-    Number(
-      usage.spansBytesIngested +
-      usage.browserSessionEventsBytesIngested +
-      usage.eventsBytesIngested
-    )
+    Number(usage.spansBytesIngested + usage.browserSessionEventsBytesIngested + usage.eventsBytesIngested)
   );
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 

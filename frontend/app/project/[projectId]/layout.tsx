@@ -13,7 +13,8 @@ import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
-import { getWorkspaceUsage } from "@/lib/actions/workspaces";
+import { getProjectsByWorkspace } from "@/lib/actions/projects";
+import { getWorkspaceInfo, getWorkspaceUsage } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
@@ -71,9 +72,7 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
 
   const gbUsedThisMonth = bytesToGB(
     Number(
-      usageResult.spansBytesIngested +
-      usageResult.browserSessionEventsBytesIngested +
-      usageResult.eventsBytesIngested
+      usageResult.spansBytesIngested + usageResult.browserSessionEventsBytesIngested + usageResult.eventsBytesIngested
     )
   );
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
@@ -101,6 +100,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const user = session.user;
 
   const project = await getProjectDetails(projectId);
+  const workspace = await getWorkspaceInfo(project.workspaceId);
+  const projects = await getProjectsByWorkspace(project.workspaceId);
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
     project.isFreeTier &&
@@ -124,10 +125,16 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       supabaseAccessToken={session.supabaseAccessToken}
     >
       <PostHogIdentifier email={user.email!} />
-      <ProjectContextProvider projectId={project.id} projectName={project.name}>
+      <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
-            <ProjectSidebar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
+            <ProjectSidebar
+              workspaceId={project.workspaceId}
+              isFreeTier={project.isFreeTier}
+              projectId={projectId}
+              gbUsedThisMonth={project.gbUsedThisMonth}
+              gbLimit={project.gbLimit}
+            />
             <SidebarInset className="overflow-hidden">
               {showBanner && (
                 <ProjectUsageBanner

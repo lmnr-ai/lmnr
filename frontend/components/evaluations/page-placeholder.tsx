@@ -1,9 +1,9 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useProjectContext } from "@/contexts/project-context";
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
 
 import CodeHighlighter from "../ui/code-highlighter";
@@ -11,7 +11,7 @@ import Header from "../ui/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 export default function EvalsPagePlaceholder() {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const [tabValue, setTabValue] = useState("typescript");
 
   const pythonEval = `from lmnr import evaluate

@@ -4,17 +4,20 @@ export type Project = {
   workspaceId: string;
 };
 
+export type WorkspaceRole = "member" | "admin" | "owner";
+
 export interface WorkspaceUser {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: WorkspaceRole;
   createdAt: string;
 }
 
 export enum WorkspaceTier {
   FREE = "Free",
   PRO = "Pro",
+  HOBBY = "Hobby",
 }
 
 export interface Workspace {

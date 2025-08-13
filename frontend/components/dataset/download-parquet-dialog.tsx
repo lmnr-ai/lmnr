@@ -1,9 +1,9 @@
 import { CopyIcon, Download, Loader2, Rows2 } from "lucide-react";
+import { useParams } from "next/navigation";
 import React, { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "../ui/button";
@@ -16,18 +16,20 @@ interface DownloadParquetDialogProps {
 
 // Dialog to add a single datapoint to a dataset by manually typing
 export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: DownloadParquetDialogProps) {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
-  const [parquets, setParquets] = useState<{
-    path: string;
-    fileName: string;
-    datasetId: string;
-    projectId: string;
-    size: number;
-    id: string;
-  }[]>([]);
+  const [parquets, setParquets] = useState<
+    {
+      path: string;
+      fileName: string;
+      datasetId: string;
+      projectId: string;
+      size: number;
+      id: string;
+    }[]
+  >([]);
   const [jobStarted, setJobStarted] = useState(false);
   const { toast } = useToast();
 
@@ -172,16 +174,20 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
                       </Button>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="outline" size="sm" onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${publicApiBaseUrl ?? "https://api.lmnr.ai"}/v1/datasets/${datasetId}/parquets/${parquet.fileName}`
-                        );
-                        toast({
-                          title: "Copied to clipboard",
-                          description: "Direct download URL copied to clipboard",
-                          duration: 1500,
-                        });
-                      }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${publicApiBaseUrl ?? "https://api.lmnr.ai"}/v1/datasets/${datasetId}/parquets/${parquet.fileName}`
+                          );
+                          toast({
+                            title: "Copied to clipboard",
+                            description: "Direct download URL copied to clipboard",
+                            duration: 1500,
+                          });
+                        }}
+                      >
                         <CopyIcon className="size-4" />
                       </Button>
                     </TableCell>

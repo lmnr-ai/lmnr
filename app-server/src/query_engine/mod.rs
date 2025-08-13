@@ -1,5 +1,4 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use mock::MockQueryEngine;
 use query_engine_impl::QueryEngineImpl;
 use uuid::Uuid;
@@ -10,14 +9,13 @@ pub mod query_engine_impl;
 
 pub use query_engine_impl::QueryEngineValidationResult;
 
-#[enum_delegate::implement(QueryEngineTrait)]
+#[enum_dispatch::enum_dispatch(QueryEngineTrait)]
 pub enum QueryEngine {
     Grpc(QueryEngineImpl),
     Mock(MockQueryEngine),
 }
 
-#[async_trait]
-#[enum_delegate::register]
+#[enum_dispatch::enum_dispatch]
 pub trait QueryEngineTrait {
     async fn validate_query(
         &self,
