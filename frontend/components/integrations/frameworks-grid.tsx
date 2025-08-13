@@ -31,7 +31,7 @@ const integrations: Integration[] = [
     link: "https://docs.lmnr.ai/tracing/integrations/opentelemetry",
   },
   {
-    name: "Langchain",
+    name: "LangGraph",
     icon: <IconLangchain className="h-8 w-8" />,
     link: "https://docs.lmnr.ai/tracing/integrations/langchain",
   },

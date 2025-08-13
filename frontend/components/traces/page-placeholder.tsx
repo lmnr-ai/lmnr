@@ -28,17 +28,17 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
       <ScrollArea>
         <div className="flex-1 flex-col mx-auto p-6 overflow-y-auto max-w-[800px] gap-8 pb-16 flex">
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">Quickstart</h1>
+            <h1 className="text-2xl font-semibold">Tracing quickstart</h1>
             <p className="text-muted-foreground">
               You don{"'"}t have any traces in this project yet. Here is how to send your first traces.
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h2 className="text-xl font-semibold">Install Laminar SDK</h2>
             <Tabs value={tabValue} onValueChange={setTabValue}>
               <TabsList className="border-none flex">
-                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+                <TabsTrigger value="typescript">JavaScript</TabsTrigger>
                 <TabsTrigger value="python">Python</TabsTrigger>
               </TabsList>
               <div className="mt-4">
@@ -62,13 +62,13 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
             </Tabs>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">Generate API key</h2>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">Generate project API key</h2>
             <p className="text-muted-foreground">
               Go to the{" "}
               <a
                 href={`/project/${projectId}/settings`}
-                className="text-primary font-medium underline hover:text-primary/80 transition-colors"
+                className="text-primary font-medium hover:text-primary/80 transition-colors"
                 target="_blank"
               >
                 settings page
@@ -80,17 +80,17 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
           <div className="space-y-6">
             <div className="space-y-2">
               <h2 className="text-xl font-semibold">
-                Automatic tracing of LLM frameworks and SDKs with 1 line of code
+                Learn how to integrate Laminar with your framework or SDK
               </h2>
-              <p className="text-muted-foreground">
-                Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be traced
-                automatically.
-              </p>
             </div>
-            <FrameworksGrid />
+            <FrameworksGrid gridClassName="grid grid-cols-7 gap-4" />
           </div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h2 className="text-xl font-semibold">Or add 2 lines of code to auto-instrument your app</h2>
+            <p className="text-muted-foreground">
+              Initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be traced
+              automatically.
+            </p>
             <Tabs value={tabValue} onValueChange={setTabValue}>
               <TabsList className="border-none flex">
                 <TabsTrigger value="typescript">TypeScript</TabsTrigger>
@@ -117,12 +117,12 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
             </Tabs>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h2 className="text-xl font-semibold">Documentation</h2>
             <p className="text-muted-foreground">
               <a
                 href="https://docs.lmnr.ai/tracing/introduction"
-                className="text-primary font-medium underline hover:text-primary/80 transition-colors"
+                className="text-primary font-medium hover:text-primary/80 transition-colors"
                 target="_blank"
               >
                 Read the docs
@@ -131,7 +131,7 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
             </p>
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </ScrollArea >
+    </div >
   );
 }

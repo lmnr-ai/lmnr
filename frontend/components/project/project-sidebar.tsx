@@ -63,8 +63,6 @@ const UsageDisplay = ({
   };
 
   const usagePercentage = gbLimit > 0 ? Math.min((gbUsed / gbLimit) * 100, 100) : 0;
-  const isNearLimit = usagePercentage >= 80;
-
   const title = `${formatGB(gbUsed)} of ${formatGB(gbLimit)}`;
 
   if (!open) return null;
@@ -76,9 +74,9 @@ const UsageDisplay = ({
         <div title={title} className="text-xs font-medium truncate">
           {title}
         </div>
-        <Progress value={usagePercentage} className={cn("h-1", isNearLimit && "bg-destructive/20")} />
+        <Progress value={usagePercentage} className="h-1" />
         <Link href={`/workspace/${workspaceId}`}>
-          <Button className="w-full h-8 text-xs">Upgrade</Button>
+          <Button className="w-full h-6 text-xs">Upgrade</Button>
         </Link>
       </div>
     </div>
