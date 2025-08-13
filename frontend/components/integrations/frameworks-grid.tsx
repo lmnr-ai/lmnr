@@ -113,6 +113,7 @@ export default function FrameworksGrid({
         {integrations.map((integration, index) => (
           <Link
             key={index}
+            rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
             className={`flex flex-col items-center group ${itemClassName}`}
