@@ -14,5 +14,5 @@ export const manrope = Manrope({
   subsets: ['latin'],
   display: 'swap',
   style: 'normal',
-  variable: '--font-manrope'
+  variable: '--font-title'
 });

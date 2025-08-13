@@ -21,7 +21,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
   return (
     <>
       <header className="flex flex-col md:flex-row w-full justify-between md:justify-center items-center fixed z-50 backdrop-blur-lg">
-        <div className="w-full px-8 md:px-4 flex flex-col md:flex-row md:w-[1200px] justify-between">
+        <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1200px] justify-between">
           <div className="flex items-center h-20 justify-between">
             <Link href="/" className="-mt-1">
               <Image alt="logo" src={logo} width={150} priority />
@@ -36,21 +36,15 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
           </div>
           <nav
             className={cn(
-              "pb-8 md:p-0 w-full md:w-auto z-50 flex flex-col md:flex-row md:flex gap-2 items-center md:h-20",
+              "pb-8 md:p-0 w-full md:w-auto z-50 flex flex-col md:flex-row md:flex gap-2 md:gap-6 items-center md:h-20 text-sm font-semibold tracking-normal font-title text-white",
               isMenuOpen ? "" : "hidden"
             )}
           >
-            <Link href="https://docs.lmnr.ai" target="_blank">
-              <Button variant="ghost">Docs</Button>
-            </Link>
-            <Link href="/pricing">
-              <Button variant="ghost">Pricing</Button>
-            </Link>
-            <Link href="/blog">
-              <Button variant="ghost">Blog</Button>
-            </Link>
+            <Link href="https://docs.lmnr.ai" target="_blank">Docs</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/blog">Blog</Link>
             <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
-              <Button variant="ghost">Discord</Button>
+              Discord
             </Link>
             <GitHubButton
               href="https://github.com/lmnr-ai/lmnr"

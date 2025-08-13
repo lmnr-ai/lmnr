@@ -18,8 +18,8 @@ export default function FeatureCard({
 }: FeatureCardProps) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <h3 className={cn("text-2xl text-white font-semibold font-manrope tracking-normal", titleClassName)}>{title}</h3>
-      <p className={cn("text-sm text-white/80 font-manrope tracking-normal font-semibold", subtitleClassName)}>
+      <h3 className={cn("text-2xl text-white font-semibold font-title tracking-normal", titleClassName)}>{title}</h3>
+      <p className={cn("text-sm text-white/80 font-title tracking-normal font-semibold", subtitleClassName)}>
         {subtitle}
       </p>
     </div>

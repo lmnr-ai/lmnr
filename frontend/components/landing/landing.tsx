@@ -147,11 +147,11 @@ export default function Landing() {
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
-                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-manrope">
+                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-title">
                   How developers <br className="md:hidden" />{" "}
                   <span className="">build reliable AI agents.</span>
                 </p>
-                <p className="text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-manrope">
+                <p className="text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-title">
                   The single open-source platform to trace, evaluate, and analyze AI agents.
                 </p>
                 <div className="flex space-x-4 items-center">
@@ -183,7 +183,7 @@ export default function Landing() {
                 key={selectedSection.id}
                 className="z-20 col-span-2 pt-8"
               >
-                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center pb-8 text-lg font-semibold tracking-wide font-manrope">
+                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center pb-8 text-lg font-semibold tracking-wide font-title">
                   {sections.map((section, i) => (
                     <button
                       key={i}
@@ -207,11 +207,11 @@ export default function Landing() {
               </div>
             </div>
             <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
-              <h1 className="text-4xl font-bold tracking-normal font-manrope text-white py-32">
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white py-32 leading-wide">
                 With Laminar dev teams monitor agents in production, <br />
                 understand agent failure modes, and create evals to improve them.
               </h1>
-              <span className="text-white/80 text-base font-semibold font-manrope">
+              <span className="text-white/80 text-base font-semibold font-title">
                 Why teams choose Laminar
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8 mb-24">
@@ -265,7 +265,7 @@ export default function Landing() {
           </div>
         </div>
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
-          <h1 className="text-4xl font-bold tracking-normal font-manrope text-white pt-16 pb-8">
+          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
             Traces
           </h1>
           <div className="flex flex-col w-full border">
@@ -623,7 +623,7 @@ function InfoCard({
     >
       <div className="p-10 space-y-2 flex flex-col">
         <h3
-          className="text-2xl font-semibold transition-all tracking-normal font-manrope"
+          className="text-2xl font-semibold transition-all tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -633,7 +633,7 @@ function InfoCard({
           {title}
         </h3>
         <p
-          className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-manrope"
+          className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -758,3 +758,25 @@ function TestimonialCard({
     </div>
   );
 }
+
+//
+// observe
+//   - auto-instrumentation -> value: super easy to get started
+//   - real-time traces -> value: see what's happening in your app
+//   - error capture
+//   - tags
+//   - events
+//   - capture tool calls, and structured output schemas
+//   - high performance
+//   - trace entire application, not just LLM
+//   - browser agent observability
+
+// iterate
+//   - proper evals sdk, powered by traces
+//   - experiment with LLM spans in playground
+//   - online evals, online scores
+//   - datasets
+ 
+// query: 
+//   - query any data
+//   - custom dashboards

@@ -20,6 +20,7 @@ module.exports = {
       fontFamily: {
         sans: ['var(--font-inter)'],
         manrope: ['var(--font-manrope)'],
+        title: ['var(--font-title)'],
       },
       colors: {
         border: 'hsl(var(--border))',
