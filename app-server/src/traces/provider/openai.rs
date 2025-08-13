@@ -19,6 +19,7 @@
 use crate::{
     db::spans::Span,
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
+    utils::json_value_to_string,
 };
 use anyhow::Result;
 use serde::Serialize;
@@ -401,6 +402,11 @@ impl TryInto<Option<OpenAIChatMessageContentPart>> for ChatMessageContentPart {
             ChatMessageContentPart::Text(text) => Ok(Some(OpenAIChatMessageContentPart::Text(
                 OpenAIChatMessageContentPartText { text: text.text },
             ))),
+            ChatMessageContentPart::AISDKToolResult(tool_result) => Ok(Some(
+                OpenAIChatMessageContentPart::Text(OpenAIChatMessageContentPartText {
+                    text: json_value_to_string(&tool_result.output),
+                }),
+            )),
             ChatMessageContentPart::ImageUrl(image_url) => Ok(Some(
                 OpenAIChatMessageContentPart::ImageUrl(OpenAIChatMessageContentPartImageUrl {
                     image_url: OpenAIChatMessageContentPartImageUrlInner {
