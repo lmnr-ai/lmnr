@@ -110,7 +110,7 @@ export default function ProjectSidebar({
   const allOptions = useMemo(
     () => [
       {
-        name: "dashboard",
+        name: "dashboards",
         href: `/project/${projectId}/dashboard`,
         icon: LayoutGrid,
       },
