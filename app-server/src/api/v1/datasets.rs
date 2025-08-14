@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use actix_web::{HttpResponse, get, post, web};
 use futures_util::StreamExt;
@@ -32,7 +32,6 @@ async fn get_datapoints(
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let query = params.into_inner();
 
-    // Still get dataset metadata from PostgreSQL
     let dataset_id =
         db::datasets::get_dataset_id_by_name(&db.pool, &query.name, project_id).await?;
 
@@ -52,10 +51,8 @@ async fn get_datapoints(
     )
     .await?;
 
-    // Get total count from ClickHouse
     let total_count = ch_datapoints::count_datapoints(clickhouse, project_id, dataset_id).await?;
 
-    // Convert CHDatapoints to Datapoints
     let datapoints: Vec<Datapoint> = ch_datapoints
         .into_iter()
         .map(|ch_dp| ch_dp.into())
@@ -108,7 +105,6 @@ async fn create_datapoints(
         })));
     }
 
-    // Get dataset metadata from PostgreSQL
     let dataset_id =
         db::datasets::get_dataset_id_by_name(&db.pool, &request.dataset_name, project_id).await?;
 
@@ -131,13 +127,11 @@ async fn create_datapoints(
         })
         .collect();
 
-    // Convert to ClickHouse datapoints
     let ch_datapoints: Vec<ch_datapoints::CHDatapoint> = datapoints
         .iter()
         .map(|dp| ch_datapoints::CHDatapoint::from_datapoint(dp, project_id))
         .collect();
 
-    // Insert into ClickHouse
     ch_datapoints::insert_datapoints(clickhouse, ch_datapoints).await?;
 
     Ok(HttpResponse::Created().json(serde_json::json!({
@@ -160,7 +154,6 @@ async fn get_parquet(
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
 
-    // Get parquet paths from database
     let parquet_path =
         db::datasets::get_parquet_path(&db.pool, project_id, dataset_id, &name).await?;
 
@@ -170,15 +163,14 @@ async fn get_parquet(
         })));
     };
 
-    // Get object metadata to determine file size
-    let content_length = storage
-        .get_size(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
-        .await?;
+    let Ok(bucket) = std::env::var("S3_EXPORTS_BUCKET") else {
+        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "exports storage is not configured"
+        })));
+    };
+    let content_length = storage.get_size(&bucket, &parquet_path).await?;
 
-    // Stream the file from S3
-    let get_response = storage
-        .get_stream(&parquet_path, &env::var("S3_EXPORTS_BUCKET").ok())
-        .await?;
+    let get_response = storage.get_stream(&bucket, &parquet_path).await?;
 
     let filename = parquet_path.split('/').last().unwrap_or(&name);
 

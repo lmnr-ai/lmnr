@@ -763,6 +763,10 @@ impl Span {
             .ok()
             .and_then(|s: String| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
+        let Ok(bucket) = std::env::var("S3_TRACE_PAYLOADS_BUCKET") else {
+            log::error!("S3_TRACE_PAYLOADS_BUCKET is not set");
+            return Err(anyhow::anyhow!("S3_TRACE_PAYLOADS_BUCKET is not set"));
+        };
         if let Some(input) = self.input.clone() {
             let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
             if let Ok(span_input) = span_input {
@@ -771,14 +775,16 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            let stored_part =
-                                match part.store_media(project_id, storage.clone()).await {
-                                    Ok(stored_part) => stored_part,
-                                    Err(e) => {
-                                        log::error!("Error storing media: {e}");
-                                        part
-                                    }
-                                };
+                            let stored_part = match part
+                                .store_media(project_id, storage.clone(), &bucket)
+                                .await
+                            {
+                                Ok(stored_part) => stored_part,
+                                Err(e) => {
+                                    log::error!("Error storing media: {e}");
+                                    part
+                                }
+                            };
                             new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
@@ -792,7 +798,7 @@ impl Span {
                 if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
                     let preview = String::from_utf8_lossy(&data).chars().take(100).collect();
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(&bucket, &key, data).await?;
                     self.input_url = Some(url);
                     self.input = Some(serde_json::Value::String(preview));
                 }
@@ -804,7 +810,7 @@ impl Span {
                 let key = crate::storage::create_key(project_id, &None);
                 let mut data = Vec::new();
                 serde_json::to_writer(&mut data, &output)?;
-                let url = storage.store(data, &key).await?;
+                let url = storage.store(&bucket, &key, data).await?;
                 self.output_url = Some(url);
                 self.output = Some(serde_json::Value::String(
                     output_str.chars().take(100).collect(),
