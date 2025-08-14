@@ -1,7 +1,6 @@
 use super::QueryEngineTrait;
 use super::query_engine::{QueryRequest, query_engine_service_client::QueryEngineServiceClient};
 use anyhow::Result;
-use async_trait::async_trait;
 use std::sync::Arc;
 use tonic::{Request, transport::Channel};
 use uuid::Uuid;
@@ -17,7 +16,6 @@ impl QueryEngineImpl {
     }
 }
 
-#[async_trait]
 impl QueryEngineTrait for QueryEngineImpl {
     async fn validate_query(
         &self,
@@ -34,14 +32,13 @@ impl QueryEngineTrait for QueryEngineImpl {
         let response = client
             .validate_query(request)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to validate query: {}", e))?;
+            .map_err(|e| anyhow::anyhow!(format!("{}", e.message())))?;
 
         let query_response = response.into_inner();
 
         match query_response.result {
             Some(super::query_engine::query_response::Result::Success(success_response)) => {
                 Ok(QueryEngineValidationResult::Success {
-                    success: success_response.success,
                     validated_query: success_response.query,
                 })
             }
@@ -59,11 +56,6 @@ impl QueryEngineTrait for QueryEngineImpl {
 
 #[derive(Debug, Clone)]
 pub enum QueryEngineValidationResult {
-    Success {
-        success: bool,
-        validated_query: String,
-    },
-    Error {
-        error: String,
-    },
+    Success { validated_query: String },
+    Error { error: String },
 }

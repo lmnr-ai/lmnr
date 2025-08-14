@@ -16,7 +16,6 @@ message QueryResponse {
 
 message SuccessResponse {
     string query = 1;
-    bool success = 2;
 }
 
 message ErrorResponse {

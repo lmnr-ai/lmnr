@@ -59,7 +59,7 @@ pub async fn execute_sql_query(
                 Err(e) => Err(e.into()),
             }
         }
-        None => Err(anyhow::anyhow!("ClickHouse read-only client is not configured.").into()),
+        None => Err(anyhow::anyhow!("ClickHouse client is not configured.").into()),
     }
 }
 
@@ -80,11 +80,8 @@ pub async fn validate_sql_query(
     {
         Ok(validation_result) => {
             let response = match validation_result {
-                QueryEngineValidationResult::Success {
-                    success,
-                    validated_query,
-                } => SqlValidateResponse {
-                    success,
+                QueryEngineValidationResult::Success { validated_query } => SqlValidateResponse {
+                    success: true,
                     validated_query: Some(validated_query),
                     error: None,
                 },

@@ -17,7 +17,6 @@ pub mod trace;
 pub mod user;
 pub mod user_cookies;
 pub mod utils;
-pub mod workspace;
 
 #[derive(Clone, Debug)]
 pub struct DB {

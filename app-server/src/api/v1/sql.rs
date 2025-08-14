@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     db::project_api_keys::ProjectApiKey,
@@ -15,6 +15,12 @@ use crate::routes::types::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlQueryResponse {
+    pub data: Vec<serde_json::Value>,
 }
 
 #[post("sql/query")]
@@ -38,7 +44,9 @@ pub async fn execute_sql_query(
             )
             .await
             {
-                Ok(result_json) => Ok(HttpResponse::Ok().json(result_json)),
+                Ok(result_json) => {
+                    Ok(HttpResponse::Ok().json(SqlQueryResponse { data: result_json }))
+                }
                 Err(e) => Err(e.into()),
             }
         }

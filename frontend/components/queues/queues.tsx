@@ -2,14 +2,13 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
 import Mono from "@/components/ui/mono";
-import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -53,7 +52,7 @@ const columns: ColumnDef<LabelingQueue>[] = [
 ];
 
 export default function Queues() {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
 
   const router = useRouter();
   const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue & { count: number }>>(

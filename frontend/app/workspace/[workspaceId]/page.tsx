@@ -75,7 +75,9 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     return notFound();
   }
 
-  const isOwner = workspace.users.find((u) => u.email === user.email)?.role === "owner";
+  const currentUser = workspace.users.find((u) => u.email === user.email);
+  const isOwner = currentUser?.role === "owner";
+  const currentUserRole = currentUser?.role || "member";
 
   const stats = await getWorkspaceStats(params.workspaceId);
 
@@ -106,7 +108,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
             </div>
           </div>
         </div>
-        <WorkspaceComponent invitations={invitations} workspace={workspace} workspaceStats={stats} isOwner={isOwner} />
+        <WorkspaceComponent invitations={invitations} workspace={workspace} workspaceStats={stats} isOwner={isOwner} currentUserRole={currentUserRole} />
       </div>
     </UserContextProvider>
   );

@@ -30,6 +30,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 
+
 export default function EditorPanel() {
   const { projectId } = useParams();
   const [results, setResults] = useState<Record<string, any>[]>([]);
@@ -91,17 +92,37 @@ export default function EditorPanel() {
         body: JSON.stringify({ query, parameters }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data?.error || `Query failed with status ${response.status}`);
+        let error;
+        try {
+          const data = await response.json();
+          error = data?.error;
+        } catch {
+          try {
+            error = await response.text();
+          } catch {
+            error = response.statusText !== "" ? response.statusText : "Failed to execute query";
+          }
+        }
+        throw new Error(error);
       }
+
+      const data = await response.json();
 
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
-      setError(errorMessage);
+      try {
+        const error = JSON.parse(errorMessage).error;
+        if (error) {
+          setError(error);
+        } else {
+          setError(errorMessage);
+        }
+      } catch {
+        setError(errorMessage);
+      }
       setResults([]);
     } finally {
       setIsLoading(false);
@@ -136,7 +157,7 @@ export default function EditorPanel() {
         return (
           <div className="flex items-center justify-center h-full space-x-2 text-destructive">
             <AlertCircle className="w-4 h-4" />
-            <span className="text-sm">{error}</span>
+            <div className="text-sm whitespace-pre-wrap">{error}</div>
           </div>
         );
       }

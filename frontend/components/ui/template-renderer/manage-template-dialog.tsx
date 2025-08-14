@@ -1,7 +1,7 @@
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { PropsWithChildren, useCallback, useState } from "react";
@@ -161,7 +161,7 @@ const ManageTemplateDialog = ({
                         <CodeMirror
                           value={field.value}
                           onChange={field.onChange}
-                          extensions={[json()]}
+                          extensions={[json(), EditorView.lineWrapping]}
                           theme={theme}
                           height="100%"
                           className="h-full"

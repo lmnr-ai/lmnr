@@ -58,31 +58,3 @@ pub async fn get_project_and_workspace_billing_info(
 
     Ok(result)
 }
-
-pub async fn create_project(
-    pool: &PgPool,
-    user_id: &Uuid,
-    name: &str,
-    workspace_id: Uuid,
-) -> Result<Project> {
-    // create project only if user is part of the workspace which owns the project
-    let project = sqlx::query_as::<_, Project>(
-        "INSERT INTO projects (name, workspace_id)
-        SELECT
-            $1, $2
-        FROM
-            members_of_workspaces
-        WHERE
-            workspace_id = $2 and
-            user_id = $3
-        RETURNING
-            id, name, workspace_id",
-    )
-    .bind(name)
-    .bind(workspace_id)
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(project)
-}

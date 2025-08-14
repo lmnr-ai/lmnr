@@ -1,9 +1,9 @@
 import { Plus } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useProjectContext } from "@/contexts/project-context";
 import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -22,7 +22,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [newApiKeyName, setNewApiKeyName] = useState<string>("");
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(async (newName: string) => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {

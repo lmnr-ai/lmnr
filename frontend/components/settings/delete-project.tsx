@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,7 +14,8 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 
 export default function DeleteProject() {
-  const { projectId, projectName } = useProjectContext();
+  const { project } = useProjectContext();
+  const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -23,7 +24,7 @@ export default function DeleteProject() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const deleteProject = useCallback(async () => {
-    if (inputProjectName !== projectName) {
+    if (inputProjectName !== project?.name) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -65,14 +66,14 @@ export default function DeleteProject() {
     } finally {
       setIsLoading(false);
     }
-  }, [inputProjectName, projectName, toast, projectId, router]);
+  }, [inputProjectName, project?.name, toast, projectId, router]);
 
   const resetAndClose = useCallback((open: boolean) => {
     setIsDialogOpen(open);
     setInputProjectName("");
   }, []);
 
-  const isDeleteEnabled = inputProjectName === projectName && !isLoading;
+  const isDeleteEnabled = inputProjectName === project?.name && !isLoading;
 
   return (
     <div className="space-y-4">
@@ -100,27 +101,27 @@ export default function DeleteProject() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              This will permanently delete <span className="font-medium text-foreground">{projectName}</span> and all of
-              its data. This action cannot be undone.
+              This will permanently delete <span className="font-medium text-foreground">{project?.name}</span> and all
+              of its data. This action cannot be undone.
             </p>
 
             <div className="space-y-2">
               <Label htmlFor="project-name-input" className="text-secondary-foreground">
-                Type <span className="font-medium text-white">{projectName}</span> to confirm
+                Type <span className="font-medium text-white">{project?.name}</span> to confirm
               </Label>
               <Input
                 id="project-name-input"
                 autoFocus
-                placeholder={projectName}
+                placeholder={project?.name}
                 value={inputProjectName}
                 onChange={(e) => setInputProjectName(e.target.value)}
                 className={cn(
                   inputProjectName &&
-                    inputProjectName !== projectName &&
+                    inputProjectName !== project?.name &&
                     "border-destructive focus-visible:ring-destructive"
                 )}
               />
-              {inputProjectName && inputProjectName !== projectName && (
+              {inputProjectName && inputProjectName !== project?.name && (
                 <p className="text-xs text-destructive">Project name does not match</p>
               )}
             </div>

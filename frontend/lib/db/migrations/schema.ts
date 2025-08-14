@@ -31,7 +31,7 @@ export const spanType = pgEnum("span_type", [
   "HUMAN_EVALUATOR",
 ]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
-export const workspaceRole = pgEnum("workspace_role", ["member", "owner"]);
+export const workspaceRole = pgEnum("workspace_role", ["member", "admin", "owner"]);
 
 export const datasetParquets = pgTable(
   "dataset_parquets",

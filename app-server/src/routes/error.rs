@@ -1,6 +1,7 @@
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
-use log::error;
+
+use crate::sql::SqlQueryError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -8,6 +9,8 @@ pub enum Error {
     InternalAnyhowError(#[from] anyhow::Error),
     #[error("{0}")]
     MultipartError(#[from] actix_multipart::MultipartError),
+    #[error("{0}")]
+    SqlQueryError(#[from] SqlQueryError),
 }
 
 impl ResponseError for Error {
@@ -15,12 +18,16 @@ impl ResponseError for Error {
         match &self {
             Self::InternalAnyhowError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::MultipartError(_) => StatusCode::BAD_REQUEST,
+            Self::SqlQueryError(e) => match e {
+                SqlQueryError::ValidationError(_) => StatusCode::BAD_REQUEST,
+                SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                SqlQueryError::BadResponseError(_) => StatusCode::BAD_REQUEST,
+            },
         }
     }
 
     fn error_response(&self) -> HttpResponse {
-        error!("Error: {:?}", self.to_string());
-        HttpResponse::build(self.status_code()).finish()
+        HttpResponse::build(self.status_code()).body(format!("{}", self))
     }
 }
 

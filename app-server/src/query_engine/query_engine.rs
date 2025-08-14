@@ -25,8 +25,6 @@ pub mod query_response {
 pub struct SuccessResponse {
     #[prost(string, tag = "1")]
     pub query: ::prost::alloc::string::String,
-    #[prost(bool, tag = "2")]
-    pub success: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ErrorResponse {

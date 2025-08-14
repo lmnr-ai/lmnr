@@ -17,12 +17,13 @@ import llmPlayground from "@/assets/landing/llm-playground.png";
 import playground from "@/assets/landing/playground.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
+import { IconBrowserUse, IconPlaywright } from "@/components/ui/icons";
 import { SpanType } from "@/lib/traces/types";
 
+import FrameworksGrid from "../integrations/frameworks-grid";
 import SpanTypeIcon from "../traces/span-type-icon";
 import { Button } from "../ui/button";
 import CodeHighlighter from "../ui/code-highlighter";
-import { IconAmazonBedrock, IconAnthropic, IconBrowserUse, IconCrewAI, IconGemini, IconLangchain, IconMistral, IconOpenAI, IconOpenTelemetry, IconPlaywright, IconVercel } from "../ui/icons";
 import DatasetsAnimation from "./datasets-animation";
 import Footer from "./footer";
 
@@ -174,7 +175,6 @@ export default function Landing() {
           </div>
         </div>
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
-
           <div className="flex flex-col w-full relative md:pb-0 rounded">
             <div
               key={selectedSection.id}
@@ -185,9 +185,10 @@ export default function Landing() {
                   <button
                     key={i}
                     onClick={() => handleSectionSelect(section)}
-                    className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${selectedSection.id === section.id
-                      ? "bg-white/90 text-black/90 border-b-2"
-                      : "text-white hover:bg-white/20 "
+                    className={`border-[1.5px] border-white/80 h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex text-sm sm:text-base whitespace-nowrap ${
+                      selectedSection.id === section.id
+                        ? "bg-white/90 text-black/90 border-b-2"
+                        : "text-white hover:bg-white/20 "
                     }`}
                   >
                     {section.title}
@@ -244,89 +245,7 @@ export default function Landing() {
                 >
                   <div className="flex flex-col">
                     <div className="flex mt-4 flex-col">
-                      <div className="grid grid-cols-4 md:grid-cols-5 gap-4 mt-2">
-                        {[
-                          {
-                            name: "OpenTelemetry",
-                            icon: <IconOpenTelemetry className="h-6 w-6" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/opentelemetry"
-                          },
-                          {
-                            name: "Langchain",
-                            icon: <IconLangchain className="h-8 w-8" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/langchain"
-                          },
-                          {
-                            name: "CrewAI",
-                            icon: <IconCrewAI className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/crewai"
-                          },
-                          {
-                            name: "AI SDK",
-                            icon: <IconVercel className="w-4 h-4 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk"
-                          },
-                          {
-                            name: "LiteLLM",
-                            emoji: "🚅",
-                            link: "https://docs.lmnr.ai/tracing/integrations/litellm"
-                          },
-                          {
-                            name: "Browser Use",
-                            icon: <IconBrowserUse className="w-5 h-5 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/browser-use"
-                          },
-                          {
-                            name: "StageHand",
-                            emoji: "🤘",
-                            link: "https://docs.lmnr.ai/tracing/integrations/stagehand"
-                          },
-                          {
-                            name: "Playwright",
-                            icon: <IconPlaywright className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/playwright"
-                          },
-                          {
-                            name: "OpenAI",
-                            icon: <IconOpenAI className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/openai"
-                          },
-                          {
-                            name: "Anthropic",
-                            icon: <IconAnthropic className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/anthropic"
-                          },
-                          {
-                            name: "Gemini",
-                            icon: <IconGemini className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/gemini"
-                          },
-                          {
-                            name: "Mistral",
-                            icon: <IconMistral className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/mistral"
-                          },
-                          {
-                            name: "Bedrock",
-                            icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
-                            link: "https://docs.lmnr.ai/tracing/integrations/bedrock"
-                          }
-                        ].map((integration, index) => (
-                          <Link
-                            key={index}
-                            target="_blank"
-                            href={integration.link}
-                            className="flex flex-col items-center group"
-                          >
-                            <div className="w-12 h-12 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors">
-                              {integration.icon || (
-                                <span className="text-2xl">{integration.emoji}</span>
-                              )}
-                            </div>
-                            <span className="text-xs text-white/70 mt-2">{integration.name}</span>
-                          </Link>
-                        ))}
-                      </div>
+                      <FrameworksGrid className="mt-2" labelTextColor="text-white/70" />
                     </div>
                   </div>
                 </InfoCard>
@@ -347,8 +266,12 @@ export default function Landing() {
                             containerHeight={22}
                             size={16}
                           />
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">agent.run_stream</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">52.64s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            agent.run_stream
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            52.64s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
                         </div>
@@ -363,8 +286,12 @@ export default function Landing() {
                               size={16}
                             />
                           </div>
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">agent.step</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">52.32s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            agent.step
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            52.32s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
                         </div>
@@ -380,8 +307,12 @@ export default function Landing() {
                               size={16}
                             />
                           </div>
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">browser.update_state</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">44.15s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            browser.update_state
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            44.15s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
                         </div>
@@ -397,8 +328,12 @@ export default function Landing() {
                               size={16}
                             />
                           </div>
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">agent.generate_action</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">8.17s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            agent.generate_action
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            8.17s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:44</div>
                         </div>
@@ -412,8 +347,12 @@ export default function Landing() {
                             containerHeight={22}
                             size={16}
                           />
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">anthropic.chat</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">8.17s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            anthropic.chat
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            8.17s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:44</div>
                         </div>
@@ -427,8 +366,12 @@ export default function Landing() {
                             containerHeight={22}
                             size={16}
                           />
-                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">done</div>
-                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">0.00s</div>
+                          <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
+                            done
+                          </div>
+                          <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+                            0.00s
+                          </div>
                           <div className="flex-grow"></div>
                           <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:52</div>
                         </div>
@@ -437,43 +380,59 @@ export default function Landing() {
 
                     <style jsx>{`
                       @keyframes traceAnimation {
-                        0%, 5% { opacity: 0; transform: translateY(-5px); }
-                        10% { opacity: 1; transform: translateY(0); }
-                        70% { opacity: 1; transform: translateY(0); }
-                        80% { opacity: 0; transform: translateY(-5px); }
-                        100% { opacity: 0; transform: translateY(-5px); }
+                        0%,
+                        5% {
+                          opacity: 0;
+                          transform: translateY(-5px);
+                        }
+                        10% {
+                          opacity: 1;
+                          transform: translateY(0);
+                        }
+                        70% {
+                          opacity: 1;
+                          transform: translateY(0);
+                        }
+                        80% {
+                          opacity: 0;
+                          transform: translateY(-5px);
+                        }
+                        100% {
+                          opacity: 0;
+                          transform: translateY(-5px);
+                        }
                       }
-                      
+
                       .trace-item-1 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
                         animation-delay: 0s;
                       }
-                      
+
                       .trace-item-2 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
                         animation-delay: 0.7s;
                       }
-                      
+
                       .trace-item-3 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
                         animation-delay: 1.4s;
                       }
-                      
+
                       .trace-item-4 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
                         animation-delay: 2.1s;
                       }
-                      
+
                       .trace-item-5 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
                         animation-delay: 2.8s;
                       }
-                      
+
                       .trace-item-6 {
                         opacity: 0;
                         animation: traceAnimation 10s infinite;
@@ -497,9 +456,7 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                   <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
                     <IconBrowserUse className="w-4 h-4 text-white" />
                   </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    🤘
-                  </div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
                   <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
                     <IconPlaywright className="w-5 h-5 text-white" />
                   </div>
@@ -555,13 +512,21 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                       <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
                         <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer group">
                           <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
-                            <svg viewBox="0 0 24 24" className="w-6 h-6 text-white group-hover:text-gray-200 transition-colors" fill="currentColor">
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="w-6 h-6 text-white group-hover:text-gray-200 transition-colors"
+                              fill="currentColor"
+                            >
                               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                             </svg>
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium text-white group-hover:text-gray-200 transition-colors">Open Source</div>
-                            <div className="text-xs text-white/60 group-hover:text-white/80 transition-colors">Apache 2.0 License</div>
+                            <div className="text-sm font-medium text-white group-hover:text-gray-200 transition-colors">
+                              Open Source
+                            </div>
+                            <div className="text-xs text-white/60 group-hover:text-white/80 transition-colors">
+                              Apache 2.0 License
+                            </div>
                           </div>
                           <div className="text-xs text-white/80 hover:text-white transition-colors flex items-center">
                             View on GitHub
@@ -575,10 +540,10 @@ Laminar automatically records high-quality browser sessions and syncs them with 
               </div>
             </div>
           </div>
-        </div >
+        </div>
 
         <Footer />
-      </div >
+      </div>
     </>
   );
 }
@@ -693,14 +658,16 @@ function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string
       <div className="p-4 flex space-x-2 text-sm font-medium">
         <button
           onClick={() => setSelectedLang("typescript")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
+          className={`border border-white/40 h-7 px-2 rounded ${
+            selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
           }`}
         >
           TypeScript
         </button>
         <button
           onClick={() => setSelectedLang("python")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
+          className={`border border-white/40 h-7 px-2 rounded ${
+            selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
           }`}
         >
           Python

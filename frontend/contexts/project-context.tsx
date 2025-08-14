@@ -1,27 +1,28 @@
-'use client';
+"use client";
 
-import React, { createContext, use } from 'react';
+import React, { createContext, PropsWithChildren, use } from "react";
+
+import { Project, Workspace } from "@/lib/workspaces/types";
 
 type ProjectContextType = {
-  projectId: string;
-  projectName: string;
+  workspace?: Workspace;
+  project?: Project;
+  projects: Project[];
 };
 
 export const ProjectContext = createContext<ProjectContextType>({
-  projectId: "",
-  projectName: "",
+  project: undefined,
+  workspace: undefined,
+  projects: [],
 });
 
-type ProjectContextProviderProps = {
-  projectId: string;
-  projectName: string;
-  children: React.ReactNode;
-};
-
-export const ProjectContextProvider = ({ projectId, projectName, children }: ProjectContextProviderProps) => (
-  <ProjectContext.Provider value={{ projectId, projectName }}>
-    {children}
-  </ProjectContext.Provider>
+export const ProjectContextProvider = ({
+  project,
+  projects,
+  workspace,
+  children,
+}: PropsWithChildren<ProjectContextType>) => (
+  <ProjectContext.Provider value={{ project, projects, workspace }}>{children}</ProjectContext.Provider>
 );
 
 export function useProjectContext() {

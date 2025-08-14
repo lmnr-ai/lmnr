@@ -1,32 +1,26 @@
-'use client';
+"use client";
 
-import { Edit, Loader2 } from 'lucide-react';
-import { useRouter } from "next/navigation";
-import { useState } from 'react';
+import { Edit, Loader2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { useProjectContext } from '@/contexts/project-context';
-import { useToast } from '@/lib/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useProjectContext } from "@/contexts/project-context";
+import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 
-interface RenameProjectProps { }
+interface RenameProjectProps {}
 
-export default function RenameProject({ }: RenameProjectProps) {
-  const { projectId, projectName } = useProjectContext();
+export default function RenameProject({}: RenameProjectProps) {
+  const { project } = useProjectContext();
+  const { projectId } = useParams();
   const router = useRouter();
 
-  const [newProjectName, setNewProjectName] = useState<string>('');
+  const [newProjectName, setNewProjectName] = useState<string>("");
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
@@ -35,9 +29,9 @@ export default function RenameProject({ }: RenameProjectProps) {
     setIsLoading(true);
 
     const res = await fetch(`/api/projects/${projectId}`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         name: newProjectName,
@@ -46,15 +40,15 @@ export default function RenameProject({ }: RenameProjectProps) {
 
     if (res.ok) {
       toast({
-        title: 'Project Renamed',
+        title: "Project Renamed",
         description: `Project renamed successfully!.`,
       });
       router.refresh();
       setIsRenameDialogOpen(false);
     } else {
       toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again later.',
+        title: "Error",
+        description: "Something went wrong. Please try again later.",
       });
     }
 
@@ -72,7 +66,7 @@ export default function RenameProject({ }: RenameProjectProps) {
           open={isRenameDialogOpen}
           onOpenChange={() => {
             setIsRenameDialogOpen(!isRenameDialogOpen);
-            setNewProjectName('');
+            setNewProjectName("");
           }}
         >
           <DialogTrigger asChild>
@@ -95,24 +89,14 @@ export default function RenameProject({ }: RenameProjectProps) {
               <Label>Enter new project name</Label>
               <Input
                 autoFocus
-                placeholder={projectName}
+                placeholder={project?.name}
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
               />
             </div>
             <DialogFooter>
-              <Button
-                disabled={!newProjectName.trim() || isLoading}
-                onClick={renameProject}
-                handleEnter={true}
-              >
-                <Loader2
-                  className={cn(
-                    'mr-2 hidden',
-                    isLoading ? 'animate-spin block' : ''
-                  )}
-                  size={16}
-                />
+              <Button disabled={!newProjectName.trim() || isLoading} onClick={renameProject} handleEnter={true}>
+                <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
                 Rename
               </Button>
             </DialogFooter>
