@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
@@ -196,9 +196,6 @@ export const agentSessions = pgTable("agent_sessions", {
   index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
   index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
 ]);
-
-export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
-export const workspaceRole = pgEnum("workspace_role", ["member", "admin", "owner"]);
 
 export const agentMessages = pgTable("agent_messages", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
