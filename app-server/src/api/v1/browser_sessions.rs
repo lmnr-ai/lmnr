@@ -96,7 +96,7 @@ async fn create_session_event(
         .await?;
 
         if limits_exceeded.bytes_ingested {
-            return Ok(HttpResponse::PaymentRequired().json("Workspace data limit exceeded"));
+            return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
         }
     }
 
