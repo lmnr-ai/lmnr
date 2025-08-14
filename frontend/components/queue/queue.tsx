@@ -1,10 +1,11 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { ArrowDown, ArrowUp, ArrowUpRight, Loader2 } from "lucide-react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
@@ -50,7 +51,6 @@ function QueueInner() {
     getTarget: state.getTarget,
     annotationSchema: state.annotationSchema,
   }));
-
 
   const states = useMemo(() => {
     const isEmpty = !currentItem || currentItem.count === 0;
@@ -188,6 +188,48 @@ function QueueInner() {
     move(new Date(0).toISOString(), "next", "first-load");
   }, []);
 
+  useHotkeys(
+    "meta+up",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (currentItem) {
+          move(currentItem.createdAt, "next");
+        }
+      },
+      [currentItem, move]
+    ),
+    { enableOnFormTags: true }
+  );
+
+  useHotkeys(
+    "meta+down",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (currentItem) {
+          move(currentItem.createdAt, "prev");
+        }
+      },
+      [currentItem, move]
+    ),
+    { enableOnFormTags: true }
+  );
+
+  useHotkeys(
+    "meta+enter",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (!states.complete) {
+          remove();
+        }
+      },
+      [states.complete, remove]
+    ),
+    { enableOnFormTags: true }
+  );
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Header path={`labeling queues/${storeQueue?.name || "Queue"}`} />
@@ -228,34 +270,34 @@ function QueueInner() {
         </ResizablePanel>
         <ResizableHandle withHandle className="z-50" />
         <ResizablePanel className="flex-1 flex-col flex" minSize={20} defaultSize={33}>
-          <div className="flex gap-2 p-4 py-2 border-b text-secondary-foreground justify-between items-center">
+          <div className="flex gap-2 p-4 py-2 border-b text-secondary-foreground justify-between items-center overflow-auto">
             <span className="text-nowrap">
               Item {currentItem?.position || 0} of {currentItem?.count || 0}
             </span>
-            <div className="flex flex-wrap justify-end items-center gap-2">
-              <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
-                Skip
-              </Button>
-              <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "prev")}
-                disabled={states.prev}
-                variant="outline"
-              >
-                <ArrowDown size={16} className="mr-2" />
-                Prev
-              </Button>
-              <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "next")}
-                disabled={states.next}
-                variant="outline"
-              >
-                <ArrowUp size={16} className="mr-2" />
-                Next
-              </Button>
-              <Button onClick={() => remove()} disabled={states.complete}>
-                Complete
-              </Button>
-            </div>
+
+            <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
+              Skip
+            </Button>
+            <Button
+              onClick={() => currentItem && move(currentItem.createdAt, "prev")}
+              disabled={states.prev}
+              variant="outline"
+            >
+              <span className="mr-2">Prev</span>
+              <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ↓</div>
+            </Button>
+            <Button
+              onClick={() => currentItem && move(currentItem.createdAt, "next")}
+              disabled={states.next}
+              variant="outline"
+            >
+              <span className="mr-2">Next</span>
+              <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ↑</div>
+            </Button>
+            <Button onClick={() => remove()} disabled={states.complete}>
+              <span className="mr-2">Complete</span>
+              <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ⏎</div>
+            </Button>
           </div>
           <div className={cn("flex flex-col flex-1 relative overflow-hidden")}>
             {!!isLoading && (

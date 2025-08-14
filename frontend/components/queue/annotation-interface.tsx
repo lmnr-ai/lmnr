@@ -1,5 +1,6 @@
 "use client";
 
+import { KeyboardEvent, useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";
@@ -75,20 +76,49 @@ const FieldOptions = ({
   field,
   target,
   updateTargetField,
+  isFieldFocused,
+  fieldIndex,
+  onNavigate,
 }: {
   field: any;
   target: Record<string, unknown>;
   updateTargetField: (key: string, value: unknown) => void;
+  isFieldFocused: boolean;
+  fieldIndex: number;
+  onNavigate: (direction: "next" | "prev") => void;
 }) => {
-  // Handle string input fields
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (field.type === "string" && inputRef.current) {
+      if (isFieldFocused) {
+        inputRef.current.focus();
+      } else {
+        inputRef.current.blur();
+      }
+    }
+  }, [isFieldFocused, field.type, field.key]);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        onNavigate("prev");
+      } else {
+        onNavigate("next");
+      }
+    }
+  };
+
   if (field.type === "string") {
     return (
       <Input
+        ref={inputRef}
         type="text"
         placeholder="Input text..."
-        value={(target[field.key] as string) || ""
-        }
+        value={(target[field.key] as string) || ""}
         onChange={(e) => updateTargetField(field.key, e.target.value)}
+        onKeyDown={handleKeyDown}
         className="text-sm"
       />
     );
@@ -143,7 +173,6 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
   useHotkeys("1,2,3,4,5,6,7,8,9", (event) => {
     if (fields.length === 0) return;
     const focusedField = fields[focusedFieldIndex];
-    // Don't handle number keys for string fields (let user type normally)
     if (focusedField?.type === "string") return;
 
     const num = parseInt(event.key);
@@ -169,13 +198,22 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
         >
           <div className="flex items-center justify-between">
             <div className="text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-mono bg-muted/50 font-medium">{field.key}</Badge>
+              <Badge variant="outline" className="text-xs font-mono bg-muted/50 font-medium">
+                {field.key}
+              </Badge>
               <span className="font-medium">{field.description || field.key}</span>
             </div>
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{index + 1}</span>
           </div>
 
-          <FieldOptions field={field} target={target} updateTargetField={updateTargetField} />
+          <FieldOptions
+            field={field}
+            target={target}
+            updateTargetField={updateTargetField}
+            isFieldFocused={focusedFieldIndex === index}
+            fieldIndex={index}
+            onNavigate={focusField}
+          />
         </div>
       ))}
 
