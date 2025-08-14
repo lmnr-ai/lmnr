@@ -221,6 +221,9 @@ importers:
       json-2-csv:
         specifier: ^5.5.9
         version: 5.5.9
+      json-schema-to-zod:
+        specifier: ^2.6.1
+        version: 2.6.1
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -4325,6 +4328,10 @@ packages:
 
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
+
+  json-schema-to-zod@2.6.1:
+    resolution: {integrity: sha512-uiHmWH21h9FjKJkRBntfVGTLpYlCZ1n98D0izIlByqQLqpmkQpNTBtfbdP04Na6+43lgsvrShFh2uWLkQDKJuQ==}
+    hasBin: true
 
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
@@ -10366,6 +10373,8 @@ snapshots:
       doc-path: 4.1.1
 
   json-buffer@3.0.1: {}
+
+  json-schema-to-zod@2.6.1: {}
 
   json-schema-traverse@0.4.1: {}
 

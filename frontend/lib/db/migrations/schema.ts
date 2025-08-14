@@ -33,45 +33,6 @@ export const spanType = pgEnum("span_type", [
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner"]);
 
-export const datasetParquets = pgTable(
-  "dataset_parquets",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    datasetId: uuid("dataset_id").defaultRandom().notNull(),
-    parquetPath: text("parquet_path").notNull(),
-    jobId: uuid("job_id").defaultRandom().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.datasetId],
-      foreignColumns: [datasets.id],
-      name: "dataset_parquets_dataset_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const dashboardCharts = pgTable(
-  "dashboard_charts",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    name: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    query: text().notNull(),
-    settings: jsonb().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "fk_dashboard_charts_project_id",
-    }).onDelete("cascade"),
-  ]
-);
-
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -263,6 +224,26 @@ export const providerApiKeys = pgTable(
   ]
 );
 
+export const labelingQueues = pgTable(
+  "labeling_queues",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    annotationSchema: jsonb("annotation_schema"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "labeling_queues_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const targetPipelineVersions = pgTable(
   "target_pipeline_versions",
   {
@@ -305,25 +286,6 @@ export const userSubscriptionInfo = pgTable(
       columns: [table.userId],
       foreignColumns: [users.id],
       name: "user_subscription_info_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const labelingQueues = pgTable(
-  "labeling_queues",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "labeling_queues_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -877,24 +839,6 @@ export const playgrounds = pgTable(
   ]
 );
 
-export const sqlTemplates = pgTable(
-  "sql_templates",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    name: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    query: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "sql_templates_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
 export const evaluatorScores = pgTable(
   "evaluator_scores",
   {
@@ -1059,6 +1003,43 @@ export const workspaces = pgTable(
       foreignColumns: [subscriptionTiers.id],
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
+  ]
+);
+
+export const sqlTemplates = pgTable(
+  "sql_templates",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    query: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "sql_templates_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const dashboardCharts = pgTable(
+  "dashboard_charts",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    query: text().notNull(),
+    settings: jsonb().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_dashboard_charts_project_id",
+    }).onDelete("cascade"),
   ]
 );
 
