@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+import { Badge } from "../ui/badge";
 import { useQueueStore } from "./queue-store";
 
 interface AnnotationInterfaceProps {
@@ -84,8 +85,9 @@ const FieldOptions = ({
     return (
       <Input
         type="text"
-        placeholder={`Enter ${field.description || field.key}...`}
-        value={(target[field.key] as string) || ""}
+        placeholder="Input text..."
+        value={(target[field.key] as string) || ""
+        }
         onChange={(e) => updateTargetField(field.key, e.target.value)}
         className="text-sm"
       />
@@ -157,20 +159,18 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="text-sm font-medium">Annotation Interface</div>
-
       {fields.map((field, index) => (
         <div
           key={field.key}
           className={cn(
             "space-y-2 p-3 rounded-lg border transition-colors",
-            focusedFieldIndex === index ? "border-primary bg-primary/5" : "border-transparent"
+            focusedFieldIndex === index ? "border-primary bg-primary/5" : "border-muted"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="text-sm">
+            <div className="text-sm flex items-center gap-2">
+              <Badge variant="outline" className="text-xs font-mono bg-muted/50 font-medium">{field.key}</Badge>
               <span className="font-medium">{field.description || field.key}</span>
-              <span className="text-xs text-muted-foreground ml-2">({field.key})</span>
             </div>
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{index + 1}</span>
           </div>
@@ -185,9 +185,6 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
             <div className="mb-1">
               <strong>Navigation:</strong> Tab to navigate between dimensions, Shift+Tab to go backwards, &#39;a&#39; to
               focus first dimension
-            </div>
-            <div className="mb-1">
-              <strong>Current focus:</strong> {fields[focusedFieldIndex]?.description || fields[focusedFieldIndex]?.key}
             </div>
             <div>
               <strong>Keys 1-9:</strong> Select options within the focused dimension (not for string fields)

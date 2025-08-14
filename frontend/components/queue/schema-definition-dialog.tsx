@@ -2,7 +2,6 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { Settings } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
@@ -131,8 +130,8 @@ export default function SchemaDefinitionDialog() {
       }
     }}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-6 w-6">
-          <Settings size={14} />
+        <Button variant="outline">
+          Define target schema
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl h-[80vh] overflow-hidden">

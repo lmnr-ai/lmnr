@@ -51,6 +51,8 @@ function QueueInner() {
     annotationSchema: state.annotationSchema,
   }));
 
+  console.log(annotationSchema);
+
   const states = useMemo(() => {
     const isEmpty = !currentItem || currentItem.count === 0;
     const isFirstItem = currentItem?.position === 1;
@@ -267,7 +269,7 @@ function QueueInner() {
               <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset?.id)} />
             </div>
             <div className="flex flex-1 h-full flex-col overflow-auto p-4">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-2">
                 <span>Target</span>
                 <SchemaDefinitionDialog />
               </div>
