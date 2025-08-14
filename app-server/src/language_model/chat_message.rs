@@ -150,8 +150,6 @@ pub struct ChatMessageImageRawBytes {
     pub mime_type: Option<String>,
 }
 
-// This is not different from ChatMessageText when serialized, but carries more information
-// for intermediate processing.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageAISDKToolResult {
