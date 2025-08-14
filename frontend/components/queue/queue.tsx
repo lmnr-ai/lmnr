@@ -51,7 +51,6 @@ function QueueInner() {
     annotationSchema: state.annotationSchema,
   }));
 
-  console.log(annotationSchema);
 
   const states = useMemo(() => {
     const isEmpty = !currentItem || currentItem.count === 0;
