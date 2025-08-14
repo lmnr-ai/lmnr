@@ -36,6 +36,12 @@ async fn get_datapoints(
     let dataset_id =
         db::datasets::get_dataset_id_by_name(&db.pool, &query.name, project_id).await?;
 
+    let Some(dataset_id) = dataset_id else {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Dataset not found"
+        })));
+    };
+
     // Get datapoints from ClickHouse
     let ch_datapoints = ch_datapoints::get_datapoints_paginated(
         clickhouse.clone(),
@@ -105,6 +111,12 @@ async fn create_datapoints(
     // Get dataset metadata from PostgreSQL
     let dataset_id =
         db::datasets::get_dataset_id_by_name(&db.pool, &request.dataset_name, project_id).await?;
+
+    let Some(dataset_id) = dataset_id else {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Dataset not found"
+        })));
+    };
 
     // Convert request datapoints to Datapoint structs
     let datapoints: Vec<Datapoint> = request

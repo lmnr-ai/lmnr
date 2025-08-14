@@ -6,9 +6,11 @@ use uuid::Uuid;
 
 use crate::{
     browser_events::QueueBrowserEventMessage,
-    db::project_api_keys::ProjectApiKey,
+    db::{DB, project_api_keys::ProjectApiKey},
+    features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait},
     routes::types::ResponseResult,
+    traces::limits::get_workspace_limit_exceeded_by_project_id,
 };
 
 pub const BROWSER_SESSIONS_QUEUE: &str = "browser_sessions_queue";
@@ -71,6 +73,9 @@ async fn create_session_event(
     batch: web::Json<EventBatch>,
     project_api_key: ProjectApiKey,
     queue: web::Data<Arc<MessageQueue>>,
+    db: web::Data<DB>,
+    cache: web::Data<crate::cache::Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let filtered_batch = batch.into_inner();
 
@@ -79,6 +84,20 @@ async fn create_session_event(
         return Ok(HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid trace_id: must not be null (00000000-0000-0000-0000-000000000000)"
         })));
+    }
+
+    if is_feature_enabled(Feature::UsageLimit) {
+        let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+            db.into_inner(),
+            clickhouse.into_inner().as_ref().clone(),
+            cache.into_inner(),
+            project_api_key.project_id,
+        )
+        .await?;
+
+        if limits_exceeded.bytes_ingested {
+            return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
+        }
     }
 
     let message = QueueBrowserEventMessage {

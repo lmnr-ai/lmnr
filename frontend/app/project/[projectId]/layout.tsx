@@ -14,7 +14,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
-import { getWorkspaceInfo, getWorkspaceUsage } from "@/lib/actions/workspaces";
+import { getWorkspaceInfo, getWorkspaceUsage } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
@@ -128,7 +128,13 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>
-            <ProjectSidebar workspaceId={project.workspaceId} isFreeTier={project.isFreeTier} projectId={projectId} />
+            <ProjectSidebar
+              workspaceId={project.workspaceId}
+              isFreeTier={project.isFreeTier}
+              projectId={projectId}
+              gbUsedThisMonth={project.gbUsedThisMonth}
+              gbLimit={project.gbLimit}
+            />
             <SidebarInset className="overflow-hidden">
               {showBanner && (
                 <ProjectUsageBanner

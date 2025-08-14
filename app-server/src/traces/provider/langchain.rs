@@ -21,6 +21,7 @@ use serde_json::Value;
 use crate::{
     db::spans::{Span, SpanType},
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
+    utils::json_value_to_string,
 };
 
 use super::openai::OpenAIChatMessageContentPartImageUrl;
@@ -332,6 +333,11 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
             ChatMessageContentPart::Text(text) => Ok(Some(LangChainChatMessageContentPart::Text(
                 LangChainChatMessageContentPartText { text: text.text },
             ))),
+            ChatMessageContentPart::AISDKToolResult(tool_result) => Ok(Some(
+                LangChainChatMessageContentPart::Text(LangChainChatMessageContentPartText {
+                    text: json_value_to_string(&tool_result.output),
+                }),
+            )),
             ChatMessageContentPart::ImageUrl(image_url) => Ok(Some(
                 LangChainChatMessageContentPart::Image(LangChainChatMessageContentPartImage::Url(
                     LangChainChatMessageContentPartImageOrFileUrl { url: image_url.url },

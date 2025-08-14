@@ -197,6 +197,9 @@ export const agentSessions = pgTable("agent_sessions", {
   index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
 ]);
 
+export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
+export const workspaceRole = pgEnum("workspace_role", ["member", "admin", "owner"]);
+
 export const agentMessages = pgTable("agent_messages", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   id: uuid().defaultRandom().primaryKey().notNull(),

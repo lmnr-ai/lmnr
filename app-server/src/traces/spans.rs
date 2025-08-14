@@ -1001,7 +1001,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                 let Some(otel_content) = message.get("content") else {
                     return Err(anyhow::anyhow!("Can't find content in message"));
                 };
-                let mut tool_call_id = message
+                let tool_call_id = message
                     .get("tool_call_id")
                     .and_then(|v| v.as_str())
                     .map(String::from);
@@ -1018,33 +1018,7 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
                         }
                         ChatMessageContent::ContentPartList(parts)
                     }
-                    Err(_) => {
-                        if let Value::Array(parts) = otel_content {
-                            let ai_sdk_tool_result_msg = parts.iter().find(|part| {
-                                if let Value::Object(obj) = part {
-                                    obj.get("type")
-                                        == Some(&Value::String("tool-result".to_string()))
-                                        && obj.get("toolCallId").is_some()
-                                        && obj.get("output").is_some()
-                                } else {
-                                    false
-                                }
-                            });
-                            if let Some(Value::Object(obj)) = ai_sdk_tool_result_msg {
-                                tool_call_id = obj.get("toolCallId").map(|v| v.to_string());
-                                let output = obj.get("output").unwrap_or(&Value::Null);
-                                ChatMessageContent::ContentPartList(vec![
-                                    ChatMessageContentPart::Text(ChatMessageText {
-                                        text: json_value_to_string(output),
-                                    }),
-                                ])
-                            } else {
-                                ChatMessageContent::Text(json_value_to_string(&otel_content))
-                            }
-                        } else {
-                            ChatMessageContent::Text(json_value_to_string(otel_content))
-                        }
-                    }
+                    Err(_) => ChatMessageContent::Text(json_value_to_string(&otel_content)),
                 };
                 Ok(ChatMessage {
                     role: role.to_string(),
@@ -1988,8 +1962,17 @@ mod tests {
             ("ai.settings.maxRetries".to_string(), json!(2)),
             (
                 "ai.prompt".to_string(),
-                json!(
-                    "{\"system\":\"You are a helpful assistant.\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is the weather in SF?\"}]}]}"
+                Value::String(
+                    json!({
+                        "system": "You are a helpful assistant.",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [{"type": "text", "text": "What is the weather in SF?"}]
+                            }
+                        ]
+                    })
+                    .to_string(),
                 ),
             ),
             ("ai.settings.maxSteps".to_string(), json!(1)),
@@ -2010,8 +1993,16 @@ mod tests {
             ("ai.response.finishReason".to_string(), json!("tool-calls")),
             (
                 "ai.response.toolCalls".to_string(),
-                json!(
-                    "[{\"toolCallType\":\"function\",\"toolCallId\":\"call_akUJWoAUcWDcvNJzcZx3MzPg\",\"toolName\":\"get_weather\",\"args\":\"{\\\"location\\\":\\\"San Francisco, CA\\\"}\"}]"
+                Value::String(
+                    json!([
+                        {
+                            "toolCallType": "function",
+                            "toolCallId": "call_akUJWoAUcWDcvNJzcZx3MzPg",
+                            "toolName": "get_weather",
+                            "args": "{\"location\":\"San Francisco, CA\"}"
+                        }
+                    ])
+                    .to_string(),
                 ),
             ),
             ("ai.usage.promptTokens".to_string(), json!(108)),
@@ -2053,16 +2044,48 @@ mod tests {
             ("ai.prompt.format".to_string(), json!("messages")),
             (
                 "ai.prompt.messages".to_string(),
-                json!(
-                    "[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is the weather in SF?\"}]}]"
+                Value::String(
+                    json!([
+                        {"role":"system","content":"You are a helpful assistant."},
+                        {"role":"user","content":[{"type":"text","text":"What is the weather in SF?"}]}
+                    ])
+                    .to_string(),
                 ),
             ),
             (
                 "ai.prompt.tools".to_string(),
                 json!([
-                    "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the weather in a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}",
-                    "{\"type\":\"function\",\"name\":\"get_time\",\"description\":\"Get the time in a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"}},\"required\":[\"location\"],\"additionalProperties\":false,\"$schema\":\"http://json-schema.org/draft-07/schema#\"}}"
-                ]),
+                    Value::String(
+                        json!({
+                            "type":"function",
+                            "name":"get_weather",
+                            "description":"Get the weather in a given location",
+                            "parameters":{
+                                "type":"object",
+                                "properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"}},
+                                "required":["location"],
+                                "additionalProperties":false,
+                                "$schema":"http://json-schema.org/draft-07/schema#"
+                            }
+                        })
+                        .to_string()
+                    ),
+                    Value::String(
+                        json!({
+                            "type":"function",
+                            "name":"get_time",
+                            "description":"Get the time in a given location",
+                            "parameters":{
+                                "type":"object",
+                                "properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"}},
+                                "required":["location"],
+                                "additionalProperties":false,
+                                "$schema":"http://json-schema.org/draft-07/schema#"
+                            }
+                        })
+                            .to_string(),
+                        ),
+                    ])
             ),
             (
                 "ai.prompt.toolChoice".to_string(),
@@ -2090,8 +2113,16 @@ mod tests {
             ("ai.response.finishReason".to_string(), json!("tool-calls")),
             (
                 "ai.response.toolCalls".to_string(),
-                json!(
-                    "[{\"toolCallType\":\"function\",\"toolCallId\":\"call_akUJWoAUcWDcvNJzcZx3MzPg\",\"toolName\":\"get_weather\",\"args\":\"{\\\"location\\\":\\\"San Francisco, CA\\\"}\"}]"
+                Value::String(
+                    json!([
+                        {
+                            "toolCallType":"function",
+                            "toolCallId":"call_akUJWoAUcWDcvNJzcZx3MzPg",
+                            "toolName":"get_weather",
+                            "args":"{\"location\":\"San Francisco, CA\"}"
+                        }
+                    ])
+                    .to_string(),
                 ),
             ),
             (
@@ -2516,6 +2547,386 @@ mod tests {
                 .raw_attributes
                 .get("gen_ai.request.model"),
             Some(&json!("gpt-4.1-nano"))
+        );
+    }
+
+    #[test]
+    fn test_aisdk_tool_results_v4() {
+        test_aisdk_tool_results(true);
+    }
+
+    #[test]
+    fn test_aisdk_tool_results_v5() {
+        test_aisdk_tool_results(false);
+    }
+
+    fn test_aisdk_tool_results(is_v4: bool) {
+        let parent_span_id = Uuid::new_v4();
+        let child_span_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let key = if is_v4 { "result" } else { "output" };
+
+        // Create parent span (ai.generateText) - has DEFAULT span type
+        let parent_attributes = HashMap::from([
+            ("operation.name".to_string(), json!("ai.generateText")),
+            ("ai.operationId".to_string(), json!("ai.generateText")),
+            ("ai.model.provider".to_string(), json!("openai.chat")),
+            ("ai.model.id".to_string(), json!("gpt-4.1-nano")),
+            ("ai.settings.maxRetries".to_string(), json!(2)),
+            (
+                "ai.prompt".to_string(),
+                Value::String(
+                    json!({
+                        "system":"You are a helpful assistant.",
+                        "messages":[
+                            {"role":"user","content":"What is the weather and time in SF?"},
+                            {"role":"assistant","content":[
+                                {"type":"tool-call","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
+                                {"type":"tool-call","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                            ]},
+                            {"role":"tool","content":[
+                                {"type":"tool-result","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",key:"Sunny as always!"},
+                                {"type":"tool-result","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",key:"12:00 PM"}
+                            ]}
+                        ]
+                    }).to_string(),
+                ),
+            ),
+            ("ai.settings.maxSteps".to_string(), json!(1)),
+            (
+                "lmnr.span.ids_path".to_string(),
+                json!([parent_span_id.to_string()]),
+            ),
+            ("lmnr.span.path".to_string(), json!(["ai.generateText"])),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("javascript"),
+            ),
+            ("lmnr.span.sdk_version".to_string(), json!("0.6.13")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("node@23.3.0"),
+            ),
+            ("ai.response.finishReason".to_string(), json!("tool-calls")),
+            (
+                "ai.response.toolCalls".to_string(),
+                Value::String(
+                    json!([
+                        {
+                            "toolCallType": "function",
+                            "toolCallId": "call_akUJWoAUcWDcvNJzcZx3MzPg",
+                            "toolName": "get_weather",
+                            "args": "{\"location\":\"San Francisco, CA\"}"
+                        }
+                    ])
+                    .to_string(),
+                ),
+            ),
+            ("ai.usage.promptTokens".to_string(), json!(108)),
+            ("ai.usage.completionTokens".to_string(), json!(17)),
+        ]);
+
+        let mut parent_span = Span {
+            span_id: parent_span_id,
+            project_id: Uuid::new_v4(),
+            trace_id,
+            parent_span_id: None,
+            name: "ai.generateText".to_string(),
+            attributes: SpanAttributes::new(parent_attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::DEFAULT,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Create child span (ai.generateText.doGenerate) - has LLM span type
+        let child_attributes = HashMap::from([
+            (
+                "operation.name".to_string(),
+                json!("ai.generateText.doGenerate"),
+            ),
+            (
+                "ai.operationId".to_string(),
+                json!("ai.generateText.doGenerate"),
+            ),
+            ("ai.model.provider".to_string(), json!("openai.chat")),
+            ("ai.model.id".to_string(), json!("gpt-4.1-nano")),
+            ("ai.settings.maxRetries".to_string(), json!(2)),
+            ("ai.prompt.format".to_string(), json!("messages")),
+            (
+                "ai.prompt.messages".to_string(),
+                Value::String(
+                    Value::Array(vec![
+                        json!({"role":"system","content":"You are a helpful assistant."}),
+                        json!({"role":"user","content":[{"type":"text","text":"What is the weather and time in SF?"}]}),
+                        json!({"role":"assistant","content":[
+                            {"type":"tool-call","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
+                            {"type":"tool-call","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                        ]}),
+                        json!({"role":"tool","content":[
+                            {"type":"tool-result","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",key:"Sunny as always!"},
+                            {"type":"tool-result","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",key:"12:00 PM"}]})
+                    ])
+                    .to_string()
+                ),
+            ),
+            (
+                "ai.prompt.tools".to_string(),
+                json!([
+                    Value::String(
+                        json!({
+                            "type":"function",
+                            "name":"get_weather",
+                            "description":"Get the weather in a given location",
+                            "parameters":{
+                                "type":"object",
+                                "properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"}},
+                                "required":["location"],
+                                "additionalProperties":false,
+                                "$schema":"http://json-schema.org/draft-07/schema#"
+                            }
+                        })
+                        .to_string()
+                    ),
+                    Value::String(
+                        json!({
+                            "type":"function",
+                            "name":"get_time",
+                            "description":"Get the time in a given location",
+                            "parameters":{
+                                "type":"object",
+                                "properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"}},
+                                "required":["location"],
+                                "additionalProperties":false,
+                                "$schema":"http://json-schema.org/draft-07/schema#"
+                            }
+                        })
+                            .to_string(),
+                        ),
+                    ])
+            ),
+            (
+                "ai.prompt.toolChoice".to_string(),
+                json!("{\"type\":\"auto\"}"),
+            ),
+            ("gen_ai.system".to_string(), json!("openai.chat")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4.1-nano")),
+            (
+                "lmnr.span.ids_path".to_string(),
+                json!([parent_span_id.to_string(), child_span_id.to_string()]),
+            ),
+            (
+                "lmnr.span.path".to_string(),
+                json!(["ai.generateText", "ai.generateText.doGenerate"]),
+            ),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("javascript"),
+            ),
+            ("lmnr.span.sdk_version".to_string(), json!("0.6.13")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("node@23.3.0"),
+            ),
+            ("ai.response.finishReason".to_string(), json!("tool-calls")),
+            (
+                "ai.response.toolCalls".to_string(),
+                Value::String(
+                    json!([
+                        {
+                            "toolCallType":"function",
+                            "toolCallId":"call_akUJWoAUcWDcvNJzcZx3MzPg",
+                            "toolName":"get_weather",
+                            "args":"{\"location\":\"San Francisco, CA\"}"
+                        }
+                    ])
+                    .to_string(),
+                ),
+            ),
+            (
+                "ai.response.id".to_string(),
+                json!("chatcmpl-BpafAvtYoJBBUQpui72D8vHSt8CDp"),
+            ),
+            (
+                "ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            (
+                "ai.response.timestamp".to_string(),
+                json!("2025-07-04T13:22:40.000Z"),
+            ),
+            ("ai.usage.promptTokens".to_string(), json!(108)),
+            ("ai.usage.completionTokens".to_string(), json!(17)),
+            (
+                "gen_ai.response.finish_reasons".to_string(),
+                json!(["tool-calls"]),
+            ),
+            (
+                "gen_ai.response.id".to_string(),
+                json!("chatcmpl-BpafAvtYoJBBUQpui72D8vHSt8CDp"),
+            ),
+            (
+                "gen_ai.response.model".to_string(),
+                json!("gpt-4.1-nano-2025-04-14"),
+            ),
+            ("gen_ai.usage.input_tokens".to_string(), json!(108)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(17)),
+        ]);
+
+        let mut child_span = Span {
+            span_id: child_span_id,
+            project_id: Uuid::new_v4(),
+            trace_id,
+            parent_span_id: Some(parent_span_id),
+            name: "ai.generateText.doGenerate".to_string(),
+            attributes: SpanAttributes::new(child_attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Verify initial span relationships and structure
+        assert_eq!(parent_span.parent_span_id, None);
+        assert_eq!(child_span.parent_span_id, Some(parent_span_id));
+        assert_eq!(parent_span.trace_id, child_span.trace_id);
+        assert_eq!(parent_span.span_type, SpanType::DEFAULT);
+        assert_eq!(child_span.span_type, SpanType::LLM);
+
+        // Verify initial path and ids_path
+        assert_eq!(
+            parent_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText"]))
+        );
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([parent_span_id.to_string()]))
+        );
+        assert_eq!(
+            child_span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["ai.generateText", "ai.generateText.doGenerate"]))
+        );
+        assert_eq!(
+            child_span
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.ids_path"),
+            Some(&json!([
+                parent_span_id.to_string(),
+                child_span_id.to_string()
+            ]))
+        );
+
+        // Verify initial state - no input/output yet
+        assert!(parent_span.input.is_none());
+        assert!(parent_span.output.is_none());
+        assert!(child_span.input.is_none());
+        assert!(child_span.output.is_none());
+
+        // Apply transformations to both spans
+        parent_span.parse_and_enrich_attributes();
+        child_span.parse_and_enrich_attributes();
+
+        // Verify parent span parsing (ai.generateText)
+        assert!(parent_span.input.is_some());
+        assert!(parent_span.output.is_some());
+
+        let parent_input = parent_span.input.as_ref().unwrap();
+        let parent_input_messages: Vec<ChatMessage> =
+            serde_json::from_value(parent_input.clone()).unwrap();
+
+        // First message: system
+        assert_eq!(parent_input_messages[0].role, "system");
+        match &parent_input_messages[0].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, "You are a helpful assistant.");
+            }
+            _ => panic!("Expected text content for system message"),
+        }
+
+        // Second message: user
+        assert_eq!(parent_input_messages[1].role, "user");
+        match &parent_input_messages[1].content {
+            ChatMessageContent::Text(text) => {
+                assert_eq!(text, "What is the weather and time in SF?");
+            }
+            _ => panic!("Expected text content for user message"),
+        }
+
+        assert!(child_span.input.is_some());
+        assert!(child_span.output.is_some());
+
+        let child_input = child_span.input.as_ref().unwrap();
+        let child_input_messages: Vec<ChatMessage> =
+            serde_json::from_value(child_input.clone()).unwrap();
+        assert_eq!(child_input_messages.len(), 4);
+
+        // Child input should match parent input
+        assert_eq!(child_input_messages[0].role, "system");
+        assert_eq!(child_input_messages[1].role, "user");
+        assert_eq!(child_input_messages[2].role, "assistant");
+        assert_eq!(child_input_messages[3].role, "tool");
+
+        let assistant_message = &child_input_messages[2];
+        let assistant_message_content = match &assistant_message.content {
+            ChatMessageContent::ContentPartList(parts) => parts,
+            _ => panic!("Expected content part list for assistant message"),
+        };
+        assert_eq!(assistant_message_content.len(), 2);
+        assert!(matches!(
+            assistant_message_content[0],
+            ChatMessageContentPart::ToolCall(_)
+        ));
+        assert!(matches!(
+            assistant_message_content[1],
+            ChatMessageContentPart::ToolCall(_)
+        ));
+
+        let tool_message = &child_input_messages[3];
+        let tool_message_content = match &tool_message.content {
+            ChatMessageContent::ContentPartList(parts) => parts,
+            _ => panic!("Expected content part list for tool message"),
+        };
+        assert_eq!(tool_message_content.len(), 2);
+        match &tool_message_content[0] {
+            ChatMessageContentPart::AISDKToolResult(tool_result) => {
+                assert_eq!(tool_result.tool_call_id, "call_D2fRbvPAs1s4C9fd60l9diSk");
+                assert_eq!(tool_result.tool_name, "get_weather");
+                assert_eq!(tool_result.output, "Sunny as always!");
+            }
+            _ => panic!("Expected AISDKToolResult for tool message"),
+        }
+        match &tool_message_content[1] {
+            ChatMessageContentPart::AISDKToolResult(tool_result) => {
+                assert_eq!(tool_result.tool_call_id, "call_mB9nVqiW5NlbtFtBi06Gzr5F");
+                assert_eq!(tool_result.tool_name, "get_time");
+                assert_eq!(tool_result.output, "12:00 PM");
+            }
+            _ => panic!("Expected AISDKToolResult for tool message"),
+        }
+
+        // Verify GenAI attributes are only on the LLM span
+        assert!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("gen_ai.system")
+                .is_none()
         );
     }
 

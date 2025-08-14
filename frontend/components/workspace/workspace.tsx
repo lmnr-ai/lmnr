@@ -1,7 +1,7 @@
 "use client";
 
 import { WorkspaceStats } from "@/lib/usage/types";
-import { WorkspaceInvitation, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import WorkspaceSettings from "./workspace-settings";
@@ -13,9 +13,10 @@ interface WorkspaceProps {
   workspace: WorkspaceWithUsers;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
+  currentUserRole: WorkspaceRole;
 }
 
-export default function WorkspaceComponent({ invitations, workspace, workspaceStats, isOwner }: WorkspaceProps) {
+export default function WorkspaceComponent({ invitations, workspace, workspaceStats, isOwner, currentUserRole }: WorkspaceProps) {
   return (
     <div className="flex flex-col">
       <Tabs defaultValue="usage">
@@ -34,6 +35,7 @@ export default function WorkspaceComponent({ invitations, workspace, workspaceSt
               workspace={workspace}
               workspaceStats={workspaceStats}
               isOwner={isOwner}
+              currentUserRole={currentUserRole}
             />
           </TabsContent>
           <TabsContent value="settings">
