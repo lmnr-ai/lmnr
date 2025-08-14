@@ -299,14 +299,7 @@ export default function Landing() {
                   >
                   </InfoCard>
                   <InfoCard
-                    title="Tool calls"
-                    description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
-                    animationOrder={1}
-                    className="md:border-l border-b"
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Tags"
+                    title="Tool calls and structured output tracing"
                     description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
                     animationOrder={1}
                     className="md:border-l border-b"
@@ -466,9 +459,9 @@ function InfoCard({
         transition: `opacity 600ms ease ${baseDelay}ms, transform 600ms ease ${baseDelay}ms`,
       }}
     >
-      <div className="p-8 space-y-2 flex flex-col">
+      <div className="p-8 space-y-1 flex flex-col">
         <h3
-          className="text-2xl font-semibold transition-all tracking-normal font-title"
+          className="text-xl font-semibold transition-all tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
