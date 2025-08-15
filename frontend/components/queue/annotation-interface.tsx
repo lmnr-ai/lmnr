@@ -77,14 +77,12 @@ const FieldOptions = ({
   target,
   updateTargetField,
   isFieldFocused,
-  fieldIndex,
   onNavigate,
 }: {
   field: any;
   target: Record<string, unknown>;
   updateTargetField: (key: string, value: unknown) => void;
   isFieldFocused: boolean;
-  fieldIndex: number;
   onNavigate: (direction: "next" | "prev") => void;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -211,7 +209,6 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
             target={target}
             updateTargetField={updateTargetField}
             isFieldFocused={focusedFieldIndex === index}
-            fieldIndex={index}
             onNavigate={focusField}
           />
         </div>
@@ -225,7 +222,7 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
               focus first dimension
             </div>
             <div>
-              <strong>Keys 1-9:</strong> Select options within the focused dimension (not for string fields)
+              <strong>Keys 1-9:</strong> Select options within the focused dimension
             </div>
           </div>
         )}
