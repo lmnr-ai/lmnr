@@ -51,7 +51,6 @@ function QueueInner() {
     annotationSchema: state.annotationSchema,
   }));
 
-
   const states = useMemo(() => {
     const isEmpty = !currentItem || currentItem.count === 0;
     const isFirstItem = currentItem?.position === 1;
@@ -76,6 +75,10 @@ function QueueInner() {
 
     if (get(currentItem.metadata, "source") === "span") {
       return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
+    }
+
+    if (get(currentItem.metadata, "source") === "sql") {
+      return `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`;
     }
     return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
   }, [currentItem, projectId, storeQueue?.id]);
