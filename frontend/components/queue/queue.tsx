@@ -17,7 +17,6 @@ import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
 import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";
-import { Progress } from "../ui/progress";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import AnnotationInterface from "./annotation-interface";
 import { QueueStoreProvider, useQueueStore } from "./queue-store";
@@ -293,19 +292,15 @@ function QueueInner() {
           )}
         </ResizablePanel>
         <ResizableHandle withHandle className="z-50" />
-        <ResizablePanel className="flex-1 flex-col flex" minSize={20} defaultSize={33}>
-          <div className="flex flex-col gap-2 p-4 py-2 border-b text-secondary-foreground justify-between items-center">
-            <div className="flex w-full items-center justify-between">
-              <span className="text-nowrap">
-                Item {currentItem?.position || 0} of {currentItem?.count || 0}
-              </span>
-              <span className="text-xs font-medium whitespace-nowrap">{progressPercentage}%</span>
-            </div>
-            <Progress value={progressPercentage} className="h-1" />
-            <div className="flex w-full flex-wrap gap-2">
+        <ResizablePanel className="flex-1 flex-col flex" minSize={42} defaultSize={33}>
+          <div className="flex p-4 py-2 border-b text-secondary-foreground justify-between w-full items-center">
+            <span className="text-nowrap">
+              {currentItem?.position || 0} of {currentItem?.count || 0}
+            </span>
+            <div className="flex flex-wrap gap-2">
               <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
                 <span className="mr-2">Skip</span>
-                <div className="flex items-center text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">
+                <div className="flex items-center text-center text-xs opacity-75">
                   ⌘ + ›
                 </div>
               </Button>
@@ -315,7 +310,7 @@ function QueueInner() {
                 variant="outline"
               >
                 <span className="mr-2">Prev</span>
-                <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ↓</div>
+                <div className="text-center text-xs opacity-75">⌘ + ↓</div>
               </Button>
               <Button
                 onClick={() => currentItem && move(currentItem.createdAt, "next")}
@@ -323,11 +318,11 @@ function QueueInner() {
                 variant="outline"
               >
                 <span className="mr-2">Next</span>
-                <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ↑</div>
+                <div className="text-center text-xs opacity-75">⌘ + ↑</div>
               </Button>
               <Button onClick={() => remove()} disabled={states.complete}>
                 <span className="mr-2">Complete</span>
-                <div className="text-center bg-muted px-1.5 py-0.5 rounded text-xs opacity-75">⌘ + ⏎</div>
+                <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
               </Button>
             </div>
           </div>

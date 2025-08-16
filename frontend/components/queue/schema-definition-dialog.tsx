@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { theme } from "@/components/ui/code-highlighter/utils";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -17,26 +16,26 @@ import { useQueueStore } from "./queue-store";
 const exampleSchema = {
   type: "object",
   properties: {
-    materialityRating: {
+    exampleInteger: {
       type: "integer",
       minimum: 1,
-      maximum: 3,
-      description: "Rate the materiality of this content",
+      maximum: 30,
+      description: "Test integer field",
     },
-    infoType: {
-      enum: ["information", "opinion"],
-      description: "Information or opinion?",
+    exampleEnum: {
+      enum: ["enum1", "enum2", "enum3"],
+      description: "Test enum field",
     },
-    unverifiableClaim: {
+    exampleBoolean: {
       type: "boolean",
-      description: "Does this contain unverifiable claims?",
+      description: "Test boolean field",
     },
-    feedback: {
+    exampleString: {
       type: "string",
-      description: "Additional feedback or comments",
+      description: "Test string field",
     },
   },
-  required: ["materialityRating", "infoType", "unverifiableClaim"],
+  required: ["exampleInteger", "exampleEnum", "exampleBoolean", "exampleString"],
 };
 
 export default function SchemaDefinitionDialog() {
@@ -134,7 +133,7 @@ export default function SchemaDefinitionDialog() {
           Define target schema
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl h-[80vh] overflow-hidden">
+      <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">
         <DialogTitle className="hidden invisible" />
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
           <span className="text-lg font-medium">Define Annotation Schema</span>
@@ -144,7 +143,6 @@ export default function SchemaDefinitionDialog() {
             Supported types: string, integer/number (with min/max), boolean, enum
           </p>
           <Separator />
-          <Label>JSON Schema</Label>
           <div className="flex h-full border rounded-md bg-muted/50 overflow-auto">
             <CodeMirror
               className="h-full w-full"

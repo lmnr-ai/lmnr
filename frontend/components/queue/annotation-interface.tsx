@@ -5,6 +5,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
@@ -86,6 +87,7 @@ const FieldOptions = ({
   onNavigate: (direction: "next" | "prev") => void;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const sliderRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (field.type === "string" && inputRef.current) {
@@ -93,6 +95,12 @@ const FieldOptions = ({
         inputRef.current.focus();
       } else {
         inputRef.current.blur();
+      }
+    } else if (field.type === "number" && sliderRef.current) {
+      if (isFieldFocused) {
+        sliderRef.current.focus();
+      } else {
+        sliderRef.current.blur();
       }
     }
   }, [isFieldFocused, field.type, field.key]);
@@ -119,6 +127,36 @@ const FieldOptions = ({
         onKeyDown={handleKeyDown}
         className="text-sm"
       />
+    );
+  }
+
+  if (field.type === "number" && isNumberOptions(field.options)) {
+    const options = field.options as { min?: number; max?: number };
+    const min = options.min || 1;
+    const max = options.max || 5;
+    const currentValue = (target[field.key] as number) || min;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Value:</span>
+          <span className="font-medium">{currentValue}</span>
+        </div>
+        <Slider
+          ref={sliderRef}
+          value={[currentValue]}
+          onValueChange={(values) => updateTargetField(field.key, values[0])}
+          min={min}
+          max={max}
+          step={1}
+          className="w-full"
+          tabIndex={isFieldFocused ? 0 : -1}
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{min}</span>
+          <span>{max}</span>
+        </div>
+      </div>
     );
   }
 
@@ -180,6 +218,24 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
     }
   });
 
+  useHotkeys("left,right", (event) => {
+    if (fields.length === 0) return;
+    const focusedField = fields[focusedFieldIndex];
+    if (focusedField?.type !== "number" || !isNumberOptions(focusedField.options)) return;
+
+    event.preventDefault();
+    const options = focusedField.options as { min?: number; max?: number };
+    const min = options.min || 1;
+    const max = options.max || 5;
+    const currentValue = (target[focusedField.key] as number) || min;
+
+    if (event.key === "left" && currentValue > min) {
+      updateTargetField(focusedField.key, currentValue - 1);
+    } else if (event.key === "right" && currentValue < max) {
+      updateTargetField(focusedField.key, currentValue + 1);
+    }
+  });
+
   if (fields.length === 0) {
     return null;
   }
@@ -199,7 +255,7 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
               <Badge variant="outline" className="text-xs font-mono bg-muted/50 font-medium">
                 {field.key}
               </Badge>
-              <span className="font-medium">{field.description || field.key}</span>
+              <span className="font-base text-secondary-foreground">{field.description || field.key}</span>
             </div>
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{index + 1}</span>
           </div>
@@ -221,8 +277,11 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
               <strong>Navigation:</strong> Tab to navigate between dimensions, Shift+Tab to go backwards, &#39;a&#39; to
               focus first dimension
             </div>
+            <div className="mb-1">
+              <strong>Keys 1-9:</strong> Select options within the focused dimension (enum/boolean fields)
+            </div>
             <div>
-              <strong>Keys 1-9:</strong> Select options within the focused dimension
+              <strong>Arrow keys:</strong> Adjust slider values (number fields)
             </div>
           </div>
         )}
