@@ -59,12 +59,23 @@ function parseAnnotationSchema(annotationSchema: Record<string, unknown> | null)
   const fields: AnnotationField[] = [];
 
   for (const [key, property] of Object.entries(properties)) {
-    if (typeof property !== "object" || !property.type) continue;
+    if (typeof property !== "object") continue;
 
     const description = property.description;
     const type = property.type;
 
-    if (type === "string") {
+    // Handle enum fields (which may not have a type property)
+    if (property.enum && Array.isArray(property.enum)) {
+      fields.push({
+        key,
+        type: "enum",
+        description,
+        options: property.enum.map((v: any) => String(v)),
+      });
+    } else if (!type) {
+      // Skip if no type and no enum
+      continue;
+    } else if (type === "string") {
       fields.push({
         key,
         type: "string",
@@ -84,13 +95,6 @@ function parseAnnotationSchema(annotationSchema: Record<string, unknown> | null)
         key,
         type: "boolean",
         description,
-      });
-    } else if (property.enum && Array.isArray(property.enum)) {
-      fields.push({
-        key,
-        type: "enum",
-        description,
-        options: property.enum.map((v: any) => String(v)),
       });
     }
   }

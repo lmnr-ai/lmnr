@@ -161,17 +161,18 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
 }
 
 export const UpdateQueueAnnotationSchemaSchema = z.object({
+  projectId: z.string(),
   queueId: z.string(),
   annotationSchema: z.record(z.string(), z.unknown()).nullable(),
 });
 
 export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQueueAnnotationSchemaSchema>) {
-  const { queueId, annotationSchema } = UpdateQueueAnnotationSchemaSchema.parse(input);
+  const { queueId, projectId, annotationSchema } = UpdateQueueAnnotationSchemaSchema.parse(input);
 
   const [updatedQueue] = await db
     .update(labelingQueues)
     .set({ annotationSchema })
-    .where(eq(labelingQueues.id, queueId))
+    .where(and(eq(labelingQueues.projectId, projectId), eq(labelingQueues.id, queueId)))
     .returning();
 
   if (!updatedQueue) {

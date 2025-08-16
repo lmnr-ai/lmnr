@@ -10,6 +10,7 @@ export async function PUT(request: Request, props: { params: Promise<{ projectId
 
     const updatedQueue = await updateQueueAnnotationSchema({
       queueId: params.queueId,
+      projectId: params.projectId,
       ...body,
     });
 
