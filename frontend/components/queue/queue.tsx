@@ -341,17 +341,15 @@ function QueueInner() {
                 <span>Target</span>
                 <SchemaDefinitionDialog />
               </div>
-              <span className="text-secondary-foreground text-xs mb-2">
-                Data that will be written to the target key of the payload object. It can contain any valid JSON
-                structure.
-              </span>
-
               {annotationSchema && (
-                <div className="mb-4">
+                <div className="mb-4 border-b pb-4">
                   <AnnotationInterface />
                 </div>
               )}
 
+              <span className="text-secondary-foreground text-xs mb-2">
+                JSON data that will be written to the target key of the payload object.
+              </span>
               <div className="flex flex-1 min-h-fit overflow-hidden">
                 <CodeHighlighter
                   codeEditorClassName="rounded-b"

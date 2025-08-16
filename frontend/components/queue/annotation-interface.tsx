@@ -270,18 +270,20 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
         </div>
       ))}
 
-      <div className="text-xs text-muted-foreground pt-2 border-t">
+      <div className="text-xs text-muted-foreground pt-2">
         {fields.length > 0 && (
           <div>
             <div className="mb-1">
-              <strong>Navigation:</strong> Tab to navigate between dimensions, Shift+Tab to go backwards, &#39;a&#39; to
-              focus first dimension
+              <strong>Navigation:</strong> <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">Tab</kbd> to
+              navigate between dimensions,{" "}
+              <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">Shift+Tab</kbd> to go backwards,{" "}
+              <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">a</kbd> to focus on the first dimension
             </div>
             <div className="mb-1">
-              <strong>Keys 1-9:</strong> Select options within the focused dimension (enum/boolean fields)
+              <strong>Keys 1-9:</strong> Select options within the focused dimension
             </div>
             <div>
-              <strong>Arrow keys:</strong> Adjust slider values (number fields)
+              <strong>Arrow keys:</strong> Adjust slider values
             </div>
           </div>
         )}
