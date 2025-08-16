@@ -271,43 +271,44 @@ export default function Landing() {
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <InfoCard
-                  title="Automatic tracing of LLM frameworks and SDKs with 1 line of code"
-                  description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be traced automatically."
-                  animationOrder={0}
-                  className="border-b"
-                >
-                  <div className="flex flex-col">
-                    <div className="flex mt-4 flex-col">
-                      <FrameworksGrid className="mt-2" labelTextColor="text-white/70" />
+                <div className="flex h-full flex-row items-center border-b">
+                  <InfoCard
+                    title="Automatic tracing of LLM frameworks and SDKs with 1 line of code"
+                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be traced automatically."
+                    animationOrder={0}
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex mt-4 flex-col">
+                        <FrameworksGrid className="mt-2" labelTextColor="text-white/70" />
+                      </div>
                     </div>
-                  </div>
-                </InfoCard>
+                  </InfoCard>
+                </div>
                 <div>
                   <InfoCard
-                    title="Real-time traces"
-                    description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
+                    title="Real-time tracing of long-running agents"
+                    description="Don't wait for your AI agents to finish to start debugging them. Laminar shows spans as they happen."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Error capture"
-                    description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
+                    description="Laminar captures application level exceptions and surfaces them in the UI."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Tool calls and structured output tracing"
-                    description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
+                    description="Laminar automatically traces tool calls and structured outputs of LLM calls."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
-                    title="Events"
-                    description="Don't wait for your AI workflows and agents to finish to debug them. Laminar's tracing engine provides real-time traces."
+                    title="Events with custom payloads"
+                    description="Emit events with custom payloads from your code to track custom metrics and debug your agents."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
@@ -334,6 +335,15 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                   </div>
                 </div>
               </InfoCard>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
+          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
+            Iterate
+          </h1>
+          <div className="flex flex-col w-full border">
+            <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
                   <InfoCard
@@ -374,46 +384,11 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                   >
                     <DatasetsAnimation />
                   </InfoCard>
-                  <InfoCard
-                    title="Fully Open Source"
-                    description="Laminar is fully open source and easy to self-host. Easy to deploy locally or on your own infrastructure with docker compose or helm charts."
-                    animationOrder={3}
-                    className="md:border-l"
-                  >
-                    <div className="flex flex-col space-y-4">
-                      <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
-                        <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer group">
-                          <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="w-6 h-6 text-white group-hover:text-gray-200 transition-colors"
-                              fill="currentColor"
-                            >
-                              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-white group-hover:text-gray-200 transition-colors">
-                              Open Source
-                            </div>
-                            <div className="text-xs text-white/60 group-hover:text-white/80 transition-colors">
-                              Apache 2.0 License
-                            </div>
-                          </div>
-                          <div className="text-xs text-white/80 hover:text-white transition-colors flex items-center">
-                            View on GitHub
-                            <ArrowUpRight className="ml-1 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                          </div>
-                        </div>
-                      </Link>
-                    </div>
-                  </InfoCard>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
         <Footer />
       </div>
     </>
@@ -522,49 +497,6 @@ function InfoCard({
   );
 }
 
-function CodeTabs({ pythonCode, tsCode }: { pythonCode?: string; tsCode?: string }) {
-  const [selectedLang, setSelectedLang] = useState("typescript");
-
-  return (
-    <div className="w-full bg-black rounded-lg h-full flex flex-col">
-      <div className="p-4 flex space-x-2 text-sm font-medium">
-        <button
-          onClick={() => setSelectedLang("typescript")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "typescript" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
-        >
-          TypeScript
-        </button>
-        <button
-          onClick={() => setSelectedLang("python")}
-          className={`border border-white/40 h-7 px-2 rounded ${selectedLang === "python" ? "bg-white text-black" : "text-white/90 font-medium"
-            }`}
-        >
-          Python
-        </button>
-      </div>
-
-      <div className="p-4">
-        {selectedLang === "python" && (
-          <CodeHighlighter
-            className="bg-black border-white"
-            code={pythonCode || ""}
-            language="python"
-            copyable={false}
-          />
-        )}
-        {selectedLang === "typescript" && (
-          <CodeHighlighter
-            className="bg-black border-white"
-            code={tsCode || ""}
-            language="javascript"
-            copyable={false}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
 
 function TestimonialCard({
   quote,
