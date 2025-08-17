@@ -13,6 +13,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import FiltersContextProvider from "../ui/datatable-filter/context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import EventsTable from "./events-table";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
 import TraceView from "./trace-view";
@@ -23,14 +24,15 @@ enum TracesTab {
   TRACES = "traces",
   SESSIONS = "sessions",
   SPANS = "spans",
+  EVENTS = "events",
 }
 
 type NavigationItem =
   | string
   | {
-      traceId: string;
-      spanId: string;
-    };
+    traceId: string;
+    spanId: string;
+  };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
@@ -110,6 +112,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
             <TabsTrigger value="traces">Traces</TabsTrigger>
             <TabsTrigger value="spans">Spans</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
           <TabsContent value="traces" asChild>
             <TracesTable />
@@ -119,6 +122,9 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
           </TabsContent>
           <TabsContent value="sessions" asChild>
             <SessionsTable />
+          </TabsContent>
+          <TabsContent value="events" asChild>
+            <EventsTable />
           </TabsContent>
         </Tabs>
         {traceId && (
