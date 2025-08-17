@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
-import { labelingQueueItems } from "@/lib/db/migrations/schema";
+import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
 
 export const MoveQueueSchema = z.object({
   queueId: z.string(),
@@ -155,8 +155,29 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
         createdAt: new Date().toISOString(),
       },
     ]);
-
   } else {
     throw new Error("Invalid request parameters - either skip must be true or datasetId must be provided");
   }
+}
+
+export const UpdateQueueAnnotationSchemaSchema = z.object({
+  projectId: z.string(),
+  queueId: z.string(),
+  annotationSchema: z.record(z.string(), z.unknown()).nullable(),
+});
+
+export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQueueAnnotationSchemaSchema>) {
+  const { queueId, projectId, annotationSchema } = UpdateQueueAnnotationSchemaSchema.parse(input);
+
+  const [updatedQueue] = await db
+    .update(labelingQueues)
+    .set({ annotationSchema })
+    .where(and(eq(labelingQueues.projectId, projectId), eq(labelingQueues.id, queueId)))
+    .returning();
+
+  if (!updatedQueue) {
+    throw new Error("Failed to update queue annotation schema");
+  }
+
+  return updatedQueue;
 }

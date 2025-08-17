@@ -148,8 +148,8 @@ const processMessageContent = (
   role?: string,
   message?: any
 ): string | any[] => {
-  if (typeof content === "string") {
-    if (role === "tool") {
+  if (role === "tool") {
+    if (typeof content === "string") {
       return [
         {
           type: "tool-result" as const,
@@ -159,6 +159,12 @@ const processMessageContent = (
         },
       ];
     }
+    if (Array.isArray(content) && content.every((part) => part.type === "tool-result")) {
+      return content;
+    }
+  }
+
+  if (typeof content === "string") {
     return content;
   }
 
