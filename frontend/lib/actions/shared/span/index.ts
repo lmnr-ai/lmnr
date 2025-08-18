@@ -82,7 +82,7 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
 };
 
 const tryParseJson = (value: string) => {
-  if (value === "") return null;
+  if (value === "" || value === undefined) return null;
 
   try {
     return JSON.parse(value);
