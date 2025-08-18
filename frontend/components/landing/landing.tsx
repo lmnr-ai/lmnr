@@ -273,8 +273,8 @@ export default function Landing() {
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="flex h-full flex-row items-center border-b">
                   <InfoCard
-                    title="Automatic tracing of LLM frameworks and SDKs with 1 line of code"
-                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be traced automatically."
+                    title="1 line of code to trace LLM frameworks and SDKs"
+                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
                     animationOrder={0}
                   >
                     <div className="flex flex-col">
@@ -286,29 +286,29 @@ export default function Landing() {
                 </div>
                 <div>
                   <InfoCard
-                    title="Real-time tracing of long-running agents"
-                    description="Don't wait for your AI agents to finish to start debugging them. Laminar shows spans as they happen."
+                    title="See traces of long-running agents in real time"
+                    description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
-                    title="Error capture"
-                    description="Laminar captures application level exceptions and surfaces them in the UI."
+                    title="Automatic error capture"
+                    description="Laminar automatically captures application level exceptions."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Tool calls and structured output tracing"
-                    description="Laminar automatically traces tool calls and structured outputs of LLM calls."
+                    description="Understand when your agent fails to use tools and to produce structured output."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
-                    title="Events with custom payloads"
-                    description="Emit events with custom payloads from your code to track custom metrics and debug your agents."
+                    title="Track custom metrics with events"
+                    description="You can emit events with custom metadata from your code to track custom metrics of your agent."
                     animationOrder={1}
                     className="md:border-l border-b"
                   >
@@ -334,55 +334,102 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                     <IconPlaywright className="w-5 h-5 text-white" />
                   </div>
                 </div>
+                <div
+                  style={{
+                    transform: "translateY(0)",
+                    transition: `transform 700ms ease`,
+                  }}
+                >
+                  <div className="md:border-l md:border-t-0 border-t">
+                    <Image src={browserAgentObservability} alt="Browser agent observability" className="w-full object-cover object-top" />
+                  </div>
+                </div>
               </InfoCard>
             </div>
           </div>
         </div>
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
           <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-            Iterate
+            Query & Analyze
           </h1>
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="Experiment with LLM spans in the Playground"
-                    description="Open LLM spans in the Playground to experiment with prompts and models."
+                    title="Query all data on the platform with SQL"
+                    description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
                     animationOrder={0}
                     className="border-b"
-                    actionText="Learn about playgrounds"
-                    linkUrl="https://docs.lmnr.ai/playground/quickstart"
                   >
-                    <div className="h-[141px] relative">
-                      <Image src={llmPlayground} alt="LLM playground" quality={100} />
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 to-background pointer-events-none" />
-                    </div>
-                  </InfoCard>
-                  <InfoCard
-                    title="Manage eval datasets in a single place"
-                    description="Build datasets from span data and use them for evals and prompt engineering."
-                    animationOrder={2}
-                    className="border-b md:border-b-0 bg-background"
-                    actionText="Learn about datasets"
-                    linkUrl="https://docs.lmnr.ai/datasets/quickstart"
-                  >
-                    <div className="relative">
-                      <Image src={datasets} alt="Datasets" quality={100} />
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background pointer-events-none" />
-                    </div>
                   </InfoCard>
                 </div>
                 <div className="grid grid-cols-1">
                   <InfoCard
-                    title="Create eval datasets from labeled data"
-                    description="Use labeling queues to quickly label data and create eval datasets."
+                    title="Track what matters to you with custom dashboards"
+                    description="Skip the dashboard builder. Just write SQL to create custom dashboards."
+                    animationOrder={0}
+                    className="border-b"
+                  >
+                  </InfoCard>
+                  <InfoCard
+                    title="From query to eval datasets in seconds"
+                    description="Query specific data to create eval datasets."
+                    animationOrder={2}
+                    className="border-b md:border-b-0 bg-background"
+                  >
+                  </InfoCard>
+                  <InfoCard
+                    title="Access platform data via SQL API"
+                    description="Use the Laminar SQL API to query data from your own applications."
                     animationOrder={1}
                     className="md:border-l border-b"
-                    actionText="Learn about labeling queues"
-                    linkUrl="https://docs.lmnr.ai/queues/quickstart"
                   >
-                    <DatasetsAnimation />
+                    {/* <DatasetsAnimation /> */}
+                  </InfoCard>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
+          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
+            Evaluate & Iterate
+          </h1>
+          <div className="flex flex-col w-full border">
+            <div className="flex flex-col">
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="grid grid-cols-1">
+                  <InfoCard
+                    title="Zero boilerplate evaluation SDK"
+                    description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
+                    animationOrder={0}
+                    className="border-b"
+                  >
+                  </InfoCard>
+                </div>
+                <div className="grid grid-cols-1">
+                  <InfoCard
+                    title="Iterate on prompts without touching your codebase"
+                    description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
+                    animationOrder={0}
+                    className="border-b"
+                  >
+                  </InfoCard>
+                  <InfoCard
+                    title="Catch regressions before your users do"
+                    description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
+                    animationOrder={1}
+                    className="md:border-l border-b"
+                  >
+                    {/* <DatasetsAnimation /> */}
+                  </InfoCard>
+                  <InfoCard
+                    title="Build high-quality eval datasets efficiently"
+                    description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
+                    animationOrder={2}
+                    className="border-b md:border-b-0 bg-background"
+                  >
                   </InfoCard>
                 </div>
               </div>
@@ -480,19 +527,6 @@ function InfoCard({
           </div>
         )}
       </div>
-      {image && (
-        <div
-          style={{
-            opacity: inView ? 1 : 0,
-            transform: inView ? "translateY(0)" : "translateY(20px)",
-            transition: `opacity 700ms ease ${baseDelay + 500}ms, transform 700ms ease ${baseDelay + 500}ms`,
-          }}
-        >
-          <div className="md:border-l md:border-t-0 border-t">
-            <Image src={image} alt={title} className="w-full object-cover object-top" />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -718,25 +752,3 @@ function RealTimeTraces() {
     </div>
   );
 }
-
-//
-// observe
-//   - auto-instrumentation -> value: super easy to get started
-//   - real-time traces -> value: see what's happening in your app
-//   - error capture
-//   - tags
-//   - events
-//   - capture tool calls, and structured output schemas
-//   - high performance
-//   - trace entire application, not just LLM
-//   - browser agent observability
-
-// iterate
-//   - proper evals sdk, powered by traces
-//   - experiment with LLM spans in playground
-//   - online evals, online scores
-//   - datasets
- 
-// query: 
-//   - query any data
-//   - custom dashboards
