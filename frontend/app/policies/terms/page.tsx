@@ -192,7 +192,7 @@ export default function TermsPage() {
               <h2>10. GOVERNING LAW</h2>
             </strong>
           </div>
-          <div><span>These Legal Terms shall be governed by and defined following the laws of Delaware, US. LMNR AI, Inc. and yourself irrevocably consent that the courts of <span> Dealaware </span> shall have exclusive jurisdiction to resolve any dispute which may arise in connection with these Legal Terms. </span></div>
+          <div><span>These Legal Terms shall be governed by and defined following the laws of Delaware, US. LMNR AI, Inc. and yourself irrevocably consent that the courts of <span> Delaware </span> shall have exclusive jurisdiction to resolve any dispute which may arise in connection with these Legal Terms. </span></div>
           <div id="disputes"><strong>
             <h2>11. DISPUTE RESOLUTION</h2>
           </strong></div>
