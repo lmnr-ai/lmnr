@@ -49,6 +49,7 @@ export default [
       'unused-imports/no-unused-imports': ['error'],
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
+      'react/no-unescaped-entities': 'off',
     },
   },
 ]; 
