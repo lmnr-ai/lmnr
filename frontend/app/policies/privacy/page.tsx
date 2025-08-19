@@ -573,7 +573,7 @@ export default function PrivacyPage() {
             <span>We may disclose your personal information with our service providers pursuant to a written contract between us and each service provider. Learn more about how we disclose personal information to in the section, " </span><a href="#whoshare"><span>WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?</span></a><span> " </span>
           </div>
           <span>We may use your personal information for our own business purposes, such as for undertaking internal research for technological development and demonstration. This is not considered to be "selling" of your personal information. </span>
-          <span>We have not disclosed, sold, or shared any personal information to third parties for a business or commercial purpose in the preceding twelve (12) months. Wewill not sell or share personal information in the future belonging to website visitors, users, and other consumers.</span>
+          <span>We have not disclosed, sold, or shared any personal information to third parties for a business or commercial purpose in the preceding twelve (12) months. We will not sell or share personal information in the future belonging to website visitors, users, and other consumers.</span>
           <div>
             <span><strong>
               <h3>Your Rights </h3>
@@ -660,7 +660,7 @@ export default function PrivacyPage() {
           </div>
           <span> LMNR AI, Inc. </span>
           <span>Data Protection Officer</span>
-          <span> 22611 Market Street </span>
+          <span> 2261 Market Street </span>
           <span> STE 10826 </span>
           <div>
             <span> San Francisco <span><span> , CA </span> 94114 </span>
