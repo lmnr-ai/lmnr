@@ -101,21 +101,7 @@ docker compose -f docker-compose-local-dev-full.yml up
 
 This will spin up postgres, qdrant, clickhouse, and RabbitMQ.
 
-### 2. Run agent manager in development mode
-
-Set environment variables in agent-manager/.env using the example in agent-manager/.env.example.
-
-Then,
-
-```sh
-cd agent-manager
-uv venv
-source .venv/bin/activate
-uv lock && uv sync
-python src/main.py
-```
-
-### 3. Run app server in development mode
+### 2. Run app server in development mode
 
 ```sh
 cd app-server
@@ -125,14 +111,14 @@ cargo r
 Rust is compiled and not hot-reloadable, so you will need to rerun `cargo r` every time you want
 to test a change.
 
-### 4. Run frontend in development mode
+### 3. Run frontend in development mode
 
 ```sh
 cd frontend
 pnpm run dev
 ```
 
-### 5. After finishing your changes
+### 4. After finishing your changes
 
 Make sure everything runs well in integration in dockers.
 

@@ -1,36 +1,31 @@
-import { type NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { type NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteAllProjectsWorkspaceInfoFromCache } from '@/lib/actions/project';
-import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { projects } from '@/lib/db/migrations/schema';
-import { isCurrentUserMemberOfWorkspace } from '@/lib/db/utils';
+import { createProject } from "@/lib/actions/projects";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(req: NextRequest): Promise<Response> {
   const session = await getServerSession(authOptions);
   const user = session!.user;
 
   if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
   const body = await req.json();
+  try {
+    const project = await createProject({
+      name: body.name,
+      workspaceId: body.workspaceId,
+    });
 
-  if (!(await isCurrentUserMemberOfWorkspace(body.workspaceId))) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return Response.json(project);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const project = await db.insert(projects).values({
-    name: body.name,
-    workspaceId: body.workspaceId,
-  }).returning();
-
-  if (project.length === 0) {
-    return new NextResponse(JSON.stringify({ error: 'Failed to create project' }), { status: 500 });
-  }
-
-  await deleteAllProjectsWorkspaceInfoFromCache(body.workspaceId);
-
-  return NextResponse.json(project[0]);
 }

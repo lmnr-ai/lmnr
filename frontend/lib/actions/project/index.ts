@@ -141,23 +141,6 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
   );
 }
 
-interface ProjectApiKeyData {
-  projectId: string;
-  name: string | null;
-  hash: string;
-  shorthand: string;
-}
-
-function isValidProjectApiKeyData(data: any): data is ProjectApiKeyData {
-  return (
-    data &&
-    typeof data.projectId === "string" &&
-    (data.name === null || typeof data.name === "string") &&
-    typeof data.hash === "string" &&
-    typeof data.shorthand === "string"
-  );
-}
-
 export async function deleteAllProjectsWorkspaceInfoFromCache(workspaceId: string) {
   // Cache carries information about the projects in the workspace, so we need to delete it
   // when we delete or create a project in the workspace.

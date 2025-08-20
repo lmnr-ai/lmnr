@@ -40,16 +40,12 @@ export const canSelectForYAxis = (column: ColumnInfo, chartType: ChartType | und
 export const isValidChartConfiguration = (config: ChartConfig, columns: ColumnInfo[]): boolean => {
   const { type, x, y, breakdown } = config;
 
-  if (!type || !x || y.length === 0) return false;
+  if (!type || !x || !y) return false;
 
   const xColumn = columns.find((col) => col.name === x);
-  const yColumns = y.map((yName) => columns.find((col) => col.name === yName)).filter(Boolean);
+  const yColumn = columns.find((col) => col.name === y);
 
-  if (!xColumn || yColumns.length !== y.length) return false;
-
-  if (type === ChartType.LineChart && breakdown && y.length > 1) {
-    return false;
-  }
+  if (!xColumn || !yColumn) return false;
 
   if (breakdown) {
     const breakdownColumn = columns.find((col) => col.name === breakdown);
@@ -61,6 +57,6 @@ export const isValidChartConfiguration = (config: ChartConfig, columns: ColumnIn
 
 export const getAvailableBreakdownColumns = (config: ChartConfig, columns: ColumnInfo[]): ColumnInfo[] => {
   const { x, y } = config;
-  const usedColumns = new Set([x, ...y].filter(Boolean));
+  const usedColumns = new Set([x, y].filter(Boolean));
   return columns.filter((col) => !usedColumns.has(col.name));
 };

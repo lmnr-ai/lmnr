@@ -1,10 +1,11 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { ArrowDown, ArrowUp, ArrowUpRight, Loader2 } from "lucide-react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
@@ -17,54 +18,44 @@ import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
+import AnnotationInterface from "./annotation-interface";
+import { QueueStoreProvider, useQueueStore } from "./queue-store";
+import SchemaDefinitionDialog from "./schema-definition-dialog";
 
-interface QueueProps {
-  queue: LabelingQueue;
-}
-
-const getDefaultState = (
-  id: string
-): LabelingQueueItem & {
-  count: number;
-  position: number;
-  payload: {
-    data: Record<string, unknown>;
-    target: Record<string, unknown>;
-  };
-} => ({
-  count: 0,
-  position: 0,
-  id: "-",
-  createdAt: "",
-  queueId: id,
-  metadata: "{}",
-  payload: {
-    data: {},
-    target: {},
-  },
-});
-
-export default function Queue({ queue }: QueueProps) {
+function QueueInner() {
   const { projectId } = useParams();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState<"skip" | "move" | "first-load" | false>("first-load");
-  const [isValid, setIsValid] = useState(true);
-  const [dataset, setDataset] = useState<string>();
-  const [currentItem, setCurrentItem] = useState<
-    LabelingQueueItem & {
-      count: number;
-      position: number;
-      payload: {
-        data: Record<string, unknown>;
-        target: Record<string, unknown>;
-      };
-    }
-  >(getDefaultState(queue.id));
+
+  const {
+    currentItem,
+    queue: storeQueue,
+    setCurrentItem,
+    isLoading,
+    setIsLoading,
+    isValid,
+    setIsValid,
+    dataset,
+    setDataset,
+    getTarget,
+    annotationSchema,
+  } = useQueueStore((state) => ({
+    currentItem: state.currentItem,
+    queue: state.queue,
+    setCurrentItem: state.setCurrentItem,
+    isLoading: state.isLoading,
+    setIsLoading: state.setIsLoading,
+    isValid: state.isValid,
+    setIsValid: state.setIsValid,
+    dataset: state.dataset,
+    setDataset: state.setDataset,
+    getTarget: state.getTarget,
+    annotationSchema: state.annotationSchema,
+  }));
 
   const states = useMemo(() => {
-    const isEmpty = currentItem.count === 0;
-    const isFirstItem = currentItem.position === 1;
-    const isLastItem = currentItem.position === currentItem.count;
+    const isEmpty = !currentItem || currentItem.count === 0;
+    const isFirstItem = currentItem?.position === 1;
+    const isLastItem = currentItem?.position === currentItem?.count;
     const isAnyLoading = !!isLoading;
     const isDatasetSelected = !!dataset;
 
@@ -74,9 +65,11 @@ export default function Queue({ queue }: QueueProps) {
       next: isAnyLoading || isLastItem || isEmpty || !isValid,
       complete: isAnyLoading || !isDatasetSelected || isEmpty || !isValid,
     };
-  }, [currentItem.count, currentItem.position, isLoading, dataset, isValid]);
+  }, [currentItem, isLoading, dataset, isValid]);
 
   const sourceLink = useMemo(() => {
+    if (!currentItem) return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
+
     if (get(currentItem.metadata, "source") === "datapoint") {
       return `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`;
     }
@@ -84,24 +77,34 @@ export default function Queue({ queue }: QueueProps) {
     if (get(currentItem.metadata, "source") === "span") {
       return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
     }
-    return `/project/${projectId}/labeling-queues/${queue.id}`;
-  }, [currentItem.metadata, projectId, queue.id]);
 
-  const onChange = useCallback((v: string) => {
-    try {
-      const parsedValue = JSON.parse(v);
-      setIsValid(true);
-      setCurrentItem((prev) => ({
-        ...prev,
-        payload: {
-          ...prev.payload,
-          target: parsedValue,
-        },
-      }));
-    } catch (e) {
-      setIsValid(false);
+    if (get(currentItem.metadata, "source") === "sql") {
+      return `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`;
     }
-  }, []);
+
+    return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
+  }, [currentItem, projectId, storeQueue?.id]);
+
+  const onChange = useCallback(
+    (v: string) => {
+      try {
+        const parsedValue = JSON.parse(v);
+        setIsValid(true);
+        if (currentItem) {
+          setCurrentItem({
+            ...currentItem,
+            payload: {
+              ...currentItem.payload,
+              target: parsedValue,
+            },
+          });
+        }
+      } catch (e) {
+        setIsValid(false);
+      }
+    },
+    [currentItem, setCurrentItem, setIsValid]
+  );
 
   const move = useCallback(
     async (
@@ -111,7 +114,7 @@ export default function Queue({ queue }: QueueProps) {
     ) => {
       try {
         setIsLoading(load);
-        const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/move`, {
+        const response = await fetch(`/api/projects/${projectId}/queues/${storeQueue?.id}/move`, {
           method: "POST",
           body: JSON.stringify({ refDate, direction }),
         });
@@ -130,7 +133,7 @@ export default function Queue({ queue }: QueueProps) {
             payload: data.payload,
           });
         } else {
-          setCurrentItem(getDefaultState(queue.id));
+          setCurrentItem(null);
         }
       } catch (e) {
         toast({
@@ -142,21 +145,21 @@ export default function Queue({ queue }: QueueProps) {
         setTimeout(() => setIsLoading(false), 300);
       }
     },
-    [projectId, queue.id, toast]
+    [projectId, storeQueue?.id, toast, setCurrentItem, setIsLoading]
   );
 
   const remove = useCallback(
     async (skip: boolean = false) => {
       try {
         setIsLoading("skip");
-        const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/remove`, {
+        const response = await fetch(`/api/projects/${projectId}/queues/${storeQueue?.id}/remove`, {
           method: "POST",
           body: JSON.stringify({
-            id: currentItem.id,
+            id: currentItem?.id,
             skip: skip,
-            data: get(currentItem.payload, "data", {}),
-            target: get(currentItem.payload, "target", {}),
-            metadata: get(currentItem.payload, "metadata", {}),
+            data: get(currentItem?.payload, "data", {}),
+            target: getTarget(),
+            metadata: get(currentItem?.payload, "metadata", {}),
             datasetId: dataset,
           }),
         });
@@ -170,7 +173,9 @@ export default function Queue({ queue }: QueueProps) {
           return;
         }
 
-        await move(currentItem.createdAt);
+        if (currentItem) {
+          await move(currentItem.createdAt);
+        }
       } catch (e) {
         toast({
           variant: "destructive",
@@ -181,16 +186,72 @@ export default function Queue({ queue }: QueueProps) {
         setTimeout(() => setIsLoading(false), 5000);
       }
     },
-    [currentItem.createdAt, currentItem.id, currentItem.payload, dataset, move, projectId, queue.id, toast]
+    [setIsLoading, projectId, storeQueue?.id, currentItem, getTarget, dataset, toast, move]
   );
 
   useEffect(() => {
     move(new Date(0).toISOString(), "next", "first-load");
   }, []);
 
+  useHotkeys(
+    "meta+up,ctrl+up",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (currentItem) {
+          move(currentItem.createdAt, "next");
+        }
+      },
+      [currentItem, move]
+    ),
+    { enableOnFormTags: true }
+  );
+
+  useHotkeys(
+    "meta+down,ctrl+down",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (currentItem) {
+          move(currentItem.createdAt, "prev");
+        }
+      },
+      [currentItem, move]
+    ),
+    { enableOnFormTags: true }
+  );
+
+  useHotkeys(
+    "meta+enter,ctrl+enter",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (!states.complete) {
+          remove();
+        }
+      },
+      [states.complete, remove]
+    ),
+    { enableOnFormTags: true }
+  );
+
+  useHotkeys(
+    "meta+right,ctrl+right",
+    useCallback(
+      (event) => {
+        event.preventDefault();
+        if (!states.skip) {
+          remove(true);
+        }
+      },
+      [states.skip, remove]
+    ),
+    { enableOnFormTags: true }
+  );
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <Header path={`labeling queues/${queue.name}`} />
+      <Header path={`labeling queues/${storeQueue?.name || "Queue"}`} />
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel className="flex flex-1 flex-col overflow-hidden p-4" minSize={20} defaultSize={50}>
           {isLoading === "first-load" ? (
@@ -199,13 +260,13 @@ export default function Queue({ queue }: QueueProps) {
               <Skeleton className="h-8" />
               <Skeleton className="h-full" />
             </div>
-          ) : currentItem.count > 0 ? (
+          ) : currentItem && currentItem.count > 0 ? (
             <>
               <span className="mb-1">Payload</span>
               <div className="flex text-xs gap-1 text-nowrap truncate">
                 <span className="text-secondary-foreground">Created from</span>
                 <Link className="flex text-xs items-center text-primary" href={sourceLink}>
-                  {get(currentItem.metadata, "source", "-")}
+                  {get(currentItem?.metadata, "source", "-")}
                   <ArrowUpRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -215,7 +276,7 @@ export default function Queue({ queue }: QueueProps) {
                   className="rounded"
                   defaultMode="json"
                   readOnly
-                  value={JSON.stringify(currentItem.payload, null, 2)}
+                  value={JSON.stringify(currentItem?.payload, null, 2)}
                 />
               </div>
             </>
@@ -227,25 +288,35 @@ export default function Queue({ queue }: QueueProps) {
           )}
         </ResizablePanel>
         <ResizableHandle withHandle className="z-50" />
-        <ResizablePanel className="flex-1 flex-col flex" minSize={20} defaultSize={33}>
-          <div className="flex gap-2 p-4 py-2 border-b text-secondary-foreground justify-between items-center">
+        <ResizablePanel className="flex-1 flex-col flex" minSize={42} defaultSize={33}>
+          <div className="flex p-4 py-2 border-b text-secondary-foreground justify-between w-full items-center">
             <span className="text-nowrap">
-              Item {currentItem.position} of {currentItem.count}
+              {currentItem?.position || 0} of {currentItem?.count || 0}
             </span>
-            <div className="flex flex-wrap justify-end items-center gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
-                Skip
+                <span className="mr-2">Skip</span>
+                <div className="flex items-center text-center text-xs opacity-75">⌘ + ›</div>
               </Button>
-              <Button onClick={() => move(currentItem.createdAt, "prev")} disabled={states.prev} variant="outline">
-                <ArrowDown size={16} className="mr-2" />
-                Prev
+              <Button
+                onClick={() => currentItem && move(currentItem.createdAt, "prev")}
+                disabled={states.prev}
+                variant="outline"
+              >
+                <span className="mr-2">Prev</span>
+                <div className="text-center text-xs opacity-75">⌘ + ↓</div>
               </Button>
-              <Button onClick={() => move(currentItem.createdAt, "next")} disabled={states.next} variant="outline">
-                <ArrowUp size={16} className="mr-2" />
-                Next
+              <Button
+                onClick={() => currentItem && move(currentItem.createdAt, "next")}
+                disabled={states.next}
+                variant="outline"
+              >
+                <span className="mr-2">Next</span>
+                <div className="text-center text-xs opacity-75">⌘ + ↑</div>
               </Button>
               <Button onClick={() => remove()} disabled={states.complete}>
-                Complete
+                <span className="mr-2">Complete</span>
+                <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
               </Button>
             </div>
           </div>
@@ -257,22 +328,30 @@ export default function Queue({ queue }: QueueProps) {
             )}
             <div className="p-4 border-b">
               <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
-              <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset.id)} />
+              <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset?.id)} />
             </div>
-            <div className="flex flex-1 h-full flex-col overflow-hidden p-4">
-              <span className="mb-1">Target</span>
+            <div className="flex flex-1 h-full flex-col overflow-auto p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span>Target</span>
+                <SchemaDefinitionDialog />
+              </div>
+              {annotationSchema && (
+                <div className="mb-4 border-b pb-4">
+                  <AnnotationInterface />
+                </div>
+              )}
+
               <span className="text-secondary-foreground text-xs mb-2">
-                Data that will be written to the target key of the payload object. It can contain any valid JSON
-                structure.
+                JSON data that will be written to the target key of the payload object.
               </span>
-              <div className="flex flex-1 overflow-hidden">
+              <div className="flex flex-1 min-h-fit overflow-hidden">
                 <CodeHighlighter
                   codeEditorClassName="rounded-b"
                   className={cn("rounded", {
                     "border border-destructive/75": !isValid,
                   })}
                   defaultMode="json"
-                  value={JSON.stringify(currentItem.payload.target)}
+                  value={JSON.stringify(getTarget())}
                   onChange={onChange}
                 />
               </div>
@@ -281,5 +360,13 @@ export default function Queue({ queue }: QueueProps) {
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
+  );
+}
+
+export default function Queue({ queue }: { queue: LabelingQueue }) {
+  return (
+    <QueueStoreProvider queue={queue}>
+      <QueueInner />
+    </QueueStoreProvider>
   );
 }

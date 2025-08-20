@@ -17,7 +17,7 @@ export default function WorkspacesNavbar() {
   const pathname = usePathname();
   return (
     <div className="flex flex-col h-screen fixed border-r w-64 items-center justify-start">
-      <Link href={"/projects"} className="flex h-14 items-center justify-center mb-4 mt-2">
+      <Link href={"/projects"} className="flex w-full p-4 h-14 items-center justify-start mb-4">
         <Image alt="" src={logo} width={130} />
       </Link>
       <div className="flex flex-col w-full items-start">

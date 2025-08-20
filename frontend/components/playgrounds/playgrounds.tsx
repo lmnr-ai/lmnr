@@ -2,12 +2,11 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
-import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
@@ -29,7 +28,7 @@ import { TableCell, TableRow } from "../ui/table";
 import CreatePlaygroundDialog from "./create-playground-dialog";
 
 export default function Playgrounds() {
-  const { projectId } = useProjectContext();
+  const { projectId } = useParams();
 
   const router = useRouter();
   const { data, mutate } = useSWR<PlaygroundInfo[]>(`/api/projects/${projectId}/playgrounds`, swrFetcher);
