@@ -148,13 +148,18 @@ const HumanEvaluationScore = ({
 
             return {
               ...currentData,
-              results: currentData.results.map((result) => ({
-                ...result,
-                scores: {
-                  ...result.scores,
-                  [data?.name]: scoreValue,
-                },
-              })),
+              results: currentData.results.map((result) => {
+                if (result.id === resultId) {
+                  return {
+                    ...result,
+                    scores: {
+                      ...result.scores,
+                      [data?.name]: scoreValue,
+                    },
+                  };
+                }
+                return result;
+              }),
             };
           },
           { revalidate: true }
