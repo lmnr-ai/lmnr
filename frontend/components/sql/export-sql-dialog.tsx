@@ -9,11 +9,13 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { ChevronDown, Database, Loader2 } from "lucide-react";
+import { ChevronDown, Database, Loader2, Pen, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
+import useSWR from "swr";
 
+import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { CategoryDropZone, ColumnCategory } from "@/components/sql/dnd-components";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -25,8 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { LabelingQueue } from "@/lib/queue/types";
+import { PaginatedResponse } from "@/lib/types";
+import { swrFetcher } from "@/lib/utils";
 
 import ExportJobDialog from "./export-job-dialog";
 
@@ -249,6 +255,239 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
   );
 }
 
+function ExportLabelingQueueDialog({
+  results,
+  children,
+}: PropsWithChildren<Pick<ExportResultsDialogProps, "results">>) {
+  const { projectId, id } = useParams();
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [selectedQueue, setSelectedQueue] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [columnsByCategory, setColumnsByCategory] = useState<Record<ColumnCategory, string[]>>({
+    data: [],
+    target: [],
+    metadata: [],
+  });
+  const { toast } = useToast();
+
+  const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
+    `/api/projects/${projectId}/queues`,
+    swrFetcher
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 12,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
+
+  const handleDialogOpen = (open: boolean) => {
+    if (open && results && results.length > 0) {
+      const allColumns = Object.keys(results[0]);
+      setColumnsByCategory({
+        data: allColumns,
+        target: [],
+        metadata: [],
+      });
+    } else {
+      setSelectedQueue("");
+    }
+
+    setIsExportDialogOpen(open);
+  };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const activeData = active.data.current as { column: string; category: ColumnCategory };
+      const sourceCategory = activeData.category;
+      const columnName = activeData.column;
+      const targetCategory = over.id as ColumnCategory;
+
+      if (
+        sourceCategory !== targetCategory &&
+        (targetCategory === "data" || targetCategory === "target" || targetCategory === "metadata")
+      ) {
+        setColumnsByCategory((prev) => {
+          const sourceColumns = prev[sourceCategory].filter((col) => col !== columnName);
+
+          const targetColumns = [...prev[targetCategory]];
+          if (!targetColumns.includes(columnName)) {
+            targetColumns.push(columnName);
+          }
+
+          return {
+            ...prev,
+            [sourceCategory]: sourceColumns,
+            [targetCategory]: targetColumns,
+          };
+        });
+      }
+    }
+  }, []);
+
+  const removeColumnFromCategory = useCallback((column: string, category: ColumnCategory) => {
+    setColumnsByCategory((prev) => ({
+      ...prev,
+      [category]: prev[category].filter((c) => c !== column),
+    }));
+  }, []);
+
+  const exportToQueue = useCallback(async () => {
+    if (!selectedQueue || !results || results.length === 0) return;
+
+    setIsExporting(true);
+
+    try {
+      const queueItems = results.map((row, index) => {
+        const payload = {
+          data: {} as Record<string, any>,
+          target: {} as Record<string, any>,
+          metadata: {} as Record<string, any>,
+        };
+
+        columnsByCategory.data.forEach((key) => {
+          payload.data[key] = row[key];
+        });
+
+        columnsByCategory.target.forEach((key) => {
+          payload.target[key] = row[key];
+        });
+
+        columnsByCategory.metadata.forEach((key) => {
+          payload.metadata[key] = row[key];
+        });
+
+        return {
+          createdAt: new Date(Date.now() + index * 1000).toISOString(),
+          payload,
+          metadata: {
+            source: "sql" as const,
+            id,
+          },
+        };
+      });
+
+      const res = await fetch(`/api/projects/${projectId}/queues/${selectedQueue}/push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(queueItems),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to export data to labeling queue");
+      }
+
+      toast({
+        title: `Exported to labeling queue`,
+        description: (
+          <span>
+            Successfully exported {queueItems.length} results to labeling queue.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue}`}>
+              Go to queue.
+            </Link>
+          </span>
+        ),
+      });
+
+      setIsExportDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Failed to export data to labeling queue",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [
+    columnsByCategory.data,
+    columnsByCategory.metadata,
+    columnsByCategory.target,
+    projectId,
+    results,
+    selectedQueue,
+    toast,
+  ]);
+
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  return (
+    <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="max-w-4xl bg-background">
+        <DialogHeader className="flex flex-row justify-between items-center">
+          <DialogTitle>Export SQL Results to Labeling Queue</DialogTitle>
+          <Button onClick={exportToQueue} disabled={isExporting || !selectedQueue}>
+            {isExporting && <Loader2 className="mr-2 animate-spin w-4 h-4" />}
+            Export to Queue
+          </Button>
+        </DialogHeader>
+        <div className="flex flex-1 flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label>Select Labeling Queue</Label>
+            <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a labeling queue" />
+              </SelectTrigger>
+              <SelectContent>
+                {labelingQueues?.items &&
+                  labelingQueues.items.map((queue) => (
+                    <SelectItem key={queue.id} value={queue.id}>
+                      {queue.name}
+                    </SelectItem>
+                  ))}
+                <CreateQueueDialog>
+                  <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
+                    <Plus className="w-3 h-3 mr-2" />
+                    <span className="text-xs">Create new queue</span>
+                  </div>
+                </CreateQueueDialog>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2 flex-1 overflow-auto max-h-[80vh] h-full">
+            <div>
+              <Label className="text-lg font-medium">Assign columns to queue item fields</Label>
+              <p className="text-sm text-muted-foreground mb-2">Drag and drop columns between categories</p>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <div className="grid grid-cols-3 gap-4">
+                <CategoryDropZone
+                  title="Data"
+                  items={columnsByCategory.data}
+                  category="data"
+                  onRemoveItem={(column) => removeColumnFromCategory(column, "data")}
+                />
+                <CategoryDropZone
+                  title="Target"
+                  items={columnsByCategory.target}
+                  category="target"
+                  onRemoveItem={(column) => removeColumnFromCategory(column, "target")}
+                />
+                <CategoryDropZone
+                  title="Metadata"
+                  items={columnsByCategory.metadata}
+                  category="metadata"
+                  onRemoveItem={(column) => removeColumnFromCategory(column, "metadata")}
+                />
+              </div>
+            </DndContext>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWithChildren<ExportResultsDialogProps>) {
   return (
     <DropdownMenu>
@@ -256,7 +495,7 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
         {children || (
           <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2">
             <Database className="size-3.5 mr-2" />
-            Export to Dataset
+            Export
             <ChevronDown className="size-3.5 ml-2" />
           </Button>
         )}
@@ -268,6 +507,12 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
             Export to Dataset
           </DropdownMenuItem>
         </ExportDatasetDialog>
+        <ExportLabelingQueueDialog results={results}>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Pen className="w-4 h-4 mr-2" />
+            Export to Labeling Queue
+          </DropdownMenuItem>
+        </ExportLabelingQueueDialog>
         <ExportJobDialog sqlQuery={sqlQuery}>
           <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
             <Database className="w-4 h-4 mr-2" />
