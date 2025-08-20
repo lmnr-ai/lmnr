@@ -4,8 +4,9 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
-import { columns, EventsTableRow, filters } from "@/components/traces/events-table/columns";
+import { columns, filters } from "@/components/traces/events-table/columns";
 import RefreshButton from "@/components/traces/refresh-button";
+import { EventsTableRow } from "@/lib/actions/events";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
 

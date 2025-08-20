@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getEvents, GetEventsSchema } from "@/lib/actions/events";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -30,7 +32,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   }
 
   try {
-    const result = await getEvents(parseResult.data);
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = session.user;
+    const result = await getEvents(parseResult.data, user.apiKey);
 
     return Response.json(result);
   } catch (error) {

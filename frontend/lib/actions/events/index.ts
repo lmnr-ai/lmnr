@@ -1,13 +1,10 @@
-import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { processEventFilters } from "@/lib/actions/events/utils";
-import { db } from "@/lib/db/drizzle";
-import { events } from "@/lib/db/migrations/schema";
+import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "@/lib/actions/events/utils";
+import { executeQuery } from "@/lib/actions/sql";
 import { FilterDef } from "@/lib/db/modifiers";
-import { getDateRangeFilters } from "@/lib/db/utils";
 
 export const GetEventsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -15,7 +12,18 @@ export const GetEventsSchema = PaginationFiltersSchema.extend({
   search: z.string().nullable().optional(),
 });
 
-export async function getEvents(input: z.infer<typeof GetEventsSchema>) {
+export type EventsTableRow = {
+  id: string;
+  createdAt: string;
+  timestamp: string;
+  name: string;
+  attributes: Record<string, any>;
+  spanId: string;
+  traceId: string;
+  projectId: string;
+};
+
+export async function getEvents(input: z.infer<typeof GetEventsSchema>, apiKey: string) {
   const {
     projectId,
     pastHours,
@@ -28,40 +36,55 @@ export async function getEvents(input: z.infer<typeof GetEventsSchema>) {
   } = input;
 
   const urlParamFilters: FilterDef[] = compact(inputFilters);
-  const processedFilters = processEventFilters(urlParamFilters);
 
-  const baseFilters = [eq(events.projectId, projectId)];
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
 
-  const textSearchFilters = search
-    ? [sql`(name ILIKE ${`%${search}%`} OR attributes::text ILIKE ${`%${search}%`})`]
-    : [];
+  const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams(
+    urlParamFilters,
+    search || null,
+    startTime || null,
+    endTime || null,
+    pastHours || null,
+    limit,
+    offset
+  );
 
-  const allSqlFilters = [
-    ...getDateRangeFilters(startTime || null, endTime || null, pastHours || null, events.timestamp),
-    ...processedFilters,
-    ...textSearchFilters,
-  ];
-  const columns = getTableColumns(events);
+  const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams(
+    urlParamFilters,
+    search || null,
+    startTime || null,
+    endTime || null,
+    pastHours || null
+  );
 
-  const baseQuery = db
-    .select({
-      ...columns,
-      attributes: sql<Record<string, any>>`attributes`.as("attributes"),
-    })
-    .from(events)
-    .where(and(...baseFilters.concat(allSqlFilters)))
-    .orderBy(desc(events.timestamp))
-    .limit(pageSize)
-    .offset(pageNumber * pageSize);
+  const [items, countResult] = await Promise.all([
+    executeQuery<any>({ query: mainQuery, parameters: mainParams, projectId, apiKey }),
+    executeQuery<{ totalCount: number }>({ query: countQuery, parameters: countParams, projectId, apiKey }),
+  ]);
 
-  const countQuery = db
-    .select({
-      totalCount: sql<number>`COUNT(*)`.as("total_count"),
-    })
-    .from(events)
-    .where(and(...baseFilters.concat(allSqlFilters)));
+  const transformedItems: EventsTableRow[] = items.map((item: any) => ({
+    id: item.id,
+    projectId: projectId,
+    spanId: item.spanId,
+    traceId: item.traceId,
+    timestamp: item.timestamp,
+    name: item.name,
+    attributes:
+      typeof item.attributes === "string"
+        ? (() => {
+          try {
+            return JSON.parse(item.attributes || "{}");
+          } catch {
+            return {};
+          }
+        })()
+        : item.attributes || {},
+    createdAt: item.createdAt,
+  }));
 
-  const [items, totalCount] = await Promise.all([baseQuery, countQuery]);
-
-  return { items, totalCount: totalCount[0].totalCount };
+  return {
+    items: transformedItems,
+    totalCount: countResult[0]?.totalCount || 0,
+  };
 }

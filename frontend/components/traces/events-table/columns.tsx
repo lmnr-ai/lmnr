@@ -3,17 +3,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-
-// Define the Event type based on the database schema
-export type EventsTableRow = {
-  id: string;
-  createdAt: string;
-  timestamp: string;
-  name: string;
-  attributes: Record<string, any>;
-  spanId: string;
-  projectId: string;
-};
+import { EventsTableRow } from "@/lib/actions/events";
 
 export const filters: ColumnFilter[] = [
   {

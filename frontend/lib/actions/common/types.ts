@@ -38,7 +38,7 @@ export const PaginationSchema = z.object({
     .string()
     .nullable()
     .default("50")
-    .transform((val) => Number(val) || 50),
+    .transform((val) => Math.min(Math.max(1, Number(val) || 50), 500)),
 });
 
 export const TimeRangeSchema = z.object({
