@@ -9,6 +9,7 @@ import {
   IconBrowserUse,
   IconCrewAI,
   IconGemini,
+  IconGroq,
   IconLangchain,
   IconMistral,
   IconOpenAI,
@@ -89,6 +90,11 @@ const integrations: Integration[] = [
     name: "Bedrock",
     icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
     link: "https://docs.lmnr.ai/tracing/integrations/bedrock",
+  },
+  {
+    name: "Groq",
+    icon: <IconGroq className="w-6 h-6" />,
+    link: "https://docs.lmnr.ai/tracing/integrations/groq",
   },
 ];
 

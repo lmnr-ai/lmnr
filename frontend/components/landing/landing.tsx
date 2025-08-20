@@ -269,16 +269,18 @@ export default function Landing() {
           </h1>
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
-              <div className="flex items-center border-b">
-                <InfoCard
-                  title="1 line of code to trace LLM frameworks and SDKs"
-                  description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
-                  animationOrder={0}
-                >
-                  <div className="flex w-full">
-                    <FrameworksGrid gridClassName="grid grid-cols-4 md:grid-cols-5 gap-4 items-center justify-center w-full" labelTextColor="text-white/70" />
-                  </div>
-                </InfoCard>
+              <div className="grid grid-cols-1 md:grid-cols-2 items-center border-b justify-between w-full">
+                <div className="h-full flex items-center justify-center">
+                  <InfoCard
+                    title="1 line of code to trace LLM frameworks and SDKs"
+                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
+                    animationOrder={0}
+                  >
+                  </InfoCard>
+                </div>
+                <div className="flex w-full items-center justify-center p-8">
+                  <FrameworksGrid gridClassName="grid grid-cols-4 md:grid-cols-7 gap-4 items-center justify-center w-full" labelTextColor="text-white/70" />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div>
@@ -286,28 +288,24 @@ export default function Landing() {
                     title="See traces of long-running agents in real time"
                     description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Automatic error capture"
                     description="Laminar automatically captures application level exceptions."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Tool calls and structured output tracing"
                     description="Understand when your agent fails to use tools and to produce structured output."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Track custom metrics with events"
                     description="You can emit events with custom metadata from your code to track custom metrics of your agent."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                   </InfoCard>
                 </div>
@@ -315,36 +313,37 @@ export default function Landing() {
                   <Image src={observe} alt="Observe" className="w-full object-cover object-top" quality={100} />
                 </div>
               </div>
-              <InfoCard
-                title="Browser agent observability"
-                description={`
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <InfoCard
+                  title="Browser session capture"
+                  description={`
 Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
-                linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
-                actionText="Learn about browser agent observability"
-                image={browserAgentObservability}
-                animationOrder={2}
-                className="border-b items-center"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <IconBrowserUse className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <IconPlaywright className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-                <div
-                  style={{
-                    transform: "translateY(0)",
-                    transition: `transform 700ms ease`,
-                  }}
+                  linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
+                  actionText="Learn about browser agent observability"
+                  animationOrder={2}
+                  className="border-b items-center"
                 >
-                  <div className="md:border-l md:border-t-0 border-t">
-                    <Image src={browserAgentObservability} alt="Browser agent observability" className="w-full object-cover object-top" />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                      <IconBrowserUse className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
+                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                      <IconPlaywright className="w-5 h-5 text-white" />
+                    </div>
                   </div>
+                  <div
+                    style={{
+                      transform: "translateY(0)",
+                      transition: `transform 700ms ease`,
+                    }}
+                  >
+                  </div>
+                </InfoCard>
+                <div className="md:border-l md:border-t-0 border-t">
+                  <Image src={browserAgentObservability} alt="Browser session capture" className="w-full object-cover object-top" />
                 </div>
-              </InfoCard>
+              </div>
             </div>
           </div>
         </div>
@@ -473,7 +472,7 @@ function InfoCard({
         transition: `opacity 600ms ease ${baseDelay}ms, transform 600ms ease ${baseDelay}ms`,
       }}
     >
-      <div className="p-8 space-y-1 flex flex-col">
+      <div className="p-8 space-y-2 flex flex-col">
         <h3
           className="text-xl font-semibold transition-all tracking-normal font-title"
           style={{
