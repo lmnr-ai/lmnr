@@ -116,9 +116,9 @@ export default function FrameworksGrid({
             rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
-            className={`flex flex-col items-center group ${itemClassName}`}
+            className={`flex flex-col items-center group w-16 ${itemClassName}`}
           >
-            <div className="w-12 h-12 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors">
+            <div className="w-12 h-12 rounded-lg flex flex-col items-center justify-center hover:bg-white/20 transition-colors">
               {integration.icon || <span className="text-2xl">{integration.emoji}</span>}
             </div>
             {showLabels && <span className={`text-xs mt-2 text-center ${labelTextColor}`}>{integration.name}</span>}

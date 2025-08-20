@@ -10,10 +10,11 @@ import browserAgentObservability from "@/assets/landing/browser-agent-observabil
 import clarum from "@/assets/landing/companies/clarum.png";
 import remo from "@/assets/landing/companies/remo.svg";
 import saturn from "@/assets/landing/companies/saturn.png";
-import datasets from "@/assets/landing/datasets.png";
 import evals from "@/assets/landing/evals.png";
+import query from "@/assets/landing/query.png";
+import iterate from "@/assets/landing/iterate.png";
+import observe from "@/assets/landing/observe.png";
 import labeling from "@/assets/landing/labeling.png";
-import llmPlayground from "@/assets/landing/llm-playground.png";
 import playground from "@/assets/landing/playground.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
@@ -23,8 +24,6 @@ import { SpanType } from "@/lib/traces/types";
 import FrameworksGrid from "../integrations/frameworks-grid";
 import SpanTypeIcon from "../traces/span-type-icon";
 import { Button } from "../ui/button";
-import CodeHighlighter from "../ui/code-highlighter";
-import DatasetsAnimation from "./datasets-animation";
 import Footer from "./footer";
 import FeatureCard from "./feature-card";
 
@@ -270,20 +269,18 @@ export default function Landing() {
           </h1>
           <div className="flex flex-col w-full border">
             <div className="flex flex-col">
+              <div className="flex items-center border-b">
+                <InfoCard
+                  title="1 line of code to trace LLM frameworks and SDKs"
+                  description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
+                  animationOrder={0}
+                >
+                  <div className="flex w-full">
+                    <FrameworksGrid gridClassName="grid grid-cols-4 md:grid-cols-5 gap-4 items-center justify-center w-full" labelTextColor="text-white/70" />
+                  </div>
+                </InfoCard>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="flex h-full flex-row items-center border-b">
-                  <InfoCard
-                    title="1 line of code to trace LLM frameworks and SDKs"
-                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
-                    animationOrder={0}
-                  >
-                    <div className="flex flex-col">
-                      <div className="flex mt-4 flex-col">
-                        <FrameworksGrid className="mt-2" labelTextColor="text-white/70" />
-                      </div>
-                    </div>
-                  </InfoCard>
-                </div>
                 <div>
                   <InfoCard
                     title="See traces of long-running agents in real time"
@@ -313,6 +310,9 @@ export default function Landing() {
                     className="md:border-l border-b"
                   >
                   </InfoCard>
+                </div>
+                <div className="flex w-full h-full">
+                  <Image src={observe} alt="Observe" className="w-full object-cover object-top" quality={100} />
                 </div>
               </div>
               <InfoCard
@@ -352,41 +352,39 @@ Laminar automatically records high-quality browser sessions and syncs them with 
           <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
             Query & Analyze
           </h1>
-          <div className="flex flex-col w-full border">
+          <div className="flex flex-col w-full">
             <div className="flex flex-col">
-              <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-32">
                 <div className="grid grid-cols-1">
                   <InfoCard
                     title="Query all data on the platform with SQL"
                     description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
                     animationOrder={0}
-                    className="border-b"
                   >
                   </InfoCard>
-                </div>
-                <div className="grid grid-cols-1">
                   <InfoCard
                     title="Track what matters to you with custom dashboards"
-                    description="Skip the dashboard builder. Just write SQL to create custom dashboards."
+                    description="Skip the dashboard builder. Just write SQL to create custom dashboards to track custom metrics of your agent."
                     animationOrder={0}
-                    className="border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="From query to eval datasets in seconds"
-                    description="Query specific data to create eval datasets."
+                    description="Use SQL to query custom data filtered by your own criteria. Batch insert to labeling queues or directly to datasets in seconds."
                     animationOrder={2}
                     className="border-b md:border-b-0 bg-background"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Access platform data via SQL API"
-                    description="Use the Laminar SQL API to query data from your own applications."
+                    description="Use the Laminar SQL API to query traces, evals, datasets and events data from your own applications."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                     {/* <DatasetsAnimation /> */}
                   </InfoCard>
+                </div>
+                <div className="py-8">
+                  <Image src={query} alt="Query and analyze" className="w-full object-cover object-top" quality={100} />
                 </div>
               </div>
             </div>
@@ -396,7 +394,7 @@ Laminar automatically records high-quality browser sessions and syncs them with 
           <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
             Evaluate & Iterate
           </h1>
-          <div className="flex flex-col w-full border">
+          <div className="flex flex-col w-fullx">
             <div className="flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="grid grid-cols-1">
@@ -404,23 +402,18 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                     title="Zero boilerplate evaluation SDK"
                     description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
                     animationOrder={0}
-                    className="border-b"
                   >
                   </InfoCard>
-                </div>
-                <div className="grid grid-cols-1">
                   <InfoCard
                     title="Iterate on prompts without touching your codebase"
                     description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
                     animationOrder={0}
-                    className="border-b"
                   >
                   </InfoCard>
                   <InfoCard
                     title="Catch regressions before your users do"
                     description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
                     animationOrder={1}
-                    className="md:border-l border-b"
                   >
                     {/* <DatasetsAnimation /> */}
                   </InfoCard>
@@ -428,7 +421,6 @@ Laminar automatically records high-quality browser sessions and syncs them with 
                     title="Build high-quality eval datasets efficiently"
                     description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
                     animationOrder={2}
-                    className="border-b md:border-b-0 bg-background"
                   >
                   </InfoCard>
                 </div>
