@@ -1,12 +1,72 @@
+import { OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
-const isValidUuid = (uuid: string): boolean => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
+const normalizeSpanId = (spanId: string): string =>
+  spanId.startsWith("00000000-0000-0000-") ? spanId : `00000000-0000-0000-${spanId}`;
+
+const buildDateFilters = (
+  startTime: string | null,
+  endTime: string | null,
+  pastHours: string | null
+): { conditions: string[]; params: Record<string, string | number> } => {
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    return {
+      conditions: [`timestamp > now() - INTERVAL {pastHours:UInt32} HOUR`],
+      params: { pastHours: parseInt(pastHours) },
+    };
+  }
+
+  if (startTime) {
+    const baseConditions = [`timestamp > {startTime:String}`];
+    const baseParams: Record<string, string | number> = { startTime };
+
+    if (endTime) {
+      return {
+        conditions: [...baseConditions, `timestamp < {endTime:String}`],
+        params: { ...baseParams, endTime },
+      };
+    } else {
+      return {
+        conditions: [...baseConditions, `timestamp < now()`],
+        params: baseParams,
+      };
+    }
+  }
+
+  return { conditions: [], params: {} };
 };
 
-const normalizeUuid = (uuid: string): string =>
-  uuid.startsWith("00000000-0000-0000-") ? uuid : `00000000-0000-0000-${uuid}`;
+const buildColumnFilter = (
+  filter: FilterDef,
+  paramKey: string
+): { condition: string | null; param: Record<string, string | number> } => {
+  const { column, operator, value } = filter;
+
+  const opSymbol = OperatorLabelMap[operator];
+
+  switch (column) {
+    case "id":
+      return { condition: `${column} ${opSymbol} {${paramKey}:String}`, param: { [paramKey]: value } };
+
+    case "span_id":
+      return { condition: `${column} ${opSymbol} {${paramKey}:String}`, param: { [paramKey]: normalizeSpanId(value) } };
+
+    case "name":
+      return {
+        condition: `name ${opSymbol} {${paramKey}:String}`,
+        param: { [paramKey]: value },
+      };
+
+    case "attributes":
+      return {
+        condition: `attributes ${opSymbol} {${paramKey}:String}`,
+        param: { [paramKey]: `%${value}%` },
+      };
+
+    default:
+      return { condition: null, param: {} };
+  }
+};
 
 const buildWhereClause = (
   filters: FilterDef[],
@@ -14,70 +74,37 @@ const buildWhereClause = (
   startTime: string | null,
   endTime: string | null,
   pastHours: string | null
-): { whereClause: string; parameters: Record<string, any> } => {
-  const whereConditions: string[] = [];
-  const parameters: Record<string, any> = {};
+): { whereClause: string; parameters: Record<string, string | number> } => {
+  const { conditions: dateConditions, params: dateParams } = buildDateFilters(startTime, endTime, pastHours);
 
-  // Date filter
-  if (pastHours && !isNaN(parseFloat(pastHours))) {
-    whereConditions.push(`timestamp > now() - INTERVAL {pastHours:UInt32} HOUR`);
-    parameters.pastHours = parseInt(pastHours);
-  } else if (startTime) {
-    whereConditions.push(`timestamp > {startTime:String}`);
-    parameters.startTime = startTime;
+  const columnResults = filters
+    .map((filter, index) => buildColumnFilter(filter, `filter_${index}`))
+    .filter((result) => result.condition !== null);
 
-    if (endTime) {
-      whereConditions.push(`timestamp < {endTime:String}`);
-      parameters.endTime = endTime;
-    } else {
-      whereConditions.push(`timestamp < now()`);
-    }
-  }
+  const columnConditions = columnResults.map(({ condition }) => condition).filter(Boolean) as string[];
+  const columnParams = columnResults.reduce((acc, { param }) => ({ ...acc, ...param }), {});
 
-  // Column filters
-  let filterIndex = 0;
-  for (const filter of filters) {
-    const { column, operator, value } = filter;
+  const searchConditions = searchTerm
+    ? [`(name LIKE {searchTerm:String} OR attributes LIKE {searchTerm:String})`]
+    : [];
+  const searchParams: Record<string, string | number> = searchTerm ? { searchTerm: `%${searchTerm}%` } : {};
 
-    if (!["id", "name", "span_id", "attributes"].includes(column) || !["eq", "ne"].includes(operator)) {
-      continue;
-    }
-
-    const paramKey = `filter_${filterIndex}`;
-    const opSymbol = operator === "eq" ? "=" : "!=";
-
-    switch (column) {
-      case "id":
-      case "span_id":
-        const normalizedValue = normalizeUuid(value);
-        if (isValidUuid(normalizedValue)) {
-          whereConditions.push(`${column} ${opSymbol} {${paramKey}:String}`);
-          parameters[paramKey] = normalizedValue;
-        }
-        break;
-      case "name":
-        whereConditions.push(`name ${opSymbol} {${paramKey}:String}`);
-        parameters[paramKey] = value;
-        break;
-      case "attributes":
-        const likeOp = operator === "eq" ? "LIKE" : "NOT LIKE";
-        whereConditions.push(`attributes ${likeOp} {${paramKey}:String}`);
-        parameters[paramKey] = `%${value}%`;
-        break;
-    }
-    filterIndex++;
-  }
-
-  if (searchTerm) {
-    whereConditions.push(`(name LIKE {searchTerm:String} OR attributes LIKE {searchTerm:String})`);
-    parameters.searchTerm = `%${searchTerm}%`;
-  }
+  const allConditions = [...dateConditions, ...columnConditions, ...searchConditions];
+  const allParameters = { ...dateParams, ...columnParams, ...searchParams };
 
   return {
-    whereClause: whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "",
-    parameters,
+    whereClause: allConditions.length > 0 ? `WHERE ${allConditions.join(" AND ")}` : "",
+    parameters: allParameters,
   };
 };
+
+const buildBaseQuery = (selectClause: string, whereClause: string, orderBy?: string): string =>
+  `
+  ${selectClause}
+  FROM events
+  ${whereClause}
+  ${orderBy || ""}
+`.trim();
 
 export const buildEventsQueryWithParams = (
   filters: FilterDef[],
@@ -87,14 +114,10 @@ export const buildEventsQueryWithParams = (
   pastHours: string | null,
   limit: number,
   offset: number
-): { query: string; parameters: Record<string, any> } => {
+): { query: string; parameters: Record<string, string | number> } => {
   const { whereClause, parameters } = buildWhereClause(filters, searchTerm, startTime, endTime, pastHours);
 
-  // Add pagination parameters
-  parameters.limit = limit;
-  parameters.offset = offset;
-
-  const query = `
+  const selectClause = `
     SELECT 
       id,
       span_id as spanId,
@@ -102,15 +125,20 @@ export const buildEventsQueryWithParams = (
       timestamp,
       name,
       attributes,
-      timestamp as createdAt
-    FROM events
-    ${whereClause}
-    ORDER BY timestamp DESC
-    LIMIT {limit:UInt32}
-    OFFSET {offset:UInt32}
-  `;
+      timestamp as createdAt`;
 
-  return { query, parameters };
+  const query = buildBaseQuery(
+    selectClause,
+    whereClause,
+    `ORDER BY timestamp DESC
+    LIMIT {limit:UInt32}
+    OFFSET {offset:UInt32}`
+  );
+
+  return {
+    query,
+    parameters: { ...parameters, limit, offset },
+  };
 };
 
 export const buildEventsCountQueryWithParams = (
@@ -119,14 +147,10 @@ export const buildEventsCountQueryWithParams = (
   startTime: string | null,
   endTime: string | null,
   pastHours: string | null
-): { query: string; parameters: Record<string, any> } => {
+): { query: string; parameters: Record<string, string | number> } => {
   const { whereClause, parameters } = buildWhereClause(filters, searchTerm, startTime, endTime, pastHours);
 
-  const query = `
-    SELECT COUNT(*) as totalCount
-    FROM events
-    ${whereClause}
-  `;
+  const query = buildBaseQuery(`SELECT COUNT(*) as totalCount`, whereClause);
 
   return { query, parameters };
 };
