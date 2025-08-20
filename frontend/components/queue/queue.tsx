@@ -67,15 +67,6 @@ function QueueInner() {
     };
   }, [currentItem, isLoading, dataset, isValid]);
 
-  const progressPercentage = useMemo(() => {
-    if (!currentItem || currentItem.count === 0) return 0;
-    // Progress should be based on completed items, not current position
-    // If on item 1 of 12, 0 items completed = 0%
-    // If on item 6 of 12, 5 items completed = ~42%
-    // If completed all 12 items, 12 items completed = 100%
-    return Math.round(((currentItem.position - 1) / currentItem.count) * 100);
-  }, [currentItem]);
-
   const sourceLink = useMemo(() => {
     if (!currentItem) return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
 
@@ -86,6 +77,11 @@ function QueueInner() {
     if (get(currentItem.metadata, "source") === "span") {
       return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
     }
+
+    if (get(currentItem.metadata, "source") === "sql") {
+      return `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`;
+    }
+
     return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
   }, [currentItem, projectId, storeQueue?.id]);
 
@@ -300,9 +296,7 @@ function QueueInner() {
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => remove(true)} disabled={states.skip} variant="outline">
                 <span className="mr-2">Skip</span>
-                <div className="flex items-center text-center text-xs opacity-75">
-                  ⌘ + ›
-                </div>
+                <div className="flex items-center text-center text-xs opacity-75">⌘ + ›</div>
               </Button>
               <Button
                 onClick={() => currentItem && move(currentItem.createdAt, "prev")}
