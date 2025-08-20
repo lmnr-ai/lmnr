@@ -20,7 +20,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
 
   return (
     <>
-      <header className="flex flex-col md:flex-row w-full justify-between md:justify-center items-center fixed z-50 backdrop-blur-lg">
+      <header className="flex flex-col md:flex-row w-full justify-between md:justify-center items-center z-50 backdrop-blur-lg">
         <div className="w-full px-8 md:px-0 flex flex-col md:flex-row md:w-[1200px] justify-between">
           <div className="flex items-center h-20 justify-between">
             <Link href="/" className="-mt-1">

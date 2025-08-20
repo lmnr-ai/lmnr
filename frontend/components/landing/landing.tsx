@@ -3,7 +3,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 
 import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
@@ -21,7 +21,7 @@ import yc from "@/assets/landing/yc.svg";
 import { IconBrowserUse, IconPlaywright } from "@/components/ui/icons";
 import { SpanType } from "@/lib/traces/types";
 
-import FrameworksGrid from "../integrations/frameworks-grid";
+import FrameworksGrid from "./frameworks-grid";
 import SpanTypeIcon from "../traces/span-type-icon";
 import { Button } from "../ui/button";
 import Footer from "./footer";
@@ -243,7 +243,7 @@ export default function Landing() {
               role="CTO"
               company="Clarum"
               logo={clarum}
-              className="border-b pb-6 sm:pb-8 md:border-r md:border-b-0"
+              className="pb-6 sm:pb-8"
             />
             <TestimonialCard
               quote={`Laminar's evals help us maintain high accuracy while moving fast, and their team is incredibly responsive. We now use them for every LLM based feature we build.`}
@@ -251,7 +251,7 @@ export default function Landing() {
               role="CTO"
               company="Remo"
               logo={remo}
-              className="border-b pb-6 sm:pb-8 md:border-r md:border-b-0"
+              className="pb-6 sm:pb-8"
             />
             <TestimonialCard
               quote={`Laminar's tracing is genuinely great. So much better than the others I${"'"}ve tried.`}
@@ -259,175 +259,284 @@ export default function Landing() {
               role="CTO"
               company="Saturn"
               logo={saturn}
-              className="border-r-0"
+              className=""
             />
           </div>
         </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
-          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-            Observe
-          </h1>
-          <div className="flex flex-col w-full border">
-            <div className="flex flex-col">
-              <div className="grid grid-cols-1 md:grid-cols-2 items-center border-b justify-between w-full">
-                <div className="h-full flex items-center justify-center">
-                  <InfoCard
-                    title="1 line of code to trace LLM frameworks and SDKs"
-                    description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
-                    animationOrder={0}
-                  >
-                  </InfoCard>
-                </div>
-                <div className="flex w-full items-center justify-center p-8">
-                  <FrameworksGrid gridClassName="grid grid-cols-4 md:grid-cols-7 gap-4 items-center justify-center w-full" labelTextColor="text-white/70" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                <div>
-                  <InfoCard
-                    title="See traces of long-running agents in real time"
-                    description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
-                    animationOrder={1}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Automatic error capture"
-                    description="Laminar automatically captures application level exceptions."
-                    animationOrder={1}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Tool calls and structured output tracing"
-                    description="Understand when your agent fails to use tools and to produce structured output."
-                    animationOrder={1}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Track custom metrics with events"
-                    description="You can emit events with custom metadata from your code to track custom metrics of your agent."
-                    animationOrder={1}
-                  >
-                  </InfoCard>
-                </div>
-                <div className="flex w-full h-full">
-                  <Image src={observe} alt="Observe" className="w-full object-cover object-top" quality={100} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                <InfoCard
-                  title="Browser session capture"
-                  description={`
-Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
-                  linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
-                  actionText="Learn about browser agent observability"
-                  animationOrder={2}
-                  className="border-b items-center"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                      <IconBrowserUse className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
-                    <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                      <IconPlaywright className="w-5 h-5 text-white" />
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      transform: "translateY(0)",
-                      transition: `transform 700ms ease`,
-                    }}
-                  >
-                  </div>
-                </InfoCard>
-                <div className="md:border-l md:border-t-0 border-t">
-                  <Image src={browserAgentObservability} alt="Browser session capture" className="w-full object-cover object-top" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
-          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-            Query & Analyze
-          </h1>
-          <div className="flex flex-col w-full">
-            <div className="flex flex-col">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-32">
-                <div className="grid grid-cols-1">
-                  <InfoCard
-                    title="Query all data on the platform with SQL"
-                    description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
-                    animationOrder={0}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Track what matters to you with custom dashboards"
-                    description="Skip the dashboard builder. Just write SQL to create custom dashboards to track custom metrics of your agent."
-                    animationOrder={0}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="From query to eval datasets in seconds"
-                    description="Use SQL to query custom data filtered by your own criteria. Batch insert to labeling queues or directly to datasets in seconds."
-                    animationOrder={2}
-                    className="border-b md:border-b-0 bg-background"
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Access platform data via SQL API"
-                    description="Use the Laminar SQL API to query traces, evals, datasets and events data from your own applications."
-                    animationOrder={1}
-                  >
-                    {/* <DatasetsAnimation /> */}
-                  </InfoCard>
-                </div>
-                <div className="py-8">
-                  <Image src={query} alt="Query and analyze" className="w-full object-cover object-top" quality={100} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
-          <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-            Evaluate & Iterate
-          </h1>
-          <div className="flex flex-col w-fullx">
-            <div className="flex flex-col">
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="grid grid-cols-1">
-                  <InfoCard
-                    title="Zero boilerplate evaluation SDK"
-                    description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
-                    animationOrder={0}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Iterate on prompts without touching your codebase"
-                    description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
-                    animationOrder={0}
-                  >
-                  </InfoCard>
-                  <InfoCard
-                    title="Catch regressions before your users do"
-                    description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
-                    animationOrder={1}
-                  >
-                    {/* <DatasetsAnimation /> */}
-                  </InfoCard>
-                  <InfoCard
-                    title="Build high-quality eval datasets efficiently"
-                    description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
-                    animationOrder={2}
-                  >
-                  </InfoCard>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CoreSections />
         <Footer />
+      </div>
+    </>
+  );
+}
+
+function CoreSections() {
+  const [activeSection, setActiveSection] = useState<string>("frameworks");
+  const [prevSection, setPrevSection] = useState<string>("frameworks");
+  const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + window.innerHeight / 2;
+
+      // Find which section is currently in view
+      Object.entries(sectionRefs.current).forEach(([key, ref]) => {
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          const top = rect.top + window.scrollY;
+          const bottom = top + rect.height;
+
+          if (scrollPosition >= top && scrollPosition <= bottom) {
+            if (activeSection !== key) {
+              setPrevSection(activeSection);
+              setActiveSection(key);
+            }
+          }
+        }
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    handleScroll(); // Check initial position
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [activeSection]);
+
+  const renderLeftContent = () => {
+    const contents = {
+      frameworks: (
+        <div className="flex w-full items-center justify-center p-8">
+          <FrameworksGrid
+            gridClassName="grid grid-cols-4 md:grid-cols-5 gap-4 items-center justify-center w-full"
+            labelTextColor="text-white/70"
+          />
+        </div>
+      ),
+      observe: (
+        <Image
+          src={observe}
+          alt="Observe"
+          className="w-full h-full object-cover object-top"
+          quality={100}
+        />
+      ),
+      browser: (
+        <Image
+          src={browserAgentObservability}
+          alt="Browser session capture"
+          className="w-full h-full object-cover object-top"
+          quality={100}
+        />
+      ),
+      query: (
+        <Image
+          src={query}
+          alt="Query and analyze"
+          className="w-full h-full object-cover object-top"
+          quality={100}
+        />
+      ),
+      iterate: (
+        <Image
+          src={iterate}
+          alt="Evaluate and iterate"
+          className="w-full h-full object-cover object-top"
+          quality={100}
+        />
+      ),
+    };
+
+    return (
+      <div
+        key={activeSection}
+        className="w-full h-full flex items-center justify-center animate-in fade-in duration-700"
+      >
+        {contents[activeSection as keyof typeof contents]}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
+        <div className="md:grid md:grid-cols-2 md:gap-16">
+          <div className="hidden md:block order-1">
+            <div className="sticky h-[100vh] top-0">
+              <div className="flex h-full items-center justify-center">
+                <div className="h-[600px] flex items-center justify-center bg-background transition-all duration-500 overflow-hidden">
+                  {renderLeftContent()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right side - scrollable text content */}
+          <div className="flex flex-col order-2">
+            {/* Observe Section */}
+
+            {/* Mobile image for frameworks */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden bg-background">
+              <div className="flex w-full items-center justify-center p-8">
+                <FrameworksGrid
+                  gridClassName="grid grid-cols-4 gap-16 items-center justify-center w-full"
+                  labelTextColor="text-white/70"
+                />
+              </div>
+            </div>
+
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[90vh] md:pt-48">
+              <h1 className="text-3xl font-bold tracking-normal font-title text-white">
+                Observe & Debug
+              </h1>
+              <InfoCard
+                title="1 line of code to trace LLM frameworks and SDKs"
+                description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
+                animationOrder={0}
+              />
+            </div>
+
+            {/* Mobile image for observe */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+              <Image
+                src={observe}
+                alt="Observe"
+                className="w-full object-cover object-top"
+                quality={100}
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col min-h-[100vh]">
+              <InfoCard
+                title="See traces of long-running agents in real time"
+                description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
+                animationOrder={1}
+              />
+              <InfoCard
+                title="Automatic error capture"
+                description="Laminar automatically captures application level exceptions."
+                animationOrder={1}
+              />
+              <InfoCard
+                title="Tool calls and structured output tracing"
+                description="Understand when your agent fails to use tools and to produce structured output."
+                animationOrder={1}
+              />
+              <InfoCard
+                title="Track custom metrics with events"
+                description="You can emit events with custom metadata from your code to track custom metrics of your agent."
+                animationOrder={1}
+              />
+            </div>
+
+            {/* Mobile image for browser */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+              <Image
+                src={browserAgentObservability}
+                alt="Browser session capture"
+                className="w-full object-cover object-top"
+                quality={100}
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[80vh]">
+              <InfoCard
+                title="Browser session capture"
+                description={`Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
+                linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
+                actionText="Learn about browser agent observability"
+                animationOrder={2}
+                className="items-center"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    <IconBrowserUse className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
+                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
+                    <IconPlaywright className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+              </InfoCard>
+            </div>
+
+            {/* Query & Analyze Section */}
+            <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
+              Query & Analyze
+            </h1>
+
+            {/* Mobile image for query */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+              <Image
+                src={query}
+                alt="Query and analyze"
+                className="w-full object-cover object-top"
+                quality={100}
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col min-h-[100vh]">
+              <InfoCard
+                title="Query all data on the platform with SQL"
+                description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
+                animationOrder={0}
+              />
+              <InfoCard
+                title="Track what matters to you with custom dashboards"
+                description="Skip the dashboard builder. Just write SQL to create custom dashboards to track custom metrics of your agent."
+                animationOrder={0}
+              />
+              <InfoCard
+                title="From query to eval datasets in seconds"
+                description="Use SQL to query custom data filtered by your own criteria. Batch insert to labeling queues or directly to datasets in seconds."
+                animationOrder={2}
+                className="bg-background"
+              />
+              <InfoCard
+                title="Access platform data via SQL API"
+                description="Use the Laminar SQL API to query traces, evals, datasets and events data from your own applications."
+                animationOrder={1}
+              />
+            </div>
+
+            {/* Evaluate & Iterate Section */}
+            <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
+              Evaluate & Iterate
+            </h1>
+
+            {/* Mobile image for iterate */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+              <Image
+                src={iterate}
+                alt="Evaluate and iterate"
+                className="w-full object-cover object-top"
+                quality={100}
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[70vh]">
+              <InfoCard
+                title="Zero boilerplate evaluation SDK"
+                description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
+                animationOrder={0}
+              />
+              <InfoCard
+                title="Iterate on prompts without touching your codebase"
+                description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
+                animationOrder={0}
+              />
+              <InfoCard
+                title="Catch regressions before your users do"
+                description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
+                animationOrder={1}
+              />
+              <InfoCard
+                title="Build high-quality eval datasets efficiently"
+                description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
+                animationOrder={2}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -472,7 +581,7 @@ function InfoCard({
         transition: `opacity 600ms ease ${baseDelay}ms, transform 600ms ease ${baseDelay}ms`,
       }}
     >
-      <div className="p-8 space-y-2 flex flex-col">
+      <div className="py-8 space-y-2 flex flex-col">
         <h3
           className="text-xl font-semibold transition-all tracking-normal font-title"
           style={{
