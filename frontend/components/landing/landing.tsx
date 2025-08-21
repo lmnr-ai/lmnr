@@ -26,6 +26,8 @@ import SpanTypeIcon from "../traces/span-type-icon";
 import { Button } from "../ui/button";
 import Footer from "./footer";
 import FeatureCard from "./feature-card";
+import MuxPlayer from '@mux/mux-player-react';
+
 
 interface Section {
   id: string;
@@ -146,7 +148,7 @@ export default function Landing() {
           <div className="flex flex-col">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
-                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-500 font-title">
+                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-300 font-title">
                   How developers <br className="md:hidden" />{" "}
                   <span className="">build reliable AI agents.</span>
                 </p>
@@ -321,12 +323,18 @@ function CoreSections() {
         />
       ),
       browser: (
-        <Image
-          src={browserAgentObservability}
-          alt="Browser session capture"
-          className="w-full h-full object-cover object-top"
-          quality={100}
-        />
+        <div className="flex w-full items-center justify-center p-8">
+          <MuxPlayer
+            playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
+            metadata={{
+              video_title: "Browser session capture",
+            }}
+            autoPlay={true}
+            muted={true}
+            loop={true}
+            className="w-full h-full object-cover object-top"
+          />
+        </div>
       ),
       query: (
         <Image
@@ -363,7 +371,7 @@ function CoreSections() {
           <div className="hidden md:block order-1">
             <div className="sticky h-[100vh] top-0">
               <div className="flex h-full items-center justify-center">
-                <div className="h-[600px] flex items-center justify-center bg-background transition-all duration-500 overflow-hidden">
+                <div className="h-[600px] transition-all duration-500 overflow-hidden">
                   {renderLeftContent()}
                 </div>
               </div>
@@ -384,7 +392,7 @@ function CoreSections() {
               </div>
             </div>
 
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[90vh] md:pt-48">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
               <h1 className="text-3xl font-bold tracking-normal font-title text-white">
                 Observe & Debug
               </h1>
@@ -438,7 +446,7 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[80vh]">
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh]">
               <InfoCard
                 title="Browser session capture"
                 description={`Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
@@ -498,11 +506,6 @@ function CoreSections() {
               />
             </div>
 
-            {/* Evaluate & Iterate Section */}
-            <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-              Evaluate & Iterate
-            </h1>
-
             {/* Mobile image for iterate */}
             <div className="md:hidden mb-8 rounded-lg overflow-hidden">
               <Image
@@ -513,7 +516,12 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[70vh]">
+            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
+
+              {/* Evaluate & Iterate Section */}
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+                Evaluate & Iterate
+              </h1>
               <InfoCard
                 title="Zero boilerplate evaluation SDK"
                 description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
@@ -583,7 +591,7 @@ function InfoCard({
     >
       <div className="py-8 space-y-2 flex flex-col">
         <h3
-          className="text-xl font-semibold transition-all tracking-normal font-title"
+          className="text-2xl font-semibold transition-all tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -593,7 +601,7 @@ function InfoCard({
           {title}
         </h3>
         <p
-          className="text-secondary-foreground/80 transition-all text-sm font-semibold tracking-normal font-title"
+          className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
             transform: inView ? "translateX(0)" : "translateX(-10px)",
@@ -659,196 +667,6 @@ function TestimonialCard({
         <Image src={logo} alt={company} className="h-10 w-20 object-contain" />
       </div>
       <p className="text-secondary-foreground text-sm font-light">{quote}</p>
-    </div>
-  );
-}
-
-function RealTimeTraces() {
-  return (
-    <div className="flex flex-col">
-      <div className="mt-4 bg-black/40 overflow-hidden shadow-lg">
-        <div className="text-xs text-secondary-foreground">
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative trace-item-1">
-            <SpanTypeIcon
-              iconClassName="min-w-4 min-h-4"
-              spanType={SpanType.DEFAULT}
-              containerWidth={22}
-              containerHeight={22}
-              size={16}
-            />
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              agent.run_stream
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              52.64s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
-          </div>
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative pl-5 trace-item-2">
-            <div className="absolute left-3 border-l-2 border-b-2 rounded-bl-lg h-5 w-3 -top-0" />
-            <div className="flex items-center justify-center min-w-[22px] w-[22px] h-[22px] bg-blue-950 rounded-full">
-              <SpanTypeIcon
-                iconClassName="min-w-4 min-h-4"
-                spanType={SpanType.DEFAULT}
-                containerWidth={22}
-                containerHeight={22}
-                size={16}
-              />
-            </div>
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              agent.step
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              52.32s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
-          </div>
-
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative pl-12 trace-item-3">
-            <div className="absolute left-10 border-l-2 border-b-2 rounded-bl-lg h-5 w-3 -top-0" />
-            <div className="flex items-center justify-center min-w-[22px] w-[22px] h-[22px] bg-blue-950 rounded-full">
-              <SpanTypeIcon
-                iconClassName="min-w-4 min-h-4"
-                spanType={SpanType.DEFAULT}
-                containerWidth={22}
-                containerHeight={22}
-                size={16}
-              />
-            </div>
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              browser.update_state
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              44.15s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:00</div>
-          </div>
-
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative pl-12 trace-item-4">
-            <div className="absolute left-10 border-l-2 border-b-2 rounded-bl-lg h-12 w-3 -top-7" />
-            <div className="flex items-center justify-center min-w-[22px] w-[22px] h-[22px] bg-blue-950 rounded-full">
-              <SpanTypeIcon
-                iconClassName="min-w-4 min-h-4"
-                spanType={SpanType.DEFAULT}
-                containerWidth={22}
-                containerHeight={22}
-                size={16}
-              />
-            </div>
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              agent.generate_action
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              8.17s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:44</div>
-          </div>
-
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative pl-[4.5rem] trace-item-5">
-            <div className="absolute left-16 border-l-2 border-b-2 rounded-bl-lg h-5 w-3 top-0" />
-            <SpanTypeIcon
-              iconClassName="min-w-4 min-h-4"
-              spanType={SpanType.LLM}
-              containerWidth={22}
-              containerHeight={22}
-              size={16}
-            />
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              anthropic.chat
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              8.17s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:44</div>
-          </div>
-
-          <div className="flex w-full items-center space-x-2 h-9 cursor-pointer group relative pl-12 trace-item-6">
-            <div className="absolute left-10 border-l-2 border-b-2 rounded-bl-lg h-32 w-3 top-[-108px]" />
-            <SpanTypeIcon
-              iconClassName="min-w-4 min-h-4"
-              spanType={SpanType.TOOL}
-              containerWidth={22}
-              containerHeight={22}
-              size={16}
-            />
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-base truncate text-white/80">
-              done
-            </div>
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
-              0.00s
-            </div>
-            <div className="flex-grow"></div>
-            <div className="flex items-center text-xs font-mono text-muted-foreground px-2">0:52</div>
-          </div>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes traceAnimation {
-          0%,
-          5% {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-          10% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-          70% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-          80% {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-        }
-
-        .trace-item-1 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 0s;
-        }
-
-        .trace-item-2 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 0.7s;
-        }
-
-        .trace-item-3 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 1.4s;
-        }
-
-        .trace-item-4 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 2.1s;
-        }
-
-        .trace-item-5 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 2.8s;
-        }
-
-        .trace-item-6 {
-          opacity: 0;
-          animation: traceAnimation 10s infinite;
-          animation-delay: 3.5s;
-        }
-      `}</style>
     </div>
   );
 }
