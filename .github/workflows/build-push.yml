@@ -20,9 +20,6 @@ jobs:
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
             image: ghcr.io/lmnr-ai/frontend
-          - dockerfile: ./agent-manager/Dockerfile
-            context: ./agent-manager
-            image: ghcr.io/lmnr-ai/agent-manager
     permissions:
       contents: read
       packages: write
