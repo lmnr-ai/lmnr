@@ -146,7 +146,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
 }
 
 const tryParseJson = (value: string) => {
-  if (value === "") return null;
+  if (value === "" || value === undefined) return null;
 
   try {
     return JSON.parse(value);
