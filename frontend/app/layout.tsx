@@ -4,7 +4,7 @@ import { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import { Toaster } from '@/components/ui/toaster';
-import { sans, manrope } from '@/lib/fonts';
+import { manrope,sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 import PostHogPageView from './posthog-pageview';

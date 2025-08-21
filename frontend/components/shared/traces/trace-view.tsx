@@ -3,7 +3,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { has } from "lodash";
 import { ChartNoAxesGantt, Disc, Disc2, Minus, Plus } from "lucide-react";
-import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +13,7 @@ import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/s
 import { SpanView } from "@/components/shared/traces/span-view";
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import Timeline from "@/components/traces/trace-view/timeline";
 import Tree from "@/components/traces/trace-view/tree";
@@ -23,10 +23,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
-
-const LangGraphView = dynamic(() => import("@/components/traces/trace-view/lang-graph-view"), {
-  ssr: false,
-});
 
 interface TraceViewProps {
   trace: Trace;
@@ -110,7 +106,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   useEffect(() => {
@@ -118,7 +114,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   useEffect(() => {

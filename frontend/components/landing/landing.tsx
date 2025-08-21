@@ -1,32 +1,29 @@
 "use client";
 
+import MuxPlayer from '@mux/mux-player-react';
 import { ArrowUpRight } from "lucide-react";
 import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef,useState } from "react";
 import { useInView } from "react-intersection-observer";
 
-import browserAgentObservability from "@/assets/landing/browser-agent-observability.png";
 import clarum from "@/assets/landing/companies/clarum.png";
 import remo from "@/assets/landing/companies/remo.svg";
 import saturn from "@/assets/landing/companies/saturn.png";
 import evals from "@/assets/landing/evals.png";
-import query from "@/assets/landing/query.png";
 import iterate from "@/assets/landing/iterate.png";
-import observe from "@/assets/landing/observe.png";
 import labeling from "@/assets/landing/labeling.png";
+import observe from "@/assets/landing/observe.png";
 import playground from "@/assets/landing/playground.png";
+import query from "@/assets/landing/query.png";
 import traces from "@/assets/landing/traces.png";
 import yc from "@/assets/landing/yc.svg";
 import { IconBrowserUse, IconPlaywright } from "@/components/ui/icons";
-import { SpanType } from "@/lib/traces/types";
 
-import FrameworksGrid from "./frameworks-grid";
-import SpanTypeIcon from "../traces/span-type-icon";
 import { Button } from "../ui/button";
-import Footer from "./footer";
 import FeatureCard from "./feature-card";
-import MuxPlayer from '@mux/mux-player-react';
+import Footer from "./footer";
+import FrameworksGrid from "./frameworks-grid";
 
 
 interface Section {
@@ -192,7 +189,7 @@ export default function Landing() {
                       className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${selectedSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                        }`}
+                      }`}
                     >
                       {section.title}
                       {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
@@ -323,7 +320,7 @@ function CoreSections() {
         />
       ),
       browser: (
-        <div className="flex w-full items-center justify-center p-8">
+        <div className="flex overflow-hidden">
           <MuxPlayer
             playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
             metadata={{
@@ -332,7 +329,36 @@ function CoreSections() {
             autoPlay={true}
             muted={true}
             loop={true}
-            className="w-full h-full object-cover object-top"
+            thumbnailTime={0}
+            style={{
+              // Hide all controls at once
+              '--controls': 'none',
+              // Hide the error dialog
+              '--dialog': 'none',
+              // Hide the loading indicator
+              '--loading-indicator': 'none',
+              // Target all sections by excluding the section prefix
+              '--play-button': 'none',
+              '--live-button': 'none',
+              '--seek-backward-button': 'none',
+              '--seek-forward-button': 'none',
+              '--mute-button': 'none',
+              '--captions-button': 'none',
+              '--airplay-button': 'none',
+              '--pip-button': 'none',
+              '--fullscreen-button': 'none',
+              '--cast-button': 'none',
+              '--playback-rate-button': 'none',
+              '--volume-range': 'none',
+              '--time-range': 'none',
+              '--time-display': 'none',
+              '--duration-display': 'none',
+              '--rendition-menu-button': 'none',
+              // Target a specific section by prefixing the CSS var with (top|center|bottom)
+              '--center-controls': 'none',
+              '--bottom-play-button': 'none',
+            } as React.CSSProperties}
+            className="w-[600px] h-[570px] border"
           />
         </div>
       ),
@@ -436,34 +462,24 @@ function CoreSections() {
               />
             </div>
 
-            {/* Mobile image for browser */}
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
-              <Image
-                src={browserAgentObservability}
-                alt="Browser session capture"
-                className="w-full object-cover object-top"
-                quality={100}
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh]">
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh] flex justify-center">
               <InfoCard
-                title="Browser session capture"
-                description={`Laminar automatically records high-quality browser sessions and syncs them with agent traces to help you see what the browser agent sees.`}
+                title="See what your browser agent sees"
+                description={
+                  <div className="flex flex-col gap-4">
+                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Automatically traces <span className="text-white font-semibold">Browser Use, StageHand and custom agents with Playwright</span>.</p>
+                    <div className="flex items-center gap-4 pb-4">
+                      <IconBrowserUse className="w-9 h-9 text-white" />
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full text-4xl">🤘</div>
+                      <IconPlaywright className="w-14 h-14 text-white" />
+                    </div>
+                  </div>
+                }
                 linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
                 actionText="Learn about browser agent observability"
                 animationOrder={2}
                 className="items-center"
               >
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <IconBrowserUse className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">🤘</div>
-                  <div className="flex items-center justify-center w-10 h-10 bg-white/10 rounded-full">
-                    <IconPlaywright className="w-5 h-5 text-white" />
-                  </div>
-                </div>
               </InfoCard>
             </div>
 
@@ -561,7 +577,7 @@ function InfoCard({
   animationOrder = 0,
 }: {
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   linkUrl?: string;
   actionText?: string;
   image?: StaticImageData;
@@ -600,7 +616,7 @@ function InfoCard({
         >
           {title}
         </h3>
-        <p
+        <div
           className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
@@ -608,7 +624,7 @@ function InfoCard({
           }}
         >
           {description}
-        </p>
+        </div>
         {linkUrl && (
           <div
             style={{
