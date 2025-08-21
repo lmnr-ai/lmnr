@@ -236,6 +236,7 @@ const JsxRenderer = ({
   code,
   data,
   className,
+  // height according to message in span view
   height = 372,
 }: {
   code: string;
