@@ -253,7 +253,7 @@ export default function TracesTable() {
       return;
     }
 
-    if (!enableLiveUpdates || filter.length > 0) {
+    if (!enableLiveUpdates || filter.length > 0 || textSearchFilter) {
       supabase.removeAllChannels();
       return;
     }
@@ -301,7 +301,7 @@ export default function TracesTable() {
     return () => {
       channel.unsubscribe();
     };
-  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase, filter.length]);
+  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter]);
 
   useEffect(() => {
     if (pastHours || startDate || endDate) {
