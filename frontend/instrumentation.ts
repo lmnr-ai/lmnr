@@ -4,8 +4,6 @@
 
 import { registerOTel } from "@vercel/otel";
 
-const INITIAL_CH_SCHEMA_FILE = "0000-initial.sql";
-
 export async function register() {
   if (process.env.ENVIRONMENT === "PRODUCTION") {
     registerOTel({ serviceName: "lmnr-web" });
