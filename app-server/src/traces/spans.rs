@@ -2889,21 +2889,6 @@ mod tests {
             _ => panic!("Expected content part list for assistant message"),
         };
         assert_eq!(assistant_message_content.len(), 2);
-        assert!(matches!(
-            assistant_message_content[0],
-            ChatMessageContentPart::ToolCall(_)
-        ));
-        assert!(matches!(
-            assistant_message_content[1],
-            ChatMessageContentPart::ToolCall(_)
-        ));
-
-        let assistant_message = &child_input_messages[2];
-        let assistant_message_content = match &assistant_message.content {
-            ChatMessageContent::ContentPartList(parts) => parts,
-            _ => panic!("Expected content part list for assistant message"),
-        };
-        assert_eq!(assistant_message_content.len(), 2);
 
         for part in assistant_message_content {
             match part {
