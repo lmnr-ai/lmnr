@@ -2564,7 +2564,8 @@ mod tests {
         let parent_span_id = Uuid::new_v4();
         let child_span_id = Uuid::new_v4();
         let trace_id = Uuid::new_v4();
-        let key = if is_v4 { "result" } else { "output" };
+        let output_key = if is_v4 { "result" } else { "output" };
+        let input_key = if is_v4 { "args" } else { "input" };
 
         // Create parent span (ai.generateText) - has DEFAULT span type
         let parent_attributes = HashMap::from([
@@ -2581,12 +2582,12 @@ mod tests {
                         "messages":[
                             {"role":"user","content":"What is the weather and time in SF?"},
                             {"role":"assistant","content":[
-                                {"type":"tool-call","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
-                                {"type":"tool-call","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                                {"type":"tool-call","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",input_key:{"location":"San Francisco, CA"}},
+                                {"type":"tool-call","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",input_key:{"location":"San Francisco, CA"}}
                             ]},
                             {"role":"tool","content":[
-                                {"type":"tool-result","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",key:"Sunny as always!"},
-                                {"type":"tool-result","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",key:"12:00 PM"}
+                                {"type":"tool-result","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",output_key:"Sunny as always!"},
+                                {"type":"tool-result","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",output_key:"12:00 PM"}
                             ]}
                         ]
                     }).to_string(),
@@ -2666,12 +2667,12 @@ mod tests {
                         json!({"role":"system","content":"You are a helpful assistant."}),
                         json!({"role":"user","content":[{"type":"text","text":"What is the weather and time in SF?"}]}),
                         json!({"role":"assistant","content":[
-                            {"type":"tool-call","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
-                            {"type":"tool-call","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                            {"type":"tool-call","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",input_key:{"location":"San Francisco, CA"}},
+                            {"type":"tool-call","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",input_key:{"location":"San Francisco, CA"}}
                         ]}),
                         json!({"role":"tool","content":[
-                            {"type":"tool-result","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",key:"Sunny as always!"},
-                            {"type":"tool-result","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",key:"12:00 PM"}]})
+                            {"type":"tool-result","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",output_key:"Sunny as always!"},
+                            {"type":"tool-result","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",output_key:"12:00 PM"}]})
                     ])
                     .to_string()
                 ),
@@ -2888,14 +2889,18 @@ mod tests {
             _ => panic!("Expected content part list for assistant message"),
         };
         assert_eq!(assistant_message_content.len(), 2);
-        assert!(matches!(
-            assistant_message_content[0],
-            ChatMessageContentPart::ToolCall(_)
-        ));
-        assert!(matches!(
-            assistant_message_content[1],
-            ChatMessageContentPart::ToolCall(_)
-        ));
+
+        for part in assistant_message_content {
+            match part {
+                ChatMessageContentPart::ToolCall(tool_call) => {
+                    assert_eq!(
+                        tool_call.arguments,
+                        Some(json!({"location":"San Francisco, CA"}))
+                    );
+                }
+                _ => panic!("Expected tool call for assistant message"),
+            }
+        }
 
         let tool_message = &child_input_messages[3];
         let tool_message_content = match &tool_message.content {

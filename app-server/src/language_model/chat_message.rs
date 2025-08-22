@@ -260,6 +260,7 @@ pub struct InstrumentationChatMessageDocument {
 pub struct InstrumentationChatMessageAISDKToolCall {
     pub tool_name: String,
     pub tool_call_id: Option<String>,
+    #[serde(alias = "args")] // In AI SDK v4 it used to be called "args"
     pub input: Option<serde_json::Value>,
 }
 
