@@ -1,5 +1,5 @@
 import { and, eq, getTableColumns, gt, lt, SQL, sql } from "drizzle-orm";
-import { PgTable, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
+import { PgColumn, PgTable, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "../auth";
@@ -58,15 +58,22 @@ export const isCurrentUserMemberOfWorkspace = async (workspaceId: string) => {
 export const getDateRangeFilters = (
   startTime: string | null,
   endTime: string | null,
-  pastHours: string | null
+  pastHours: string | null,
+  column?: PgColumn
 ): SQL[] => {
   if (pastHours && !isNaN(parseFloat(pastHours))) {
-    // sql.raw is a concious choice, because `sql` operator will bind the value as a query
-    // parameter, which postgres driver will reject as it cannot infer the data type.
-    return [gt(sql`start_time`, sql.raw(`NOW() - INTERVAL '${parseFloat(pastHours)} HOUR'`))];
+    if (column) {
+      return [gt(column, sql.raw(`NOW() - INTERVAL '${parseFloat(pastHours)} HOUR'`))];
+    } else {
+      return [gt(sql`start_time`, sql.raw(`NOW() - INTERVAL '${parseFloat(pastHours)} HOUR'`))];
+    }
   }
   if (startTime) {
-    return [gt(sql`end_time`, startTime), lt(sql`end_time`, endTime ?? sql`NOW()`)];
+    if (column) {
+      return [gt(column, startTime), lt(column, endTime ?? sql`NOW()`)];
+    } else {
+      return [gt(sql`end_time`, startTime), lt(sql`end_time`, endTime ?? sql`NOW()`)];
+    }
   }
   return [];
 };
