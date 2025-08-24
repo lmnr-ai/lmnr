@@ -4,19 +4,22 @@ import MuxPlayer from '@mux/mux-player-react';
 import { ArrowUpRight } from "lucide-react";
 import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
-import { useEffect, useRef,useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 
 import clarum from "@/assets/landing/companies/clarum.png";
 import remo from "@/assets/landing/companies/remo.svg";
 import saturn from "@/assets/landing/companies/saturn.png";
 import evals from "@/assets/landing/evals.png";
+import evals2 from "@/assets/landing/evals2.png";
 import iterate from "@/assets/landing/iterate.png";
 import labeling from "@/assets/landing/labeling.png";
+import observability from "@/assets/landing/observability.png";
 import observe from "@/assets/landing/observe.png";
 import playground from "@/assets/landing/playground.png";
 import query from "@/assets/landing/query.png";
-import traces from "@/assets/landing/traces.png";
+
+
 import yc from "@/assets/landing/yc.svg";
 import { IconBrowserUse, IconPlaywright } from "@/components/ui/icons";
 
@@ -25,17 +28,23 @@ import FeatureCard from "./feature-card";
 import Footer from "./footer";
 import FrameworksGrid from "./frameworks-grid";
 
+import InfiniteLogoCarousel from "./infinite-logo-carousel";
+
 
 interface Section {
   id: string;
   title: string;
   description: string;
-  pythonCodeExample?: string;
-  tsCodeExample?: string;
   docsLink: string;
   callToAction: string;
+}
+
+interface ImageItem {
+  id: number;
   image: StaticImageData;
-  isNew?: boolean;
+  sectionId: string;
+  nextImage: StaticImageData;
+  indexInSection: number;
 }
 
 const sections: Section[] = [
@@ -45,26 +54,6 @@ const sections: Section[] = [
     description: `Tracing is the most crucial component in debugging and improving your AI app. It brings visibility into every
     execution step while collecting valuable data for evaluations and fine-tuning.
     With Laminar, you can start tracing with a single line of code.`,
-    pythonCodeExample: `from lmnr import Laminar, observe
-
-# automatically traces common LLM frameworks and SDKs
-Laminar.initialize(project_api_key="...")
-
-@observe() # you can also manually trace any function
-def my_function(...):
-    ...
-
-`,
-    tsCodeExample: `import { Laminar, observe } from '@lmnr-ai/lmnr';
-
-// automatically traces common LLM frameworks and SDKs
-Laminar.initialize({ projectApiKey: "..." });
-
-// you can also manually trace any function
-const myFunction = observe({name: 'myFunc'}, async () => {
-...
-})`,
-    image: traces,
     docsLink: "https://docs.lmnr.ai/tracing/introduction",
     callToAction: "Start tracing your LLM app",
   },
@@ -74,25 +63,6 @@ const myFunction = observe({name: 'myFunc'}, async () => {
     description: `Evals are unit tests for your AI app. 
     They help you answer questions like "Did my last change improve the performance?".
     With Laminar, you can run custom evals via code, CLI, or CI/CD pipeline.`,
-    image: evals,
-    pythonCodeExample: `from lmnr import evaluate
-
-evaluate(
-  data=[ ... ],
-  executor=my_function,
-  evaluators={
-    "accuracy": lambda output, target: ...
-  }
-)`,
-    tsCodeExample: `import { evaluate } from '@lmnr-ai/lmnr';
-
-evaluate({
-  data: [ ... ],
-  executor: myFunction,
-  evaluators: {
-      accuracy: (output, target) => ...
-  }
-});`,
     docsLink: "https://docs.lmnr.ai/evaluations/introduction",
     callToAction: "Bring rigor to your LLM app",
   },
@@ -100,7 +70,6 @@ evaluate({
     id: "playground",
     title: "Playground",
     description: `Playground is a tool that allows you to test your LLM app.`,
-    image: playground,
     docsLink: "https://docs.lmnr.ai/playground/introduction",
     callToAction: "Try out Laminar Playground",
   },
@@ -108,41 +77,92 @@ evaluate({
     id: "labeling",
     title: "Labeling",
     description: `Labeling is a tool that allows you to label your data.`,
-    image: labeling,
     docsLink: "https://docs.lmnr.ai/labeling/introduction",
     callToAction: "Label your data",
   },
 ];
 
+// Flat list of all images with their section IDs and pre-calculated next images
+const allImages: ImageItem[] = [
+  { id: 0, image: observability, sectionId: "traces", nextImage: evals, indexInSection: 0 },
+  { id: 1, image: evals, sectionId: "evals", nextImage: evals2, indexInSection: 0 },
+  { id: 2, image: evals2, sectionId: "evals", nextImage: playground, indexInSection: 1 },
+  { id: 3, image: playground, sectionId: "playground", nextImage: labeling, indexInSection: 0 },
+  { id: 4, image: labeling, sectionId: "labeling", nextImage: observability, indexInSection: 0 },
+];
+
+const AUTO_ROTATE_INTERVAL = 2500;
+const AUTO_ROTATE_INTERVAL_AFTER_TRANSITION = 5000;
+
 export default function Landing() {
-  const [selectedSection, setSelectedSection] = useState<Section>(sections[0]);
+  const [currentImagePointer, setCurrentImagePointer] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Derived state
+  const currentImageItem = allImages[currentImagePointer];
+  const currentSection = sections.find(section => section.id === currentImageItem?.sectionId) || sections[0];
+
+  // Get images for current section for indicator dots
+  const currentSectionImages = allImages.filter(img => img.sectionId === currentSection.id);
+  const currentImageIndexInSection = currentImageItem.indexInSection;
 
   const handleSectionSelect = (section: Section) => {
-    setSelectedSection(section);
-    setAutoRotate(false);
-    setTimeout(() => setAutoRotate(true), 10000);
+    if (section.id === currentSection.id) return;
+
+    // Find the first image of the selected section
+    const firstImageOfSection = allImages.findIndex(img => img.sectionId === section.id);
+    if (firstImageOfSection !== -1) {
+      setIsTransitioning(true);
+      setAutoRotate(false);
+
+      setTimeout(() => {
+        setCurrentImagePointer(firstImageOfSection);
+        setIsTransitioning(false);
+      }, 250);
+
+      setTimeout(() => {
+        setAutoRotate(true);
+      }, AUTO_ROTATE_INTERVAL_AFTER_TRANSITION);
+    }
   };
 
+
+  const handleImageIndicatorClick = (index: number) => {
+    if (index === currentImageIndexInSection) return;
+
+    // Find the specific image in the current section
+    const targetImageItem = currentSectionImages[index];
+    const targetPointer = allImages.findIndex(img => img.id === targetImageItem.id);
+
+    if (targetPointer !== -1) {
+      setAutoRotate(false);
+      setCurrentImagePointer(targetPointer);
+      setTimeout(() => setAutoRotate(true), AUTO_ROTATE_INTERVAL_AFTER_TRANSITION);
+    }
+  };
+
+  // Auto-rotate through all images
   useEffect(() => {
     if (!autoRotate) return;
 
     const timer = setInterval(() => {
-      setSelectedSection((current) => {
-        const currentIndex = sections.findIndex((section) => section.id === current.id);
-        const nextIndex = (currentIndex + 1) % sections.length;
-        return sections[nextIndex];
-      });
-    }, 3000);
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setCurrentImagePointer((current) => (current + 1) % allImages.length);
+        setIsTransitioning(false);
+      }, 250);
+    }, AUTO_ROTATE_INTERVAL);
 
     return () => clearInterval(timer);
   }, [autoRotate]);
 
+
   return (
     <>
       <div className="flex flex-col z-30 items-center pt-28 space-y-8">
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] space-y-8">
-          <div className="flex flex-col">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] 2xl:max-w-[1400px] space-y-8">
+          <div className="flex flex-col w-full">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
                 <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-300 font-title">
@@ -169,65 +189,94 @@ export default function Landing() {
                   <span className="text-sm text-white">Backed by</span>
                   <Image src={yc} alt="backed by Y Combinator" className="w-32 sm:w-40 md:w-60" />
                 </div>
+                <div className="mt-8 md:mt-12 w-full">
+                  <InfiniteLogoCarousel />
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-center bg-primary w-full">
-          <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
+        <div className="flex flex-col items-center bg-[#de6f43] w-full">
+          <div className="flex flex-col w-full max-w-full xl:max-w-[1000px] 2xl:max-w-[1400px]">
 
             <div className="flex flex-col w-full relative md:pb-0 rounded">
               <div
-                key={selectedSection.id}
                 className="z-20 col-span-2 pt-8"
               >
-                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center pb-8 text-lg font-semibold tracking-wide font-title">
+                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center text-lg font-semibold tracking-wide font-title">
                   {sections.map((section, i) => (
                     <button
                       key={i}
                       onClick={() => handleSectionSelect(section)}
-                      className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${selectedSection.id === section.id
+                      className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                      }`}
+                        }`}
                     >
                       {section.title}
-                      {section.isNew && <span className="text-primary pl-1 sm:pl-2 mb-0.5 text-xs sm:text-sm">new</span>}
                     </button>
                   ))}
                 </div>
-                <Image
-                  alt={selectedSection.title}
-                  src={selectedSection.image}
-                  priority
-                  className="animate-in fade-in duration-500 rounded-lg w-full bg-background object-cover object-top h-[250px] md:h-[400px] lg:h-[700px]"
-                />
+                <div className="flex flex-col h-8 pt-4 items-center">
+                  {currentSectionImages.length > 1 && (
+                    <div className="flex space-x-2">
+                      {currentSectionImages.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleImageIndicatorClick(index)}
+                          className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
+                            ? "bg-white"
+                            : "bg-white/40 hover:bg-white/60"
+                            }`}
+                          aria-label={`View image ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  {/* Background/Next Image */}
+                  <Image
+                    alt="background"
+                    src={currentImageItem.nextImage}
+                    priority={false}
+                    quality={100}
+                    className="rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top"
+                  />
+                  {/* Current/Foreground Image */}
+                  <Image
+                    key={currentImageItem.id}
+                    alt="foreground"
+                    src={currentImageItem.image}
+                    priority
+                    quality={100}
+                    className={`absolute inset-0 rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top transition-opacity duration-500 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col w-full max-w-full xl:max-w-[1200px]">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white py-32 leading-wide">
-                With Laminar dev teams monitor agents in production, <br />
-                understand agent failure modes, and create evals to improve them.
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white py-32 leading-tight">
+                With Laminar, teams monitor agents in production, <br />
+                understand failure modes, and create evals to improve agent performance
               </h1>
               <span className="text-white/80 text-base font-semibold font-title">
                 Why teams choose Laminar
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8 mb-24">
                 <FeatureCard
-                  title="Fully open source"
+                  title="Fully Open-Source"
                   subtitle="Self-host or use our cloud. Transparent, extensible, and community-driven."
                 />
                 <FeatureCard
                   title="Highly scalable"
-                  subtitle="Optimized pipeline that scales with your traffic without breaking the bank."
+                  subtitle="Rust-powered, optimized for performance and scalability, capable of ingesting hundreds of millions of traces per day."
                 />
                 <FeatureCard
-                  title="SQL editor"
-                  subtitle="Analyze traces and metrics with a built-in SQL workspace."
+                  title="SQL access to all data"
+                  subtitle="Analyze traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries."
                 />
                 <FeatureCard
-                  title="Affordable pricing"
-                  subtitle="Simple, usage-based pricing designed for startups and scale-ups."
+                  title="Free to start, cheap to scale"
+                  subtitle="Start with a generous free tier, and scale without breaking the bank. No limit on the amount of spans you can ingest."
                 />
               </div>
             </div>
@@ -392,12 +441,12 @@ function CoreSections() {
 
   return (
     <>
-      <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] px-4 md:px-0">
+      <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] 2xl:max-w-[1400px] px-4 md:px-0">
         <div className="md:grid md:grid-cols-2 md:gap-16">
           <div className="hidden md:block order-1">
-            <div className="sticky h-[100vh] top-0">
+            <div className="sticky top-0 h-[100vh]">
               <div className="flex h-full items-center justify-center">
-                <div className="h-[600px] transition-all duration-500 overflow-hidden">
+                <div className="transition-all duration-500 overflow-hidden">
                   {renderLeftContent()}
                 </div>
               </div>
@@ -408,17 +457,7 @@ function CoreSections() {
           <div className="flex flex-col order-2">
             {/* Observe Section */}
 
-            {/* Mobile image for frameworks */}
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden bg-background">
-              <div className="flex w-full items-center justify-center p-8">
-                <FrameworksGrid
-                  gridClassName="grid grid-cols-4 gap-16 items-center justify-center w-full"
-                  labelTextColor="text-white/70"
-                />
-              </div>
-            </div>
-
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[90vh] justify-center">
               <h1 className="text-3xl font-bold tracking-normal font-title text-white">
                 Observe & Debug
               </h1>
@@ -467,7 +506,7 @@ function CoreSections() {
                 title="See what your browser agent sees"
                 description={
                   <div className="flex flex-col gap-4">
-                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Automatically traces <span className="text-white font-semibold">Browser Use, StageHand and custom agents with Playwright</span>.</p>
+                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Automatically traces <span className="text-white font-semibold">Browser Use, Stagehand and Playwright</span>.</p>
                     <div className="flex items-center gap-4 pb-4">
                       <IconBrowserUse className="w-9 h-9 text-white" />
                       <div className="flex items-center justify-center w-10 h-10 rounded-full text-4xl">🤘</div>
