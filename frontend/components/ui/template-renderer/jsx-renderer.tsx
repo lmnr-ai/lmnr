@@ -41,7 +41,7 @@ const createIframeContent = (templateCode: string, data: any): string => {
       margin: 0; 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
-      background: #FAFAFA;
+      background: #0A0A0A;
     }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
@@ -253,7 +253,7 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full h-full border bg-white rounded-md", className)}
+      className={cn("w-full h-full border bg-background", className)}
       style={{
         contain: "layout style",
         isolation: "isolate",
