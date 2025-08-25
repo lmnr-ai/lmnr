@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
-import SpanMessages from "@/components/traces/span-view/span-messages";
+import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,10 +65,10 @@ export function SpanView({ spanId }: SpanViewProps) {
           </div>
           <div className="flex-1 flex overflow-hidden">
             <TabsContent value="span-input" className="w-full h-full">
-              <SpanMessages span={span} type="input" />
+              <SpanContent span={span} type="input" />
             </TabsContent>
             <TabsContent value="span-output" className="w-full h-full">
-              <SpanMessages span={span} type="output" />
+              <SpanContent span={span} type="output" />
             </TabsContent>
             <TabsContent value="attributes" className="w-full h-full">
               <CodeHighlighter

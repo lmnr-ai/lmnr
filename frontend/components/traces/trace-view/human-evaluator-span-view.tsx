@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
-import SpanMessages from "@/components/traces/span-view/span-messages";
+import SpanMessages from "@/components/traces/span-view/span-content";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";

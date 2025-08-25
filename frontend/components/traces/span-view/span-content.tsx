@@ -8,7 +8,7 @@ interface SpanMessagesProps {
   type: "input" | "output";
 }
 
-const SpanMessages = ({ children, span, type }: PropsWithChildren<SpanMessagesProps>) => {
+const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesProps>) => {
   const initialData = type === "input" ? span.input : span.output;
   const [spanData, setSpanData] = useState(initialData);
 
@@ -35,4 +35,4 @@ const SpanMessages = ({ children, span, type }: PropsWithChildren<SpanMessagesPr
   );
 };
 
-export default memo(SpanMessages);
+export default memo(SpanContent);

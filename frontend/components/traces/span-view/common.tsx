@@ -15,23 +15,27 @@ import { cn } from "@/lib/utils";
 
 interface ResizableWrapperProps {
   children: ReactNode;
+  height: number | null;
+  onHeightChange: (height: number) => void;
   maxHeight?: number;
   className?: string;
-  presetKey: string;
 }
 
-const ResizableWrapper = ({ children, maxHeight = 400, className, presetKey }: ResizableWrapperProps) => {
-  const setHeight = useSpanViewStore((state) => state.setHeight);
-  const customHeight = useSpanViewStore((state) => state.heights.get(presetKey) || null);
-  const height = customHeight !== null ? customHeight : "auto";
-
+export const ResizableWrapper = ({
+  children,
+  height,
+  onHeightChange,
+  maxHeight = 400,
+  className,
+}: ResizableWrapperProps) => {
+  const currentHeight = height !== null ? height : "auto";
   return (
     <Resizable
-      size={{ width: "100%", height }}
-      maxHeight={customHeight !== null ? undefined : maxHeight}
+      size={{ width: "100%", height: currentHeight }}
+      maxHeight={height !== null ? undefined : maxHeight}
       onResizeStop={(_e, _direction, ref, _d) => {
         const newHeight = ref.offsetHeight;
-        setHeight(presetKey, newHeight);
+        onHeightChange(newHeight);
       }}
       enable={{
         bottom: true,
@@ -50,24 +54,30 @@ interface ToolCallContentPartProps {
   presetKey: string;
 }
 
-const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCallContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
-    <span className="flex items-center text-xs">
-      <Bolt size={12} className="min-w-3 mr-2" />
-      {toolName}
-    </span>
-    <ResizableWrapper presetKey={createStorageKey.resize(type, presetKey)} className="border-0">
-      <CodeHighlighter
-        readOnly
-        defaultMode="json"
-        codeEditorClassName="rounded"
-        value={JSON.stringify(content, null, 2)}
-        presetKey={createStorageKey.editor(type, presetKey)}
-        className="border-0"
-      />
-    </ResizableWrapper>
-  </div>
-);
+const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCallContentPartProps) => {
+  const storageKey = createStorageKey.resize(type, presetKey);
+  const setHeight = useSpanViewStore((state) => state.setHeight);
+  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
+
+  return (
+    <div className="flex flex-col gap-2 p-2 bg-background">
+      <span className="flex items-center text-xs">
+        <Bolt size={12} className="min-w-3 mr-2" />
+        {toolName}
+      </span>
+      <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
+        <CodeHighlighter
+          readOnly
+          defaultMode="json"
+          codeEditorClassName="rounded"
+          value={JSON.stringify(content, null, 2)}
+          presetKey={createStorageKey.editor(type, presetKey)}
+          className="border-0"
+        />
+      </ResizableWrapper>
+    </div>
+  );
+};
 
 interface ToolResultContentPartProps {
   toolCallId: string;
@@ -120,18 +130,23 @@ const PureTextContentPart = ({
   presetKey,
   className = "border-0",
   codeEditorClassName,
-}: TextContentPartProps) => (
-  <ResizableWrapper presetKey={createStorageKey.resize(type, presetKey)} className={className}>
-    <CodeHighlighter
-      defaultMode="json"
-      readOnly
-      value={content}
-      presetKey={createStorageKey.editor(type, presetKey)}
-      className="border-0"
-      codeEditorClassName={codeEditorClassName}
-    />
-  </ResizableWrapper>
-);
+}: TextContentPartProps) => {
+  const storageKey = createStorageKey.resize(type, presetKey);
+  const setHeight = useSpanViewStore((state) => state.setHeight);
+  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
+  return (
+    <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
+      <CodeHighlighter
+        defaultMode="json"
+        readOnly
+        value={content}
+        presetKey={createStorageKey.editor(type, presetKey)}
+        className="border-0"
+        codeEditorClassName={codeEditorClassName}
+      />
+    </ResizableWrapper>
+  );
+};
 
 interface RoleHeaderProps {
   role?: string;

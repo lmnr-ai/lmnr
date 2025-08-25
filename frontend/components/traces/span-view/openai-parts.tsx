@@ -117,7 +117,12 @@ const PureOpenAIContentParts = ({
         switch (part.type) {
           case "text":
             return (
-              <OpenAITextContentPart type={type} part={part} presetKey={`${parentIndex}-text-${index}-${spanPath}`} />
+              <OpenAITextContentPart
+                key={`${parentIndex}-text-${index}-${spanPath}`}
+                type={type}
+                part={part}
+                presetKey={`${parentIndex}-text-${index}-${spanPath}`}
+              />
             );
           case "file":
             return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;

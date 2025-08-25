@@ -232,18 +232,7 @@ const parseData = (data: any): any => {
   }
 };
 
-const JsxRenderer = ({
-  code,
-  data,
-  className,
-  // height according to message in span view
-  height = 372,
-}: {
-  code: string;
-  data: any;
-  className?: string;
-  height?: number;
-}) => {
+const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -268,7 +257,6 @@ const JsxRenderer = ({
       style={{
         contain: "layout style",
         isolation: "isolate",
-        height,
       }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"

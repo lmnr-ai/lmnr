@@ -12,7 +12,7 @@ interface SpanViewState {
 interface SpanViewActions {
   isCollapsed: (key: string) => boolean;
   toggleCollapse: (key: string) => void;
-  setHeight: (key: string, height: number) => void;
+  setHeight: (key: string) => (height: number) => void;
 }
 
 interface SerializableState {
@@ -47,7 +47,7 @@ const createSpanViewStore = () =>
           }));
         },
 
-        setHeight: (key: string, height: number) => {
+        setHeight: (key: string) => (height: number) => {
           set((state) => ({
             ...state,
             heights: new Map([...state.heights.entries(), [key, height]]),
