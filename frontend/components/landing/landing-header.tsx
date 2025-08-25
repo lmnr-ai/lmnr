@@ -36,25 +36,26 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
           </div>
           <nav
             className={cn(
-              "pb-8 md:p-0 w-full md:w-auto z-50 flex flex-col md:flex-row md:flex gap-2 md:gap-6 items-center md:h-20 text-sm font-semibold tracking-normal font-title text-white",
+              "pb-8 md:p-0 w-full md:w-auto z-50 flex flex-col md:flex-row md:flex gap-2 items-center md:h-20 text-sm font-semibold tracking-normal text-white",
               isMenuOpen ? "" : "hidden"
             )}
           >
-            <Link href="https://docs.lmnr.ai" target="_blank">Docs</Link>
-            <Link href="/pricing">Pricing</Link>
-            <Link href="/blog">Blog</Link>
-            <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
-              Discord
-            </Link>
-            <GitHubButton
-              href="https://github.com/lmnr-ai/lmnr"
-              data-color-scheme="no-preference: dark; light: dark; dark: dark;"
-              data-size="large"
-              data-show-count="true"
-              aria-label="Star lmnr-ai/lmnr on GitHub"
-            >
-              Star
-            </GitHubButton>
+            <div className="flex items-center gap-6 font-title">
+              <Link href="https://docs.lmnr.ai" target="_blank">Docs</Link>
+              <Link href="/pricing">Pricing</Link>
+              <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
+                Discord
+              </Link>
+              <GitHubButton
+                href="https://github.com/lmnr-ai/lmnr"
+                data-color-scheme="no-preference: dark; light: dark; dark: dark;"
+                data-size="large"
+                data-show-count="true"
+                aria-label="Star lmnr-ai/lmnr on GitHub"
+              >
+                Star
+              </GitHubButton>
+            </div>
             {hasSession ? (
               <Link className="hidden lg:block" href="/projects">
                 <Button>Dashboard</Button>

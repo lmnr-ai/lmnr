@@ -189,7 +189,7 @@ export default function Landing() {
                   <span className="text-sm text-white">Backed by</span>
                   <Image src={yc} alt="backed by Y Combinator" className="w-32 sm:w-40 md:w-60" />
                 </div>
-                <div className="mt-8 md:mt-12 w-full">
+                <div className="mt-8 md:mt-12 w-full 2xl:pt-32">
                   <InfiniteLogoCarousel />
                 </div>
               </div>
@@ -284,31 +284,16 @@ export default function Landing() {
         </div>
 
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-4 sm:py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-8 md:px-0">
-            <TestimonialCard
-              quote={`I can attest to it being the only reliable and performant LLM monitoring platform I${"'"}ve tried. Founding team is great to talk to and super responsive.`}
-              author="Tommy He"
-              role="CTO"
-              company="Clarum"
-              logo={clarum}
-              className="pb-6 sm:pb-8"
-            />
-            <TestimonialCard
-              quote={`Laminar's evals help us maintain high accuracy while moving fast, and their team is incredibly responsive. We now use them for every LLM based feature we build.`}
-              author="Hashim Rehman"
-              role="CTO"
-              company="Remo"
-              logo={remo}
-              className="pb-6 sm:pb-8"
-            />
-            <TestimonialCard
-              quote={`Laminar's tracing is genuinely great. So much better than the others I${"'"}ve tried.`}
-              author="Michael Ettlinger"
-              role="CTO"
-              company="Saturn"
-              logo={saturn}
-              className=""
-            />
+          <div className="flex items-center justify-center flex-col">
+            <div className="p-6 flex flex-col h-full gap-8 max-w-[900px]">
+              <p className="text-4xl leading-normal text-white text-center tracking-normal font-title font-semibold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
+            </div>
+            <div>
+              <p className="text-white font-medium">Hashim Rehman</p>
+              <p className="text-white/60 text-sm">
+                CTO, Remo
+              </p>
+            </div>
           </div>
         </div>
         <CoreSections />
@@ -320,7 +305,6 @@ export default function Landing() {
 
 function CoreSections() {
   const [activeSection, setActiveSection] = useState<string>("frameworks");
-  const [prevSection, setPrevSection] = useState<string>("frameworks");
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
@@ -336,7 +320,6 @@ function CoreSections() {
 
           if (scrollPosition >= top && scrollPosition <= bottom) {
             if (activeSection !== key) {
-              setPrevSection(activeSection);
               setActiveSection(key);
             }
           }
@@ -457,7 +440,7 @@ function CoreSections() {
           <div className="flex flex-col order-2">
             {/* Observe Section */}
 
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[90vh] justify-center">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
               <h1 className="text-3xl font-bold tracking-normal font-title text-white">
                 Observe & Debug
               </h1>
@@ -721,7 +704,7 @@ function TestimonialCard({
         </div>
         <Image src={logo} alt={company} className="h-10 w-20 object-contain" />
       </div>
-      <p className="text-secondary-foreground text-sm font-light">{quote}</p>
+      <p className="text-3xl leading-normal text-white">{quote}</p>
     </div>
   );
 }
