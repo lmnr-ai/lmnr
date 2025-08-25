@@ -2,6 +2,7 @@
 
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
 
@@ -15,15 +16,15 @@ export interface AnnotationField {
 export type QueueState = {
   queue: LabelingQueue | null;
   currentItem:
-  | (LabelingQueueItem & {
-    count: number;
-    position: number;
-    payload: {
-      data: Record<string, unknown>;
-      target: Record<string, unknown>;
-    };
-  })
-  | null;
+    | (LabelingQueueItem & {
+        count: number;
+        position: number;
+        payload: {
+          data: Record<string, unknown>;
+          target: Record<string, unknown>;
+        };
+      })
+    | null;
   isLoading: "skip" | "move" | "first-load" | false;
   isValid: boolean;
   dataset: string | undefined;
@@ -31,6 +32,8 @@ export type QueueState = {
   annotationSchema: Record<string, unknown> | null;
   fields: AnnotationField[];
   focusedFieldIndex: number;
+
+  height: number | null;
 };
 
 export type QueueActions = {
@@ -46,9 +49,15 @@ export type QueueActions = {
   focusField: (direction: "next" | "prev" | "first") => void;
   selectOptionInFocusedField: (optionNumber: number) => void;
   getTarget: () => Record<string, unknown>;
+
+  setHeight: (height: number) => void;
 };
 
 export type QueueStore = QueueState & QueueActions;
+
+interface SerializableQueueState {
+  height: number | null;
+}
 
 function parseAnnotationSchema(annotationSchema: Record<string, unknown> | null): AnnotationField[] {
   if (!annotationSchema || typeof annotationSchema !== "object" || !annotationSchema.properties) {
@@ -116,115 +125,128 @@ const getDefaultQueueItem = (queueId: string): QueueState["currentItem"] => ({
 });
 
 const createQueueStore = (queue: LabelingQueue) =>
-  createStore<QueueStore>()((set, get) => ({
-    // Queue state
-    queue,
-    currentItem: getDefaultQueueItem(queue.id),
-    isLoading: "first-load" as const,
-    isValid: true,
-    dataset: undefined,
+  createStore<QueueStore>()(
+    persist(
+      (set, get) => ({
+        queue,
+        currentItem: getDefaultQueueItem(queue.id),
+        isLoading: "first-load" as const,
+        isValid: true,
+        dataset: undefined,
 
-    annotationSchema: (queue.annotationSchema as Record<string, unknown>) || null,
-    fields: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null),
-    focusedFieldIndex: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null).length > 0 ? 0 : -1,
+        annotationSchema: (queue.annotationSchema as Record<string, unknown>) || null,
+        fields: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null),
+        focusedFieldIndex:
+          parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null).length > 0 ? 0 : -1,
 
-    setQueue: (queue) => set({ queue }),
+        height: null,
 
-    setCurrentItem: (currentItem) => {
-      set({ currentItem });
-    },
+        setQueue: (queue) => set({ queue }),
 
-    setIsLoading: (isLoading) => set({ isLoading }),
-    setIsValid: (isValid) => set({ isValid }),
-    setDataset: (dataset) => set({ dataset }),
+        setCurrentItem: (currentItem) => {
+          set({ currentItem });
+        },
 
-    setAnnotationSchema: (annotationSchema: Record<string, unknown> | null) => {
-      const fields = parseAnnotationSchema(annotationSchema);
-      set({
-        annotationSchema,
-        fields,
-        focusedFieldIndex: fields.length > 0 ? 0 : -1,
-      });
-    },
+        setIsLoading: (isLoading) => set({ isLoading }),
+        setIsValid: (isValid) => set({ isValid }),
+        setDataset: (dataset) => set({ dataset }),
 
-    getTarget: () => {
-      const { currentItem } = get();
-      return currentItem?.payload.target || {};
-    },
+        setAnnotationSchema: (annotationSchema: Record<string, unknown> | null) => {
+          const fields = parseAnnotationSchema(annotationSchema);
+          set({
+            annotationSchema,
+            fields,
+            focusedFieldIndex: fields.length > 0 ? 0 : -1,
+          });
+        },
 
-    updateTargetField: (key, value) => {
-      set((state) => {
-        if (!state.currentItem) return state;
+        getTarget: () => {
+          const { currentItem } = get();
+          return currentItem?.payload.target || {};
+        },
 
-        return {
-          ...state,
-          currentItem: {
-            ...state.currentItem,
-            payload: {
-              ...state.currentItem.payload,
-              target: {
-                ...state.currentItem.payload.target,
-                [key]: value,
+        updateTargetField: (key, value) => {
+          set((state) => {
+            if (!state.currentItem) return state;
+
+            return {
+              ...state,
+              currentItem: {
+                ...state.currentItem,
+                payload: {
+                  ...state.currentItem.payload,
+                  target: {
+                    ...state.currentItem.payload.target,
+                    [key]: value,
+                  },
+                },
               },
-            },
-          },
-        };
-      });
-    },
+            };
+          });
+        },
 
-    setFocusedField: (index) => {
-      const { fields } = get();
-      if (index >= 0 && index < fields.length) {
-        set({ focusedFieldIndex: index });
+        setFocusedField: (index) => {
+          const { fields } = get();
+          if (index >= 0 && index < fields.length) {
+            set({ focusedFieldIndex: index });
+          }
+        },
+
+        focusField: (direction: "next" | "prev" | "first") => {
+          const { fields, focusedFieldIndex } = get();
+          if (fields.length === 0) return;
+
+          let newIndex: number;
+          switch (direction) {
+            case "next":
+              newIndex = (focusedFieldIndex + 1) % fields.length;
+              break;
+            case "prev":
+              newIndex = (focusedFieldIndex - 1 + fields.length) % fields.length;
+              break;
+            case "first":
+              newIndex = 0;
+              break;
+          }
+          set({ focusedFieldIndex: newIndex });
+        },
+
+        selectOptionInFocusedField: (optionNumber: number) => {
+          const { fields, focusedFieldIndex, updateTargetField } = get();
+          const field = fields[focusedFieldIndex];
+          if (!field) return;
+
+          const options = field.options;
+          if (field.type === "number" && options && "min" in options) {
+            const { min = 1, max = 5 } = options;
+            const targetValue = min - 1 + optionNumber;
+            if (targetValue >= min && targetValue <= max) {
+              updateTargetField(field.key, targetValue);
+            }
+          } else if (field.type === "enum" && Array.isArray(field.options)) {
+            const optionIndex = optionNumber - 1;
+            if (optionIndex >= 0 && optionIndex < field.options.length) {
+              updateTargetField(field.key, field.options[optionIndex]);
+            }
+          } else if (field.type === "boolean") {
+            if (optionNumber === 1) {
+              updateTargetField(field.key, false);
+            } else if (optionNumber === 2) {
+              updateTargetField(field.key, true);
+            }
+          }
+        },
+
+        setHeight: (height: number) => set({ height }),
+      }),
+      {
+        name: `queue-${queue.id}-state`,
+        partialize: (state): SerializableQueueState => ({
+          height: state.height,
+        }),
       }
-    },
-
-    focusField: (direction: "next" | "prev" | "first") => {
-      const { fields, focusedFieldIndex } = get();
-      if (fields.length === 0) return;
-
-      let newIndex: number;
-      switch (direction) {
-        case "next":
-          newIndex = (focusedFieldIndex + 1) % fields.length;
-          break;
-        case "prev":
-          newIndex = (focusedFieldIndex - 1 + fields.length) % fields.length;
-          break;
-        case "first":
-          newIndex = 0;
-          break;
-      }
-      set({ focusedFieldIndex: newIndex });
-    },
-
-    selectOptionInFocusedField: (optionNumber: number) => {
-      const { fields, focusedFieldIndex, updateTargetField } = get();
-      const field = fields[focusedFieldIndex];
-      if (!field) return;
-
-      const options = field.options;
-      if (field.type === "number" && options && "min" in options) {
-        const { min = 1, max = 5 } = options;
-        const targetValue = min - 1 + optionNumber;
-        if (targetValue >= min && targetValue <= max) {
-          updateTargetField(field.key, targetValue);
-        }
-      } else if (field.type === "enum" && Array.isArray(field.options)) {
-        const optionIndex = optionNumber - 1;
-        if (optionIndex >= 0 && optionIndex < field.options.length) {
-          updateTargetField(field.key, field.options[optionIndex]);
-        }
-      } else if (field.type === "boolean") {
-        if (optionNumber === 1) {
-          updateTargetField(field.key, false);
-        } else if (optionNumber === 2) {
-          updateTargetField(field.key, true);
-        }
-      }
-      // Note: string fields will be handled by input components, not hotkeys
-    },
-  }));
+    )
+  );
 
 type QueueStoreApi = ReturnType<typeof createQueueStore>;
 

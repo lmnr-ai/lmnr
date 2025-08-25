@@ -3,9 +3,8 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import ErrorCard from "@/components/traces/error-card";
-import SpanInput from "@/components/traces/span-input";
-import SpanOutput from "@/components/traces/span-output";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
+import SpanMessages from "@/components/traces/span-view/span-content";
 import SpanStatsShields from "@/components/traces/stats-shields";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
@@ -88,10 +87,10 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
         <div className="flex-grow flex h-0">
           <div className="flex-grow flex flex-col">
             <TabsContent value="span-input" className="w-full h-full">
-              <SpanInput span={span} />
+              <SpanMessages span={span} type="input" />
             </TabsContent>
             <TabsContent value="span-output" className="w-full h-full">
-              <SpanOutput span={span} />
+              <SpanMessages span={span} type="output" />
             </TabsContent>
             <TabsContent value="attributes" className="h-full w-full">
               <Formatter
