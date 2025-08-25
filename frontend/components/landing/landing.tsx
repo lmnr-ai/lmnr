@@ -218,7 +218,7 @@ export default function Landing() {
                       className={`h-6 md:h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                        }`}
+                      }`}
                     >
                       {section.title}
                     </button>
@@ -234,7 +234,7 @@ export default function Landing() {
                           className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
                             ? "bg-white"
                             : "bg-white/40 hover:bg-white/60"
-                            }`}
+                          }`}
                           aria-label={`View image ${index + 1}`}
                         />
                       ))}
