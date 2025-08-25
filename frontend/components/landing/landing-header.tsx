@@ -40,7 +40,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               isMenuOpen ? "" : "hidden"
             )}
           >
-            <div className="flex items-center gap-6 font-title">
+            <div className="flex items-center gap-6 font-title flex-col md:flex-row">
               <Link href="https://docs.lmnr.ai" target="_blank">Docs</Link>
               <Link href="/pricing">Pricing</Link>
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">

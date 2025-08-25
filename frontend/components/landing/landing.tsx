@@ -157,23 +157,22 @@ export default function Landing() {
       <div className="flex flex-col z-30 items-center pt-28 space-y-8">
         <div className="flex flex-col w-full xl:max-w-[1200px] 2xl:max-w-[1400px] space-y-8">
           <div className="flex flex-col w-full">
-            <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
-              <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
-                <p className="text-[2.4rem] leading-tight tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-300 font-title">
-                  How developers <br className="md:hidden" />{" "}
-                  <span className="">build reliable AI agents.</span>
+            <div className="flex flex-col items-start md:items-center py-6 md:py-16 relative">
+              <div className="z-20 flex flex-col items-center gap-8 md:gap-6">
+                <p className="px-4 md:px-0 text-[2rem] leading-tight text-left md:text-center tracking-tight md:text-[3.5rem] md:leading-tight text-white font-semibold animate-in fade-in duration-300 font-title">
+                  How developers build reliable AI agents.
                 </p>
-                <p className="text-xl md:text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-title">
+                <p className="px-4 md:px-0 text-lg md:text-2xl text-white/85 font-semibold tracking-normal font-title text-left md:text-center">
                   The single open-source platform to trace, evaluate, and analyze AI agents.
                 </p>
                 <div className="flex space-x-4 items-center">
                   <Link href="/sign-up">
-                    <Button className="w-40 h-12 text-base">Get started - free</Button>
+                    <Button className="w-40 h-10 text-base border-none">Get started - free</Button>
                   </Link>
                   <Link target="_blank" href="https://docs.lmnr.ai">
                     <Button
-                      className="w-40 h-12 text-base bg-transparent border-white text-white hover:bg-white/10"
-                      variant="outline"
+                      className="w-40 h-10 border-none text-base"
+                      variant="secondary"
                     >
                       Read the docs
                     </Button>
@@ -197,15 +196,15 @@ export default function Landing() {
               <div
                 className="z-20 col-span-2 pt-8"
               >
-                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center md:text-lg font-semibold tracking-wide font-title">
+                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center text-sm md:text-lg font-semibold tracking-wide font-title">
                   {sections.map((section, i) => (
                     <button
                       key={i}
                       onClick={() => handleSectionSelect(section)}
-                      className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
+                      className={`h-6 md:h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                        }`}
+                      }`}
                     >
                       {section.title}
                     </button>
@@ -221,7 +220,7 @@ export default function Landing() {
                           className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
                             ? "bg-white"
                             : "bg-white/40 hover:bg-white/60"
-                            }`}
+                          }`}
                           aria-label={`View image ${index + 1}`}
                         />
                       ))}
@@ -311,12 +310,12 @@ export default function Landing() {
             </p>
             <div className="flex space-x-4 items-center">
               <Link href="/sign-up">
-                <Button className="w-40 h-12 text-base">Get started - free</Button>
+                <Button className="w-40 h-10 text-base border-none">Get started - free</Button>
               </Link>
               <Link target="_blank" href="https://docs.lmnr.ai">
                 <Button
-                  className="w-40 h-12 text-base bg-transparent border-white text-white hover:bg-white/10"
-                  variant="outline"
+                  className="w-40 h-10 border-none text-base"
+                  variant="secondary"
                 >
                   Read the docs
                 </Button>
@@ -466,105 +465,103 @@ function CoreSections() {
           </div>
 
           <div className="flex flex-col order-2 xl:max-w-[600px]">
-            <div className="md:hidden px-2 py-8">
-              <FrameworksGrid
-                gridClassName="grid grid-cols-4"
-                labelTextColor="text-white"
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-[100vh] justify-center my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-[100vh] justify-center my-8 md:my-0 pt-16 md:pt-0">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0">
                 Integrate in 2 minutes
               </h1>
               <InfoCard
                 title=""
                 description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced. Use our SDK to add comprehensive tracing to your agent."
                 animationOrder={0}
+                className="px-4 md:px-0"
               />
+              <div className="md:hidden px-2 py-8">
+                <FrameworksGrid
+                  gridClassName="grid grid-cols-4"
+                  labelTextColor="text-white"
+                />
+              </div>
             </div>
-
-            <div className="md:hidden w-full">
-              <Image
-                src={observe}
-                alt="Observe"
-                className="w-full object-cover object-top"
-                quality={100}
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
+            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Observe & Debug
               </h1>
-              <InfoCard
-                title="See traces of long-running agents in real time"
-                description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
-                animationOrder={1}
-              />
-              <InfoCard
-                title="Automatic error capture"
-                description="Laminar automatically captures application level exceptions."
-                animationOrder={1}
-              />
-              <InfoCard
-                title="Tool calls and structured output tracing"
-                description="Understand when your agent fails to use tools and to produce structured output."
-                animationOrder={1}
-              />
-              <InfoCard
-                title="Track custom metrics with events"
-                description="You can emit events with custom metadata from your code to track custom metrics of your agent."
-                animationOrder={1}
-              />
+              <div className="md:hidden w-full">
+                <Image
+                  src={observe}
+                  alt="Observe"
+                  className="w-full object-cover object-top"
+                  quality={100}
+                />
+              </div>
+              <div className="px-4 md:px-0">
+                <InfoCard
+                  title="See traces of long-running agents in real time"
+                  description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
+                  animationOrder={1}
+                />
+                <InfoCard
+                  title="Automatic error capture"
+                  description="Laminar automatically captures application level exceptions."
+                  animationOrder={1}
+                />
+                <InfoCard
+                  title="Tool calls and structured output tracing"
+                  description="Understand when your agent fails to use tools and to produce structured output."
+                  animationOrder={1}
+                />
+                <InfoCard
+                  title="Track custom metrics with events"
+                  description="You can emit events with custom metadata from your code to track custom metrics of your agent."
+                  animationOrder={1}
+                />
+              </div>
             </div>
-
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
-              <MuxPlayer
-                playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
-                metadata={{
-                  video_title: "Browser session capture",
-                }}
-                autoPlay={true}
-                muted={true}
-                loop={true}
-                thumbnailTime={0}
-                style={{
-                  // Hide all controls at once
-                  '--controls': 'none',
-                  // Hide the error dialog
-                  '--dialog': 'none',
-                  // Hide the loading indicator
-                  '--loading-indicator': 'none',
-                  // Target all sections by excluding the section prefix
-                  '--play-button': 'none',
-                  '--live-button': 'none',
-                  '--seek-backward-button': 'none',
-                  '--seek-forward-button': 'none',
-                  '--mute-button': 'none',
-                  '--captions-button': 'none',
-                  '--airplay-button': 'none',
-                  '--pip-button': 'none',
-                  '--fullscreen-button': 'none',
-                  '--cast-button': 'none',
-                  '--playback-rate-button': 'none',
-                  '--volume-range': 'none',
-                  '--time-range': 'none',
-                  '--time-display': 'none',
-                  '--duration-display': 'none',
-                  '--rendition-menu-button': 'none',
-                  // Target a specific section by prefixing the CSS var with (top|center|bottom)
-                  '--center-controls': 'none',
-                  '--bottom-play-button': 'none',
-                } as React.CSSProperties}
-                className="w-full border border-white/15 rounded overflow-hidden"
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-[100vh] flex flex-col justify-center my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-[100vh] flex flex-col justify-center my-8 md:my-0">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 See what your browser agent sees
               </h1>
+              <div className="md:hidden rounded-lg overflow-hidden">
+                <MuxPlayer
+                  playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
+                  metadata={{
+                    video_title: "Browser session capture",
+                  }}
+                  autoPlay={true}
+                  muted={true}
+                  loop={true}
+                  thumbnailTime={0}
+                  style={{
+                    // Hide all controls at once
+                    '--controls': 'none',
+                    // Hide the error dialog
+                    '--dialog': 'none',
+                    // Hide the loading indicator
+                    '--loading-indicator': 'none',
+                    // Target all sections by excluding the section prefix
+                    '--play-button': 'none',
+                    '--live-button': 'none',
+                    '--seek-backward-button': 'none',
+                    '--seek-forward-button': 'none',
+                    '--mute-button': 'none',
+                    '--captions-button': 'none',
+                    '--airplay-button': 'none',
+                    '--pip-button': 'none',
+                    '--fullscreen-button': 'none',
+                    '--cast-button': 'none',
+                    '--playback-rate-button': 'none',
+                    '--volume-range': 'none',
+                    '--time-range': 'none',
+                    '--time-display': 'none',
+                    '--duration-display': 'none',
+                    '--rendition-menu-button': 'none',
+                    // Target a specific section by prefixing the CSS var with (top|center|bottom)
+                    '--center-controls': 'none',
+                    '--bottom-play-button': 'none',
+                  } as React.CSSProperties}
+                  className="w-full border border-white/15 overflow-hidden"
+                />
+              </div>
               <InfoCard
                 title=""
                 description={
@@ -580,80 +577,81 @@ function CoreSections() {
                 linkUrl="https://docs.lmnr.ai/tracing/browser-agent-observability"
                 actionText="Learn about browser agent observability"
                 animationOrder={2}
-                className="items-center"
+                className="items-center px-4 md:px-0"
               >
               </InfoCard>
             </div>
 
-            <div className="md:hidden w-full">
-              <Image
-                src={query}
-                alt="Query and analyze"
-                className="w-full object-cover object-top"
-                quality={100}
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
+            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Query & Analyze
               </h1>
-              <InfoCard
-                title="Query all data on the platform with SQL"
-                description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
-                animationOrder={0}
-              />
-              <InfoCard
-                title="Track what matters to you with custom dashboards"
-                description="Skip the dashboard builder. Just write SQL to create custom dashboards to track custom metrics of your agent."
-                animationOrder={0}
-              />
-              <InfoCard
-                title="From query to eval datasets in seconds"
-                description="Use SQL to query custom data filtered by your own criteria. Batch insert to labeling queues or directly to datasets in seconds."
-                animationOrder={2}
-                className="bg-background"
-              />
-              <InfoCard
-                title="Access platform data via SQL API"
-                description="Use the Laminar SQL API to query traces, evals, datasets and events data from your own applications."
-                animationOrder={1}
-              />
+              <div className="md:hidden w-full">
+                <Image
+                  src={query}
+                  alt="Query and analyze"
+                  className="w-full object-cover object-top"
+                  quality={100}
+                />
+              </div>
+              <div className="px-4 md:px-0">
+                <InfoCard
+                  title="Query all data on the platform with SQL"
+                  description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
+                  animationOrder={0}
+                />
+                <InfoCard
+                  title="Track what matters to you with custom dashboards"
+                  description="Skip the dashboard builder. Just write SQL to create custom dashboards to track custom metrics of your agent."
+                  animationOrder={0}
+                />
+                <InfoCard
+                  title="From query to eval datasets in seconds"
+                  description="Use SQL to query custom data filtered by your own criteria. Batch insert to labeling queues or directly to datasets in seconds."
+                  animationOrder={2}
+                  className="bg-background"
+                />
+                <InfoCard
+                  title="Access platform data via SQL API"
+                  description="Use the Laminar SQL API to query traces, evals, datasets and events data from your own applications."
+                  animationOrder={1}
+                />
+              </div>
             </div>
-
-            <div className="md:hidden w-full">
-              <Image
-                src={iterate}
-                alt="Evaluate and iterate"
-                className="w-full object-cover object-top"
-                quality={100}
-              />
-            </div>
-
-            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center my-8 md:my-0">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 Evaluate & Iterate
               </h1>
-              <InfoCard
-                title="Zero boilerplate evaluation SDK"
-                description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
-                animationOrder={0}
-              />
-              <InfoCard
-                title="Iterate on prompts without touching your codebase"
-                description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
-                animationOrder={0}
-              />
-              <InfoCard
-                title="Catch regressions before your users do"
-                description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
-                animationOrder={1}
-              />
-              <InfoCard
-                title="Build high-quality eval datasets efficiently"
-                description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
-                animationOrder={2}
-              />
+              <div className="md:hidden w-full">
+                <Image
+                  src={iterate}
+                  alt="Evaluate and iterate"
+                  className="w-full object-cover object-top"
+                  quality={100}
+                />
+              </div>
+              <div className="px-4 md:px-0">
+                <InfoCard
+                  title="Zero boilerplate evaluation SDK"
+                  description="Skip the setup hell. Write your agent function and evaluator, pass in your data, and run. We automatically handle parallelism and retries."
+                  animationOrder={0}
+                />
+                <InfoCard
+                  title="Iterate on prompts without touching your codebase"
+                  description="Open LLM calls in the Playground. Iterate fast - test new prompts, try different models, and validate improvements."
+                  animationOrder={0}
+                />
+                <InfoCard
+                  title="Catch regressions before your users do"
+                  description="See the impact of every change before it goes live. Compare evaluation runs to catch regressions early and validate that your improvements actually work."
+                  animationOrder={1}
+                />
+                <InfoCard
+                  title="Build high-quality eval datasets efficiently"
+                  description="No complex labeling tools or workflows. Just queue your data and start labeling. Perfect for teams getting started with systematic evaluation."
+                  animationOrder={2}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -702,7 +700,7 @@ function InfoCard({
       }}
     >
       <div className="py-8 space-y-2 flex flex-col">
-        <h3
+        {title && title !== "" && <h3
           className="text-2xl font-semibold transition-all tracking-normal font-title"
           style={{
             opacity: inView ? 1 : 0,
@@ -711,7 +709,7 @@ function InfoCard({
           }}
         >
           {title}
-        </h3>
+        </h3>}
         <div
           className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-title"
           style={{

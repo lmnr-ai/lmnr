@@ -29,7 +29,7 @@ const integrations: Integration[] = [
   {
     name: "OpenTelemetry",
     icon: <IconOpenTelemetry className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/opentelemetry",
+    link: "https://docs.lmnr.ai/tracing/otel",
   },
   {
     name: "LangGraph",
