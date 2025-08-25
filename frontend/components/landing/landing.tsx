@@ -205,7 +205,7 @@ export default function Landing() {
                       className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                      }`}
+                        }`}
                     >
                       {section.title}
                     </button>
@@ -221,7 +221,7 @@ export default function Landing() {
                           className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
                             ? "bg-white"
                             : "bg-white/40 hover:bg-white/60"
-                          }`}
+                            }`}
                           aria-label={`View image ${index + 1}`}
                         />
                       ))}
@@ -293,7 +293,7 @@ export default function Landing() {
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] md:pt-8 2xl:pt-32">
           <div className="flex items-center justify-center flex-col">
             <div className="p-6 flex flex-col h-full gap-8 max-w-[900px]">
-              <p className="text-3xl md:text-[2.4rem] leading-normal text-white text-center font-title font-semibold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
+              <p className="text-3xl md:text-[2.4rem] leading-normal text-white text-center font-title font-bold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
             </div>
             <div>
               <p className="text-white font-medium">Hashim Rehman</p>
@@ -306,7 +306,7 @@ export default function Landing() {
         <CoreSections />
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] md:pb-16 items-center">
           <div className="flex flex-col w-full items-center gap-6">
-            <p className="text-3xl md:text-4xl text-white text-center tracking-widest font-title font-semibold">
+            <p className="text-3xl md:text-4xl text-white text-center font-title font-semibold px-4 md:px-0">
               Start building reliable AI agents today.
             </p>
             <div className="flex space-x-4 items-center">
@@ -453,8 +453,8 @@ function CoreSections() {
     <>
       <div className="flex flex-col w-full max-w-full">
         <div className="md:grid md:grid-cols-2 md:gap-16">
-          <div className="flex justify-end">
-            <div className="hidden md:block order-1 items-end">
+          <div className="hidden md:flex justify-end">
+            <div className="order-1">
               <div className="sticky top-0 h-[100vh]">
                 <div className="flex h-full transition-all duration-500 items-center justify-center">
                   <div className="transition-all duration-500 overflow-hidden">
@@ -465,30 +465,25 @@ function CoreSections() {
             </div>
           </div>
 
-          {/* Right side - scrollable text content */}
           <div className="flex flex-col order-2 xl:max-w-[600px]">
-            {/* Observe Section */}
-
-            {/* Mobile image for frameworks */}
-            <div className="md:hidden my-8 px-4">
+            <div className="md:hidden px-2 py-8">
               <FrameworksGrid
-                gridClassName="grid grid-cols-4 gap-4"
+                gridClassName="grid grid-cols-4"
                 labelTextColor="text-white"
               />
             </div>
 
             <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-[100vh] justify-center my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-3xl font-bold tracking-normal font-title text-white">
-                Observe & Debug
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+                Integrate in 2 minutes
               </h1>
               <InfoCard
-                title="1 line of code to trace LLM frameworks and SDKs"
-                description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced."
+                title=""
+                description="Simply initialize Laminar at the top of your project and popular LLM frameworks and SDKs will be automatically traced. Use our SDK to add comprehensive tracing to your agent."
                 animationOrder={0}
               />
             </div>
 
-            {/* Mobile image for observe */}
             <div className="md:hidden w-full">
               <Image
                 src={observe}
@@ -499,6 +494,9 @@ function CoreSections() {
             </div>
 
             <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
+                Observe & Debug
+              </h1>
               <InfoCard
                 title="See traces of long-running agents in real time"
                 description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
@@ -521,7 +519,6 @@ function CoreSections() {
               />
             </div>
 
-            {/* Mobile image for browser */}
             <div className="md:hidden mb-8 rounded-lg overflow-hidden">
               <MuxPlayer
                 playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
@@ -565,14 +562,14 @@ function CoreSections() {
             </div>
 
             <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-[100vh] flex flex-col justify-center my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-3xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
-                Browser Agent Observability
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white">
+                See what your browser agent sees
               </h1>
               <InfoCard
-                title="See what your browser agent sees"
+                title=""
                 description={
                   <div className="flex flex-col gap-4">
-                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Automatically traces <span className="text-white font-semibold">Browser Use, Stagehand and Playwright</span>.</p>
+                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Laminar automatically traces <span className="text-white font-semibold">Browser Use, Stagehand and Playwright</span>.</p>
                     <div className="flex items-center gap-4 pb-4">
                       <IconBrowserUse className="w-9 h-9 text-white" />
                       <div className="flex items-center justify-center w-10 h-10 rounded-full text-4xl">🤘</div>
@@ -598,7 +595,7 @@ function CoreSections() {
             </div>
 
             <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 md:pt-0">
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
                 Query & Analyze
               </h1>
               <InfoCard

@@ -122,7 +122,7 @@ export default function FrameworksGrid({
             rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
-            className={`flex group w-32 h-24 xl:w-32 xl:h-24 2xl:w-40 2xl:h-32 ${itemClassName}`}
+            className={`flex group items-center justify-center w-24 h-24 md:w-32 md:h-24 2xl:w-40 2xl:h-32 ${itemClassName}`}
           >
             <div className="flex flex-col items-center justify-center">
               <div className="w-20 h-20 xl:w-24 xl:h-24 2xl:w-28 2xl:h-28 rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors">
