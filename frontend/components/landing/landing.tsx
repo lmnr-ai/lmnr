@@ -7,9 +7,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 
-import clarum from "@/assets/landing/companies/clarum.png";
-import remo from "@/assets/landing/companies/remo.svg";
-import saturn from "@/assets/landing/companies/saturn.png";
 import evals from "@/assets/landing/evals.png";
 import evals2 from "@/assets/landing/evals2.png";
 import iterate from "@/assets/landing/iterate.png";
@@ -261,7 +258,7 @@ export default function Landing() {
               <span className="text-white/80 text-base font-semibold font-title">
                 Why teams choose Laminar
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8 mb-24">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-16 my-8 mb-24">
                 <FeatureCard
                   title="Fully Open-Source"
                   subtitle="Self-host or use our cloud. Transparent, extensible, and community-driven."
@@ -275,7 +272,15 @@ export default function Landing() {
                   subtitle="Analyze traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries."
                 />
                 <FeatureCard
-                  title="Free to start, cheap to scale"
+                  title="Powerful SDK"
+                  subtitle="With Laminar best-in-class SDK you can easily trace your agents and write powerful evals."
+                />
+                <FeatureCard
+                  title="Custom dashboards"
+                  subtitle="Turn SQL queries into custom dashboards to track custom metrics of your agent."
+                />
+                <FeatureCard
+                  title="Affordable at scale"
                   subtitle="Start with a generous free tier, and scale without breaking the bank. No limit on the amount of spans you can ingest."
                 />
               </div>
@@ -283,7 +288,7 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] py-4 sm:py-8">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] pt-8 2xl:pt-32">
           <div className="flex items-center justify-center flex-col">
             <div className="p-6 flex flex-col h-full gap-8 max-w-[900px]">
               <p className="text-4xl leading-normal text-white text-center tracking-normal font-title font-semibold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
@@ -297,6 +302,26 @@ export default function Landing() {
           </div>
         </div>
         <CoreSections />
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] pt-16 items-center">
+          <div className="flex flex-col w-full items-center gap-6">
+            <p className="text-4xl leading-normal text-white text-center tracking-normal font-title font-semibold">
+              Start building reliable AI agents today.
+            </p>
+            <div className="flex space-x-4 items-center">
+              <Link href="/sign-up">
+                <Button className="w-40 h-12 text-base">Get started - free</Button>
+              </Link>
+              <Link target="_blank" href="https://docs.lmnr.ai">
+                <Button
+                  className="w-40 h-12 text-base bg-transparent border-white text-white hover:bg-white/10"
+                  variant="outline"
+                >
+                  Read the docs
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
         <Footer />
       </div>
     </>
@@ -338,7 +363,7 @@ function CoreSections() {
       frameworks: (
         <div className="flex w-full items-center justify-center p-8">
           <FrameworksGrid
-            gridClassName="grid grid-cols-4 md:grid-cols-5 gap-4 items-center justify-center w-full"
+            gridClassName="grid grid-cols-4 gap-4 2xl:gap-8 items-center justify-center w-full"
             labelTextColor="text-white/70"
           />
         </div>
@@ -347,7 +372,7 @@ function CoreSections() {
         <Image
           src={observe}
           alt="Observe"
-          className="w-full h-full object-cover object-top"
+          className="w-[600px] 2xl:w-[800px] h-full object-cover object-top"
           quality={100}
         />
       ),
@@ -390,7 +415,7 @@ function CoreSections() {
               '--center-controls': 'none',
               '--bottom-play-button': 'none',
             } as React.CSSProperties}
-            className="w-[600px] h-[570px] border"
+            className="xl:w-[600px] xl:h-[570px] 2xl:w-[800px] 2xl:h-[850px] border border-white/15 rounded overflow-hidden "
           />
         </div>
       ),
@@ -398,7 +423,7 @@ function CoreSections() {
         <Image
           src={query}
           alt="Query and analyze"
-          className="w-full h-full object-cover object-top"
+          className="w-[600px] xl:w-[600px] 2xl:w-[800px] h-full object-cover object-top"
           quality={100}
         />
       ),
@@ -406,7 +431,7 @@ function CoreSections() {
         <Image
           src={iterate}
           alt="Evaluate and iterate"
-          className="w-full h-full object-cover object-top"
+          className="w-[600px] xl:w-[600px] 2xl:w-[800px] h-full object-cover object-top"
           quality={100}
         />
       ),
@@ -424,23 +449,25 @@ function CoreSections() {
 
   return (
     <>
-      <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] 2xl:max-w-[1400px] px-4 md:px-0">
+      <div className="flex flex-col w-full max-w-full px-4 md:px-0">
         <div className="md:grid md:grid-cols-2 md:gap-16">
-          <div className="hidden md:block order-1">
-            <div className="sticky top-0 h-[100vh]">
-              <div className="flex h-full items-center justify-center">
-                <div className="transition-all duration-500 overflow-hidden">
-                  {renderLeftContent()}
+          <div className="flex justify-end">
+            <div className="hidden md:block order-1 items-end">
+              <div className="sticky top-0 h-[100vh]">
+                <div className="flex h-full transition-all duration-500 items-center justify-center">
+                  <div className="transition-all duration-500 overflow-hidden">
+                    {renderLeftContent()}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Right side - scrollable text content */}
-          <div className="flex flex-col order-2">
+          <div className="flex flex-col order-2 xl:max-w-[600px]">
             {/* Observe Section */}
 
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col h-[100vh] justify-center">
               <h1 className="text-3xl font-bold tracking-normal font-title text-white">
                 Observe & Debug
               </h1>
@@ -484,7 +511,10 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh] flex justify-center">
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh] flex flex-col justify-center">
+              <h1 className="text-3xl font-bold tracking-normal font-title text-white pb-8">
+                Browser Agent Observability
+              </h1>
               <InfoCard
                 title="See what your browser agent sees"
                 description={
@@ -509,16 +539,6 @@ function CoreSections() {
             <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
               Query & Analyze
             </h1>
-
-            {/* Mobile image for query */}
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
-              <Image
-                src={query}
-                alt="Query and analyze"
-                className="w-full object-cover object-top"
-                quality={100}
-              />
-            </div>
 
             <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col min-h-[100vh]">
               <InfoCard
@@ -673,38 +693,6 @@ function InfoCard({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-
-function TestimonialCard({
-  quote,
-  author,
-  role,
-  company,
-  logo,
-  className = "",
-}: {
-  quote: string;
-  author: string;
-  role: string;
-  company: string;
-  logo: StaticImageData;
-  className?: string;
-}) {
-  return (
-    <div className={`p-6 flex flex-col h-full gap-8 ${className}`}>
-      <div className="flex items-center gap-4 mt-6 text-sm md:text-base justify-between">
-        <div>
-          <p className="text-white font-medium">{author}</p>
-          <p className="text-white/60 text-sm">
-            {role}, {company}
-          </p>
-        </div>
-        <Image src={logo} alt={company} className="h-10 w-20 object-contain" />
-      </div>
-      <p className="text-3xl leading-normal text-white">{quote}</p>
     </div>
   );
 }
