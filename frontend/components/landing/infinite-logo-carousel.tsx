@@ -4,9 +4,8 @@ import Image, { StaticImageData } from "next/image";
 import { useEffect, useRef } from "react";
 
 import amplitude from "@/assets/landing/companies/amplitude.png";
-import remo from "@/assets/landing/companies/remo.svg";
 import skyvern from "@/assets/landing/companies/skyvern.webp";
-import { LogoBrowserUse, LogoRye, LogoRemo, LogoAxionRay } from "@/components/ui/icons";
+import { LogoAxionRay,LogoBrowserUse, LogoRemo, LogoRye } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface Logo {
@@ -111,7 +110,7 @@ export default function InfiniteLogoCarousel() {
   };
 
   return (
-    <div className="relative overflow-hidden xl:max-w-[1000px] 2xl:max-w-[1200px] w-full">
+    <div className="relative overflow-hidden w-[100vw] xl:max-w-[1000px] 2xl:max-w-[1200px]">
       {/* Fade gradients */}
       <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />

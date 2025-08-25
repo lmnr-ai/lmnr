@@ -15,8 +15,6 @@ import observability from "@/assets/landing/observability.png";
 import observe from "@/assets/landing/observe.png";
 import playground from "@/assets/landing/playground.png";
 import query from "@/assets/landing/query.png";
-
-
 import yc from "@/assets/landing/yc.svg";
 import { IconBrowserUse, IconPlaywright } from "@/components/ui/icons";
 
@@ -24,7 +22,6 @@ import { Button } from "../ui/button";
 import FeatureCard from "./feature-card";
 import Footer from "./footer";
 import FrameworksGrid from "./frameworks-grid";
-
 import InfiniteLogoCarousel from "./infinite-logo-carousel";
 
 
@@ -158,7 +155,7 @@ export default function Landing() {
   return (
     <>
       <div className="flex flex-col z-30 items-center pt-28 space-y-8">
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] 2xl:max-w-[1400px] space-y-8">
+        <div className="flex flex-col w-full xl:max-w-[1200px] 2xl:max-w-[1400px] space-y-8">
           <div className="flex flex-col w-full">
             <div className="flex flex-col items-center py-6 md:py-16 text-center relative">
               <div className="z-20 flex flex-col items-center gap-4 md:gap-6">
@@ -166,7 +163,7 @@ export default function Landing() {
                   How developers <br className="md:hidden" />{" "}
                   <span className="">build reliable AI agents.</span>
                 </p>
-                <p className="text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-title">
+                <p className="text-xl md:text-2xl text-white/85 font-semibold tracking-normal px-2 md:px-0 font-title">
                   The single open-source platform to trace, evaluate, and analyze AI agents.
                 </p>
                 <div className="flex space-x-4 items-center">
@@ -200,7 +197,7 @@ export default function Landing() {
               <div
                 className="z-20 col-span-2 pt-8"
               >
-                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center text-lg font-semibold tracking-wide font-title">
+                <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center md:text-lg font-semibold tracking-wide font-title">
                   {sections.map((section, i) => (
                     <button
                       key={i}
@@ -208,7 +205,7 @@ export default function Landing() {
                       className={`h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
                         ? "bg-white/20 text-white"
                         : "text-white/80 hover:text-white"
-                        }`}
+                      }`}
                     >
                       {section.title}
                     </button>
@@ -224,74 +221,79 @@ export default function Landing() {
                           className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
                             ? "bg-white"
                             : "bg-white/40 hover:bg-white/60"
-                            }`}
+                          }`}
                           aria-label={`View image ${index + 1}`}
                         />
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="relative">
-                  {/* Background/Next Image */}
-                  <Image
-                    alt="background"
-                    src={currentImageItem.nextImage}
-                    priority={false}
-                    quality={100}
-                    className="rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top"
-                  />
-                  {/* Current/Foreground Image */}
-                  <Image
-                    key={currentImageItem.id}
-                    alt="foreground"
-                    src={currentImageItem.image}
-                    priority
-                    quality={100}
-                    className={`absolute inset-0 rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top transition-opacity duration-500 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
-                  />
+                <div className="px-4 md:px-0">
+                  <div className="relative">
+                    <Image
+                      alt="background"
+                      src={currentImageItem.nextImage}
+                      priority={false}
+                      quality={100}
+                      className="rounded md:rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top"
+                    />
+                    <Image
+                      key={currentImageItem.id}
+                      alt="foreground"
+                      src={currentImageItem.image}
+                      priority
+                      quality={100}
+                      className={`absolute inset-0 rounded md:rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top transition-opacity duration-500 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+                    />
+                  </div>
                 </div>
               </div>
-              <h1 className="text-4xl font-bold tracking-normal font-title text-white py-32 leading-tight">
-                With Laminar, teams monitor agents in production, <br />
-                understand failure modes, and create evals to improve agent performance
-              </h1>
-              <span className="text-white/80 text-base font-semibold font-title">
-                Why teams choose Laminar
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-16 my-8 mb-24">
-                <FeatureCard
-                  title="Fully Open-Source"
-                  subtitle="Self-host or use our cloud. Transparent, extensible, and community-driven."
-                />
-                <FeatureCard
-                  title="Highly scalable"
-                  subtitle="Rust-powered, optimized for performance and scalability, capable of ingesting hundreds of millions of traces per day."
-                />
-                <FeatureCard
-                  title="SQL access to all data"
-                  subtitle="Analyze traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries."
-                />
-                <FeatureCard
-                  title="Powerful SDK"
-                  subtitle="With Laminar best-in-class SDK you can easily trace your agents and write powerful evals."
-                />
-                <FeatureCard
-                  title="Custom dashboards"
-                  subtitle="Turn SQL queries into custom dashboards to track custom metrics of your agent."
-                />
-                <FeatureCard
-                  title="Affordable at scale"
-                  subtitle="Start with a generous free tier, and scale without breaking the bank. No limit on the amount of spans you can ingest."
-                />
+              <div className="px-4 md:px-0">
+                <h1 className="text-2xl md:text-[2.4rem] font-bold tracking-normal font-title text-white py-16 md:py-32 leading-tight">
+                  With Laminar, teams monitor agents in production, <br />
+                  understand failure modes, and create evals to improve agent performance
+                </h1>
+                <span className="text-white/80 text-base font-semibold font-title">
+                  Why teams choose Laminar
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-16 my-8 md:mb-24 mb-16">
+                  <FeatureCard
+                    title="Fully Open-Source"
+                    subtitle="Self-host or use our cloud. Transparent, extensible, and community-driven."
+                  />
+                  <FeatureCard
+                    title="Highly scalable"
+                    subtitle="Rust-powered, optimized for performance and scalability, capable of ingesting hundreds of millions of traces per day."
+                  />
+                  <FeatureCard
+                    title="SQL access to all data"
+                    subtitle="Analyze traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries."
+                    className="hidden md:block"
+                  />
+                  <FeatureCard
+                    title="Powerful SDK"
+                    subtitle="With Laminar best-in-class SDK you can easily trace your agents and write powerful evals."
+                    className="hidden md:block"
+                  />
+                  <FeatureCard
+                    title="Custom dashboards"
+                    subtitle="Turn SQL queries into custom dashboards to track custom metrics of your agent."
+                    className="hidden md:block"
+                  />
+                  <FeatureCard
+                    title="Affordable at scale"
+                    subtitle="Start with a generous free tier, and scale without breaking the bank. No limit on the amount of spans you can ingest."
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] pt-8 2xl:pt-32">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] md:pt-8 2xl:pt-32">
           <div className="flex items-center justify-center flex-col">
             <div className="p-6 flex flex-col h-full gap-8 max-w-[900px]">
-              <p className="text-4xl leading-normal text-white text-center tracking-normal font-title font-semibold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
+              <p className="text-3xl md:text-[2.4rem] leading-normal text-white text-center font-title font-semibold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
             </div>
             <div>
               <p className="text-white font-medium">Hashim Rehman</p>
@@ -302,9 +304,9 @@ export default function Landing() {
           </div>
         </div>
         <CoreSections />
-        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] pt-16 items-center">
+        <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] md:pb-16 items-center">
           <div className="flex flex-col w-full items-center gap-6">
-            <p className="text-4xl leading-normal text-white text-center tracking-normal font-title font-semibold">
+            <p className="text-3xl md:text-4xl text-white text-center tracking-widest font-title font-semibold">
               Start building reliable AI agents today.
             </p>
             <div className="flex space-x-4 items-center">
@@ -449,7 +451,7 @@ function CoreSections() {
 
   return (
     <>
-      <div className="flex flex-col w-full max-w-full px-4 md:px-0">
+      <div className="flex flex-col w-full max-w-full">
         <div className="md:grid md:grid-cols-2 md:gap-16">
           <div className="flex justify-end">
             <div className="hidden md:block order-1 items-end">
@@ -467,7 +469,15 @@ function CoreSections() {
           <div className="flex flex-col order-2 xl:max-w-[600px]">
             {/* Observe Section */}
 
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col h-[100vh] justify-center">
+            {/* Mobile image for frameworks */}
+            <div className="md:hidden my-8 px-4">
+              <FrameworksGrid
+                gridClassName="grid grid-cols-4 gap-4"
+                labelTextColor="text-white"
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-[100vh] justify-center my-8 md:my-0 px-4 md:px-0">
               <h1 className="text-3xl font-bold tracking-normal font-title text-white">
                 Observe & Debug
               </h1>
@@ -479,7 +489,7 @@ function CoreSections() {
             </div>
 
             {/* Mobile image for observe */}
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+            <div className="md:hidden w-full">
               <Image
                 src={observe}
                 alt="Observe"
@@ -488,7 +498,7 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col min-h-[100vh]">
+            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
               <InfoCard
                 title="See traces of long-running agents in real time"
                 description="Don't wait until the end of your AI agent run to start debugging. Laminar shows spans as they happen in real time."
@@ -511,8 +521,51 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="min-h-[100vh] flex flex-col justify-center">
-              <h1 className="text-3xl font-bold tracking-normal font-title text-white pb-8">
+            {/* Mobile image for browser */}
+            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+              <MuxPlayer
+                playbackId="N2QzSAaeGCvsJ4lzAw2MOIpRPDx7YzFQsZG02fSlUj7g"
+                metadata={{
+                  video_title: "Browser session capture",
+                }}
+                autoPlay={true}
+                muted={true}
+                loop={true}
+                thumbnailTime={0}
+                style={{
+                  // Hide all controls at once
+                  '--controls': 'none',
+                  // Hide the error dialog
+                  '--dialog': 'none',
+                  // Hide the loading indicator
+                  '--loading-indicator': 'none',
+                  // Target all sections by excluding the section prefix
+                  '--play-button': 'none',
+                  '--live-button': 'none',
+                  '--seek-backward-button': 'none',
+                  '--seek-forward-button': 'none',
+                  '--mute-button': 'none',
+                  '--captions-button': 'none',
+                  '--airplay-button': 'none',
+                  '--pip-button': 'none',
+                  '--fullscreen-button': 'none',
+                  '--cast-button': 'none',
+                  '--playback-rate-button': 'none',
+                  '--volume-range': 'none',
+                  '--time-range': 'none',
+                  '--time-display': 'none',
+                  '--duration-display': 'none',
+                  '--rendition-menu-button': 'none',
+                  // Target a specific section by prefixing the CSS var with (top|center|bottom)
+                  '--center-controls': 'none',
+                  '--bottom-play-button': 'none',
+                } as React.CSSProperties}
+                className="w-full border border-white/15 rounded overflow-hidden"
+              />
+            </div>
+
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-[100vh] flex flex-col justify-center my-8 md:my-0 px-4 md:px-0">
+              <h1 className="text-3xl font-bold tracking-normal font-title text-white pb-0 md:pb-8">
                 Browser Agent Observability
               </h1>
               <InfoCard
@@ -535,12 +588,19 @@ function CoreSections() {
               </InfoCard>
             </div>
 
-            {/* Query & Analyze Section */}
-            <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 pb-8">
-              Query & Analyze
-            </h1>
+            <div className="md:hidden w-full">
+              <Image
+                src={query}
+                alt="Query and analyze"
+                className="w-full object-cover object-top"
+                quality={100}
+              />
+            </div>
 
-            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col min-h-[100vh]">
+            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0 px-4 md:px-0">
+              <h1 className="text-4xl font-bold tracking-normal font-title text-white pt-16 md:pt-0">
+                Query & Analyze
+              </h1>
               <InfoCard
                 title="Query all data on the platform with SQL"
                 description="Access to traces, evals, datasets and events data on the platform with a built-in SQL editor."
@@ -564,8 +624,7 @@ function CoreSections() {
               />
             </div>
 
-            {/* Mobile image for iterate */}
-            <div className="md:hidden mb-8 rounded-lg overflow-hidden">
+            <div className="md:hidden w-full">
               <Image
                 src={iterate}
                 alt="Evaluate and iterate"
@@ -574,9 +633,7 @@ function CoreSections() {
               />
             </div>
 
-            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center">
-
-              {/* Evaluate & Iterate Section */}
+            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center my-8 md:my-0 px-4 md:px-0">
               <h1 className="text-4xl font-bold tracking-normal font-title text-white">
                 Evaluate & Iterate
               </h1>

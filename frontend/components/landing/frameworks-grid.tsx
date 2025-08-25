@@ -110,8 +110,7 @@ export default function FrameworksGrid({
   className = "",
   gridClassName = "grid grid-cols-4 md:grid-cols-5 gap-1 xl:gap-4 2xl:gap-6",
   itemClassName = "",
-  showLabels = true,
-  labelTextColor = "text-muted-foreground",
+  labelTextColor = "text-white",
 }: FrameworksGridProps) {
 
   return (
@@ -123,12 +122,14 @@ export default function FrameworksGrid({
             rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
-            className={`flex flex-col items-center group w-32 h-24 xl:w-32 xl:h-24 2xl:w-40 2xl:h-32 ${itemClassName}`}
+            className={`flex group w-32 h-24 xl:w-32 xl:h-24 2xl:w-40 2xl:h-32 ${itemClassName}`}
           >
-            <div className="w-20 h-20 xl:w-24 xl:h-24 2xl:w-28 2xl:h-28 rounded-lg flex flex-col items-center justify-center hover:bg-white/20 transition-colors">
-              {integration.icon || <span className="text-4xl xl:text-5xl 2xl:text-6xl">{integration.emoji}</span>}
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-20 h-20 xl:w-24 xl:h-24 2xl:w-28 2xl:h-28 rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors">
+                {integration.icon || <span className="text-4xl xl:text-5xl 2xl:text-6xl">{integration.emoji}</span>}
+              </div>
+              <span className={`text-xs xl:text-sm 2xl:text-base 2xl:mt-2 text-center ${labelTextColor}`}>{integration.name}</span>
             </div>
-            {showLabels && <span className={`text-xs xl:text-sm 2xl:text-base 2xl:mt-2 text-center ${labelTextColor}`}>{integration.name}</span>}
           </Link>
         ))}
       </div>

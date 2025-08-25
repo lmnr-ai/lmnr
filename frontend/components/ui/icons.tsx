@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import Image from "next/image";
+import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -448,8 +448,8 @@ export {
   IconResizeHandle,
   IconSpinner,
   IconVercel,
-  LogoBrowserUse,
-  LogoRye,
-  LogoRemo,
   LogoAxionRay,
+  LogoBrowserUse,
+  LogoRemo,
+  LogoRye,
 };

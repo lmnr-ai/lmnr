@@ -19,7 +19,7 @@ export default function FeatureCard({
 }: FeatureCardProps) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <h3 className={cn("text-2xl text-white font-bold font-title tracking-normal leading-tight", titleClassName)}>{title}</h3>
+      <h3 className={cn("text-xl md:text-2xl text-white font-bold font-title tracking-normal leading-tight", titleClassName)}>{title}</h3>
       <p className={cn("text-sm text-white/80 font-title tracking-normal font-semibold", subtitleClassName)}>
         {subtitle}
       </p>
