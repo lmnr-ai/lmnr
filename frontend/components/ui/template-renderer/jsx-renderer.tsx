@@ -253,7 +253,7 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full h-full border bg-background", className)}
+      className={cn("w-full h-full border", className)}
       style={{
         contain: "layout style",
         isolation: "isolate",
