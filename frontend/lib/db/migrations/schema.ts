@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
-export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL', 'HUMAN_EVALUATOR']);
+export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL', 'HUMAN_EVALUATOR', 'EVENT']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION', 'PLAYGROUND']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner', 'admin']);
 
@@ -270,6 +270,7 @@ export const events = pgTable("events", {
   spanId: uuid("span_id").notNull(),
   projectId: uuid("project_id").notNull(),
 }, (table) => [
+  index("events_span_id_idx").using("btree", table.spanId.asc().nullsLast().op("uuid_ops")),
   index("events_span_id_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.spanId.asc().nullsLast().op("uuid_ops")),
 ]);
 
