@@ -92,6 +92,7 @@ export default function Landing() {
   const [currentImagePointer, setCurrentImagePointer] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionTargetImage, setTransitionTargetImage] = useState<StaticImageData | null>(null);
 
   // Derived state
   const currentImageItem = allImages[currentImagePointer];
@@ -107,11 +108,14 @@ export default function Landing() {
     // Find the first image of the selected section
     const firstImageOfSection = allImages.findIndex(img => img.sectionId === section.id);
     if (firstImageOfSection !== -1) {
+      const targetImageItem = allImages[firstImageOfSection];
+      setTransitionTargetImage(targetImageItem.image);
       setIsTransitioning(true);
       setAutoRotate(false);
 
       setTimeout(() => {
         setCurrentImagePointer(firstImageOfSection);
+        setTransitionTargetImage(null);
         setIsTransitioning(false);
       }, 250);
 
@@ -130,9 +134,19 @@ export default function Landing() {
     const targetPointer = allImages.findIndex(img => img.id === targetImageItem.id);
 
     if (targetPointer !== -1) {
+      setTransitionTargetImage(targetImageItem.image);
+      setIsTransitioning(true);
       setAutoRotate(false);
-      setCurrentImagePointer(targetPointer);
-      setTimeout(() => setAutoRotate(true), AUTO_ROTATE_INTERVAL_AFTER_TRANSITION);
+
+      setTimeout(() => {
+        setCurrentImagePointer(targetPointer);
+        setTransitionTargetImage(null);
+        setIsTransitioning(false);
+      }, 250);
+
+      setTimeout(() => {
+        setAutoRotate(true);
+      }, AUTO_ROTATE_INTERVAL_AFTER_TRANSITION);
     }
   };
 
@@ -231,7 +245,7 @@ export default function Landing() {
                   <div className="relative">
                     <Image
                       alt="background"
-                      src={currentImageItem.nextImage}
+                      src={transitionTargetImage || currentImageItem.nextImage}
                       priority={false}
                       quality={100}
                       className="rounded md:rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top"
