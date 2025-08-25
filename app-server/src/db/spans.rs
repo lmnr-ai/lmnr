@@ -24,6 +24,7 @@ pub enum SpanType {
     HUMAN_EVALUATOR,
     EVALUATION,
     TOOL,
+    EVENT,
 }
 
 impl FromStr for SpanType {
@@ -39,6 +40,7 @@ impl FromStr for SpanType {
             "HUMAN_EVALUATOR" => Ok(SpanType::HUMAN_EVALUATOR),
             "EVALUATION" => Ok(SpanType::EVALUATION),
             "TOOL" => Ok(SpanType::TOOL),
+            "EVENT" => Ok(SpanType::EVENT),
             _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),
         }
     }
