@@ -4,7 +4,7 @@ import { get, isEmpty } from "lodash";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { KeyboardEvent, useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { ResizableWrapper } from "@/components/traces/span-view/common";
@@ -201,7 +201,7 @@ function QueueInner() {
   useHotkeys(
     "meta+up,ctrl+up",
     useCallback(
-      (event) => {
+      (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem) {
           move(currentItem.createdAt, "next");
@@ -215,7 +215,7 @@ function QueueInner() {
   useHotkeys(
     "meta+down,ctrl+down",
     useCallback(
-      (event) => {
+      (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem) {
           move(currentItem.createdAt, "prev");
@@ -229,7 +229,7 @@ function QueueInner() {
   useHotkeys(
     "meta+enter,ctrl+enter",
     useCallback(
-      (event) => {
+      (event: KeyboardEvent) => {
         event.preventDefault();
         if (!states.complete) {
           remove();
@@ -243,7 +243,7 @@ function QueueInner() {
   useHotkeys(
     "meta+right,ctrl+right",
     useCallback(
-      (event) => {
+      (event: KeyboardEvent) => {
         event.preventDefault();
         if (!states.skip) {
           remove(true);
