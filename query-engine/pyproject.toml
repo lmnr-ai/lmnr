@@ -1,0 +1,20 @@
+[project]
+dependencies = [
+  "dotenv>=0.9.9",
+  "grpcio-tools>=1.74.0",
+  "grpcio>=1.60.0",
+  "sqlglot[rs]>=27.1.0",
+]
+name = "query-engine"
+readme = "README.md"
+requires-python = ">=3.13"
+version = "0.1.0"
+
+[dependency-groups]
+dev = [
+  "grpcio>=1.74.0",
+  "pytest>=8.4.1",
+  "grpcio-tools>=1.60.0",
+  "pandas>=2.3.1",
+  "pytest-sugar>=1.1.1",
+]

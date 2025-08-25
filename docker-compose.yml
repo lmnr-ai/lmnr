@@ -43,6 +43,19 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    
+  query-engine:
+    image: ghcr.io/lmnr-ai/query-engine
+    pull_policy: always
+    ports:
+      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
+    environment:
+      PORT: 8903
+    healthcheck:
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
+      timeout: 6s
+      retries: 1
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend
@@ -64,6 +77,8 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
 
@@ -88,6 +103,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:${QUERY_ENGINE_HOST_PORT:-8903}
 
 volumes:
   postgres-data:
