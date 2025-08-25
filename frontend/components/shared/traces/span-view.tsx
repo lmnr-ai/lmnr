@@ -5,6 +5,7 @@ import useSWR from "swr";
 import ErrorCard from "@/components/traces/error-card";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanMessages from "@/components/traces/span-view/span-content";
+import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import SpanStatsShields from "@/components/traces/stats-shields";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
@@ -49,7 +50,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   }
 
   return (
-    <>
+    <SpanViewStateProvider>
       <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
         <div className="border-b flex-none">
           <div className="flex flex-col px-4 pt-2 gap-1">
@@ -109,6 +110,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
           </div>
         </div>
       </Tabs>
-    </>
+    </SpanViewStateProvider>
   );
 }
