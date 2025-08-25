@@ -30,22 +30,26 @@ const PureOpenAIFileContentPart = ({ part }: { part: z.infer<typeof OpenAIFilePa
 
 const PureOpenAITextContentPart = ({
   part,
+  type,
   presetKey,
 }: {
   part: z.infer<typeof OpenAITextPartSchema> | string;
-  presetKey?: string;
+  type: "input" | "output";
+  presetKey: string;
 }) => {
   const content = typeof part === "string" ? part : part.text;
-  return <TextContentPart content={content} presetKey={presetKey} />;
+  return <TextContentPart type={type} content={content} presetKey={presetKey} />;
 };
 
 const PureOpenAIToolCallContentPart = ({
   part,
+  type,
   presetKey,
 }: {
   part: z.infer<typeof OpenAIToolCallPartSchema>;
-  presetKey?: string;
-}) => <ToolCallContentPart toolName={part.function.name} content={part} presetKey={presetKey} />;
+  type: "input" | "output";
+  presetKey: string;
+}) => <ToolCallContentPart toolName={part.function.name} type={type} content={part} presetKey={presetKey} />;
 
 const OpenAIImageContentPart = memo(PureOpenAIImageContentPart);
 const OpenAIFileContentPart = memo(PureOpenAIFileContentPart);
@@ -54,21 +58,26 @@ const OpenAIToolCallContentPart = memo(PureOpenAIToolCallContentPart);
 
 const PureOpenAIContentParts = ({
   message,
-  presetKey,
+  parentIndex,
+  type,
+  spanPath,
 }: {
   message: z.infer<typeof OpenAIMessageSchema>;
-  presetKey?: string;
+  spanPath: string;
+  parentIndex: number;
+  type: "input" | "output";
 }) => {
   switch (message.role) {
     case "system":
       return typeof message.content === "string" ? (
-        <OpenAITextContentPart part={message.content} presetKey={presetKey} />
+        <OpenAITextContentPart type={type} part={message.content} presetKey={`${parentIndex}-text-0-${spanPath}`} />
       ) : (
         (message.content || []).map((part, index) => (
           <OpenAITextContentPart
-            key={`${message.role}-${part.type}=${index}`}
+            type={type}
+            presetKey={`${parentIndex}-text-${index}-${spanPath}`}
+            key={`${parentIndex}-text-${index}-${spanPath}`}
             part={part}
-            presetKey={`${presetKey}-${index}`}
           />
         ))
       );
@@ -76,31 +85,39 @@ const PureOpenAIContentParts = ({
       return (
         <>
           {typeof message.content === "string" ? (
-            <OpenAITextContentPart part={message.content} presetKey={presetKey} />
+            <OpenAITextContentPart type={type} part={message.content} presetKey={`${parentIndex}-text-0-${spanPath}`} />
           ) : (
             (message.content || []).map((part, index) => (
               <OpenAITextContentPart
-                key={`${message.role}-${part.type}=${index}`}
+                type={type}
+                presetKey={`${parentIndex}-text-${index}-${spanPath}`}
+                key={`${parentIndex}-text-${index}-${spanPath}`}
                 part={part}
-                presetKey={`${presetKey}-${index}`}
               />
             ))
           )}
           {(message?.tool_calls || []).map((part, index) => (
-            <OpenAIToolCallContentPart key={part.id} part={part} presetKey={`${presetKey}-${index}`} />
+            <OpenAIToolCallContentPart
+              type={type}
+              key={part.id}
+              part={part}
+              presetKey={`${parentIndex}-tool-${index}-${spanPath}`}
+            />
           ))}
         </>
       );
     case "user":
       if (typeof message.content === "string") {
-        return <OpenAITextContentPart part={message.content} presetKey={presetKey} />;
+        return (
+          <OpenAITextContentPart type={type} part={message.content} presetKey={`${parentIndex}-text-0-${spanPath}`} />
+        );
       }
 
       return message.content.map((part, index) => {
         switch (part.type) {
           case "text":
             return (
-              <OpenAITextContentPart key={`${part.type}-${index}`} part={part} presetKey={`${presetKey}-${index}`} />
+              <OpenAITextContentPart type={type} part={part} presetKey={`${parentIndex}-text-${index}-${spanPath}`} />
             );
           case "file":
             return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;
@@ -112,21 +129,28 @@ const PureOpenAIContentParts = ({
       if (typeof message.content === "string") {
         return (
           <ToolResultContentPart
+            type={type}
             toolCallId={message.tool_call_id || "-"}
             content={message.content}
-            presetKey={presetKey}
+            presetKey={`${parentIndex}-tool-0-${spanPath}`}
           />
         );
       }
 
       return message.content.map((part, index) => (
         <ToolResultContentPart
-          key={`${part.type}-${message.tool_call_id}`}
+          key={`${parentIndex}-tool-${index}-${spanPath}`}
           toolCallId={message.tool_call_id || "-"}
           content={part.text}
-          presetKey={`${presetKey}-${index}`}
+          type={type}
+          presetKey={`${parentIndex}-tool-${index}-${spanPath}`}
         >
-          <OpenAITextContentPart key={`${message.role}-${part.type}-${index}`} part={part} presetKey={presetKey} />
+          <OpenAITextContentPart
+            type={type}
+            key={`${message.role}-${part.type}-${index}`}
+            part={part}
+            presetKey={`${parentIndex}-text-${index}-${spanPath}`}
+          />
         </ToolResultContentPart>
       ));
 

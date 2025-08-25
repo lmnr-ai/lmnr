@@ -1,53 +1,90 @@
 import { Bolt, ChevronRight } from "lucide-react";
+import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { createStorageKey, useSpanViewStore } from "@/components/traces/span-view/span-view-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
-import { useLocalStorage } from "@/hooks/use-local-storage";
 import { isStorageUrl } from "@/lib/s3";
 import { cn } from "@/lib/utils";
+
+interface ResizableWrapperProps {
+  children: ReactNode;
+  maxHeight?: number;
+  className?: string;
+  presetKey: string;
+}
+
+const ResizableWrapper = ({ children, maxHeight = 400, className, presetKey }: ResizableWrapperProps) => {
+  const setHeight = useSpanViewStore((state) => state.setHeight);
+  const customHeight = useSpanViewStore((state) => state.heights.get(presetKey) || null);
+  const height = customHeight !== null ? customHeight : "auto";
+
+  return (
+    <Resizable
+      size={{ width: "100%", height }}
+      maxHeight={customHeight !== null ? undefined : maxHeight}
+      onResizeStop={(_e, _direction, ref, _d) => {
+        const newHeight = ref.offsetHeight;
+        setHeight(presetKey, newHeight);
+      }}
+      enable={{
+        bottom: true,
+      }}
+      className={cn("relative flex h-full w-full", className)}
+    >
+      {children}
+    </Resizable>
+  );
+};
 
 interface ToolCallContentPartProps {
   toolName: string;
   content: unknown;
-  presetKey?: string;
+  type: "input" | "output";
+  presetKey: string;
 }
 
-const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallContentPartProps) => (
+const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCallContentPartProps) => (
   <div className="flex flex-col gap-2 p-2 bg-background">
     <span className="flex items-center text-xs">
       <Bolt size={12} className="min-w-3 mr-2" />
       {toolName}
     </span>
-    <CodeHighlighter
-      readOnly
-      codeEditorClassName="rounded"
-      value={JSON.stringify(content, null, 2)}
-      presetKey={presetKey}
-      className="max-h-[400px] border-0"
-    />
+    <ResizableWrapper presetKey={createStorageKey.resize(type, presetKey)} className="border-0">
+      <CodeHighlighter
+        readOnly
+        defaultMode="json"
+        codeEditorClassName="rounded"
+        value={JSON.stringify(content, null, 2)}
+        presetKey={createStorageKey.editor(type, presetKey)}
+        className="border-0"
+      />
+    </ResizableWrapper>
   </div>
 );
 
 interface ToolResultContentPartProps {
   toolCallId: string;
   content: string | any;
-  presetKey?: string;
+  type: "input" | "output";
+  presetKey: string;
   children?: ReactNode;
 }
 
-const PureToolResultContentPart = ({ toolCallId, content, presetKey, children }: ToolResultContentPartProps) => (
+const PureToolResultContentPart = ({ toolCallId, content, type, presetKey, children }: ToolResultContentPartProps) => (
   <div className="flex flex-col">
     <Badge className="w-fit m-1 font-medium" variant="secondary">
       ID: {toolCallId}
     </Badge>
     {children || (
       <TextContentPart
+        type={type}
         content={typeof content === "string" ? content : JSON.stringify(content, null, 2)}
         presetKey={presetKey}
       />
@@ -71,24 +108,29 @@ const PureFileContentPart = ({ data, filename, className }: FileContentPartProps
 
 interface TextContentPartProps {
   content: string;
-  presetKey?: string;
+  presetKey: string;
+  type: "input" | "output";
   className?: string;
   codeEditorClassName?: string;
 }
 
 const PureTextContentPart = ({
   content,
+  type,
   presetKey,
-  className = "max-h-[400px] border-0",
+  className = "border-0",
   codeEditorClassName,
 }: TextContentPartProps) => (
-  <CodeHighlighter
-    readOnly
-    value={content}
-    presetKey={presetKey}
-    className={className}
-    codeEditorClassName={codeEditorClassName}
-  />
+  <ResizableWrapper presetKey={createStorageKey.resize(type, presetKey)} className={className}>
+    <CodeHighlighter
+      defaultMode="json"
+      readOnly
+      value={content}
+      presetKey={createStorageKey.editor(type, presetKey)}
+      className="border-0"
+      codeEditorClassName={codeEditorClassName}
+    />
+  </ResizableWrapper>
 );
 
 interface RoleHeaderProps {
@@ -142,13 +184,20 @@ export const MessageWrapper = ({
   role?: string;
   presetKey: string;
 }>) => {
-  const [isOpen, setIsOpen] = useLocalStorage(presetKey, true);
+  const { collapsed, toggleCollapse } = useSpanViewStore((state) => ({
+    collapsed: state.isCollapsed,
+    toggleCollapse: state.toggleCollapse,
+  }));
 
   return (
-    <div className="border rounded mb-4">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/message-wrapper divide-y">
+    <div className="border rounded mb-4 overflow-hidden flex">
+      <Collapsible
+        open={!collapsed(presetKey)}
+        onOpenChange={() => toggleCollapse(presetKey)}
+        className="group/message-wrapper divide-y w-full"
+      >
         <RoleHeader role={role} />
-        <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
+        <CollapsibleContent className="flex h-full flex-col divide-y overflow-hidden">{children}</CollapsibleContent>
       </Collapsible>
     </div>
   );

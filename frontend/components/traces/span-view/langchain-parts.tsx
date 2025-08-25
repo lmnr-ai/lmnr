@@ -17,16 +17,20 @@ import {
 
 const PureLangChainContentParts = ({
   message,
-  presetKey,
+  spanPath,
+  type,
+  parentIndex,
 }: {
   message: z.infer<typeof LangChainMessageSchema>;
-  presetKey?: string;
+  spanPath: string;
+  parentIndex: number;
+  type: "input" | "output";
 }) => {
   switch (message.role) {
     case "system":
     case "user":
     case "human":
-      return <LangChainContentPart part={message.content} presetKey={presetKey} />;
+      return <LangChainContentPart type={type} spanPath={spanPath} parentIndex={parentIndex} part={message.content} />;
 
     case "tool":
       return (
@@ -34,9 +38,10 @@ const PureLangChainContentParts = ({
           <ToolResultContentPart
             toolCallId={message?.tool_call_id || "-"}
             content={message.content}
-            presetKey={presetKey}
+            type={type}
+            presetKey={`${parentIndex}-tool-0-${spanPath}`}
           >
-            <LangChainContentPart part={message.content} presetKey={presetKey} />
+            <LangChainContentPart part={message.content} spanPath={spanPath} type={type} parentIndex={parentIndex} />
           </ToolResultContentPart>
         </>
       );
@@ -44,21 +49,23 @@ const PureLangChainContentParts = ({
     case "ai":
       return (
         <>
-          <LangChainContentPart part={message.content} presetKey={presetKey} />
+          <LangChainContentPart part={message.content} spanPath={spanPath} type={type} parentIndex={parentIndex} />
           {(message?.tool_calls || []).map((part, index) => (
             <ToolCallContentPart
-              key={`${part.type}-${index}`}
+              key={`${parentIndex}-tool-${index}-${spanPath}`}
               toolName={part.name}
               content={part}
-              presetKey={`${presetKey}-${index}`}
+              type={type}
+              presetKey={`${parentIndex}-tool-${index}-${spanPath}`}
             />
           ))}
           {(message?.invalid_tool_calls || []).map((part, index) => (
             <ToolCallContentPart
-              key={`${part.type}-${index}`}
-              toolName="Invalid Tool Call"
+              key={`${parentIndex}-tool-${index}-${spanPath}`}
               content={part}
-              presetKey={`${presetKey}-${index}`}
+              type={type}
+              presetKey={`${parentIndex}-tool-${index}-${spanPath}`}
+              toolName="Invalid Tool Call"
             />
           ))}
         </>
@@ -68,16 +75,21 @@ const PureLangChainContentParts = ({
 
 const PureLangChainContentPart = ({
   part,
-  presetKey,
+  spanPath,
+  parentIndex,
+  type,
 }: {
   part: z.infer<typeof LangChainContentPartSchema> | null;
-  presetKey?: string;
+  spanPath: string;
+  parentIndex: number;
+  type: "input" | "output";
 }) => {
   if (typeof part === "string" || !part) {
     return (
       <TextContentPart
         content={part || JSON.stringify(part)}
-        presetKey={presetKey}
+        presetKey={`${parentIndex}-text-0-${spanPath}`}
+        type={type}
         className="max-h-[400px] border-0"
       />
     );
@@ -90,9 +102,10 @@ const PureLangChainContentPart = ({
       case "text":
         return (
           <TextContentPart
-            key={`${item.type}-${index}`}
+            key={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             content={item.text}
-            presetKey={presetKey}
+            type={type}
+            presetKey={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             className="max-h-[400px] border-0"
           />
         );
@@ -105,9 +118,10 @@ const PureLangChainContentPart = ({
         }
         return (
           <TextContentPart
-            key={`${item.type}-${index}`}
+            key={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             content={item.id}
-            presetKey={presetKey}
+            type={type}
+            presetKey={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             className="max-h-[400px] border-0"
           />
         );
@@ -122,18 +136,20 @@ const PureLangChainContentPart = ({
         if ("text" in item) {
           return (
             <TextContentPart
-              key={`${item.type}-${index}`}
+              key={`${parentIndex}-${item.type}-${index}-${spanPath}`}
               content={item.text}
-              presetKey={presetKey}
+              type={type}
+              presetKey={`${parentIndex}-${item.type}-${index}-${spanPath}`}
               className="max-h-[400px] border-0"
             />
           );
         }
         return (
           <TextContentPart
-            key={`${item.type}-${index}`}
+            key={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             content={item.id}
-            presetKey={presetKey}
+            type={type}
+            presetKey={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             className="max-h-[400px] border-0"
           />
         );
@@ -141,9 +157,10 @@ const PureLangChainContentPart = ({
       case "audio":
         return (
           <TextContentPart
-            key={`${item.type}-${index}`}
+            key={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             content={JSON.stringify(item)}
-            presetKey={presetKey}
+            type={type}
+            presetKey={`${parentIndex}-${item.type}-${index}-${spanPath}`}
             className="max-h-[400px] border-0"
           />
         );

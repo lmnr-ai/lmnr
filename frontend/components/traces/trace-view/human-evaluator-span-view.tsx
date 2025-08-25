@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
-import SpanInput from "@/components/traces/span-input";
+import SpanMessages from "@/components/traces/span-view/span-messages";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,7 +71,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
         </div>
         <div className="flex-1 flex overflow-hidden">
           <TabsContent value="span" className="w-full h-full">
-            <SpanInput key={`${datapointId}-${spanId}`} span={span}>
+            <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
               {datapointId && evaluationId && (
                 <HumanEvaluationScore
                   options={humanEvaluatorOptions}
@@ -83,7 +83,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
                   projectId={projectId as string}
                 />
               )}
-            </SpanInput>
+            </SpanMessages>
           </TabsContent>
           <TabsContent value="attributes" className="h-full w-full">
             <CodeHighlighter
