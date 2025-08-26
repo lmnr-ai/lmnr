@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { NextAuthOptions, User } from "next-auth";
+import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
@@ -26,6 +27,15 @@ const getProviders = () => {
         GoogleProvider({
           clientId: process.env.AUTH_GOOGLE_ID!,
           clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+        }),
+    },
+    {
+      feature: Feature.AZURE_AUTH,
+      provider: () =>
+        AzureADProvider({
+          clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
+          clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
+          tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
         }),
     },
     {

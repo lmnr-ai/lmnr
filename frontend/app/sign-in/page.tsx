@@ -16,7 +16,7 @@ export default async function SignInPage(props: {
       if (url.pathname === "/" || url.pathname === "") {
         callbackUrl = "/onboarding";
       }
-    } catch {}
+    } catch { }
   }
 
   return (
@@ -24,6 +24,7 @@ export default async function SignInPage(props: {
       enableCredentials={isFeatureEnabled(Feature.EMAIL_AUTH)}
       enableGithub={isFeatureEnabled(Feature.GITHUB_AUTH)}
       enableGoogle={isFeatureEnabled(Feature.GOOGLE_AUTH)}
+      enableAzure={isFeatureEnabled(Feature.AZURE_AUTH)}
       callbackUrl={callbackUrl}
     />
   );
