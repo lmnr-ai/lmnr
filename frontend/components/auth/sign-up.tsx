@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import React, { useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
+import { AzureButton } from "@/components/auth/azure-button";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
@@ -15,14 +16,15 @@ interface SignUpProps {
   callbackUrl: string;
   enableGoogle?: boolean;
   enableGithub?: boolean;
+  enableAzure?: boolean;
   enableCredentials?: boolean;
 }
 
-type Provider = "github" | "google";
+type Provider = "github" | "google" | "azure-ad";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
-const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: SignUpProps) => {
+const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCredentials }: SignUpProps) => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState<Provider | string>("");
 
@@ -70,6 +72,17 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
               callbackUrl={callbackUrl}
             />
           )}
+          {enableAzure && (
+            <AzureButton
+              onClick={() => handleSignUp("azure-ad")}
+              isLoading={isLoading === "azure-ad"}
+              isDisabled={!!isLoading}
+              className={cn({
+                "w-full": enableCredentials,
+              })}
+              callbackUrl={callbackUrl}
+            />
+          )}
           {error && <span className="text-destructive text-xs mt-4">{defaultErrorMessage}</span>}
         </div>
         <span className="text-secondary-foreground font-medium">
@@ -83,11 +96,11 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
         {!enableCredentials && (
           <div className="text-sm font-medium text-white/70">
             By continuing you agree to our{" "}
-            <a href="https://docs.lmnr.ai/policies/privacy-policy" target="_blank" className="text-white">
+            <a href="/policies/privacy" target="_blank" className="text-white">
               Privacy Policy
             </a>{" "}
             and{" "}
-            <a href="https://docs.lmnr.ai/policies/terms-of-service" target="_blank" className="text-white">
+            <a href="/policies/terms" target="_blank" className="text-white">
               Terms of Service
             </a>
           </div>
