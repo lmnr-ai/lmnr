@@ -58,7 +58,6 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCr
               onClick={() => handleSignUp("google")}
               isLoading={isLoading === "google"}
               isDisabled={!!isLoading}
-              callbackUrl={callbackUrl}
             />
           )}
           {enableGithub && (
@@ -69,7 +68,6 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCr
               className={cn({
                 "w-full": enableCredentials,
               })}
-              callbackUrl={callbackUrl}
             />
           )}
           {enableAzure && (
@@ -80,7 +78,6 @@ const SignUp = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCr
               className={cn({
                 "w-full": enableCredentials,
               })}
-              callbackUrl={callbackUrl}
             />
           )}
           {error && <span className="text-destructive text-xs mt-4">{defaultErrorMessage}</span>}

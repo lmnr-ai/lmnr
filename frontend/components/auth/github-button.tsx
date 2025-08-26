@@ -6,14 +6,12 @@ import { cn } from "@/lib/utils";
 
 interface GitHubSignInButtonProps extends ButtonProps {
   text?: string;
-  callbackUrl: string;
   isLoading?: boolean;
   isDisabled?: boolean;
 }
 
 export function GitHubButton({
   text = "Continue with GitHub",
-  callbackUrl,
   className,
   onClick,
   isLoading,

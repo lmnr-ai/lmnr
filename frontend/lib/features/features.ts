@@ -50,5 +50,9 @@ export const isFeatureEnabled = (feature: Feature) => {
     );
   }
 
+  if (feature === Feature.SEND_EMAIL) {
+    return !!process.env.RESEND_API_KEY;
+  }
+
   return process.env.ENVIRONMENT === "PRODUCTION";
 };

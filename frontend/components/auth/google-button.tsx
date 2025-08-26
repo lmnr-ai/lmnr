@@ -10,14 +10,12 @@ import { cn } from "@/lib/utils";
 
 interface GoogleButtonProps extends ButtonProps {
   text?: string;
-  callbackUrl: string;
   isLoading?: boolean;
   isDisabled?: boolean;
 }
 
 export function GoogleButton({
   text = "Continue with Google",
-  callbackUrl,
   className,
   onClick,
   isLoading,
