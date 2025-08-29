@@ -1,0 +1,210 @@
+import z from "zod/v4";
+
+import { SpanSchema } from ".";
+
+/**
+ * Represents a message in a conversation
+ */
+interface ChatMessage {
+  role: string;
+  content: any; // Can be string, object, or any JSON-serializable type
+  [key: string]: any;
+}
+
+/**
+ * Normalizes message content to string for comparison
+ */
+const normalizeMessageContent = (content: any): string => {
+  if (typeof content === 'string') return content;
+  if (content === null || content === undefined) return '';
+  return JSON.stringify(content);
+};
+
+/**
+ * Checks if an input/output is a chat message array
+ */
+const isChatMessageArray = (data: any): data is ChatMessage[] => Array.isArray(data) &&
+    data.length > 0 &&
+    data.every(item =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof item.role === 'string' &&
+      item.content !== undefined
+    );
+
+/**
+ * Checks if two message arrays have a prefix relationship
+ * Returns the number of matching messages from the start, or -1 if no prefix relationship
+ */
+const getMessagePrefixLength = (shorter: ChatMessage[], longer: ChatMessage[]): number => {
+  if (shorter.length >= longer.length) return -1;
+
+  for (let i = 0; i < shorter.length; i++) {
+    if (shorter[i].role !== longer[i].role ||
+      normalizeMessageContent(shorter[i].content) !== normalizeMessageContent(longer[i].content)) {
+      return -1;
+    }
+  }
+  return shorter.length;
+};
+
+/**
+ * Creates a placeholder message for removed content
+ */
+const createPlaceholderMessage = (count: number): ChatMessage => ({
+  role: "system",
+  content: `[REMOVED FOR BREVITY, SEE IN THE HISTORY OF A SUBSEQUENT TURN BELOW - ${count} message${count !== 1 ? 's' : ''} omitted]`
+});
+
+/**
+ * Calculates a simple hash of a message for comparison
+ */
+const getMessageHash = (message: ChatMessage): string => `${message.role}:${normalizeMessageContent(message.content)}`;
+
+/**
+ * Checks if messages are likely the same conversation thread
+ * Handles cases where content might be truncated or modified
+ */
+const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMessage[]): boolean => {
+  if (messages1.length === 0 || messages2.length === 0) return false;
+
+  // Check if the first few messages match (likely start of conversation)
+  const minLength = Math.min(messages1.length, messages2.length, 3);
+  for (let i = 0; i < minLength; i++) {
+    if (getMessageHash(messages1[i]) !== getMessageHash(messages2[i])) {
+      return false;
+    }
+  }
+  return true;
+};
+
+/**
+ * Removes repetitive inputs and outputs from LLM spans in conversation chains.
+ * Modifies spans in-place to preserve original ordering.
+ */
+export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.infer<typeof SpanSchema>[] => {
+  // Create a copy to avoid mutating the original array
+  const result = [...spans];
+
+  // Store original inputs to avoid using modified data for comparisons
+  const originalInputs = new Map<number, ChatMessage[]>();
+  const originalOutputs = new Map<number, any>();
+
+  // Find all LLM spans with their original indices and store original data
+  const llmSpanIndices: number[] = [];
+  for (let i = 0; i < result.length; i++) {
+    const span = result[i];
+    if (span.spanType === 'LLM' && isChatMessageArray(span.input)) {
+      llmSpanIndices.push(i);
+      originalInputs.set(i, span.input as ChatMessage[]);
+      originalOutputs.set(i, span.output);
+    }
+  }
+
+  if (llmSpanIndices.length === 0) {
+    return result;
+  }
+
+  // Group spans into conversation chains using indices
+  const conversationChains: number[][] = [];
+  const processedIndices = new Set<number>();
+
+  for (const currentIndex of llmSpanIndices) {
+    if (processedIndices.has(currentIndex)) continue;
+
+    const currentInput = originalInputs.get(currentIndex)!;
+
+    // Find all spans that are part of this conversation thread
+    const chain = [currentIndex];
+    processedIndices.add(currentIndex);
+
+    // Look for spans that continue this conversation
+    for (const potentialIndex of llmSpanIndices) {
+      if (processedIndices.has(potentialIndex)) continue;
+
+      const potentialInput = originalInputs.get(potentialIndex)!;
+
+      // Check if this could be the next turn in the conversation
+      if (potentialInput.length > currentInput.length &&
+        areMessagesFromSameThread(currentInput, potentialInput)) {
+
+        // Build the expected conversation state after the last span in chain
+        const lastIndex = chain[chain.length - 1];
+        const lastInput = originalInputs.get(lastIndex)!;
+        const lastOutput = originalOutputs.get(lastIndex);
+
+        let expectedMessages = [...lastInput];
+        if (isChatMessageArray(lastOutput)) {
+          expectedMessages.push(...lastOutput);
+        }
+
+        // Check if the potential span's input starts with our expected messages
+        const prefixLength = getMessagePrefixLength(expectedMessages, potentialInput);
+        if (prefixLength >= expectedMessages.length - 1) { // Allow some tolerance
+          chain.push(potentialIndex);
+          processedIndices.add(potentialIndex);
+        }
+      }
+    }
+
+    // Sort chain by start time to ensure proper chronological order
+    chain.sort((a, b) => new Date(result[a].startTime).getTime() - new Date(result[b].startTime).getTime());
+    conversationChains.push(chain);
+  }
+
+  // Process each conversation chain to remove repetitive content
+  for (const chain of conversationChains) {
+    if (chain.length === 1) {
+      continue;
+    }
+
+    // Process the chain - replace repetitive content in all but the last span
+    for (let i = 0; i < chain.length - 1; i++) {
+      const spanIndex = chain[i];
+      const span = result[spanIndex];
+      const originalInput = originalInputs.get(spanIndex)!;
+
+      // For earlier spans in the chain, replace with condensed version
+      let newInput: ChatMessage[];
+
+      // Find the previous span's expected conversation state
+      if (i > 0) {
+        const prevSpanIndex = chain[i - 1];
+        const prevOriginalInput = originalInputs.get(prevSpanIndex)!;
+        const prevOriginalOutput = originalOutputs.get(prevSpanIndex);
+
+        let prevConversation = [...prevOriginalInput];
+        if (isChatMessageArray(prevOriginalOutput)) {
+          prevConversation.push(...prevOriginalOutput);
+        }
+
+        // If current input starts with previous conversation, condense it
+        const prefixLength = getMessagePrefixLength(prevConversation, originalInput);
+        if (prefixLength > 0) {
+          const removedCount = prefixLength;
+          const newMessages = originalInput.slice(prefixLength);
+          console.log(span, span.spanId, "removed messages", removedCount,);
+
+          newInput = removedCount > 0
+            ? [createPlaceholderMessage(removedCount), ...newMessages]
+            : originalInput;
+        } else {
+          // Fallback: replace entire input with placeholder
+          newInput = [createPlaceholderMessage(originalInput.length)];
+        }
+      } else {
+        console.log(span, span.spanId, "first span in chain. Removed messages", originalInput.length - 1);
+        // First span in chain - replace entire input with placeholder
+        newInput = [createPlaceholderMessage(originalInput.length - 1), ...originalInput.slice(-1)];
+      }
+
+      // Modify the span in-place
+      result[spanIndex] = {
+        ...span,
+        input: newInput
+      };
+    }
+  }
+
+  return result;
+};

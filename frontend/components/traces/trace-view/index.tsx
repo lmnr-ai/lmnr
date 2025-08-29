@@ -331,6 +331,23 @@ export default function TraceView({
     [spans]
   );
 
+  const handleSummarize = async (prompt?: string) => {
+    if (!trace) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("startTime", new Date(trace?.startTime).toISOString());
+    params.set("endTime", new Date(trace?.endTime).toISOString());
+    if (prompt) {
+      params.set("prompt", prompt);
+    }
+
+    const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/summary?${params.toString()}`);
+    const data = await response.json();
+    return data;
+  };
+
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
@@ -451,7 +468,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -539,6 +556,20 @@ export default function TraceView({
                   >
                     <ChartNoAxesGantt size={14} className="mr-1" />
                     <span>Timeline</span>
+                  </Button>
+                  <Button
+                    onClick={async () => console.log(await handleSummarize())}
+                    variant="outline"
+                    className="h-6 text-xs px-1.5"
+                  >
+                    <span>Summarize</span>
+                  </Button>
+                  <Button
+                    onClick={async () => console.log(await handleSummarize("Identify errors in agent outputs or if it did not follow instructions."))}
+                    variant="outline"
+                    className="h-6 text-xs px-1.5"
+                  >
+                    <span>Did make errors?</span>
                   </Button>
                   {showTimeline && (
                     <>

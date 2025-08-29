@@ -5,9 +5,9 @@
 import { registerOTel } from "@vercel/otel";
 
 export async function register() {
-  if (process.env.ENVIRONMENT === "PRODUCTION") {
-    registerOTel({ serviceName: "lmnr-web" });
-  }
+  // if (process.env.ENVIRONMENT === "PRODUCTION") {
+  //   registerOTel({ serviceName: "lmnr-web" });
+  // }
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");
@@ -88,6 +88,10 @@ export async function register() {
       console.log("✓ ClickHouse schema applied successfully");
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
+    }
+    if (process.env.LMNR_PROJECT_API_KEY) {
+      const { Laminar } = await import("@lmnr-ai/lmnr");
+      Laminar.initialize();
     }
   }
 }
