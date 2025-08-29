@@ -7,6 +7,7 @@ import { GroupByInterval } from "./clickhouse/modifiers";
 import { ChatMessageContentPart } from "./types";
 
 export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
+export const TIME_SECONDS_FORMAT = "timeSeconds";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -99,6 +100,11 @@ export function formatTimestamp(timestampStr: string): string {
   return innerFormatTimestamp(date);
 }
 
+export function formatTimestampWithSeconds(timestampStr: string): string {
+  const date = new Date(timestampStr);
+  return innerFormatTimestamp(date, TIME_SECONDS_FORMAT);
+}
+
 export function formatTimestampFromSeconds(seconds: number): string {
   const date = new Date(seconds * 1000);
   return innerFormatTimestamp(date);
@@ -136,8 +142,9 @@ function innerFormatTimestampWithInterval(date: Date, interval: GroupByInterval)
 }
 
 // Note that the formatted time is calculated for local time
-function innerFormatTimestamp(date: Date): string {
+function innerFormatTimestamp(date: Date, format?: string): string {
   const timeOptions: Intl.DateTimeFormatOptions = {
+    ...(format === TIME_SECONDS_FORMAT ? { second: "2-digit" } : {}),
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

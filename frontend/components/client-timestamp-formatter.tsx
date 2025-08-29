@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import {
   convertToLocalTimeWithMillis,
   formatTimestamp,
-  TIME_MILLISECONDS_FORMAT
+  formatTimestampWithSeconds,
+  TIME_MILLISECONDS_FORMAT,
+  TIME_SECONDS_FORMAT
 } from '@/lib/utils';
 
 // This component is a client-side only component that will format a timestamp
@@ -22,6 +24,8 @@ export default function ClientTimestampFormatter({
   useEffect(() => {
     if (format === TIME_MILLISECONDS_FORMAT) {
       setFormattedTimestamp(convertToLocalTimeWithMillis(timestamp));
+    } else if (format === TIME_SECONDS_FORMAT) {
+      setFormattedTimestamp(formatTimestampWithSeconds(timestamp));
     } else {
       setFormattedTimestamp(formatTimestamp(timestamp));
     }
