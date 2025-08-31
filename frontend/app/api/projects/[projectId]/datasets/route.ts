@@ -85,7 +85,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
 export async function DELETE(
   req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
+  props: { params: Promise<{ projectId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
