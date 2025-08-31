@@ -9,6 +9,7 @@ import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
+import { createStorageKey } from "@/components/traces/span-view/span-view-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { convertToMessages } from "@/lib/spans/types";
@@ -17,10 +18,11 @@ import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/ope
 
 interface MessagesProps {
   messages: any;
-  presetKey?: string;
+  spanPath: string;
+  type: "input" | "output";
 }
 
-function PureMessages({ children, messages, presetKey }: PropsWithChildren<MessagesProps>) {
+function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<MessagesProps>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const processedResult = useMemo(() => {
@@ -114,7 +116,8 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
             {...processedResult}
             ref={virtualizer.measureElement}
             virtualItems={items}
-            presetKey={presetKey}
+            spanType={type}
+            spanPath={spanPath}
           />
           {children}
         </div>
@@ -139,11 +142,13 @@ type MessageRendererProps =
 const MessagesRenderer = ({
   messages,
   type,
-  presetKey,
+  spanType,
+  spanPath,
   ref,
   virtualItems,
 }: MessageRendererProps & {
-  presetKey?: string;
+  spanPath: string;
+  spanType: "input" | "output";
   virtualItems: VirtualItem[];
   ref: Ref<HTMLDivElement>;
 }) => {
@@ -153,8 +158,11 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <OpenAIContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
+            <MessageWrapper
+              role={message.role}
+              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+            >
+              <OpenAIContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -165,8 +173,11 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <LangChainContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
+            <MessageWrapper
+              role={message.role}
+              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+            >
+              <LangChainContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -177,8 +188,11 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper role={message.role} presetKey={`message-header-${row.index}-${presetKey}`}>
-              <ContentParts presetKey={`${presetKey}-${row.index}`} message={message} />
+            <MessageWrapper
+              role={message.role}
+              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+            >
+              <ContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
             </MessageWrapper>
           </div>
         );

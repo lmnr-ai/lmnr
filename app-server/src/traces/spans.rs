@@ -1098,50 +1098,36 @@ fn output_message_from_genai_attributes(
 
     let tool_calls = parse_tool_calls(attributes, prefix);
 
-    if tool_calls.is_empty() {
-        if let Some(Value::String(s)) = msg_content {
-            if let Ok(content) =
-                serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(&s)
-            {
-                Some(ChatMessage {
-                    role: msg_role,
-                    content: ChatMessageContent::ContentPartList(
-                        content
-                            .into_iter()
-                            .map(ChatMessageContentPart::from_instrumentation_content_part)
-                            .collect(),
-                    ),
-                    tool_call_id: None,
-                })
-            } else {
-                Some(ChatMessage {
-                    role: msg_role,
-                    content: ChatMessageContent::Text(s),
-                    tool_call_id: None,
-                })
-            }
+    let content_parts = if let Some(Value::String(s)) = msg_content {
+        if let Ok(content) = serde_json::from_str::<Vec<InstrumentationChatMessageContentPart>>(&s)
+        {
+            content
+                .into_iter()
+                .map(ChatMessageContentPart::from_instrumentation_content_part)
+                .collect()
         } else {
-            None
-        }
-    } else {
-        let mut out_vec = if let Some(Value::String(s)) = msg_content {
-            if s.is_empty() {
+            if s.is_empty() || s == "\"\"" {
                 vec![]
             } else {
-                let text_block = ChatMessageContentPart::Text(ChatMessageText { text: s });
-                vec![text_block]
+                vec![ChatMessageContentPart::Text(ChatMessageText { text: s })]
             }
-        } else {
-            vec![]
-        };
-        out_vec.extend(
-            tool_calls
-                .into_iter()
-                .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call)),
-        );
+        }
+    } else {
+        vec![]
+    };
+    let tool_call_parts = tool_calls
+        .into_iter()
+        .map(|tool_call| ChatMessageContentPart::ToolCall(tool_call))
+        .collect::<Vec<_>>();
+
+    if content_parts.is_empty() && tool_call_parts.is_empty() {
+        None
+    } else {
         Some(ChatMessage {
             role: msg_role,
-            content: ChatMessageContent::ContentPartList(out_vec),
+            content: ChatMessageContent::ContentPartList(
+                content_parts.into_iter().chain(tool_call_parts).collect(),
+            ),
             tool_call_id: None,
         })
     }
@@ -2564,7 +2550,8 @@ mod tests {
         let parent_span_id = Uuid::new_v4();
         let child_span_id = Uuid::new_v4();
         let trace_id = Uuid::new_v4();
-        let key = if is_v4 { "result" } else { "output" };
+        let output_key = if is_v4 { "result" } else { "output" };
+        let input_key = if is_v4 { "args" } else { "input" };
 
         // Create parent span (ai.generateText) - has DEFAULT span type
         let parent_attributes = HashMap::from([
@@ -2581,12 +2568,12 @@ mod tests {
                         "messages":[
                             {"role":"user","content":"What is the weather and time in SF?"},
                             {"role":"assistant","content":[
-                                {"type":"tool-call","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
-                                {"type":"tool-call","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                                {"type":"tool-call","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",input_key:{"location":"San Francisco, CA"}},
+                                {"type":"tool-call","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",input_key:{"location":"San Francisco, CA"}}
                             ]},
                             {"role":"tool","content":[
-                                {"type":"tool-result","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",key:"Sunny as always!"},
-                                {"type":"tool-result","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",key:"12:00 PM"}
+                                {"type":"tool-result","toolCallId":"call_9oYyi7pB9xSW5ceOmcWnERiS","toolName":"get_weather",output_key:"Sunny as always!"},
+                                {"type":"tool-result","toolCallId":"call_K9NDZ4DGgxbiy4HIL5IDNjiS","toolName":"get_time",output_key:"12:00 PM"}
                             ]}
                         ]
                     }).to_string(),
@@ -2666,12 +2653,12 @@ mod tests {
                         json!({"role":"system","content":"You are a helpful assistant."}),
                         json!({"role":"user","content":[{"type":"text","text":"What is the weather and time in SF?"}]}),
                         json!({"role":"assistant","content":[
-                            {"type":"tool-call","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather","args":{"location":"San Francisco, CA"}},
-                            {"type":"tool-call","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time","args":{"location":"San Francisco, CA"}}
+                            {"type":"tool-call","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",input_key:{"location":"San Francisco, CA"}},
+                            {"type":"tool-call","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",input_key:{"location":"San Francisco, CA"}}
                         ]}),
                         json!({"role":"tool","content":[
-                            {"type":"tool-result","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",key:"Sunny as always!"},
-                            {"type":"tool-result","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",key:"12:00 PM"}]})
+                            {"type":"tool-result","toolCallId":"call_D2fRbvPAs1s4C9fd60l9diSk","toolName":"get_weather",output_key:"Sunny as always!"},
+                            {"type":"tool-result","toolCallId":"call_mB9nVqiW5NlbtFtBi06Gzr5F","toolName":"get_time",output_key:"12:00 PM"}]})
                     ])
                     .to_string()
                 ),
@@ -2888,14 +2875,18 @@ mod tests {
             _ => panic!("Expected content part list for assistant message"),
         };
         assert_eq!(assistant_message_content.len(), 2);
-        assert!(matches!(
-            assistant_message_content[0],
-            ChatMessageContentPart::ToolCall(_)
-        ));
-        assert!(matches!(
-            assistant_message_content[1],
-            ChatMessageContentPart::ToolCall(_)
-        ));
+
+        for part in assistant_message_content {
+            match part {
+                ChatMessageContentPart::ToolCall(tool_call) => {
+                    assert_eq!(
+                        tool_call.arguments,
+                        Some(json!({"location":"San Francisco, CA"}))
+                    );
+                }
+                _ => panic!("Expected tool call for assistant message"),
+            }
+        }
 
         let tool_message = &child_input_messages[3];
         let tool_message_content = match &tool_message.content {
@@ -2972,5 +2963,223 @@ mod tests {
         } else {
             panic!("Expected arguments to be present");
         }
+    }
+
+    /// This test primarily tests that when the output of the model contains text parts
+    /// and tool calls, the text parts are parsed correctly. In contrast, anthropic
+    /// instrumentation yields the text block preceding the tool calls as a raw string.
+    #[test]
+    fn test_parse_and_enrich_attributes_google_genai() {
+        let attributes = HashMap::from([
+            ("gen_ai.system".to_string(), json!("gemini")),
+            (
+                "gen_ai.request.model".to_string(),
+                json!("gemini-2.5-flash-lite"),
+            ),
+            (
+                "gen_ai.response.model".to_string(),
+                json!("gemini-2.5-flash-lite"),
+            ),
+            (
+                "gen_ai.response.id".to_string(),
+                json!("F1CwaLjFLfOUxN8PhMGb-Qc"),
+            ),
+            ("gen_ai.prompt.0.role".to_string(), json!("user")),
+            (
+                "gen_ai.prompt.0.content".to_string(),
+                json!(
+                    "[{\"type\":\"text\",\"text\":\"What's the opposite of 'bright'? Also, what is the weather in Tokyo?\"}]"
+                ),
+            ),
+            // This is the important bit. Notice how the output is a list of text parts
+            ("gen_ai.completion.0.role".to_string(), json!("model")),
+            (
+                "gen_ai.completion.0.content".to_string(),
+                json!(
+                    "[{\"type\":\"text\",\"text\":\"The opposite of 'bright' is 'dim'. I'll go ahead and get the weather in Tokyo for you.\"}]"
+                ),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.id".to_string(),
+                json!("get_weather"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.name".to_string(),
+                json!("get_weather"),
+            ),
+            (
+                "gen_ai.completion.0.tool_calls.0.arguments".to_string(),
+                json!("{\"location\":\"Tokyo\"}"),
+            ),
+            ("gen_ai.usage.input_tokens".to_string(), json!(66)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(39)),
+            ("llm.usage.total_tokens".to_string(), json!(105)),
+            ("llm.request.type".to_string(), json!("completion")),
+            ("lmnr.span.sdk_version".to_string(), json!("0.7.8")),
+            (
+                "lmnr.span.language_version".to_string(),
+                json!("python@3.13"),
+            ),
+            (
+                "lmnr.span.instrumentation_source".to_string(),
+                json!("python"),
+            ),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "gemini.generate_content".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: None,
+            status: None,
+            labels: None,
+            input_url: None,
+            output_url: None,
+        };
+
+        // Verify initial state
+        assert!(span.input.is_none());
+        assert!(span.output.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.prompt.0.content")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.content")
+                .is_some()
+        );
+        assert!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name")
+                .is_some()
+        );
+
+        span.parse_and_enrich_attributes();
+
+        assert!(span.input.is_some());
+        let input = span.input.as_ref().unwrap();
+        let input_messages: Vec<ChatMessage> = serde_json::from_value(input.clone()).unwrap();
+        assert_eq!(input_messages.len(), 1);
+
+        assert_eq!(input_messages[0].role, "user");
+        match &input_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 1);
+                let text_part = &parts[0];
+                match text_part {
+                    ChatMessageContentPart::Text(text) => {
+                        assert_eq!(
+                            text.text,
+                            "What's the opposite of 'bright'? Also, what is the weather in Tokyo?"
+                        );
+                    }
+                    _ => panic!("Expected text content for user message"),
+                }
+            }
+            _ => panic!("Expected content part list for user message"),
+        }
+
+        assert!(span.output.is_some());
+        let output = span.output.as_ref().unwrap();
+        let output_messages: Vec<ChatMessage> = serde_json::from_value(output.clone()).unwrap();
+        assert_eq!(output_messages.len(), 1);
+
+        assert_eq!(output_messages[0].role, "model");
+        match &output_messages[0].content {
+            ChatMessageContent::ContentPartList(parts) => {
+                assert_eq!(parts.len(), 2); // text part + tool call part
+
+                // First part should be text
+                match &parts[0] {
+                    ChatMessageContentPart::Text(text_part) => {
+                        assert_eq!(
+                            text_part.text,
+                            "The opposite of 'bright' is 'dim'. I'll go ahead and get the weather in Tokyo for you."
+                        );
+                    }
+                    _ => panic!("Expected text part as first content part"),
+                }
+
+                // Second part should be tool call
+                match &parts[1] {
+                    ChatMessageContentPart::ToolCall(tool_call) => {
+                        assert_eq!(tool_call.name, "get_weather");
+                        assert_eq!(tool_call.id, Some("get_weather".to_string()));
+                        assert!(tool_call.arguments.is_some());
+                        let args = tool_call.arguments.as_ref().unwrap();
+                        assert_eq!(args.get("location").unwrap(), &json!("Tokyo"));
+                    }
+                    _ => panic!("Expected tool call as second content part"),
+                }
+            }
+            _ => panic!("Expected content part list for assistant output"),
+        }
+
+        // Verify that tool call attributes are preserved
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.id"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.completion.0.tool_calls.0.arguments"),
+            Some(&json!("{\"location\":\"Tokyo\"}"))
+        );
+
+        // Verify that other attributes are preserved
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.system"),
+            Some(&json!("gemini"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.request.model"),
+            Some(&json!("gemini-2.5-flash-lite"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.response.model"),
+            Some(&json!("gemini-2.5-flash-lite"))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("gen_ai.response.id"),
+            Some(&json!("F1CwaLjFLfOUxN8PhMGb-Qc"))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.input_tokens"),
+            Some(&json!(66))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("gen_ai.usage.output_tokens"),
+            Some(&json!(39))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("llm.usage.total_tokens"),
+            Some(&json!(105))
+        );
     }
 }

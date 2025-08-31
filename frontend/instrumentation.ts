@@ -4,23 +4,21 @@
 
 import { registerOTel } from "@vercel/otel";
 
-const INITIAL_CH_SCHEMA_FILE = "0000-initial.sql";
-
 export async function register() {
   if (process.env.ENVIRONMENT === "PRODUCTION") {
     registerOTel({ serviceName: "lmnr-web" });
   }
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { Feature, isFeatureEnabled } = await import("lib/features/features");
+    const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { llmPrices, subscriptionTiers, userSubscriptionTiers } = await import("lib/db/migrations/schema");
-      const { db } = await import("lib/db/drizzle");
+      const { llmPrices, subscriptionTiers, userSubscriptionTiers } = await import("@/lib/db/migrations/schema.ts");
+      const { db } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
-        const initialData = require("lib/db/initial-data.json");
+        const initialData = require("@/lib/db/initial-data.json");
         for (const entry of initialData) {
           const tableName: string = entry.table;
           const tables: Record<string, any> = {
@@ -50,7 +48,7 @@ export async function register() {
 
       const initializeClickHouse = async () => {
         try {
-          const { clickhouseClient } = await import("lib/clickhouse/client");
+          const { clickhouseClient } = await import("@/lib/clickhouse/client.js");
           const { readFileSync, readdirSync } = await import("fs");
           const { join } = await import("path");
 
@@ -79,7 +77,7 @@ export async function register() {
         }
       };
       // Run Postgres migrations and data initialization
-      await migrate(db, { migrationsFolder: "lib/db/migrations" });
+      await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");

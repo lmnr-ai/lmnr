@@ -188,25 +188,25 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
       selectOptionInFocusedField: state.selectOptionInFocusedField,
     }));
 
-  useHotkeys("tab", (event) => {
+  useHotkeys("tab", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     event.preventDefault();
     focusField("next");
   });
 
-  useHotkeys("shift+tab", (event) => {
+  useHotkeys("shift+tab", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     event.preventDefault();
     focusField("prev");
   });
 
-  useHotkeys("a", (event) => {
+  useHotkeys("a", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     event.preventDefault();
     focusField("first");
   });
 
-  useHotkeys("1,2,3,4,5,6,7,8,9", (event) => {
+  useHotkeys("1,2,3,4,5,6,7,8,9", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     const focusedField = fields[focusedFieldIndex];
     if (focusedField?.type === "string") return;
@@ -218,7 +218,7 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
     }
   });
 
-  useHotkeys("left,right", (event) => {
+  useHotkeys("left,right", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     const focusedField = fields[focusedFieldIndex];
     if (focusedField?.type !== "number" || !isNumberOptions(focusedField.options)) return;

@@ -193,7 +193,7 @@ function PricingCalculator() {
   const estimatedGB = tokensToGB(tokens);
 
   return (
-    <div className="w-full max-w-2xl mt-16 px-4">
+    <div className="w-full max-w-2xl mt-16 px-4 font-title font-semibold">
       <div className="p-8 border space-y-6">
         <div className="text-center space-y-2 flex items-center justify-between">
           <h3 className="text-xl font-semibold">Pricing calculator</h3>
@@ -210,13 +210,13 @@ function PricingCalculator() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 font-medium">
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span>Tokens per month</span>
+              <span className="font-medium">Tokens per month</span>
               <span className="font-medium">{formatTokens(tokens)} tokens</span>
             </div>
-            <div className="text-sm text-muted-foreground mb-2">
+            <div className="text-sm text-muted-foreground mb-2 font-semibold">
               ≈ {toFixedIfFloat(estimatedGB)} GB
             </div>
             <div className="text-xs text-muted-foreground mb-2">
@@ -407,7 +407,7 @@ export default function Pricing() {
       <PricingCalculator />
 
       <div className="w-full max-w-3xl mt-16 mb-32 px-4">
-        <h2 className="text-2xl font-bold mb-4 text-center">
+        <h2 className="text-2xl font-bold mb-4 text-center font-title">
           Frequently Asked Questions
         </h2>
         <Accordion type="single" collapsible className="w-full">

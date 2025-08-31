@@ -6,7 +6,7 @@ import { SessionRow } from "@/components/traces/sessions-table/index";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionPreview, Trace } from "@/lib/traces/types";
-import { getDurationString } from "@/lib/utils";
+import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export const columns: ColumnDef<SessionRow, any>[] = [
   {
@@ -38,8 +38,9 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     accessorFn: (row) => row.data.startTime,
     header: "Start time",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
+    size: 150,
   },
   {
     accessorFn: (row) => {

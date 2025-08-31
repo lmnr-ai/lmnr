@@ -1,43 +1,42 @@
 "use client";
 
 import Image from "next/image";
-import * as React from "react";
 
-import google from "@/assets/logo/google.svg";
+import azure from "@/assets/logo/microsoft.svg";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { IconSpinner } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
-interface GoogleButtonProps extends ButtonProps {
+interface AzureButtonProps extends ButtonProps {
   text?: string;
   isLoading?: boolean;
   isDisabled?: boolean;
 }
 
-export function GoogleButton({
-  text = "Continue with Google",
+export function AzureButton({
+  text = "Continue with Microsoft",
   className,
   onClick,
   isLoading,
   isDisabled,
   ...props
-}: GoogleButtonProps) {
+}: AzureButtonProps) {
   return (
     <Button
       variant="light"
       onClick={onClick}
       disabled={isDisabled || isLoading}
-      className={cn("text-[16px] py-6 px-4 pr-8 w-full", className)}
+      className={cn("text-[16px] py-6 px-4 pr-6 w-full", className)}
       {...props}
     >
       <div className="h-5 w-5">
         {isLoading ? (
           <IconSpinner className="animate-spin" />
         ) : (
-          <Image src={google} alt="Google Icon" width={20} height={20} />
+          <Image src={azure} alt="Azure Icon" width={20} height={20} />
         )}
       </div>
-      <div className="ml-4">{text}</div>
+      <div className="ml-2">{text}</div>
     </Button>
   );
 }

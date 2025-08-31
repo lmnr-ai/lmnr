@@ -9,7 +9,7 @@ import { DownloadFormat } from '@/lib/types';
 export async function GET(
   req: Request,
   props: {
-    params: Promise<{ projectId: string; datasetId: string; format: DownloadFormat }>;
+    params: Promise<{ projectId: string; datasetId: string; format: string }>;
   }
 ): Promise<Response> {
   const params = await props.params;
@@ -19,7 +19,7 @@ export async function GET(
   const datasetId = params.datasetId;
   const format = params.format;
 
-  if (!Object.values(DownloadFormat).includes(format)) {
+  if (!Object.values(DownloadFormat).includes(format as DownloadFormat)) {
     return Response.json(
       { error: 'Invalid format. Supported formats are: csv, json' },
       { status: 400 }

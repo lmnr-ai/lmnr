@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import React, { useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
+import { AzureButton } from "@/components/auth/azure-button";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
@@ -16,14 +17,15 @@ interface SignInProps {
   callbackUrl: string;
   enableGoogle?: boolean;
   enableGithub?: boolean;
+  enableAzure?: boolean;
   enableCredentials?: boolean;
 }
 
-type Provider = "github" | "google";
+type Provider = "github" | "google" | "azure-ad";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
-const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: SignInProps) => {
+const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCredentials }: SignInProps) => {
   const searchParams = useSearchParams();
   const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
@@ -58,7 +60,6 @@ const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
               onClick={() => handleSignIn("google")}
               isLoading={isLoading === "google"}
               isDisabled={!!isLoading}
-              callbackUrl={callbackUrl}
             />
           )}
           {enableGithub && (
@@ -69,7 +70,16 @@ const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
               className={cn({
                 "w-full": enableCredentials,
               })}
-              callbackUrl={callbackUrl}
+            />
+          )}
+          {enableAzure && (
+            <AzureButton
+              onClick={() => handleSignIn("azure-ad")}
+              isLoading={isLoading === "azure-ad"}
+              isDisabled={!!isLoading}
+              className={cn({
+                "w-full": enableCredentials,
+              })}
             />
           )}
           {error && <span className="text-destructive text-xs mt-4">{defaultErrorMessage}</span>}
@@ -85,11 +95,11 @@ const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableCredentials }: 
         {!enableCredentials && (
           <div className="text-sm font-medium text-white/70">
             By continuing you agree to our{" "}
-            <a href="https://docs.lmnr.ai/policies/privacy-policy" target="_blank" className="text-white">
+            <a href="/policies/privacy" target="_blank" className="text-white">
               Privacy Policy
             </a>{" "}
             and{" "}
-            <a href="https://docs.lmnr.ai/policies/terms-of-service" target="_blank" className="text-white">
+            <a href="/policies/terms" target="_blank" className="text-white">
               Terms of Service
             </a>
           </div>

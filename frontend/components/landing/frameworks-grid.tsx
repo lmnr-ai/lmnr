@@ -28,22 +28,22 @@ interface Integration {
 const integrations: Integration[] = [
   {
     name: "OpenTelemetry",
-    icon: <IconOpenTelemetry className="h-6 w-6" />,
+    icon: <IconOpenTelemetry className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/otel",
   },
   {
     name: "LangGraph",
-    icon: <IconLangchain className="h-8 w-8" />,
+    icon: <IconLangchain className="h-12 w-12 xl:h-12 xl:w-12 2xl:h-20 2xl:w-20" />,
     link: "https://docs.lmnr.ai/tracing/integrations/langchain",
   },
   {
     name: "CrewAI",
-    icon: <IconCrewAI className="w-6 h-6 text-white" />,
+    icon: <IconCrewAI className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/crewai",
   },
   {
     name: "AI SDK",
-    icon: <IconVercel className="w-4 h-4 text-white" />,
+    icon: <IconVercel className="h-8 w-8 xl:h-8 xl:w-8 2xl:h-12 2xl:w-12" />,
     link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk",
   },
   {
@@ -53,7 +53,7 @@ const integrations: Integration[] = [
   },
   {
     name: "Browser Use",
-    icon: <IconBrowserUse className="w-5 h-5 text-white" />,
+    icon: <IconBrowserUse className="h-9 w-9 xl:h-9 xl:w-9 2xl:h-14 2xl:w-14" />,
     link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
   },
   {
@@ -63,37 +63,37 @@ const integrations: Integration[] = [
   },
   {
     name: "Playwright",
-    icon: <IconPlaywright className="w-6 h-6 text-white" />,
+    icon: <IconPlaywright className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/playwright",
   },
   {
     name: "OpenAI",
-    icon: <IconOpenAI className="w-6 h-6 text-white" />,
+    icon: <IconOpenAI className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/openai",
   },
   {
     name: "Anthropic",
-    icon: <IconAnthropic className="w-6 h-6 text-white" />,
+    icon: <IconAnthropic className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/anthropic",
   },
   {
     name: "Gemini",
-    icon: <IconGemini className="w-6 h-6 text-white" />,
+    icon: <IconGemini className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/gemini",
   },
   {
     name: "Mistral",
-    icon: <IconMistral className="w-6 h-6 text-white" />,
+    icon: <IconMistral className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/mistral",
   },
   {
     name: "Bedrock",
-    icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
+    icon: <IconAmazonBedrock className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/bedrock",
   },
   {
     name: "Groq",
-    icon: <IconGroq className="w-6 h-6" />,
+    icon: <IconGroq className="h-10 w-10 xl:h-10 xl:w-10 2xl:h-16 2xl:w-16" />,
     link: "https://docs.lmnr.ai/tracing/integrations/groq",
   },
 ];
@@ -108,11 +108,11 @@ interface FrameworksGridProps {
 
 export default function FrameworksGrid({
   className = "",
-  gridClassName = "grid grid-cols-4 md:grid-cols-5 gap-4",
+  gridClassName = "grid grid-cols-4 md:grid-cols-5 gap-1 xl:gap-4 2xl:gap-6",
   itemClassName = "",
-  showLabels = true,
-  labelTextColor = "text-muted-foreground",
+  labelTextColor = "text-white",
 }: FrameworksGridProps) {
+
   return (
     <div className={className}>
       <div className={gridClassName}>
@@ -122,12 +122,14 @@ export default function FrameworksGrid({
             rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
-            className={`flex flex-col items-center group w-16 ${itemClassName}`}
+            className={`flex group items-center justify-center w-24 h-24 md:w-32 md:h-24 2xl:w-40 2xl:h-32 ${itemClassName}`}
           >
-            <div className="w-12 h-12 rounded-lg flex flex-col items-center justify-center hover:bg-white/20 transition-colors">
-              {integration.icon || <span className="text-2xl">{integration.emoji}</span>}
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-20 h-20 xl:w-20 xl:h-20 2xl:w-24 2xl:h-24 rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors">
+                {integration.icon || <span className="text-4xl xl:text-5xl 2xl:text-6xl">{integration.emoji}</span>}
+              </div>
+              <span className={`text-xs xl:text-sm 2xl:text-base 2xl:mt-2 text-center ${labelTextColor}`}>{integration.name}</span>
             </div>
-            {showLabels && <span className={`text-xs mt-2 text-center ${labelTextColor}`}>{integration.name}</span>}
           </Link>
         ))}
       </div>

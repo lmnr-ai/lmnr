@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, Trace } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
+import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const renderCost = (val: any) => {
   if (val == null) {
@@ -92,9 +93,9 @@ export const columns: ColumnDef<Trace, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
-    size: 125,
+    size: 150,
   },
   {
     accessorFn: (row) => {
