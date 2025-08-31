@@ -221,7 +221,7 @@ export default function CookiesPage() {
           <h2>Where can I get further information?</h2>
         </strong></div>
         <span>If you have any questions about our use of cookies or other technologies, please contact us at:</span>
-        <span> founders@lmnr.ai </span>
+        <span>founders@lmnr.ai</span>
       </div>
     </div>
   );
