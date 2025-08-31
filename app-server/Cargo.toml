@@ -6,7 +6,7 @@ version = "0.1.0"
 [dependencies]
 actix-multipart = "0.7.2"
 actix-service = "2.0.3"
-actix-web = "4"
+actix-web = "4.11"
 actix-web-httpauth = "0.8.2"
 anyhow = "1"
 async-stream = "0.3.6"
@@ -41,7 +41,7 @@ reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
 serde = "1.0"
 serde-jsonlines = "0.7.0"
-serde_json = {version = "1.0.140", features = ["preserve_order", "raw_value"]}
+serde_json = {version = "1.0.140", features = ["preserve_order"]}
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal"]}
