@@ -70,11 +70,11 @@ class CacheManager {
     }
   }
 
-  async set<T>(key: string, value: T): Promise<void> {
+  async set<T>(key: string, value: T, ...args: any[]): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
       try {
-        await client.set(key, JSON.stringify(value));
+        await client.set(key, JSON.stringify(value), ...args);
       } catch (e) {
         console.error("Error setting entry in cache", e);
         throw e;
@@ -106,3 +106,4 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
+export const TRACE_CHATS_CACHE_KEY = "trace_chats";

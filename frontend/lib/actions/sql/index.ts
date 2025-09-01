@@ -10,7 +10,7 @@ const ExecuteQuerySchema = z.object({
   query: z.string().min(1, { error: "Query is required." }),
   apiKey: z.string().min(1, { error: "API key is required" }),
   parameters: z
-    .object({
+    .looseObject({
       start_time: z.string().optional(),
       end_time: z.string().optional(),
       interval_unit: z.string().optional(),

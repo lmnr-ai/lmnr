@@ -1,6 +1,5 @@
-import z from "zod/v4";
 
-import { SpanSchema } from ".";
+import { CacheSpan } from "./cache";
 
 /**
  * Represents a message in a conversation
@@ -17,6 +16,7 @@ interface ChatMessage {
 const normalizeMessageContent = (content: any): string => {
   if (typeof content === 'string') return content;
   if (content === null || content === undefined) return '';
+  if (Array.isArray(content) && content.length == 1 && content[0].type === "text") return content[0].text;
   return JSON.stringify(content);
 };
 
@@ -24,13 +24,13 @@ const normalizeMessageContent = (content: any): string => {
  * Checks if an input/output is a chat message array
  */
 const isChatMessageArray = (data: any): data is ChatMessage[] => Array.isArray(data) &&
-    data.length > 0 &&
-    data.every(item =>
-      typeof item === 'object' &&
-      item !== null &&
-      typeof item.role === 'string' &&
-      item.content !== undefined
-    );
+  data.length > 0 &&
+  data.every(item =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.role === 'string' &&
+    item.content !== undefined
+  );
 
 /**
  * Checks if two message arrays have a prefix relationship
@@ -40,11 +40,11 @@ const getMessagePrefixLength = (shorter: ChatMessage[], longer: ChatMessage[]): 
   if (shorter.length >= longer.length) return -1;
 
   for (let i = 0; i < shorter.length; i++) {
-    if (shorter[i].role !== longer[i].role ||
-      normalizeMessageContent(shorter[i].content) !== normalizeMessageContent(longer[i].content)) {
+    if (getMessageString(shorter[i]) !== getMessageString(longer[i])) {
       return -1;
     }
   }
+
   return shorter.length;
 };
 
@@ -59,7 +59,7 @@ const createPlaceholderMessage = (count: number): ChatMessage => ({
 /**
  * Calculates a simple hash of a message for comparison
  */
-const getMessageHash = (message: ChatMessage): string => `${message.role}:${normalizeMessageContent(message.content)}`;
+const getMessageString = (message: ChatMessage): string => `${message.role}:${normalizeMessageContent(message.content)}`;
 
 /**
  * Checks if messages are likely the same conversation thread
@@ -71,7 +71,7 @@ const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMess
   // Check if the first few messages match (likely start of conversation)
   const minLength = Math.min(messages1.length, messages2.length, 3);
   for (let i = 0; i < minLength; i++) {
-    if (getMessageHash(messages1[i]) !== getMessageHash(messages2[i])) {
+    if (getMessageString(messages1[i]) !== getMessageString(messages2[i])) {
       return false;
     }
   }
@@ -82,7 +82,7 @@ const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMess
  * Removes repetitive inputs and outputs from LLM spans in conversation chains.
  * Modifies spans in-place to preserve original ordering.
  */
-export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.infer<typeof SpanSchema>[] => {
+export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
   // Create a copy to avoid mutating the original array
   const result = [...spans];
 
@@ -94,7 +94,7 @@ export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.i
   const llmSpanIndices: number[] = [];
   for (let i = 0; i < result.length; i++) {
     const span = result[i];
-    if (span.spanType === 'LLM' && isChatMessageArray(span.input)) {
+    if (span.type === 'LLM' && isChatMessageArray(span.input)) {
       llmSpanIndices.push(i);
       originalInputs.set(i, span.input as ChatMessage[]);
       originalOutputs.set(i, span.output);
@@ -148,7 +148,7 @@ export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.i
     }
 
     // Sort chain by start time to ensure proper chronological order
-    chain.sort((a, b) => new Date(result[a].startTime).getTime() - new Date(result[b].startTime).getTime());
+    chain.sort((a, b) => new Date(result[a].start).getTime() - new Date(result[b].start).getTime());
     conversationChains.push(chain);
   }
 
@@ -183,7 +183,7 @@ export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.i
         if (prefixLength > 0) {
           const removedCount = prefixLength;
           const newMessages = originalInput.slice(prefixLength);
-          console.log(span, span.spanId, "removed messages", removedCount,);
+          console.log(span.spanId, "removed messages", removedCount,);
 
           newInput = removedCount > 0
             ? [createPlaceholderMessage(removedCount), ...newMessages]
@@ -193,7 +193,7 @@ export const deduplicateSpanContent = (spans: z.infer<typeof SpanSchema>[]): z.i
           newInput = [createPlaceholderMessage(originalInput.length)];
         }
       } else {
-        console.log(span, span.spanId, "first span in chain. Removed messages", originalInput.length - 1);
+        console.log(span.spanId, "first span in chain. Removed messages", originalInput.length - 1);
         // First span in chain - replace entire input with placeholder
         newInput = [createPlaceholderMessage(originalInput.length - 1), ...originalInput.slice(-1)];
       }
