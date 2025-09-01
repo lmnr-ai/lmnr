@@ -14,6 +14,7 @@ export const SPAN_TYPE_TO_COLOR = {
   [SpanType.EVALUATION]: "rgba(16, 185, 129, 0.7)", // 70% opacity green
   [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
   [SpanType.TOOL]: "#E3A008",
+  [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
 };
 
 const buildFilters = (groupBy: SpanMetricGroupBy, value: string): DatatableFilter[] => [

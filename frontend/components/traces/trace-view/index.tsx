@@ -25,6 +25,7 @@ import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
 import Timeline from "./timeline";
 import Tree from "./tree";
+import { VirtualizationProvider } from "./virtualization-context";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
@@ -494,154 +495,158 @@ export default function TraceView({
   }
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      <ResizablePanelGroup direction="vertical">
-        <ResizablePanel className="flex size-full">
-          <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
-            <Header
-              selectedSpan={selectedSpan}
-              trace={trace}
-              fullScreen={fullScreen}
-              handleClose={handleClose}
-              showBrowserSession={showBrowserSession}
-              setShowBrowserSession={setShowBrowserSession}
-              handleFetchTrace={handleFetchTrace}
-              hasLangGraph={hasLangGraph}
-              setShowLangGraph={setShowLangGraph}
-              showLangGraph={showLangGraph}
-            />
-            {searchEnabled ? (
-              <SearchSpansInput
-                setSearchEnabled={setSearchEnabled}
-                submit={fetchSpans}
-                filterBoxClassName="top-10"
-                className="rounded-none border-0 border-b ring-0"
-              />
-            ) : (
-              <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
-                <div className="flex items-center gap-2">
-                  <StatefulFilter columns={filterColumns}>
-                    <Button variant="outline" className="h-6 text-xs">
-                      <ListFilter size={14} className="mr-1" />
-                      Filters
-                    </Button>
-                  </StatefulFilter>
-                  <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
-                    <Search size={14} className="mr-1" />
-                    <span>Search</span>
-                  </Button>
-                  <Button
-                    onClick={() => setShowTimeline((prev) => !prev)}
-                    variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": showTimeline,
-                    })}
-                  >
-                    <ChartNoAxesGantt size={14} className="mr-1" />
-                    <span>Timeline</span>
-                  </Button>
-                  {showTimeline && (
-                    <>
-                      <Button
-                        disabled={zoomLevel === MAX_ZOOM}
-                        className="h-6 w-6 ml-auto"
-                        variant="outline"
-                        size="icon"
-                        onClick={handleZoomIn}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        disabled={zoomLevel === MIN_ZOOM}
-                        className="h-6 w-6"
-                        variant="outline"
-                        size="icon"
-                        onClick={handleZoomOut}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-                <StatefulFilterList className="py-[3px] text-xs px-1" />
-              </div>
-            )}
-            {showTimeline ? (
-              <Timeline
-                setSelectedSpan={handleSpanSelect}
-                selectedSpan={selectedSpan}
-                spans={spans}
-                childSpans={childSpans}
-                collapsedSpans={collapsedSpans}
-                browserSessionTime={browserSessionTime}
-                zoomLevel={zoomLevel}
-              />
-            ) : (
-              <Tree
-                topLevelSpans={topLevelSpans}
-                childSpans={childSpans}
-                activeSpans={activeSpans}
-                collapsedSpans={collapsedSpans}
-                containerWidth={treeViewWidth}
+    <VirtualizationProvider>
+      <div className="flex flex-col h-full w-full overflow-hidden">
+        <ResizablePanelGroup direction="vertical">
+          <ResizablePanel className="flex size-full">
+            <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
+              <Header
                 selectedSpan={selectedSpan}
                 trace={trace}
-                isSpansLoading={isSpansLoading}
-                onToggleCollapse={(spanId) => {
-                  setCollapsedSpans((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(spanId)) {
-                      next.delete(spanId);
-                    } else {
-                      next.add(spanId);
-                    }
-                    return next;
-                  });
-                }}
-                onSpanSelect={handleSpanSelect}
-                onSelectTime={(time) => {
-                  browserSessionRef.current?.goto(time);
-                }}
+                fullScreen={fullScreen}
+                handleClose={handleClose}
+                showBrowserSession={showBrowserSession}
+                setShowBrowserSession={setShowBrowserSession}
+                handleFetchTrace={handleFetchTrace}
+                hasLangGraph={hasLangGraph}
+                setShowLangGraph={setShowLangGraph}
+                showLangGraph={showLangGraph}
               />
-            )}
-            <div
-              className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-              onMouseDown={handleResizeTreeView}
-            >
-              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
-            </div>
-          </div>
-          <div className="flex-grow overflow-hidden flex-wrap">
-            {selectedSpan ? (
-              selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
-              ) : (
-                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
-                <span className="text-xl font-medium mb-2">No span selected</span>
-                <span className="text-base">Select a span from the trace tree to view its details</span>
-              </div>
-            )}
-          </div>
-        </ResizablePanel>
-        {showBrowserSession && (
-          <>
-            <ResizableHandle className="z-50" withHandle />
-            <ResizablePanel>
-              {!isLoading && (
-                <SessionPlayer
-                  ref={browserSessionRef}
-                  hasBrowserSession={trace.hasBrowserSession}
-                  traceId={traceId}
-                  onTimelineChange={handleTimelineChange}
+              {searchEnabled ? (
+                <SearchSpansInput
+                  setSearchEnabled={setSearchEnabled}
+                  submit={fetchSpans}
+                  filterBoxClassName="top-10"
+                  className="rounded-none border-0 border-b ring-0"
                 />
+              ) : (
+                <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
+                  <div className="flex items-center gap-2">
+                    <StatefulFilter columns={filterColumns}>
+                      <Button variant="outline" className="h-6 text-xs">
+                        <ListFilter size={14} className="mr-1" />
+                        Filters
+                      </Button>
+                    </StatefulFilter>
+                    <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
+                      <Search size={14} className="mr-1" />
+                      <span>Search</span>
+                    </Button>
+                    <Button
+                      onClick={() => setShowTimeline((prev) => !prev)}
+                      variant="outline"
+                      className={cn("h-6 text-xs px-1.5", {
+                        "border-primary text-primary": showTimeline,
+                      })}
+                    >
+                      <ChartNoAxesGantt size={14} className="mr-1" />
+                      <span>Timeline</span>
+                    </Button>
+                    {showTimeline && (
+                      <>
+                        <Button
+                          disabled={zoomLevel === MAX_ZOOM}
+                          className="h-6 w-6 ml-auto"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleZoomIn}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          disabled={zoomLevel === MIN_ZOOM}
+                          className="h-6 w-6"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleZoomOut}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <StatefulFilterList className="py-[3px] text-xs px-1" />
+                </div>
               )}
-            </ResizablePanel>
-          </>
-        )}
-        {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
-      </ResizablePanelGroup>
-    </div>
+              {showTimeline ? (
+                <Timeline
+                  setSelectedSpan={handleSpanSelect}
+                  selectedSpan={selectedSpan}
+                  spans={spans}
+                  childSpans={childSpans}
+                  collapsedSpans={collapsedSpans}
+                  browserSessionTime={browserSessionTime}
+                  zoomLevel={zoomLevel}
+                />
+              ) : (
+                <div className="flex flex-1 overflow-hidden relative">
+                  <Tree
+                    topLevelSpans={topLevelSpans}
+                    childSpans={childSpans}
+                    activeSpans={activeSpans}
+                    collapsedSpans={collapsedSpans}
+                    containerWidth={treeViewWidth}
+                    selectedSpan={selectedSpan}
+                    trace={trace}
+                    isSpansLoading={isSpansLoading}
+                    onToggleCollapse={(spanId) => {
+                      setCollapsedSpans((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(spanId)) {
+                          next.delete(spanId);
+                        } else {
+                          next.add(spanId);
+                        }
+                        return next;
+                      });
+                    }}
+                    onSpanSelect={handleSpanSelect}
+                    onSelectTime={(time) => {
+                      browserSessionRef.current?.goto(time);
+                    }}
+                  />
+                </div>
+              )}
+              <div
+                className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+                onMouseDown={handleResizeTreeView}
+              >
+                <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+              </div>
+            </div>
+            <div className="flex-grow overflow-hidden flex-wrap">
+              {selectedSpan ? (
+                selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                  <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+                ) : (
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
+                  <span className="text-xl font-medium mb-2">No span selected</span>
+                  <span className="text-base">Select a span from the trace tree to view its details</span>
+                </div>
+              )}
+            </div>
+          </ResizablePanel>
+          {showBrowserSession && (
+            <>
+              <ResizableHandle className="z-50" withHandle />
+              <ResizablePanel>
+                {!isLoading && (
+                  <SessionPlayer
+                    ref={browserSessionRef}
+                    hasBrowserSession={trace.hasBrowserSession}
+                    traceId={traceId}
+                    onTimelineChange={handleTimelineChange}
+                  />
+                )}
+              </ResizablePanel>
+            </>
+          )}
+          {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
+        </ResizablePanelGroup>
+      </div>
+    </VirtualizationProvider>
   );
 }
