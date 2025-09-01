@@ -15,7 +15,7 @@ interface Props {
 const ITEM_H = 36;
 const MIN_H = 4;
 const TREE_TOP_PADDING = 4;
-const UNIT = 1000;
+const UNIT = 500;
 
 export default function Minimap({ traceDuration }: Props) {
   const { state, scrollTo, spanItems } = useVirtualizationContext();
@@ -111,15 +111,15 @@ export default function Minimap({ traceDuration }: Props) {
     <div className="absolute top-1 right-3 h-full w-fit bg-background z-50">
       <div
         ref={minimapRef}
-        className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden p-1 w-8 relative"
+        className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden w-8 relative"
         onScroll={handleMinimapScroll}
       >
         {spansWithPosition.map((span, index) => {
           const isInVisibleRange = index >= visibleRange.start && index <= visibleRange.end;
           return (
-            <div style={{ top: span.y }} key={span.spanId} className="absolute w-32 bg-background">
+            <div style={{ top: span.y }} key={span.spanId} className="absolute bg-background">
               <div
-                className={cn("w-32 cursor-pointer rounded-[2px] mb-0.5 transition-opacity duration-100 opacity-50", {
+                className={cn("w-8 cursor-pointer rounded-[2px] my-0.5 transition-opacity duration-100 opacity-40", {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
