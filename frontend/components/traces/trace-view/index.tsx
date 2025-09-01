@@ -1,6 +1,6 @@
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { has } from "lodash";
-import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
+import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
@@ -23,6 +23,7 @@ import { Button } from "../../ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
+import Chat from "./chat";
 import Timeline from "./timeline";
 import Tree from "./tree";
 
@@ -104,6 +105,7 @@ export default function TraceView({
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
 
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   const handleZoomIn = useCallback(() => {
@@ -451,7 +453,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -540,6 +542,16 @@ export default function TraceView({
                     <ChartNoAxesGantt size={14} className="mr-1" />
                     <span>Timeline</span>
                   </Button>
+                  <Button
+                    onClick={() => setShowChat((prev) => !prev)}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": showChat,
+                    })}
+                  >
+                    <MessageCircle size={14} className="mr-1" />
+                    <span>Chat</span>
+                  </Button>
                   {showTimeline && (
                     <>
                       <Button
@@ -566,7 +578,9 @@ export default function TraceView({
                 <StatefulFilterList className="py-[3px] text-xs px-1" />
               </div>
             )}
-            {showTimeline ? (
+            {showChat ? (
+              <Chat traceId={traceId} spans={spans} />
+            ) : showTimeline ? (
               <Timeline
                 setSelectedSpan={handleSpanSelect}
                 selectedSpan={selectedSpan}

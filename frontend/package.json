@@ -74,7 +74,7 @@
     "@uiw/react-codemirror": "^4.23.10",
     "@vercel/otel": "^1.13.0",
     "@xyflow/react": "^12.6.4",
-    "ai": "^4.3.16",
+    "ai": "^5.0.29",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
