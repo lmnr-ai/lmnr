@@ -9,13 +9,7 @@ const ExecuteQuerySchema = z.object({
   projectId: z.string(),
   query: z.string().min(1, { error: "Query is required." }),
   apiKey: z.string().min(1, { error: "API key is required" }),
-  parameters: z
-    .object({
-      start_time: z.string().optional(),
-      end_time: z.string().optional(),
-      interval_unit: z.string().optional(),
-    })
-    .optional(),
+  parameters: z.record(z.string(), z.any()).optional(),
 });
 
 export const executeQuery = async <T extends Record<string, unknown>>(input: z.infer<typeof ExecuteQuerySchema>) => {
