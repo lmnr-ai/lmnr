@@ -1,36 +1,37 @@
-import { handleChatGeneration, PlaygroundParamsSchema } from "@/lib/actions/chat";
+import { google } from '@ai-sdk/google';
+import { convertToModelMessages, smoothStream,stepCountIs, streamText, tool, UIMessage } from 'ai';
+import { z } from 'zod';
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  try {
-    const body = await req.json();
-    const { projectId } = await props.params;
+  const params = await props.params;
+  const projectId = params.projectId;
 
-    const params = {
-      ...body,
-      projectId,
-    };
+  const { messages }: { messages: UIMessage[] } = await req.json();
 
-    const parseResult = PlaygroundParamsSchema.safeParse(params);
-
-    if (!parseResult.success) {
-      return new Response(JSON.stringify(parseResult.error), { status: 400 });
-    }
-
-    const result = await handleChatGeneration({
-      ...params,
-      abortSignal: req.signal,
-    });
-
-    return new Response(JSON.stringify(result));
-  } catch (e) {
-    return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Internal server error.",
-        details: e instanceof Error ? e.name : "Unknown error",
+  const result = streamText({
+    model: google('gemini-2.5-flash'),
+    messages: convertToModelMessages(messages),
+    stopWhen: stepCountIs(10),
+    system: `You are helpful assistant.`,
+    tools: {
+      weather: tool({
+        description: 'Get the weather in a location (fahrenheit)',
+        inputSchema: z.object({
+          location: z.string().describe('The location to get the weather for'),
+        }),
+        execute: async ({ location }) => {
+          console.log('Getting weather for 123', location);
+          const temperature = Math.round(Math.random() * (90 - 32) + 32);
+          return "Wheather in " + location + " is " + temperature + " degrees Fahrenheit";
+        },
       }),
-      {
-        status: 500,
-      }
-    );
-  }
+    },
+    experimental_transform: smoothStream({
+      delayInMs: 20, // optional: defaults to 10ms
+      chunking: 'line', // optional: defaults to 'word'
+    }),
+  });
+
+  return result.toUIMessageStreamResponse();
 }
+
