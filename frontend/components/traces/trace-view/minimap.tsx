@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
@@ -99,7 +99,21 @@ export default function Minimap({ traceDuration }: Props) {
     [state, scrollTo]
   );
 
+  const handleTreeScroll = createScrollHandler("tree", syncTreeToMinimap);
   const handleMinimapScroll = createScrollHandler("minimap", syncMinimapToTree);
+
+  useEffect(() => {
+    const { totalHeight, scrollTop, viewportHeight } = state;
+    if (!isFinite(totalHeight) || totalHeight <= 0) return;
+
+    handleTreeScroll({
+      currentTarget: {
+        scrollTop,
+        scrollHeight: totalHeight,
+        clientHeight: viewportHeight,
+      },
+    } as React.UIEvent<HTMLDivElement>);
+  }, [state.scrollTop, handleTreeScroll, state]);
 
   const handleSpanClick = useCallback(
     (spanIndex: number, e: React.MouseEvent) => {
