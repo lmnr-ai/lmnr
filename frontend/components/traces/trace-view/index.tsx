@@ -333,6 +333,23 @@ export default function TraceView({
     [spans]
   );
 
+  const handleSummarize = async (prompt?: string) => {
+    if (!trace) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("startTime", new Date(trace?.startTime).toISOString());
+    params.set("endTime", new Date(trace?.endTime).toISOString());
+    if (prompt) {
+      params.set("prompt", prompt);
+    }
+
+    const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/summary?${params.toString()}`);
+    const data = await response.json();
+    return data;
+  };
+
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({

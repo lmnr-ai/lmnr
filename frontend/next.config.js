@@ -8,6 +8,7 @@ const nextConfig = {
       fullUrl: true,
     },
   },
+  serverExternalPackages: ["@lmnr-ai/lmnr"],
   output: "standalone",
   async headers() {
     return [
