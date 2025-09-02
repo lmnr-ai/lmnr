@@ -25,7 +25,7 @@ import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
 import Timeline from "./timeline";
 import Tree from "./tree";
-import { VirtualizationProvider } from "./virtualization-context";
+import { ScrollContextProvider } from "./virtualization-context";
 
 export interface TraceViewHandle {
   toggleBrowserSession: () => void;
@@ -452,7 +452,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -495,7 +495,7 @@ export default function TraceView({
   }
 
   return (
-    <VirtualizationProvider>
+    <ScrollContextProvider>
       <div className="flex flex-col h-full w-full overflow-hidden">
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel className="flex size-full">
@@ -647,6 +647,6 @@ export default function TraceView({
           {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
         </ResizablePanelGroup>
       </div>
-    </VirtualizationProvider>
+    </ScrollContextProvider>
   );
 }

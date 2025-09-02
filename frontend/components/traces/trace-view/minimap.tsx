@@ -6,8 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
-import { useScrollSync } from "./scroll-sync";
-import { useVirtualizationContext } from "./virtualization-context";
+import { useScrollContext } from "./virtualization-context";
 
 interface Props {
   traceDuration: number;
@@ -19,9 +18,8 @@ const TREE_TOP_PADDING = 4;
 const UNIT = 500;
 
 export default function Minimap({ traceDuration }: Props) {
-  const { state, scrollTo, spanItems } = useVirtualizationContext();
+  const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
   const minimapRef = useRef<HTMLDivElement>(null);
-  const { createScrollHandler } = useScrollSync();
 
   const spansWithPosition = useMemo(() => {
     if (isEmpty(spanItems)) return [];
@@ -89,7 +87,6 @@ export default function Minimap({ traceDuration }: Props) {
       const treeMaxScroll = Math.max(0, totalHeight - viewportHeight);
 
       if (minimapMaxScroll > 0 && treeMaxScroll > 0) {
-        // Calculate the ratio between the two scrollable areas
         const scrollRatio = treeMaxScroll / minimapMaxScroll;
         const targetTreeScroll = minimapScrollTop * scrollRatio;
         scrollTo(targetTreeScroll);
@@ -128,7 +125,7 @@ export default function Minimap({ traceDuration }: Props) {
   }
 
   return (
-    <div className="absolute top-1 right-3 h-full w-fit bg-background z-50">
+    <div className="absolute top-0 right-3 h-full w-fit bg-background z-50 py-1">
       <div
         ref={minimapRef}
         className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden w-8 relative"
@@ -137,14 +134,23 @@ export default function Minimap({ traceDuration }: Props) {
         {spansWithPosition.map((span, index) => {
           const isInVisibleRange = index >= visibleRange.start && index <= visibleRange.end;
           return (
-            <div style={{ top: span.y }} key={span.spanId} className="absolute bg-background">
+            <div
+              style={{
+                top: span.y + index,
+                height: span.height + 4,
+              }}
+              key={span.spanId}
+              className="absolute bg-background"
+            >
               <div
-                className={cn("w-8 cursor-pointer rounded-[2px] my-0.5 transition-opacity duration-100 opacity-40", {
+                className={cn("w-8 cursor-pointer rounded-[1px] transition-opacity duration-100 opacity-40", {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
                   backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType],
-                  height: `${span.height}px`,
+                  height: Math.max(MIN_H, span.height),
+                  marginTop: 2,
+                  marginBottom: 2,
                 }}
                 onClick={(e) => handleSpanClick(index, e)}
               />

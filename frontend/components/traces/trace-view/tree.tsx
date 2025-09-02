@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Span, Trace } from "@/lib/traces/types";
 
 import { SpanCard } from "../span-card";
-import { useVirtualizationContext } from "./virtualization-context";
+import { useScrollContext } from "./virtualization-context";
 
 export interface TreeHandle {
   scrollTo: (position: number) => void;
@@ -44,8 +44,7 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
     },
     ref
   ) => {
-    const { virtualizer, scrollRef, spanItems, renderProps, scrollTo, render, updateState } =
-      useVirtualizationContext();
+    const { virtualizer, scrollRef, spanItems, renderProps, scrollTo, render, updateState } = useScrollContext();
 
     const handleScroll = useCallback(() => {
       const el = scrollRef.current;
