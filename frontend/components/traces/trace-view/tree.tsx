@@ -1,5 +1,5 @@
 import { isEmpty } from "lodash";
-import React, { forwardRef, useEffect, useImperativeHandle } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle } from "react";
 
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -44,7 +44,36 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
     },
     ref
   ) => {
-    const { virtualizer, scrollRef, spanItems, renderProps, scrollTo, render } = useVirtualizationContext();
+    const { virtualizer, scrollRef, spanItems, renderProps, scrollTo, render, updateState } =
+      useVirtualizationContext();
+
+    const handleScroll = useCallback(() => {
+      const el = scrollRef.current;
+      if (!el || !virtualizer) return;
+
+      const newState = {
+        totalHeight: virtualizer.getTotalSize(),
+        viewportHeight: el.clientHeight,
+        scrollTop: el.scrollTop,
+      };
+
+      if (Object.values(newState).every((val) => isFinite(val) && val >= 0)) {
+        updateState(newState);
+      }
+    }, [scrollRef, virtualizer, updateState]);
+
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      el.addEventListener("scroll", handleScroll);
+
+      handleScroll();
+
+      return () => {
+        el.removeEventListener("scroll", handleScroll);
+      };
+    }, [handleScroll, scrollRef.current]);
 
     useEffect(() => {
       render({
