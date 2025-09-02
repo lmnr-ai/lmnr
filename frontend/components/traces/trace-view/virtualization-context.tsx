@@ -94,6 +94,7 @@ export function VirtualizationProvider({ children }: PropsWithChildren) {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 36,
     overscan: 100,
+    // useScrollendEvent: true,
     onChange: (instance) => {
       const el = scrollRef.current;
       if (!el) return;

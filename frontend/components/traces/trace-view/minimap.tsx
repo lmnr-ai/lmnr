@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
+import { useScrollSync } from "./scroll-sync";
 import { useVirtualizationContext } from "./virtualization-context";
 
 interface Props {
@@ -20,8 +21,7 @@ const UNIT = 500;
 export default function Minimap({ traceDuration }: Props) {
   const { state, scrollTo, spanItems } = useVirtualizationContext();
   const minimapRef = useRef<HTMLDivElement>(null);
-  const isScrollingFromTree = useRef(false);
-  const isScrollingFromMinimap = useRef(false);
+  const { createScrollHandler } = useScrollSync();
 
   const spansWithPosition = useMemo(() => {
     if (isEmpty(spanItems)) return [];
@@ -46,54 +46,74 @@ export default function Minimap({ traceDuration }: Props) {
     return { start, end };
   }, [state, spansWithPosition.length]);
 
-  useEffect(() => {
-    if (isScrollingFromMinimap.current) return;
+  const syncTreeToMinimap = useCallback(
+    ({
+      scrollTop: treeScrollTop,
+      scrollHeight: treeScrollHeight,
+      clientHeight: treeClientHeight,
+    }: {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+    }) => {
+      if (!minimapRef.current) return;
 
-    const { totalHeight, scrollTop, viewportHeight } = state;
-    if (!isFinite(totalHeight) || totalHeight <= 0 || !minimapRef.current) return;
+      const minimap = minimapRef.current;
+      const minimapScrollHeight = minimap.scrollHeight;
+      const minimapClientHeight = minimap.clientHeight;
 
-    isScrollingFromTree.current = true;
+      const treeMaxScroll = Math.max(0, treeScrollHeight - treeClientHeight);
+      const minimapMaxScroll = Math.max(0, minimapScrollHeight - minimapClientHeight);
 
-    const maxScroll = Math.max(0, totalHeight - viewportHeight);
-    const scrollPercent = maxScroll > 0 ? scrollTop / maxScroll : 0;
+      if (treeMaxScroll > 0 && minimapMaxScroll > 0) {
+        const scrollRatio = minimapMaxScroll / treeMaxScroll;
+        minimap.scrollTop = treeScrollTop * scrollRatio;
+      }
+    },
+    []
+  );
 
-    const minimap = minimapRef.current;
-    const minimapHeight = minimap.clientHeight;
-    const scrollHeight = minimap.scrollHeight;
-    const height = scrollHeight - minimapHeight;
-
-    if (height > 0) {
-      minimap.scrollTo(0, height * scrollPercent);
-    }
-
-    setTimeout(() => {
-      isScrollingFromTree.current = false;
-    }, 50);
-  }, [state]);
-
-  const handleMinimapScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      if (isScrollingFromTree.current) return;
-
-      isScrollingFromMinimap.current = true;
-
-      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+  const syncMinimapToTree = useCallback(
+    ({
+      scrollTop: minimapScrollTop,
+      scrollHeight: minimapScrollHeight,
+      clientHeight: minimapClientHeight,
+    }: {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+    }) => {
       const { totalHeight, viewportHeight } = state;
 
-      const maxMinimapScroll = Math.max(0, scrollHeight - clientHeight);
-      const scrollPercent = maxMinimapScroll > 0 ? scrollTop / maxMinimapScroll : 0;
+      const minimapMaxScroll = Math.max(0, minimapScrollHeight - minimapClientHeight);
+      const treeMaxScroll = Math.max(0, totalHeight - viewportHeight);
 
-      if (totalHeight > viewportHeight) {
-        const targetTreeScroll = scrollPercent * (totalHeight - viewportHeight);
+      if (minimapMaxScroll > 0 && treeMaxScroll > 0) {
+        // Calculate the ratio between the two scrollable areas
+        const scrollRatio = treeMaxScroll / minimapMaxScroll;
+        const targetTreeScroll = minimapScrollTop * scrollRatio;
         scrollTo(targetTreeScroll);
       }
-
-      setTimeout(() => {
-        isScrollingFromMinimap.current = false;
-      }, 50);
     },
+
     [state, scrollTo]
   );
+
+  const handleTreeScroll = createScrollHandler("tree", syncTreeToMinimap);
+  const handleMinimapScroll = createScrollHandler("minimap", syncMinimapToTree);
+
+  useEffect(() => {
+    const { totalHeight, scrollTop, viewportHeight } = state;
+    if (!isFinite(totalHeight) || totalHeight <= 0) return;
+
+    handleTreeScroll({
+      currentTarget: {
+        scrollTop,
+        scrollHeight: totalHeight,
+        clientHeight: viewportHeight,
+      },
+    } as React.UIEvent<HTMLDivElement>);
+  }, [state.scrollTop, handleTreeScroll, state]);
 
   const handleSpanClick = useCallback(
     (spanIndex: number, e: React.MouseEvent) => {
