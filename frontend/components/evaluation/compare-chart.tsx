@@ -6,9 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
 interface CompareChartProps {
-  evaluationId: string;
-  comparedEvaluationId: string;
-  scoreName: string;
   className?: string;
   distribution: EvaluationScoreDistributionBucket[] | null;
   comparedDistribution: EvaluationScoreDistributionBucket[] | null;
@@ -22,9 +19,6 @@ const chartConfig = {
 };
 
 export default function CompareChart({
-  evaluationId,
-  comparedEvaluationId,
-  scoreName,
   className,
   distribution,
   comparedDistribution,
