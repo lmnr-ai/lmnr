@@ -105,7 +105,7 @@ export default function SpanImagesCarousel({
       onTimelineChange(spanStartTime);
     }
 
-    api.on("select", () => {
+    const handleSelect = () => {
       const newIndex = api.selectedScrollSnap();
       setCurrent((prev) => ({ ...prev, current: newIndex + 1 }));
 
@@ -114,7 +114,13 @@ export default function SpanImagesCarousel({
         const spanStartTime = parseClickHouseTimestamp(selectedImage.startTime).getTime();
         onTimelineChange(spanStartTime);
       }
-    });
+    };
+
+    api.on("select", handleSelect);
+
+    return () => {
+      api.off("select", handleSelect);
+    };
   }, [api, images, onTimelineChange, parseClickHouseTimestamp]);
 
   return (
