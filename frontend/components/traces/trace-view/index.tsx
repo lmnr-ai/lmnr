@@ -333,23 +333,6 @@ export default function TraceView({
     [spans]
   );
 
-  const handleSummarize = async (prompt?: string) => {
-    if (!trace) {
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set("startTime", new Date(trace?.startTime).toISOString());
-    params.set("endTime", new Date(trace?.endTime).toISOString());
-    if (prompt) {
-      params.set("prompt", prompt);
-    }
-
-    const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/summary?${params.toString()}`);
-    const data = await response.json();
-    return data;
-  };
-
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
@@ -545,12 +528,18 @@ export default function TraceView({
                       Filters
                     </Button>
                   </StatefulFilter>
-                  <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
+                  <Button onClick={() => {
+                    setSearchEnabled(true);
+                    setShowChat(false);
+                  }} variant="outline" className="h-6 text-xs px-1.5">
                     <Search size={14} className="mr-1" />
                     <span>Search</span>
                   </Button>
                   <Button
-                    onClick={() => setShowTimeline((prev) => !prev)}
+                    onClick={() => {
+                      setShowTimeline((prev) => !prev);
+                      setShowChat(false);
+                    }}
                     variant="outline"
                     className={cn("h-6 text-xs px-1.5", {
                       "border-primary text-primary": showTimeline,
@@ -560,7 +549,10 @@ export default function TraceView({
                     <span>Timeline</span>
                   </Button>
                   <Button
-                    onClick={() => setShowChat((prev) => !prev)}
+                    onClick={() => {
+                      setShowChat((prev) => !prev);
+                      setShowTimeline(false);
+                    }}
                     variant="outline"
                     className={cn("h-6 text-xs px-1.5", {
                       "border-primary text-primary": showChat,
@@ -595,8 +587,8 @@ export default function TraceView({
                 <StatefulFilterList className="py-[3px] text-xs px-1" />
               </div>
             )}
-            {showChat ? (
-              <Chat traceId={traceId} spans={spans} />
+            {showChat && !showTimeline ? (
+              <Chat trace={trace} />
             ) : showTimeline ? (
               <Timeline
                 setSelectedSpan={handleSpanSelect}

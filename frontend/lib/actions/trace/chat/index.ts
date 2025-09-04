@@ -11,7 +11,6 @@ export const GetTraceStructureSchema = z.object({
   endTime: z.iso.datetime(),
   projectId: z.string(),
   traceId: z.string(),
-  apiKey: z.string(),
 });
 
 export const SpanSchema = z.object({
@@ -60,5 +59,8 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
     start: span.start,
     end: span.end,
   }));
-  return YAML.stringify(strippedSpans);
+  return JSON.stringify(strippedSpans, null, 2);
 };
+
+// Re-export summary functionality
+export { generateTraceSummary, TraceSummarySchema } from './summary';

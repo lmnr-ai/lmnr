@@ -91,6 +91,7 @@ export async function register() {
     }
     if (process.env.LMNR_PROJECT_API_KEY) {
       const { Laminar } = await import("@lmnr-ai/lmnr");
+      console.log("Initializing Laminar");
       Laminar.initialize();
     }
   }

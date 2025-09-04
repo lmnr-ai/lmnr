@@ -127,7 +127,7 @@ interface SpanStructure {
 };
 
 const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<CacheSpan[]> => {
-  const { projectId, traceId, startTime, endTime, apiKey } = input;
+  const { projectId, traceId, startTime, endTime } = input;
 
   const spans = await executeQuery({
     projectId,
@@ -163,7 +163,6 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
       AND start_time <= {end_time:DateTime(3)} + interval '1 second'
       ORDER BY start_time ASC
     `,
-    apiKey,
     parameters: {
       start_time: startTime.replace("Z", ""),
       end_time: endTime.replace("Z", ""),
@@ -181,7 +180,6 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
       AND timestamp <= {end_time:DateTime(3)} + interval '1 second'
       ORDER BY timestamp ASC
     `,
-    apiKey,
     parameters: {
       span_ids: Object.keys(spanIdsMap),
       start_time: startTime.replace("Z", ""),
@@ -240,17 +238,18 @@ interface SpanData {
 }
 
 export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStructureSchema>, ids: number[]): Promise<SpanData[]> => {
-  const { projectId, traceId, apiKey, startTime, endTime } = input;
+  const { projectId, traceId, startTime, endTime } = input;
 
   const key = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
 
   let allData = await cache.get<CacheSpan[]>(key);
 
   if (!allData) {
-    allData = await fetchFullTraceSpansToCache({ projectId, traceId, apiKey, startTime, endTime });
+    allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
   }
 
   return allData.map((span, index) => ({
+    name: span.name,
     id: index + 1,
     input: span.input,
     output: span.output,
@@ -259,14 +258,14 @@ export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStruct
 };
 
 export const getFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<CacheSpan[]> => {
-  const { projectId, traceId, apiKey, startTime, endTime } = input;
+  const { projectId, traceId, startTime, endTime } = input;
 
   const key = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
 
   let allData = await cache.get<CacheSpan[]>(key);
 
   if (!allData) {
-    allData = await fetchFullTraceSpansToCache({ projectId, traceId, apiKey, startTime, endTime });
+    allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
   }
 
   return deduplicateSpanContent(allData);

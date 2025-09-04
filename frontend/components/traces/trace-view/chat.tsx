@@ -1,6 +1,6 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from "ai";
-import { MessageCircle, Send, Sparkles } from "lucide-react";
+import { ArrowUp, MessageCircle, Send, Sparkles, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -8,15 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Trace } from '@/lib/traces/types';
 
 interface ChatProps {
-  traceId: string;
-  spans: any[]; // TODO: Type this properly
+  trace: Trace;
 }
 
-export default function Chat({ traceId, spans }: ChatProps) {
+export default function Chat({ trace }: ChatProps) {
 
   const [input, setInput] = useState("");
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,8 +27,46 @@ export default function Chat({ traceId, spans }: ChatProps) {
   const { messages, sendMessage } = useChat({
     transport: new DefaultChatTransport({
       api: `/api/projects/${projectId}/chat`,
+      body: {
+        traceId: trace.id,
+        traceStartTime: new Date(trace.startTime).toISOString(),
+        traceEndTime: new Date(trace.endTime).toISOString(),
+      }
     }),
   });
+
+  // Fetch summary on component mount
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        setSummaryLoading(true);
+        const response = await fetch(`/api/projects/${projectId}/chat/summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            traceId: trace.id,
+            traceStartTime: new Date(trace.startTime).toISOString(),
+            traceEndTime: new Date(trace.endTime).toISOString(),
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSummary(data.summary);
+        } else {
+          console.error('Failed to fetch summary');
+        }
+      } catch (error) {
+        console.error('Error fetching summary:', error);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [trace.id, trace.startTime, trace.endTime, projectId]);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -40,63 +80,69 @@ export default function Chat({ traceId, spans }: ChatProps) {
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-0" ref={scrollAreaRef}>
+    <div className="flex-grow flex flex-col overflow-auto">
+      <ScrollArea className="flex-1" ref={scrollAreaRef}>
         <div className="space-y-4 py-4">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-start justify-center text-left py-8 p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-primary" />
-                <span className="text-lg font-medium text-foreground">Chat with your trace</span>
+          <div className="p-4">
+            <div className="">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-medium text-foreground">Trace Summary</span>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                I can help you understand this trace with {spans.length} span{spans.length !== 1 ? 's' : ''}. Ask me about:
-              </p>
-              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                <li>• Performance bottlenecks and optimization opportunities</li>
-                <li>• Error analysis and debugging insights</li>
-                <li>• Execution flow and span relationships</li>
-                <li>• Token usage and cost analysis</li>
-              </ul>
+              {summaryLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Generating summary...</span>
+                </div>
+              ) : summary ? (
+                <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                  {summary}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Failed to generate summary
+                </div>
+              )}
             </div>
-          ) : (
-            messages.map((message) => (
-              <div key={message.id} className={cn("flex", message.role === "user" ? "px-2" : "px-4")}>
-                <div className={cn("w-full", message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background")}>
-                  <div className="text-sm text-foreground leading-relaxed space-y-2">
-                    {message.parts.map((part, i) => {
-                      switch (part.type) {
-                        case 'text':
-                          return (
-                            <div key={`${message.id}-${i}`}>
-                              {part.text}
+          </div>
+
+          {messages.map((message) => (
+            <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
+              <div className={cn("w-full", message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background")}>
+                <div className="text-sm text-foreground leading-relaxed space-y-2">
+                  {message.parts.map((part, i) => {
+                    switch (part.type) {
+                      case 'text':
+                        return (
+                          <div key={`${message.id}-${i}`} className="whitespace-pre-wrap">
+                            {part.text}
+                          </div>
+                        );
+                      case 'tool-getSpansData':
+                        // Handle tool invocations - simplified for now
+                        return (
+                          <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border border-border/50">
+                            <div className="flex items-center gap-2">
+                              <MessageCircle className="w-4 h-4 text-primary" />
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Getting spans data
+                              </span>
                             </div>
-                          );
-                        case 'tool-weather':
-                          // Handle tool invocations - simplified for now
-                          return (
-                            <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border border-border/50">
-                              <div className="flex items-center gap-2">
-                                <MessageCircle className="w-4 h-4 text-primary" />
-                                <span className="text-xs font-medium text-muted-foreground">
-                                  Weather tool
-                                </span>
-                              </div>
+                            <div className="text-xs text-muted-foreground">
+                              {JSON.stringify(part.input)}
                             </div>
-                          );
-                      }
-                    })}
-                  </div>
+                          </div>
+                        );
+                    }
+                  })}
                 </div>
               </div>
-            ))
-          )}
+            </div>
+          ))
+          }
         </div>
       </ScrollArea>
 
-      {/* Input Footer */}
-      <div className="p-3">
+      <div className="flex-none px-3 pb-4 bg-transparent">
         <div className="border rounded bg-muted/40">
           <form onSubmit={(e) => {
             e.preventDefault();
@@ -107,7 +153,7 @@ export default function Chat({ traceId, spans }: ChatProps) {
               ],
             });
           }}
-          className="p-2"
+            className="p-2"
           >
             <div className="relative">
               <Input
@@ -131,7 +177,7 @@ export default function Chat({ traceId, spans }: ChatProps) {
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 top-1 h-7 w-7"
+                className="absolute right-1 top-1 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
                 onClick={() => sendMessage({
                   role: "user",
@@ -140,7 +186,7 @@ export default function Chat({ traceId, spans }: ChatProps) {
                   ],
                 })}
               >
-                <Send className="w-4 h-4" />
+                <ArrowUp className="w-4 h-4" />
               </Button>
             </div>
           </form>
