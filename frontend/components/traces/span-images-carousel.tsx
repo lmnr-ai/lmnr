@@ -1,20 +1,14 @@
 "use client";
 
 import { differenceInSeconds, format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import {
-  Carousel,
-  type CarouselApi,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
+import { Button } from "@/components/ui/button";
 import { SpanImage } from "@/lib/actions/span/images";
 import { swrFetcher } from "@/lib/utils";
 
@@ -34,8 +28,7 @@ export default function SpanImagesCarousel({
   onTimelineChange,
 }: SpanImagesCarouselProps) {
   const { projectId } = useParams();
-  const [api, setApi] = useState<CarouselApi>();
-  const [current, setCurrent] = useState<{ current: number; count: number }>({ count: 0, current: 0 });
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const swrKey =
     spanIds.length > 0
@@ -92,36 +85,32 @@ export default function SpanImagesCarousel({
 
   const activeImageIndex = getActiveImageIndex();
 
-  useEffect(() => {
-    if (!api) {
-      return;
-    }
+  const goToPrevious = useCallback(() => {
+    if (images.length === 0) return;
+    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  }, [images.length]);
 
-    setCurrent((prev) => ({ ...prev, count: api.scrollSnapList().length }));
-    setCurrent((prev) => ({ ...prev, current: api.selectedScrollSnap() + 1 }));
-    if (images[api.selectedScrollSnap()]) {
-      const selectedImage = images[api.selectedScrollSnap()];
+  const goToNext = useCallback(() => {
+    if (images.length === 0) return;
+    setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  }, [images.length]);
+
+  useEffect(() => {
+    if (images.length > 0 && images[currentImageIndex]) {
+      const selectedImage = images[currentImageIndex];
       const spanStartTime = parseClickHouseTimestamp(selectedImage.startTime).getTime();
       onTimelineChange(spanStartTime);
     }
+  }, [currentImageIndex, images, onTimelineChange, parseClickHouseTimestamp]);
 
-    const handleSelect = () => {
-      const newIndex = api.selectedScrollSnap();
-      setCurrent((prev) => ({ ...prev, current: newIndex + 1 }));
+  useEffect(() => {
+    if (images.length > 0 && currentImageIndex >= images.length) {
+      setCurrentImageIndex(0);
+    }
+  }, [images.length, currentImageIndex]);
 
-      if (images[newIndex]) {
-        const selectedImage = images[newIndex];
-        const spanStartTime = parseClickHouseTimestamp(selectedImage.startTime).getTime();
-        onTimelineChange(spanStartTime);
-      }
-    };
-
-    api.on("select", handleSelect);
-
-    return () => {
-      api.off("select", handleSelect);
-    };
-  }, [api, images, onTimelineChange, parseClickHouseTimestamp]);
+  useHotkeys("left", goToPrevious, { preventDefault: true });
+  useHotkeys("right", goToNext, { preventDefault: true });
 
   return (
     <>
@@ -131,39 +120,52 @@ export default function SpanImagesCarousel({
           <span className="text-sm">Loading images...</span>
         </div>
       ) : images.length > 0 ? (
-        <Carousel className="flex flex-col items-center justify-center h-full" setApi={setApi}>
-          <CarouselContent className="size-full p-2 my-auto">
-            {images.map((image, index) => (
-              <CarouselItem className="flex items-center justify-center h-full" key={`${image.spanId}-${index}`}>
-                <div className="flex flex-col gap-2 items-center">
-                  <div className="relative aspect-video bg-muted rounded-lg overflow-hidden max-w-xl h-full">
-                    <ImageWithPreview
-                      src={image.imageUrl}
-                      alt={`Image from ${image.spanName}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground text-center">
-                    <div className={`font-medium truncate ${activeImageIndex === index ? "text-primary" : ""}`}>
-                      {image.spanName}
-                    </div>
-                    <span className={activeImageIndex === index ? "text-primary" : ""}>
-                      {getRelativeTime(image.startTime)}
-                    </span>
-                  </div>
-                </div>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          <CarouselPrevious className="left-1" />
-          <CarouselNext className="right-1" />
+        <div className="flex flex-col items-center justify-center h-full relative">
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
+            onClick={goToPrevious}
+            disabled={images.length <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
+            onClick={goToNext}
+            disabled={images.length <= 1}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+
+          <div className="flex flex-col gap-2 items-center p-2">
+            <div className="relative aspect-video bg-muted rounded-lg overflow-hidden max-w-xl h-full">
+              <ImageWithPreview
+                src={images[currentImageIndex].imageUrl}
+                alt={`Image from ${images[currentImageIndex].spanName}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground text-center">
+              <div className={`font-medium truncate ${activeImageIndex === currentImageIndex ? "text-primary" : ""}`}>
+                {images[currentImageIndex].spanName}
+              </div>
+              <span className={activeImageIndex === currentImageIndex ? "text-primary" : ""}>
+                {getRelativeTime(images[currentImageIndex].startTime)}
+              </span>
+            </div>
+          </div>
+
           <div className="text-center text-xs text-muted-foreground">
-            {current.current} of {current.count} image{current.count !== 1 ? "s" : ""}
+            {currentImageIndex + 1} of {images.length} image{images.length !== 1 ? "s" : ""}
             {activeImageIndex !== -1 && (
               <span className="ml-2 text-primary font-medium">• Active: {activeImageIndex + 1}</span>
             )}
           </div>
-        </Carousel>
+        </div>
       ) : (
         <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
           No images found in the selected spans
