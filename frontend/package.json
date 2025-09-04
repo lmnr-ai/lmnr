@@ -82,6 +82,7 @@
     "date-fns": "^3.6.0",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.41.0",
+    "embla-carousel-react": "^8.6.0",
     "eventsource-parser": "^2.0.1",
     "framer-motion": "^11.18.2",
     "gray-matter": "^4.0.3",

@@ -78,6 +78,11 @@ export default function TraceView({
     [spans]
   );
 
+  const llmSpanIds = useMemo(() => spans
+    .filter(span => span.spanType === SpanType.LLM)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    .map(span => span.spanId), [spans]);
+
   useEffect(() => {
     if (hasLangGraph) {
       onLangGraphDetected?.(true);
@@ -451,7 +456,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -635,6 +640,8 @@ export default function TraceView({
                   hasBrowserSession={trace.hasBrowserSession}
                   traceId={traceId}
                   onTimelineChange={handleTimelineChange}
+                  llmSpanIds={llmSpanIds}
+                  traceStartTime={trace?.startTime}
                 />
               )}
             </ResizablePanel>

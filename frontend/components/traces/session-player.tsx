@@ -4,13 +4,14 @@ import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
-import { Loader2 } from "lucide-react";
+import { Images, Loader2, Video } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
+import SpanImagesCarousel from "@/components/traces/span-images-carousel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,12 +19,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
+import { cn, formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
   hasBrowserSession: boolean | null;
   traceId: string;
   onTimelineChange: (time: number) => void;
+  llmSpanIds?: string[];
+  traceStartTime?: string;
 }
 
 interface Event {
@@ -38,7 +41,7 @@ export interface SessionPlayerHandle {
 
 const speedOptions = [1, 2, 4, 8, 16];
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
-  ({ hasBrowserSession, traceId, onTimelineChange }, ref) => {
+  ({ hasBrowserSession, traceId, onTimelineChange, llmSpanIds = [], traceStartTime }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const playerContainerRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
@@ -56,6 +59,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
+    const [showScreenshots, setShowScreenshots] = useState(false);
+
     // Add resize observer effect
     useEffect(() => {
       if (!containerRef.current) return;
@@ -63,14 +68,20 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          setDimensions({ width, height: height - 56 }); // Subtract header height (32px) + URL bar height (24px)
+          // Adjust height based on whether screenshots are shown
+          const headerHeight = 32; // Control bar height
+          const urlBarHeight = currentUrl ? 24 : 0;
+          const screenshotHeight = showScreenshots ? 200 : 0;
+          const adjustedHeight = height - headerHeight - urlBarHeight - screenshotHeight;
+
+          setDimensions({ width, height: Math.max(adjustedHeight, 100) });
         }
       });
 
       resizeObserver.observe(containerRef.current);
 
       return () => resizeObserver.disconnect();
-    }, []);
+    }, [showScreenshots, currentUrl]);
 
     // Binary search to find current URL index - O(log n) complexity
     const findUrlIndex = (timeMs: number): number => {
@@ -157,6 +168,13 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     useEffect(() => {
       if (!events?.length || !playerContainerRef.current) return;
 
+      if (showScreenshots) {
+        if (playerRef.current) {
+          playerRef.current = null;
+        }
+        return;
+      }
+
       try {
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
@@ -199,7 +217,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       } catch (e) {
         console.error("Error initializing player:", e);
       }
-    }, [events]);
+    }, [events, showScreenshots]);
 
     useEffect(() => {
       if (playerRef.current) {
@@ -240,6 +258,10 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       },
       [setSpeed]
     );
+
+    const handleToggleScreenshots = useCallback(() => {
+      setShowScreenshots((prev) => !prev);
+    }, []);
 
     const handleTimelineChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -290,39 +312,56 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       <>
         <div className="relative w-full h-full" ref={containerRef}>
           <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b">
-            <button onClick={handlePlayPause} className="text-white py-1 rounded">
-              {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
-            </button>
+            {!showScreenshots && (
+              <>
+                <button onClick={handlePlayPause} className="text-white py-1 rounded">
+                  {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+                </button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
-                {speed}x
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {speedOptions.map((speedOption) => (
-                  <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
-                    {speedOption}x
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                    {speed}x
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    {speedOptions.map((speedOption) => (
+                      <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
+                        {speedOption}x
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
 
-            <input
-              type="range"
-              className="flex-grow cursor-pointer"
-              min="0"
-              step="0.1"
-              max={totalDuration || 0}
-              value={currentTime || 0}
-              onChange={handleTimelineChange}
-            />
-            <span className="font-mono">
-              {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
-              {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
-            </span>
+            {llmSpanIds.length > 0 && (
+              <button
+                onClick={handleToggleScreenshots}
+                className={cn(`py-1 px-2 rounded text-sm`, showScreenshots ? "bg-blue-600" : "bg-gray-600")}
+              >
+                {showScreenshots ? <Images size={16} /> : <Video size={16} />}
+              </button>
+            )}
+
+            {!showScreenshots && (
+              <>
+                <input
+                  type="range"
+                  className="flex-grow cursor-pointer"
+                  min="0"
+                  step="0.1"
+                  max={totalDuration || 0}
+                  value={currentTime || 0}
+                  onChange={handleTimelineChange}
+                />
+                <span className="font-mono">
+                  {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
+                  {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+                </span>
+              </>
+            )}
           </div>
 
-          {currentUrl && (
+          {currentUrl && !showScreenshots && (
             <div className="flex items-center px-4 py-1 border-b">
               <a
                 href={currentUrl}
@@ -336,6 +375,16 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             </div>
           )}
 
+          {showScreenshots && (
+            <SpanImagesCarousel
+              traceId={traceId}
+              spanIds={llmSpanIds}
+              traceStartTime={traceStartTime}
+              currentTime={startTime + currentTime * 1000}
+              onTimelineChange={onTimelineChange}
+            />
+          )}
+
           {isLoading && (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center -mt-12">
               <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
@@ -347,7 +396,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               version.
             </div>
           )}
-          {!isLoading && events.length > 0 && <div ref={playerContainerRef} />}
+          {!isLoading && events.length > 0 && !showScreenshots && <div ref={playerContainerRef} />}
         </div>
       </>
     );
