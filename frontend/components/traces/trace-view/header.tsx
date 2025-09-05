@@ -127,28 +127,26 @@ const Header = ({
           </TooltipPortal>
         </Tooltip>
 
-        {trace?.hasBrowserSession && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="hover:bg-secondary px-1.5"
-                variant="ghost"
-                onClick={() => {
-                  setShowBrowserSession(!showBrowserSession);
-                }}
-              >
-                {showBrowserSession ? (
-                  <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
-                ) : (
-                  <Disc className="w-4 h-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
-        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="hover:bg-secondary px-1.5"
+              variant="ghost"
+              onClick={() => {
+                setShowBrowserSession(!showBrowserSession);
+              }}
+            >
+              {showBrowserSession ? (
+                <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
+              ) : (
+                <Disc className="w-4 h-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
         {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         {trace && (

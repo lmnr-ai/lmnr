@@ -336,7 +336,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             {llmSpanIds.length > 0 && (
               <button
                 onClick={handleToggleScreenshots}
-                className={cn(`py-1 px-2 rounded text-sm`, showScreenshots ? "bg-blue-600" : "bg-gray-600")}
+                className={cn(`py-1 px-2 rounded text-sm`, showScreenshots ? "bg-blue-600" : "bg-gray-600", {
+                  "mr-auto": showScreenshots,
+                })}
               >
                 {showScreenshots ? <Images size={16} /> : <Video size={16} />}
               </button>
@@ -376,13 +378,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           )}
 
           {showScreenshots && (
-            <SpanImagesCarousel
-              traceId={traceId}
-              spanIds={llmSpanIds}
-              traceStartTime={traceStartTime}
-              currentTime={startTime + currentTime * 1000}
-              onTimelineChange={onTimelineChange}
-            />
+            <SpanImagesCarousel traceId={traceId} spanIds={llmSpanIds} onTimelineChange={onTimelineChange} />
           )}
 
           {isLoading && (

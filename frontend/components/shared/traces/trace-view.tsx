@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
-import { Span, Trace } from "@/lib/traces/types";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
@@ -56,6 +56,15 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   const hasLangGraph = useMemo(
     () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
+    [spans]
+  );
+
+  const llmSpanIds = useMemo(
+    () =>
+      spans
+        .filter((span) => span.spanType === SpanType.LLM)
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .map((span) => span.spanId),
     [spans]
   );
 
@@ -98,6 +107,22 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   const [treeViewWidth, setTreeViewWidth] = useState(MIN_TREE_VIEW_WIDTH);
 
+  const handleTimelineChange = useCallback(
+    (time: number) => {
+      setBrowserSessionTime(time);
+
+      const activeSpans = spans.filter((span: Span) => {
+        const spanStartTime = new Date(span.startTime).getTime();
+        const spanEndTime = new Date(span.endTime).getTime();
+
+        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
+      });
+
+      setActiveSpans(activeSpans.map((span) => span.spanId));
+    },
+    [spans]
+  );
+
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
@@ -106,7 +131,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
         }
       }
-    } catch (e) { }
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
@@ -114,7 +139,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   useEffect(() => {
@@ -153,30 +178,28 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
         </Link>
         <span>Trace</span>
         <TraceStatsShields className="bg-background z-50" trace={trace} />
-        {trace?.hasBrowserSession && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  className="hover:bg-secondary px-1.5"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowBrowserSession(!showBrowserSession);
-                  }}
-                >
-                  {showBrowserSession ? (
-                    <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
-                  ) : (
-                    <Disc className="w-4 h-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="hover:bg-secondary px-1.5"
+                variant="ghost"
+                onClick={() => {
+                  setShowBrowserSession(!showBrowserSession);
+                }}
+              >
+                {showBrowserSession ? (
+                  <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
+                ) : (
+                  <Disc className="w-4 h-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
         {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
         {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
       </div>
@@ -285,18 +308,8 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   ref={browserSessionRef}
                   hasBrowserSession={trace.hasBrowserSession}
                   traceId={trace.id}
-                  onTimelineChange={(time) => {
-                    setBrowserSessionTime(time);
-
-                    const activeSpans = spans.filter((span: Span) => {
-                      const spanStartTime = new Date(span.startTime).getTime();
-                      const spanEndTime = new Date(span.endTime).getTime();
-
-                      return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                    });
-
-                    setActiveSpans(activeSpans.map((span) => span.spanId));
-                  }}
+                  llmSpanIds={llmSpanIds}
+                  onTimelineChange={handleTimelineChange}
                 />
               </ResizablePanel>
             </>
