@@ -83,9 +83,9 @@ export default function SpanImagesCarousel({
 
           <div className="flex items-center justify-center flex-1 relative p-2 min-h-0">
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
               onClick={goToPrevious}
               disabled={images.length <= 1}
             >
@@ -93,7 +93,7 @@ export default function SpanImagesCarousel({
             </Button>
 
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               className="absolute right-3 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
               onClick={goToNext}
@@ -112,9 +112,8 @@ export default function SpanImagesCarousel({
       ) : (
         <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
           <div className="text-center">
-            <Images className="mx-auto mb-4 w-12 h-12 text-muted-foreground" />
-            <h3 className="text-lg font-medium mb-2">No Screenshots</h3>
-            <p className="text-sm text-muted-foreground">There are no screenshots for this trace.</p>
+            <h3 className="text-lg font-medium mb-2">No images</h3>
+            <p className="text-sm text-muted-foreground">There are no images for in this trace.</p>
           </div>
         </div>
       )}

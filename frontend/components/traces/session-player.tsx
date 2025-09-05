@@ -331,27 +331,25 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     return (
       <div className="relative w-full h-full flex flex-col">
-        <div className="h-12 border-b px-2 flex items-center gap-0 flex-shrink-0">
+        <div className="h-10 border-b pl-4 pr-2 flex items-center gap-0 flex-shrink-0">
           <button
             onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 -mb-[2px] inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all first-of-type:ml-0 gap-2 ${activeTab === "browser-session"
-              ? "border-secondary-foreground font-medium text-foreground"
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
+              ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
-            <Video className="w-4 h-4" />
-            Browser Session
+            Session
           </button>
 
           <button
             onClick={() => setActiveTab("screenshots")}
-            className={`mx-2 -mb-[2px] inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all gap-2 ${activeTab === "screenshots"
-              ? "border-secondary-foreground font-medium text-foreground"
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${activeTab === "screenshots"
+              ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
-            <Images className="w-4 h-4" />
-            Screenshots
+            Images
           </button>
 
           <Button onClick={onClose} className="ml-auto" variant="ghost">
@@ -365,9 +363,8 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               {!hasBrowserSession ? (
                 <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
                   <div className="text-center">
-                    <Video className="mx-auto mb-4 w-12 h-12 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">No Browser Session</h3>
-                    <p className="text-sm text-muted-foreground">There is no browser session for this trace.</p>
+                    <h3 className="text-lg font-medium mb-2">No browser session</h3>
+                    <p className="text-sm text-muted-foreground">Either the session is still being processed or you have an outdated SDK version.</p>
                   </div>
                 </div>
               ) : (
