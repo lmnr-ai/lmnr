@@ -25,7 +25,6 @@ export default function SpanImagesCarousel({
 }: SpanImagesCarouselProps) {
   const { projectId } = useParams();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
   const swrKey =
@@ -37,23 +36,6 @@ export default function SpanImagesCarousel({
 
   const { data, isLoading } = useSWR<{ images: SpanImage[] }>(swrKey, swrFetcher);
   const images = data?.images || [];
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContainerDimensions({ width, height });
-      }
-    });
-
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
 
   const parseClickHouseTimestamp = useCallback((timestamp: string): Date => new Date(`${timestamp}Z`), []);
 
@@ -92,44 +74,38 @@ export default function SpanImagesCarousel({
           <span className="text-sm">Loading images...</span>
         </div>
       ) : images.length > 0 ? (
-        <div className="flex items-center justify-center h-full w-full relative">
-          <Button
-            variant="outline"
-            size="icon"
-            className="absolute left-1 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
-            onClick={goToPrevious}
-            disabled={images.length <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-center py-2 px-4 border-b flex-shrink-0">
+            <span className="text-sm text-muted-foreground">
+              {currentImageIndex + 1} / {images.length}
+            </span>
+          </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            className="absolute right-1 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
-            onClick={goToNext}
-            disabled={images.length <= 1}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center justify-center flex-1 relative p-2 min-h-0">
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
+              onClick={goToPrevious}
+              disabled={images.length <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
 
-          <div
-            className="flex items-center justify-center p-2"
-            style={{
-              width: containerDimensions.width,
-              height: containerDimensions.height,
-            }}
-          >
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full"
+              onClick={goToNext}
+              disabled={images.length <= 1}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
             <img
               src={images[currentImageIndex].imageUrl}
               alt={`Image from ${images[currentImageIndex].spanName}`}
-              className="object-contain cursor-pointer hover:opacity-90"
-              style={{
-                maxWidth: `${containerDimensions.width - 16}px`,
-                maxHeight: `${containerDimensions.height - 16}px`,
-                width: "auto",
-                height: "auto",
-              }}
+              className="max-w-full max-h-full object-contain cursor-pointer hover:opacity-90"
             />
           </div>
         </div>

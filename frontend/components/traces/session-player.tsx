@@ -19,7 +19,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
@@ -42,10 +41,11 @@ export interface SessionPlayerHandle {
 }
 
 const speedOptions = [1, 2, 4, 8, 16];
+
 const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
   ({ hasBrowserSession, traceId, onTimelineChange, llmSpanIds = [], onClose }, ref) => {
-    const containerRef = useRef<HTMLDivElement | null>(null);
     const playerContainerRef = useRef<HTMLDivElement | null>(null);
+    const browserContentRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
     const [events, setEvents] = useState<Event[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -62,29 +62,20 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("browser-session");
 
-    // Add resize observer effect
     useEffect(() => {
-      if (!containerRef.current) return;
+      if (!browserContentRef.current || activeTab !== "browser-session") return;
 
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
-          // Adjust height for tab layout
-          const headerHeight = 48; // Tab header height
-          const urlBarHeight = currentUrl && activeTab === "browser-session" ? 24 : 0;
-          const controlBarHeight = activeTab === "browser-session" ? 32 : 0;
-          const adjustedHeight = height - headerHeight - urlBarHeight - controlBarHeight;
-
-          setDimensions({ width, height: Math.max(adjustedHeight, 100) });
+          setDimensions({ width, height });
         }
       });
 
-      resizeObserver.observe(containerRef.current);
+      resizeObserver.observe(browserContentRef.current);
 
       return () => resizeObserver.disconnect();
-    }, [activeTab, currentUrl]);
-
-    // Binary search to find current URL index - O(log n) complexity
+    }, [activeTab]);
     const findUrlIndex = (timeMs: number): number => {
       if (!urlChanges.length) return -1;
 
@@ -105,15 +96,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
       return result;
     };
-
-    // Efficiently find current URL using binary search
     const updateCurrentUrl = (timeMs: number) => {
       if (!urlChanges.length) return;
 
       const newIndex = findUrlIndex(timeMs);
       if (newIndex === -1) return;
 
-      // Only update if index changed (avoids unnecessary state updates)
       if (newIndex !== currentUrlIndexRef.current) {
         currentUrlIndexRef.current = newIndex;
         const newUrl = urlChanges[newIndex].url;
@@ -137,7 +125,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setStartTime(result.startTime);
         currentUrlIndexRef.current = 0;
 
-        // Set initial URL
         if (result.urlChanges.length > 0) {
           setCurrentUrl(result.urlChanges[0].url);
         }
@@ -158,7 +145,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         setIsPlaying(false);
         setCurrentTime(0);
         setTotalDuration(0);
-        // Speed is maintained from localStorage, no need to reset
         setCurrentUrl("");
         setUrlChanges([]);
         currentUrlIndexRef.current = 0;
@@ -167,16 +153,25 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     }, [hasBrowserSession, traceId, getEvents]);
 
     useEffect(() => {
-      if (!events?.length || !playerContainerRef.current) return;
-
-      if (activeTab !== "browser-session") {
+      if (!events?.length || !playerContainerRef.current || activeTab !== "browser-session") {
         if (playerRef.current) {
+          playerRef.current.$destroy?.();
           playerRef.current = null;
         }
         return;
       }
 
+      if (playerRef.current) {
+        playerRef.current.$destroy?.();
+        playerRef.current = null;
+      }
+
+      if (playerContainerRef.current) {
+        playerContainerRef.current.innerHTML = "";
+      }
+
       try {
+
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
           props: {
@@ -188,11 +183,12 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             events,
             showController: false,
             mouseTail: false,
-            width: dimensions.width,
-            height: dimensions.height,
+            width: dimensions.width || 800,
+            height: dimensions.height || 600,
             speed,
           },
         });
+
         const startTime = events[0].timestamp;
         setStartTime(startTime);
 
@@ -212,22 +208,37 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           setCurrentTime(newTime);
           onTimelineChange(startTime + event.payload);
 
-          // Update current URL based on the current time
           updateCurrentUrl(startTime + event.payload);
         });
       } catch (e) {
         console.error("Error initializing player:", e);
       }
-    }, [events, activeTab, dimensions.width, dimensions.height, speed, startTime, onTimelineChange]);
+    }, [events, activeTab, speed, startTime, onTimelineChange]);
 
     useEffect(() => {
-      if (playerRef.current) {
+      if (!playerRef.current || !dimensions.width || !dimensions.height) return;
+
+      try {
         playerRef.current.$set({
           width: dimensions.width,
           height: dimensions.height,
-          speed,
         });
-        playerRef.current.triggerResize();
+
+        playerRef.current.triggerResize?.();
+
+        requestAnimationFrame(() => {
+          if (playerRef.current) {
+            playerRef.current.triggerResize?.();
+          }
+        });
+
+        setTimeout(() => {
+          if (playerRef.current) {
+            playerRef.current.triggerResize?.();
+          }
+        }, 50);
+      } catch (e) {
+        console.error("Error resizing player:", e);
       }
     }, [dimensions.width, dimensions.height]);
 
@@ -295,7 +306,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           if (playerRef.current) {
             setCurrentTime(time);
             playerRef.current.goto(time * 1000);
-            // Update URL when programmatically seeking
             updateCurrentUrl(startTime + time * 1000);
           }
         },
@@ -305,110 +315,135 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     useHotkeys("space", handlePlayPause, { enabled: activeTab === "browser-session" });
 
+    useEffect(
+      () => () => {
+        if (playerRef.current) {
+          try {
+            playerRef.current.$destroy?.();
+            playerRef.current = null;
+          } catch (e) {
+            console.error("Error cleaning up player:", e);
+          }
+        }
+      },
+      []
+    );
+
     return (
-      <div className="relative w-full h-full flex flex-col" ref={containerRef}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="h-12 border-b px-2">
-            <TabsTrigger value="browser-session" className="flex items-center gap-2">
-              <Video className="w-4 h-4" />
-              Browser Session
-            </TabsTrigger>
-            {llmSpanIds.length > 0 && (
-              <TabsTrigger value="screenshots" className="flex items-center gap-2">
-                <Images className="w-4 h-4" />
-                Screenshots
-              </TabsTrigger>
-            )}
+      <div className="relative w-full h-full flex flex-col">
+        <div className="h-12 border-b px-2 flex items-center gap-0 flex-shrink-0">
+          <button
+            onClick={() => setActiveTab("browser-session")}
+            className={`mx-2 -mb-[2px] inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all first-of-type:ml-0 gap-2 ${activeTab === "browser-session"
+              ? "border-secondary-foreground font-medium text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Video className="w-4 h-4" />
+            Browser Session
+          </button>
 
-            <Button onClick={onClose} className="ml-auto" variant="ghost">
-              <X className="w-4 h-4" />
-            </Button>
-          </TabsList>
+          <button
+            onClick={() => setActiveTab("screenshots")}
+            className={`mx-2 -mb-[2px] inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all gap-2 ${activeTab === "screenshots"
+              ? "border-secondary-foreground font-medium text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Images className="w-4 h-4" />
+            Screenshots
+          </button>
 
-          <TabsContent asChild value="browser-session" className="flex-1 flex flex-col">
-            {!hasBrowserSession ? (
-              <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                <div className="text-center">
-                  <Video className="mx-auto mb-4 w-12 h-12 text-muted-foreground" />
-                  <h3 className="text-lg font-medium mb-2">No Browser Session</h3>
-                  <p className="text-sm text-muted-foreground">There is no browser session for this trace.</p>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b">
-                  <button onClick={handlePlayPause} className="text-white py-1 rounded">
-                    {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
-                  </button>
+          <Button onClick={onClose} className="ml-auto" variant="ghost">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
-                      {speed}x
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {speedOptions.map((speedOption) => (
-                        <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
-                          {speedOption}x
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <input
-                    type="range"
-                    className="flex-grow cursor-pointer"
-                    min="0"
-                    step="0.1"
-                    max={totalDuration || 0}
-                    value={currentTime || 0}
-                    onChange={handleTimelineChange}
-                  />
-                  <span className="font-mono">
-                    {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
-                    {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
-                  </span>
-                </div>
-
-                {/* URL bar */}
-                {currentUrl && (
-                  <div className="flex items-center px-4 py-1 border-b">
-                    <a
-                      href={currentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
-                      title={currentUrl}
-                    >
-                      {currentUrl}
-                    </a>
+        <div className="flex-1 min-h-0">
+          {activeTab === "browser-session" && (
+            <div ref={browserContentRef} className="h-full flex flex-col">
+              {!hasBrowserSession ? (
+                <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                  <div className="text-center">
+                    <Video className="mx-auto mb-4 w-12 h-12 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No Browser Session</h3>
+                    <p className="text-sm text-muted-foreground">There is no browser session for this trace.</p>
                   </div>
-                )}
-
-                {/* Player content */}
-                <div className="flex-1 relative">
-                  {isLoading && (
-                    <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                      <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
-                    </div>
-                  )}
-                  {!isLoading && events.length === 0 && hasBrowserSession && (
-                    <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                      No browser session was recorded. Either the session is still being processed or you have an
-                      outdated SDK version.
-                    </div>
-                  )}
-                  {!isLoading && events.length > 0 && <div ref={playerContainerRef} className="w-full h-full" />}
                 </div>
-              </div>
-            )}
-          </TabsContent>
+              ) : (
+                <>
+                  <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
+                    <button onClick={handlePlayPause} className="text-white py-1 rounded">
+                      {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+                    </button>
 
-          {llmSpanIds.length > 0 && (
-            <TabsContent value="screenshots" className="flex-1 mt-0">
-              <SpanImagesCarousel traceId={traceId} spanIds={llmSpanIds} onTimelineChange={onTimelineChange} />
-            </TabsContent>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                        {speed}x
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {speedOptions.map((speedOption) => (
+                          <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
+                            {speedOption}x
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <input
+                      type="range"
+                      className="flex-grow cursor-pointer"
+                      min="0"
+                      step="0.1"
+                      max={totalDuration || 0}
+                      value={currentTime || 0}
+                      onChange={handleTimelineChange}
+                    />
+                    <span className="font-mono">
+                      {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
+                      {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+                    </span>
+                  </div>
+
+                  {currentUrl && (
+                    <div className="flex items-center px-4 py-1 border-b flex-shrink-0">
+                      <a
+                        href={currentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                        title={currentUrl}
+                      >
+                        {currentUrl}
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-h-0">
+                    {isLoading && (
+                      <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                        <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
+                      </div>
+                    )}
+                    {!isLoading && events.length === 0 && hasBrowserSession && (
+                      <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                        No browser session was recorded. Either the session is still being processed or you have an
+                        outdated SDK version.
+                      </div>
+                    )}
+                    {!isLoading && events.length > 0 && <div ref={playerContainerRef} className="w-full h-full" />}
+                  </div>
+                </>
+              )}
+            </div>
           )}
-        </Tabs>
+
+          {activeTab === "screenshots" && (
+            <div className="h-full">
+              <SpanImagesCarousel traceId={traceId} spanIds={llmSpanIds} onTimelineChange={onTimelineChange} />
+            </div>
+          )}
+        </div>
       </div>
     );
   }
