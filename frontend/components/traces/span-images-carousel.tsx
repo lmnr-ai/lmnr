@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -134,8 +134,12 @@ export default function SpanImagesCarousel({
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-center h-full p-4 text-sm text-muted-foreground">
-          No images found in the selected spans
+        <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+          <div className="text-center">
+            <Images className="mx-auto mb-4 w-12 h-12 text-muted-foreground" />
+            <h3 className="text-lg font-medium mb-2">No Screenshots</h3>
+            <p className="text-sm text-muted-foreground">There are no screenshots for this trace.</p>
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Disc2 } from "lucide-react";
+import { CirclePlay } from "lucide-react";
 import React, { useRef, useState } from "react";
 
 import { AgentSessionButton } from "@/components/traces/agent-session-button";
@@ -26,26 +26,24 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
       <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-1 mr-2">
         <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />
         <div className="flex flex-1 gap-2 justify-end mr-2">
-          {trace?.hasBrowserSession && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  className="hover:bg-secondary px-1.5"
-                  variant="ghost"
-                  onClick={() => {
-                    if (traceViewRef.current) {
-                      traceViewRef.current.toggleBrowserSession();
-                    }
-                  }}
-                >
-                  <Disc2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent>Toggle Browser Session</TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="hover:bg-secondary px-1.5"
+                variant="ghost"
+                onClick={() => {
+                  if (traceViewRef.current) {
+                    traceViewRef.current.toggleBrowserSession();
+                  }
+                }}
+              >
+                <CirclePlay className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>Toggle Browser Session</TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
           {hasLangGraph && (
             <Tooltip>
               <TooltipTrigger asChild>

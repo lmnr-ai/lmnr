@@ -2,7 +2,7 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { has } from "lodash";
-import { ChartNoAxesGantt, Disc, Disc2, Minus, Plus } from "lucide-react";
+import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -131,7 +131,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   useEffect(() => {
@@ -188,11 +188,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   setShowBrowserSession(!showBrowserSession);
                 }}
               >
-                {showBrowserSession ? (
-                  <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
-                ) : (
-                  <Disc className="w-4 h-4" />
-                )}
+                <CirclePlay className={cn("w-4 h-4", { "text-primary": showBrowserSession })} />
               </Button>
             </TooltipTrigger>
             <TooltipPortal>
@@ -305,6 +301,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                 }}
               >
                 <SessionPlayer
+                  onClose={() => setShowBrowserSession(false)}
                   ref={browserSessionRef}
                   hasBrowserSession={trace.hasBrowserSession}
                   traceId={trace.id}

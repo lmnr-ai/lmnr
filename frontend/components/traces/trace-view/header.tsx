@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useMemo } from "react";
@@ -136,11 +136,7 @@ const Header = ({
                 setShowBrowserSession(!showBrowserSession);
               }}
             >
-              {showBrowserSession ? (
-                <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
-              ) : (
-                <Disc className="w-4 h-4" />
-              )}
+              <CirclePlay className={cn("w-4 h-4", { "text-primary": showBrowserSession })} />
             </Button>
           </TooltipTrigger>
           <TooltipPortal>
