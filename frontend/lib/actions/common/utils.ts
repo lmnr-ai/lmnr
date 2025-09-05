@@ -60,3 +60,19 @@ export const parseUrlParams = <T>(
 
   return schema.safeParse(obj);
 };
+
+export const tryParseJson = (value: string) => {
+  if (value === "" || value === undefined) return null;
+
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    // Parse with brackets because we stringify array using comma separator on server.
+    try {
+      return JSON.parse(`[${value}]`);
+    } catch (e2) {
+      console.log("Failed to parse JSON with brackets:", e2);
+      return value;
+    }
+  }
+};
