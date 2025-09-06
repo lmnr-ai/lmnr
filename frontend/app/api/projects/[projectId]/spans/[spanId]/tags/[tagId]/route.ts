@@ -3,28 +3,28 @@ import { NextRequest } from "next/server";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { labels } from "@/lib/db/migrations/schema";
+import { tags } from "@/lib/db/migrations/schema";
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ projectId: string; spanId: string; labelId: string }> }
+  props: { params: Promise<{ projectId: string; spanId: string; tagId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   const spanId = params.spanId;
-  const labelId = params.labelId;
+  const tagId = params.tagId;
 
   await db
-    .delete(labels)
-    .where(and(eq(labels.id, labelId), eq(labels.spanId, spanId), eq(labels.projectId, projectId)));
+    .delete(tags)
+    .where(and(eq(tags.id, tagId), eq(tags.spanId, spanId), eq(tags.projectId, projectId)));
 
   await clickhouseClient.exec({
     query: `
-      DELETE FROM default.labels 
+      DELETE FROM default.tags 
       WHERE id = {id: UUID} AND span_id = {span_id: UUID} AND project_id = {project_id: UUID}
     `,
     query_params: {
-      id: labelId,
+      id: tagId,
       span_id: spanId,
       project_id: projectId,
     },

@@ -14,7 +14,7 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { llmPrices, subscriptionTiers, userSubscriptionTiers } = await import("@/lib/db/migrations/schema.ts");
+      const { llmPrices, subscriptionTiers } = await import("@/lib/db/migrations/schema.ts");
       const { db } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
@@ -24,7 +24,6 @@ export async function register() {
           const tables: Record<string, any> = {
             subscription_tiers: subscriptionTiers,
             llm_prices: llmPrices,
-            user_subscription_tiers: userSubscriptionTiers,
           };
           const table = tables[tableName];
           const rows: Record<string, unknown>[] = entry.data.map((row: Record<string, unknown>) =>
@@ -53,6 +52,9 @@ export async function register() {
           const { join } = await import("path");
 
           for (const file of readdirSync("lib/clickhouse/migrations")) {
+            if (!file.endsWith(".sql")) {
+              continue;
+            }
             const schemaSql = readFileSync(join(process.cwd(), "lib/clickhouse/migrations", file), "utf-8");
             const statements = schemaSql
               .split(";")
@@ -64,7 +66,10 @@ export async function register() {
                 await clickhouseClient.exec({ query: statement });
               } catch (error) {
                 if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
-                  console.warn("Failed to apply ClickHouse statement:", statement, "because column already exists");
+                  console.warn("[WARNING] Failed to apply ClickHouse statement:", statement, "because column already exists");
+                  continue;
+                } else if ((error as { type: string }).type === "TABLE_ALREADY_EXISTS") {
+                  console.warn("[WARNING] Failed to apply ClickHouse statement:", statement, "because table already exists");
                   continue;
                 } else {
                   throw error;

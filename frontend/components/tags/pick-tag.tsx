@@ -5,48 +5,48 @@ import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Dispatch, SetStateAction, useMemo } from "react";
 
-import { useLabelsContext } from "@/components/labels/labels-context";
+import { useTagsContext } from "@/components/tags/tags-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelClass, SpanLabel } from "@/lib/traces/types";
+import { SpanTag,TagClass } from "@/lib/traces/types";
 
-interface PickLabelProps {
+interface PickTagProps {
   setStep: Dispatch<SetStateAction<0 | 1>>;
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
 }
-const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
+const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const params = useParams();
-  const { labels, labelClasses, mutate, spanId } = useLabelsContext();
+  const { tags, tagClasses, mutate, spanId } = useTagsContext();
   const { toast } = useToast();
   const { selected, available, hasExactMatch } = useMemo(() => {
-    const selectedIds = labels.map(({ classId }) => classId);
-    const selected = labelClasses.filter((label) => selectedIds.includes(label.id));
-    const available = labelClasses.filter((label) => !selectedIds.includes(label.id));
+    const selectedIds = tags.map(({ classId }) => classId);
+    const selected = tagClasses.filter((tag) => selectedIds.includes(tag.id));
+    const available = tagClasses.filter((tag) => !selectedIds.includes(tag.id));
 
     const searchLower = query.toLowerCase();
-    const filteredSelected = selected.filter((label) => label.name.toLowerCase().includes(searchLower));
-    const filteredAvailable = available.filter((label) => label.name.toLowerCase().includes(searchLower));
+    const filteredSelected = selected.filter((tag) => tag.name.toLowerCase().includes(searchLower));
+    const filteredAvailable = available.filter((tag) => tag.name.toLowerCase().includes(searchLower));
 
-    const hasExactMatch = [...selected, ...available].some((label) => label.name.toLowerCase() === searchLower);
+    const hasExactMatch = [...selected, ...available].some((tag) => tag.name.toLowerCase() === searchLower);
 
     return {
       selected: filteredSelected,
       available: filteredAvailable,
       hasExactMatch,
     };
-  }, [labelClasses, labels, query]);
+  }, [tagClasses, tags, query]);
 
-  const handleCheckLabel = (labelClass: LabelClass) => async (checked: CheckedState) => {
+  const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
     try {
       if (Boolean(checked)) {
-        const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels`, {
+        const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
           method: "POST",
           body: JSON.stringify({
-            classId: labelClass.id,
-            name: labelClass.name,
+            classId: tagClass.id,
+            name: tagClass.name,
           }),
         });
 
@@ -55,9 +55,9 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
           return;
         }
 
-        const data = (await res.json()) as SpanLabel;
+        const data = (await res.json()) as SpanTag;
 
-        await mutate([...labels, data], {
+        await mutate([...tags, data], {
           revalidate: false,
         });
       }
@@ -68,18 +68,18 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
     }
   };
 
-  const deleteLabel = async (label: SpanLabel) => {
-    await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels/${label.id}`, {
+  const deleteTag = async (tag: SpanTag) => {
+    await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags/${tag.id}`, {
       method: "DELETE",
     });
-    return [label];
+    return [tag];
   };
 
-  const handleUncheckLabel = (label?: SpanLabel) => async (checked: CheckedState) => {
+  const handleUncheckTag = (tag?: SpanTag) => async (checked: CheckedState) => {
     try {
-      if (!checked && label) {
-        await mutate(deleteLabel(label), {
-          optimisticData: [...labels.filter((l) => l.id !== label.id)],
+      if (!checked && tag) {
+        await mutate(deleteTag(tag), {
+          optimisticData: [...tags.filter((l) => l.id !== tag.id)],
           rollbackOnError: true,
           populateCache: (updatedData, original) => [
             ...(original ?? []).filter((item) => !updatedData.map((u) => u.id).includes(item.id)),
@@ -106,11 +106,11 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
 
       {(!isEmpty(selected) || !isEmpty(available)) && <DropdownMenuSeparator />}
 
-      {!isEmpty(selected) && <SelectedLabels labels={selected} onCheck={handleUncheckLabel} spanLabels={labels} />}
+      {!isEmpty(selected) && <SelectedTags tags={selected} onCheck={handleUncheckTag} spanTags={tags} />}
 
       {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
 
-      {!isEmpty(available) && <AvailableLabels labels={available} onCheck={handleCheckLabel} />}
+      {!isEmpty(available) && <AvailableTags tags={available} onCheck={handleCheckTag} />}
       {query && !hasExactMatch && available.length + selected.length < 5 && (
         <>
           <DropdownMenuSeparator />
@@ -131,45 +131,45 @@ const PickLabel = ({ setStep, query, setQuery }: PickLabelProps) => {
   );
 };
 
-export default PickLabel;
+export default PickTag;
 
-const AvailableLabels = ({
-  labels,
+const AvailableTags = ({
+  tags,
   onCheck,
 }: {
-  labels: LabelClass[];
-  onCheck: (labelClass: LabelClass) => (checked: CheckedState) => Promise<void>;
+  tags: TagClass[];
+  onCheck: (tagClass: TagClass) => (checked: CheckedState) => Promise<void>;
 }) => (
   <DropdownMenuGroup>
-    {labels.map((label) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={label.id}>
-        <Checkbox checked={false} onCheckedChange={onCheck(label)} className="border border-secondary mr-2" />
-        <div style={{ background: label.color }} className={`w-2 h-2 rounded-full`} />
-        <span className="ml-1.5">{label.name}</span>
+    {tags.map((tag) => (
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.id}>
+        <Checkbox checked={false} onCheckedChange={onCheck(tag)} className="border border-secondary mr-2" />
+        <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
+        <span className="ml-1.5">{tag.name}</span>
       </DropdownMenuItem>
     ))}
   </DropdownMenuGroup>
 );
 
-const SelectedLabels = ({
-  labels,
+const SelectedTags = ({
+  tags: tags,
   onCheck,
-  spanLabels,
+  spanTags: spanTags,
 }: {
-  labels: LabelClass[];
-  onCheck: (label?: SpanLabel) => (checked: CheckedState) => Promise<void>;
-  spanLabels: SpanLabel[];
+  tags: TagClass[];
+  onCheck: (tag?: SpanTag) => (checked: CheckedState) => Promise<void>;
+  spanTags: SpanTag[];
 }) => (
   <DropdownMenuGroup>
-    {labels.map((label) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={label.id}>
+    {tags.map((tag) => (
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.id}>
         <Checkbox
-          onCheckedChange={onCheck(spanLabels.find((s) => s.classId === label.id))}
+          onCheckedChange={onCheck(spanTags.find((s) => s.classId === tag.id))}
           checked
           className="border border-secondary mr-2"
         />
-        <div style={{ background: label.color }} className={`w-2 h-2 rounded-full`} />
-        <span className="ml-1.5">{label.name}</span>
+        <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
+        <span className="ml-1.5">{tag.name}</span>
       </DropdownMenuItem>
     ))}
   </DropdownMenuGroup>

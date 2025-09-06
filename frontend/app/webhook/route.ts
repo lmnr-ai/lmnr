@@ -6,7 +6,6 @@ import {
   isLookupKeyForAdditionalSeats,
   ItemDescription,
   LOOKUP_KEY_TO_TIER_NAME,
-  manageUserSubscriptionEvent,
   manageWorkspaceSubscriptionEvent
 } from '@/lib/checkout/utils';
 import { sendOnPaymentReceivedEmail } from '@/lib/emails/utils';
@@ -77,18 +76,6 @@ async function handleSubscriptionChange(
           quantity: subscriptionItem.quantity,
           cancel: true
         });
-      } else {
-        if (!userId) {
-          console.log(`subscription updated event. No userId found. subscriptionId: ${subscription.id}`);
-          continue;
-        }
-        await manageUserSubscriptionEvent({
-          stripeCustomerId,
-          productId,
-          userId,
-          subscriptionId: subscription.id,
-          cancel: true
-        });
       }
       return;
     }
@@ -108,13 +95,6 @@ async function handleSubscriptionChange(
             subscriptionId: subscription.id,
             quantity: subscriptionItem.quantity,
             isAdditionalSeats
-          });
-        } else {
-          await manageUserSubscriptionEvent({
-            stripeCustomerId,
-            productId,
-            userId,
-            subscriptionId: subscription.id,
           });
         }
       } catch (error) {

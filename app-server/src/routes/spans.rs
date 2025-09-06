@@ -62,7 +62,7 @@ pub async fn create_span(
         end_time: request.end_time,
         status: None,
         events: None,
-        labels: None,
+        tags: None,
         input_url: None,
         output_url: None,
     };

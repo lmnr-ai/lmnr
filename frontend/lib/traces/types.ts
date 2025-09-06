@@ -1,12 +1,12 @@
-import { labelClasses, traces } from "../db/migrations/schema";
+import { tagClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
 
-export type LabelClass = {
+export type TagClass = {
   evaluatorRunnableGraph: any;
   pipelineVersionId?: string | null;
-} & typeof labelClasses.$inferSelect;
+} & typeof tagClasses.$inferSelect;
 
-export type SpanLabel = {
+export type SpanTag = {
   id: string;
   createdAt: string;
   classId: string;
