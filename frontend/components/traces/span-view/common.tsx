@@ -10,6 +10,7 @@ import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
+import { useOptionalSearchContext } from "@/contexts/search-context";
 import { isStorageUrl } from "@/lib/s3";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,7 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
   const storageKey = createStorageKey.resize(type, presetKey);
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
+  const searchContext = useOptionalSearchContext();
 
   return (
     <div className="flex flex-col gap-2 p-2 bg-background">
@@ -73,6 +75,7 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
           value={JSON.stringify(content, null, 2)}
           presetKey={createStorageKey.editor(type, presetKey)}
           className="border-0"
+          searchTerm={searchContext?.searchTerm}
         />
       </ResizableWrapper>
     </div>
@@ -134,6 +137,8 @@ const PureTextContentPart = ({
   const storageKey = createStorageKey.resize(type, presetKey);
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
+  const searchContext = useOptionalSearchContext();
+
   return (
     <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
       <CodeHighlighter
@@ -143,6 +148,7 @@ const PureTextContentPart = ({
         presetKey={createStorageKey.editor(type, presetKey)}
         className="border-0"
         codeEditorClassName={codeEditorClassName}
+        searchTerm={searchContext?.searchTerm}
       />
     </ResizableWrapper>
   );
