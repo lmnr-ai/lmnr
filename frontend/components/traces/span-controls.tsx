@@ -50,59 +50,57 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <div>
-        <div className="flex flex-col px-4 pt-4 gap-2">
-          <div className="flex flex-none items-center space-x-2">
-            <SpanTypeIcon spanType={span.spanType} />
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="text-xl items-center font-medium truncate cursor-pointer" onClick={copySpanId}>
-                    {span.name}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Click to copy span ID</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {span.spanType === SpanType.LLM && (
-              <Link
-                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                passHref
-              >
-                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                  <PlayCircle className="mr-1" size={14} />
-                  Experiment in playground
-                </Button>
-              </Link>
-            )}
-          </div>
-          <div className="flex flex-col flex-wrap gap-1.5">
-            <SpanStatsShields
-              className="flex-wrap"
-              startTime={span.startTime}
-              endTime={span.endTime}
-              attributes={span.attributes}
+      <div className="flex flex-col px-4 pt-4 gap-2">
+        <div className="flex flex-none items-center space-x-2">
+          <SpanTypeIcon spanType={span.spanType} />
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="text-xl items-center font-medium truncate cursor-pointer" onClick={copySpanId}>
+                  {span.name}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Click to copy span ID</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {span.spanType === SpanType.LLM && (
+            <Link
+              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+              passHref
             >
-              <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
-            </SpanStatsShields>
-            <LabelsContextProvider spanId={span.spanId}>
-              <div className="flex gap-2 flex-wrap items-center">
-                <LabelsTrigger />
-                <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
-                <AddToLabelingQueuePopover spanId={span.spanId} />
-                <ExportSpansPopover span={span} />
-              </div>
-              <LabelsList />
-              <EvaluatorScoresList spanId={span.spanId} />
-            </LabelsContextProvider>
-          </div>
-
-          {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
+              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                <PlayCircle className="mr-1" size={14} />
+                Experiment in playground
+              </Button>
+            </Link>
+          )}
         </div>
+        <div className="flex flex-col flex-wrap gap-1.5">
+          <SpanStatsShields
+            className="flex-wrap"
+            startTime={span.startTime}
+            endTime={span.endTime}
+            attributes={span.attributes}
+          >
+            <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
+              {new Date(span.startTime).toLocaleString()}
+            </div>
+          </SpanStatsShields>
+          <LabelsContextProvider spanId={span.spanId}>
+            <div className="flex gap-2 flex-wrap items-center">
+              <LabelsTrigger />
+              <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
+              <AddToLabelingQueuePopover spanId={span.spanId} />
+              <ExportSpansPopover span={span} />
+            </div>
+            <LabelsList />
+            <EvaluatorScoresList spanId={span.spanId} />
+          </LabelsContextProvider>
+        </div>
+
+        {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
       </div>
       {children}
     </div>

@@ -3,6 +3,7 @@ import { useParams } from "next/navigation";
 import React, { useMemo } from "react";
 import useSWR from "swr";
 
+import { useSearchHighlight } from "@/components/traces/hooks/use-search-highlight";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
@@ -16,14 +17,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
 interface SpanViewProps {
   spanId: string;
+  searchTerm?: string;
 }
 
-export function SpanView({ spanId }: SpanViewProps) {
+export function SpanView({ spanId, searchTerm = "" }: SpanViewProps) {
   const { projectId } = useParams();
   const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
 
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
+  const containerRef = useSearchHighlight(searchTerm, isLoading, spanId);
 
   if (isLoading || !span) {
     return (
@@ -63,7 +66,7 @@ export function SpanView({ spanId }: SpanViewProps) {
               </TabsTrigger>
             </TabsList>
           </div>
-          <div className="flex-1 flex overflow-hidden">
+          <div ref={containerRef} className="flex-1 flex overflow-hidden">
             <TabsContent value="span-input" className="w-full h-full">
               <SpanContent span={span} type="input" />
             </TabsContent>

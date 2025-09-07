@@ -46,216 +46,28 @@ const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 const MIN_TREE_VIEW_WIDTH = 450;
 
-function useTextSearchHighlight(
-  containerRef: React.RefObject<HTMLElement | null>,
-  searchTerm: string,
-  selectedSpan: Span | null
-) {
-  useEffect(() => {
-    if (!searchTerm) {
-      return;
+// Inject search highlight styles once globally
+if (typeof window !== "undefined" && !document.getElementById("search-highlight-styles")) {
+  const styleElement = document.createElement("style");
+  styleElement.id = "search-highlight-styles";
+  styleElement.textContent = `
+    .search-highlight {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      padding: 2px 4px !important;
+      border-radius: 3px !important;
+      font-weight: 500 !important;
+      display: inline !important;
     }
-
-    const removeHighlights = (container: HTMLElement) => {
-      const highlights = container.querySelectorAll(".search-highlight");
-      highlights.forEach((highlight) => {
-        const parent = highlight.parentNode;
-        if (parent) {
-          parent.replaceChild(document.createTextNode(highlight.textContent || ""), highlight);
-          parent.normalize();
-        }
-      });
-    };
-
-    const highlightAndJump = (container: HTMLElement, searchText: string) => {
-      // Inject CSS to ensure highlights are visible
-      let styleElement = document.getElementById("search-highlight-styles");
-      if (!styleElement) {
-        styleElement = document.createElement("style");
-        styleElement.id = "search-highlight-styles";
-        styleElement.textContent = `
-          .search-highlight {
-            background-color: hsl(var(--primary)) !important;
-            color: hsl(var(--primary-foreground)) !important;
-            padding: 2px 4px !important;
-            border-radius: 3px !important;
-            font-weight: 500 !important;
-            display: inline !important;
-            position: relative !important;
-          }
-          
-          /* CodeMirror specific overrides */
-          .cm-content .search-highlight,
-          .cm-line .search-highlight,
-          .cm-content .cm-line .search-highlight {
-            background-color: hsl(var(--primary)) !important;
-            color: hsl(var(--primary-foreground)) !important;
-            padding: 2px 4px !important;
-            border-radius: 3px !important;
-            font-weight: 500 !important;
-            display: inline !important;
-            position: relative !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-          }
-        `;
-        document.head.appendChild(styleElement);
-      }
-
-      // Remove previous highlights first
-      removeHighlights(container);
-
-      // Create regex for case-insensitive search, escape special characters
-      const escapedSearchText = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`(${escapedSearchText})`, "gi");
-
-      // Also try searching for shorter phrases if the main search fails
-      const shortPhrases = searchText
-        .split(".")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 10);
-
-      // Get all text nodes using TreeWalker
-      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
-        acceptNode: (node) => {
-          const parent = node.parentElement;
-          if (!parent || parent.tagName === "SCRIPT" || parent.tagName === "STYLE") {
-            return NodeFilter.FILTER_REJECT;
-          }
-          if (parent.classList?.contains("search-highlight") || parent.closest(".search-highlight")) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          if (node.textContent && node.textContent.trim().length > 0) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-          return NodeFilter.FILTER_REJECT;
-        },
-      });
-
-      const textNodes: Text[] = [];
-      let node: Text | null;
-
-      while ((node = walker.nextNode() as Text)) {
-        if (regex.test(node.textContent || "")) {
-          textNodes.push(node);
-        }
-      }
-
-      // Highlight matches
-      textNodes.forEach((textNode) => {
-        const parent = textNode.parentNode;
-        if (parent && regex.test(textNode.textContent || "")) {
-          const wrapper = document.createElement("span");
-          const highlightedHTML = (textNode.textContent || "").replace(
-            regex,
-            '<span class="search-highlight">$1</span>'
-          );
-          wrapper.innerHTML = highlightedHTML;
-          parent.replaceChild(wrapper, textNode);
-        }
-      });
-
-      // If no matches found with full text, try shorter phrases
-      if (textNodes.length === 0 && shortPhrases.length > 0) {
-        for (const phrase of shortPhrases) {
-          const phraseRegex = new RegExp(`(${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-
-          // Reset walker for each phrase
-          const phraseWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
-            acceptNode: (node) => {
-              const parent = node.parentElement;
-              if (!parent || parent.tagName === "SCRIPT" || parent.tagName === "STYLE") {
-                return NodeFilter.FILTER_REJECT;
-              }
-              if (parent.classList?.contains("search-highlight") || parent.closest(".search-highlight")) {
-                return NodeFilter.FILTER_REJECT;
-              }
-              if (node.textContent && node.textContent.trim().length > 0) {
-                return NodeFilter.FILTER_ACCEPT;
-              }
-              return NodeFilter.FILTER_REJECT;
-            },
-          });
-
-          let phraseNode: Text | null;
-          while ((phraseNode = phraseWalker.nextNode() as Text)) {
-            if (phraseRegex.test(phraseNode.textContent || "")) {
-              const parent = phraseNode.parentNode;
-              if (parent) {
-                const wrapper = document.createElement("span");
-                const highlightedHTML = (phraseNode.textContent || "").replace(
-                  phraseRegex,
-                  '<span class="search-highlight">$1</span>'
-                );
-                wrapper.innerHTML = highlightedHTML;
-                parent.replaceChild(wrapper, phraseNode);
-                textNodes.push(phraseNode); // Add to textNodes for counting
-              }
-            }
-          }
-
-          // If we found matches with this phrase, break
-          if (container.querySelector(".search-highlight")) {
-            break;
-          }
-        }
-      }
-
-      // Scroll to first highlight
-      const firstHighlight = container.querySelector(".search-highlight");
-
-      if (firstHighlight) {
-        firstHighlight.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-          inline: "nearest",
-        });
-      }
-    };
-
-    // Wait for container to be available with retries
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    const waitForContainer = () => {
-      if (containerRef.current) {
-        const container = containerRef.current;
-        const hasSpanContent = !container.textContent?.includes("No span selected");
-
-        if (hasSpanContent) {
-          highlightAndJump(container, searchTerm);
-        } else {
-          attempts++;
-          if (attempts < maxAttempts) {
-            console.log(`Span content not ready, retrying... (${attempts}/${maxAttempts})`);
-            // Use longer delay for later attempts to give more time for content to load
-            const delay = attempts < 3 ? 200 : 500;
-            setTimeout(waitForContainer, delay);
-          } else {
-            console.log("Span content never loaded, giving up. Make sure a span is selected.");
-          }
-        }
-      } else {
-        attempts++;
-        if (attempts < maxAttempts) {
-          console.log(`Container not ready, retrying... (${attempts}/${maxAttempts})`);
-          setTimeout(waitForContainer, 100);
-        } else {
-          console.log("Container never became available, giving up");
-        }
-      }
-    };
-
-    setTimeout(waitForContainer, 50);
-
-    return () => {
-      if (containerRef.current) {
-        removeHighlights(containerRef.current);
-      }
-    };
-  }, [searchTerm, containerRef, selectedSpan]);
-
-  return { searchTerm };
+    .cm-content .search-highlight,
+    .cm-line .search-highlight {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  `;
+  document.head.appendChild(styleElement);
 }
 
 export default function TraceView({
@@ -426,6 +238,10 @@ export default function TraceView({
         if (search) {
           params.set("search", search);
           setSearchSpans(search);
+          setSearchEnabled(true);
+        } else {
+          setSearchSpans("");
+          setSearchEnabled(false);
         }
         if (searchIn && searchIn.length > 0) {
           searchIn.forEach((val) => params.append("searchIn", val));
@@ -494,6 +310,7 @@ export default function TraceView({
       setSpans([]);
       setShowBrowserSession(false);
       setSearchSpans("");
+      setSearchEnabled(false);
     };
   }, [traceId, projectId, filters]);
 
@@ -544,10 +361,15 @@ export default function TraceView({
   );
 
   const [searchSpans, setSearchSpans] = useState(searchParams.get("search") || "");
+  const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
 
   const contentRef = useRef<HTMLDivElement>(null);
 
-  useTextSearchHighlight(contentRef, searchSpans, selectedSpan);
+  // Wrapper function to handle both searchSpans and searchEnabled states
+  const handleSetSearchSpans = useCallback((value: string) => {
+    setSearchSpans(value);
+    setSearchEnabled(value !== "");
+  }, []);
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -667,7 +489,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -726,10 +548,10 @@ export default function TraceView({
               setShowLangGraph={setShowLangGraph}
               showLangGraph={showLangGraph}
             />
-            {searchSpans ? (
+            {searchEnabled ? (
               <SearchSpansInput
                 searchSpans={searchSpans}
-                setSearchSpans={setSearchSpans}
+                setSearchSpans={handleSetSearchSpans}
                 submit={fetchSpans}
                 filterBoxClassName="top-10"
                 className="rounded-none border-0 border-b ring-0"
@@ -743,7 +565,7 @@ export default function TraceView({
                       Filters
                     </Button>
                   </StatefulFilter>
-                  <Button onClick={() => setSearchSpans("search")} variant="outline" className="h-6 text-xs px-1.5">
+                  <Button onClick={() => setSearchEnabled(true)} variant="outline" className="h-6 text-xs px-1.5">
                     <Search size={14} className="mr-1" />
                     <span>Search</span>
                   </Button>
@@ -830,9 +652,9 @@ export default function TraceView({
           <div className="flex-grow overflow-hidden flex-wrap" ref={contentRef}>
             {selectedSpan ? (
               selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+                <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} searchTerm={searchSpans} />
               ) : (
-                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} searchTerm={searchSpans} />
               )
             ) : (
               <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
