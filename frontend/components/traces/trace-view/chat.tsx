@@ -136,10 +136,6 @@ export default function Chat({ trace }: ChatProps) {
     fetchSummary();
   }, [trace.id, trace.startTime, trace.endTime, projectId]);
 
-  useEffect(() => {
-    console.log('messages', messages);
-  }, [messages]);
-
   return (
     <div className="flex-grow flex flex-col overflow-auto">
       <Conversation>
@@ -172,7 +168,28 @@ export default function Chat({ trace }: ChatProps) {
                 </div>
               ) : summary ? (
                 <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                  <Response>{summary}</Response>
+                  <Response
+                    components={{
+                      code({ children }) {
+                        // Check if children matches the pattern: lmnr_span_id:X,text:...
+                        const text = String(children);
+                        const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
+
+                        if (spanIdMatch) {
+                          const [, spanId, spanName, spanText] = spanIdMatch;
+                          return (
+                            <button className="text-primary font-medium">
+                              span {spanId} ({spanName})
+                            </button>
+                          );
+                        }
+
+                        return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
+                      },
+                    }}
+                  >
+                    {summary}
+                  </Response>
                 </div>
               ) : null}
             </div>
@@ -187,7 +204,26 @@ export default function Chat({ trace }: ChatProps) {
                       case 'text':
                         return (
                           <div key={`${message.id}-${i}`}>
-                            <Response>
+                            <Response
+                              components={{
+                                code({ children }) {
+                                  // Check if children matches the pattern: lmnr_span_id:X,text:...
+                                  const text = String(children);
+                                  const spanIdMatch = text.match(/^lmnr_span_id:(\d+),text:(.*)$/);
+
+                                  if (spanIdMatch) {
+                                    const [, spanId, spanText] = spanIdMatch;
+                                    return (
+                                      <span className="text-primary font-medium">
+                                        {spanText}
+                                      </span>
+                                    );
+                                  }
+
+                                  return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
+                                },
+                              }}
+                            >
                               {part.text}
                             </Response>
                           </div>

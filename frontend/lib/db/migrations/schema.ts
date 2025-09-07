@@ -541,7 +541,7 @@ export const tracesSummaries = pgTable("traces_summaries", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	traceId: uuid("trace_id").defaultRandom().notNull(),
-	summary: jsonb(),
+	summary: text(),
 	projectId: uuid("project_id").notNull(),
 }, (table) => [
 	foreignKey({

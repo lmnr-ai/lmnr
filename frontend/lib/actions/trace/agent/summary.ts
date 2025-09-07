@@ -47,16 +47,16 @@ Please provide a concise trace summary with a goal to provide true trace insight
 
 Remember that your goal is to help a user very quickly understands what's happening in the trace and which spans are worth looking at in more details.
 
-It's also useful to reference specific spans by id. When referencing spans, use the following format:
-[span id]("specific text in span input/output").
+It's also useful to reference specific spans. When referencing spans, use the following format strictly enclosed in backticks:
+\`span_id:<span_id>,span_name: <span_name>,text:<specific text to reference in span input/output>\`.
+
+For example: \`span_id:29,span_name:openai.chat,text:Added a new column definition for sessionId\`
 
 For the final answer use the following format:
-<lmnr_summary>
-very concise summary to help user understand what's going on in this trace
-</lmnr_summary>
-<lmnr_attention>
-things users need to investigate, such logical failures, suboptimal tool calls and so on
-</lmnr_attention>
+
+<Very concise summary to help user understand what's going on in this trace>
+---
+<Possible things users need to investigate, such logical failures, suboptimal tool calls and so on>
 
 Here's the complete trace data with all spans:
 <trace>
