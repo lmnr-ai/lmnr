@@ -13,12 +13,14 @@ const SearchSpansInput = ({
   submit,
   className,
   filterBoxClassName,
-  setSearchEnabled,
+  searchSpans,
+  setSearchSpans,
 }: PropsWithChildren<{
   submit: (search: string, searchIn: string[], filters: DatatableFilter[]) => Promise<void>;
   className?: string;
   filterBoxClassName?: string;
-  setSearchEnabled: (v: boolean) => void;
+  searchSpans: string;
+  setSearchSpans: (v: string) => void;
 }>) => {
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
@@ -65,15 +67,16 @@ const SearchSpansInput = ({
       if (inputRef.current?.value !== "") {
         inputRef.current.value = "";
         setInputValue("");
+        setSearchSpans("");
       }
     }
-  }, []);
+  }, [setSearchSpans]);
 
   const handleCloseSearch = useCallback(() => {
-    setSearchEnabled(false);
+    setSearchSpans("");
     handleClearInput();
     handleSubmit();
-  }, [handleClearInput, handleSubmit, setSearchEnabled]);
+  }, [handleClearInput, handleSubmit, setSearchSpans]);
 
   return (
     <div className="flex flex-col top-0 sticky bg-background z-30 box-border">
