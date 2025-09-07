@@ -1,6 +1,6 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, MessageCircle, Send, Sparkles, Loader2 } from "lucide-react";
+import { ArrowUp, MessageCircle, Send, Sparkles, Loader2, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Trace } from '@/lib/traces/types';
+import { Response } from '@/components/ai-elements/response';
+import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
+
 
 interface ChatProps {
   trace: Trace;
@@ -19,34 +22,99 @@ export default function Chat({ trace }: ChatProps) {
   const [input, setInput] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [newChatLoading, setNewChatLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const projectId = useParams().projectId;
 
-  const { messages, sendMessage } = useChat({
+  const { messages, sendMessage, setMessages } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/projects/${projectId}/chat`,
+      api: `/api/projects/${projectId}/traces/${trace.id}/agent`,
       body: {
-        traceId: trace.id,
         traceStartTime: new Date(trace.startTime).toISOString(),
         traceEndTime: new Date(trace.endTime).toISOString(),
       }
     }),
+    onFinish: async ({ message }) => {
+      // save assitant message in the UI format
+      try {
+        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            role: 'assistant',
+            parts: message.parts,
+            messageId: message.id,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to save assistant message:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error saving assistant message:', error);
+      }
+    }
   });
+
+  const handleNewChat = async () => {
+    setNewChatLoading(true);
+    try {
+      // Create a new chat session in the database
+      const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/new-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Clear all messages to start a new conversation
+        setMessages([]);
+      } else {
+        console.error('Failed to create new chat session');
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+      // Still clear messages even if API call fails
+      setMessages([]);
+    } finally {
+      setNewChatLoading(false);
+    }
+  };
+
+  // Load existing messages when component mounts
+  useEffect(() => {
+    const loadExistingMessages = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing messages:', error);
+      }
+    };
+
+    loadExistingMessages();
+  }, [trace.id, projectId, setMessages]);
 
   // Fetch summary on component mount
   useEffect(() => {
     const fetchSummary = async () => {
       try {
         setSummaryLoading(true);
-        const response = await fetch(`/api/projects/${projectId}/chat/summary`, {
+        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/summary`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            traceId: trace.id,
             traceStartTime: new Date(trace.startTime).toISOString(),
             traceEndTime: new Date(trace.endTime).toISOString(),
           }),
@@ -68,25 +136,34 @@ export default function Chat({ trace }: ChatProps) {
     fetchSummary();
   }, [trace.id, trace.startTime, trace.endTime, projectId]);
 
-  // Auto-scroll to bottom when new messages are added
   useEffect(() => {
-    console.log('Messages', messages);
-    // if (scrollAreaRef.current) {
-    //   const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-    //   if (scrollContainer) {
-    //     scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    //   }
-    // }
+    console.log('messages', messages);
   }, [messages]);
 
   return (
     <div className="flex-grow flex flex-col overflow-auto">
-      <ScrollArea className="flex-1" ref={scrollAreaRef}>
-        <div className="space-y-4 py-4">
+      <Conversation>
+        <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           <div className="p-4">
             <div className="">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-foreground">Trace Summary</span>
+                {messages.length > 0 && (
+                  <Button
+                    onClick={handleNewChat}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={newChatLoading}
+                  >
+                    {newChatLoading ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3 h-3 mr-1" />
+                    )}
+                    New Chat
+                  </Button>
+                )}
               </div>
               {summaryLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -95,13 +172,9 @@ export default function Chat({ trace }: ChatProps) {
                 </div>
               ) : summary ? (
                 <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                  {summary}
+                  <Response>{summary}</Response>
                 </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  Failed to generate summary
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -113,22 +186,20 @@ export default function Chat({ trace }: ChatProps) {
                     switch (part.type) {
                       case 'text':
                         return (
-                          <div key={`${message.id}-${i}`} className="whitespace-pre-wrap">
-                            {part.text}
+                          <div key={`${message.id}-${i}`}>
+                            <Response>
+                              {part.text}
+                            </Response>
                           </div>
                         );
                       case 'tool-getSpansData':
                         // Handle tool invocations - simplified for now
                         return (
-                          <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border border-border/50">
+                          <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
                             <div className="flex items-center gap-2">
-                              <MessageCircle className="w-4 h-4 text-primary" />
                               <span className="text-xs font-medium text-muted-foreground">
-                                Getting spans data
+                                Fetching spans data
                               </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {JSON.stringify(part.input)}
                             </div>
                           </div>
                         );
@@ -139,21 +210,24 @@ export default function Chat({ trace }: ChatProps) {
             </div>
           ))
           }
-        </div>
-      </ScrollArea>
+        </ConversationContent>
+      </Conversation>
 
       <div className="flex-none px-3 pb-4 bg-transparent">
         <div className="border rounded bg-muted/40">
           <form onSubmit={(e) => {
             e.preventDefault();
-            sendMessage({
-              role: "user",
-              parts: [
-                { type: "text", text: input },
-              ],
-            });
+            if (input.trim()) {
+              sendMessage({
+                role: "user",
+                parts: [
+                  { type: "text", text: input },
+                ],
+              });
+              setInput('');
+            }
           }}
-            className="p-2"
+            className="py-2 pr-1"
           >
             <div className="relative">
               <Input
@@ -163,12 +237,15 @@ export default function Chat({ trace }: ChatProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage({
-                      role: "user",
-                      parts: [
-                        { type: "text", text: input },
-                      ],
-                    });
+                    if (input.trim()) {
+                      sendMessage({
+                        role: "user",
+                        parts: [
+                          { type: "text", text: input },
+                        ],
+                      });
+                      setInput('');
+                    }
                   }
                 }}
                 placeholder="Ask about performance, errors, or trace insights..."
@@ -179,12 +256,18 @@ export default function Chat({ trace }: ChatProps) {
                 size="icon"
                 className="absolute right-1 top-1 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
-                onClick={() => sendMessage({
-                  role: "user",
-                  parts: [
-                    { type: "text", text: input },
-                  ],
-                })}
+                disabled={input.trim() === ''}
+                onClick={() => {
+                  if (input.trim()) {
+                    sendMessage({
+                      role: "user",
+                      parts: [
+                        { type: "text", text: input },
+                      ],
+                    });
+                    setInput('');
+                  }
+                }}
               >
                 <ArrowUp className="w-4 h-4" />
               </Button>

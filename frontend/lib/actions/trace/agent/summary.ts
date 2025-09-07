@@ -2,31 +2,31 @@ import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { z } from 'zod';
 import { getTracer } from '@lmnr-ai/lmnr';
+import { eq } from 'drizzle-orm';
 
-import { cache, TRACE_SUMMARIES_CACHE_KEY } from '@/lib/cache';
+import { db } from '@/lib/db/drizzle';
+import { tracesSummaries } from '@/lib/db/migrations/schema';
 import { getFullTraceForSummary } from './index';
-import { TraceChatPrompt } from './prompt';
 
 export const TraceSummarySchema = z.object({
   traceId: z.string().describe('The trace ID to analyze'),
-  traceStartTime: z.string().datetime().describe('Start time of the trace'),
-  traceEndTime: z.string().datetime().describe('End time of the trace'),
+  traceStartTime: z.iso.datetime().describe('Start time of the trace'),
+  traceEndTime: z.iso.datetime().describe('End time of the trace'),
   projectId: z.string().describe('The project ID'),
 });
 
-export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>) {
+export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<string> {
   const { traceId, traceStartTime, traceEndTime, projectId } = input;
 
-  // Check cache first
-  const cacheKey = `${TRACE_SUMMARIES_CACHE_KEY}:${projectId}:${traceId}`;
-  const cachedSummary = await cache.get<{
-    summary: string;
-    usage: any;
-    finishReason: string;
-  }>(cacheKey);
+  // Check database for existing summary
+  const existingSummary = await db
+    .select()
+    .from(tracesSummaries)
+    .where(eq(tracesSummaries.traceId, traceId))
+    .limit(1);
 
-  if (cachedSummary) {
-    return cachedSummary;
+  if (existingSummary.length > 0 && existingSummary[0].summary) {
+    return (existingSummary[0].summary as unknown as { summary: string })["summary"] || "";
   }
 
   // Get the full trace data for summary
@@ -73,14 +73,26 @@ ${fullTraceData}
     },
   });
 
-  const summaryResult = {
-    summary: result.text,
-    usage: result.usage,
-    finishReason: result.finishReason,
-  };
+  const summary = result.text;
 
-  // Cache the result for 1 hour
-  await cache.set(cacheKey, summaryResult, 'EX', 60 * 60);
+  if (existingSummary.length > 0) {
+    // Update existing record
+    await db
+      .update(tracesSummaries)
+      .set({
+        summary: summary,
+      })
+      .where(eq(tracesSummaries.traceId, traceId));
+  } else {
+    // Create new record
+    await db
+      .insert(tracesSummaries)
+      .values({
+        traceId: traceId,
+        summary: summary,
+        projectId: projectId,
+      });
+  }
 
-  return summaryResult;
+  return summary;
 }
