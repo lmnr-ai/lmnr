@@ -19,9 +19,7 @@ export const processFilters = <TFilter extends DatatableFilter = DatatableFilter
 
   return filters.flatMap((filter) => {
     const processor =
-      processors.get(`${filter.column}:${filter.operator}`) ||
-      processors.get(filter.column) ||
-      defaultProcessor;
+      processors.get(`${filter.column}:${filter.operator}`) || processors.get(filter.column) || defaultProcessor;
 
     if (!processor) return [];
 
@@ -60,7 +58,11 @@ export const parseUrlParams = <T>(
 
   return schema.safeParse(obj);
 };
-
+/**
+ * This function has special handling for arrays that were serialized on the server using
+ * comma separation. If normal JSON.parse fails,
+ * it attempts to parse by wrapping the value in brackets to create a valid JSON array.
+ */
 export const tryParseJson = (value: string) => {
   if (value === "" || value === undefined) return null;
 
