@@ -26,7 +26,7 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
     .limit(1);
 
   if (existingSummary.length > 0 && existingSummary[0].summary) {
-    return (existingSummary[0].summary as unknown as { summary: string })["summary"] || "";
+    return (existingSummary[0].summary) || "";
   }
 
   // Get the full trace data for summary
@@ -47,16 +47,19 @@ Please provide a concise trace summary with a goal to provide true trace insight
 
 Remember that your goal is to help a user very quickly understands what's happening in the trace and which spans are worth looking at in more details.
 
-It's also useful to reference specific spans. When referencing spans, use the following format strictly enclosed in backticks:
-\`span_id:<span_id>,span_name: <span_name>,text:<specific text to reference in span input/output>\`.
+It's also useful to reference specific text in spans. When referencing spans, format is as a code block:
+<span_reference_format>
+\`span_id: <span_id>, span_name: <span_name>, text: <specific text to reference in span input/output>\`.
 
 For example: \`span_id:29,span_name:openai.chat,text:Added a new column definition for sessionId\`
+</span_reference_format>
 
 For the final answer use the following format:
-
+<format>
 <Very concise summary to help user understand what's going on in this trace>
 ---
-<Possible things users need to investigate, such logical failures, suboptimal tool calls and so on>
+<Possible things users need to investigate, such logical failures, suboptimal tool calls and so on >
+</format>
 
 Here's the complete trace data with all spans:
 <trace>

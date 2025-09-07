@@ -2,7 +2,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, MessageCircle, Send, Sparkles, Loader2, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,23 @@ export default function Chat({ trace }: ChatProps) {
   const [newChatLoading, setNewChatLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const components = useMemo(() => ({
+    code: ({ children }: any) => {
+      const text = String(children);
+      const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
+
+      if (spanIdMatch) {
+        const [, spanId, spanName, spanText] = spanIdMatch;
+        return (
+          <button className="text-primary font-medium">
+            {spanName}
+          </button>
+        );
+      }
+
+      return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
+    },
+  }), []);
   const projectId = useParams().projectId;
 
   const { messages, sendMessage, setMessages } = useChat({
@@ -122,6 +139,7 @@ export default function Chat({ trace }: ChatProps) {
 
         if (response.ok) {
           const data = await response.json();
+          console.log('Summary', data);
           setSummary(data.summary);
         } else {
           console.error('Failed to fetch summary');
@@ -169,24 +187,7 @@ export default function Chat({ trace }: ChatProps) {
               ) : summary ? (
                 <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                   <Response
-                    components={{
-                      code({ children }) {
-                        // Check if children matches the pattern: lmnr_span_id:X,text:...
-                        const text = String(children);
-                        const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
-
-                        if (spanIdMatch) {
-                          const [, spanId, spanName, spanText] = spanIdMatch;
-                          return (
-                            <button className="text-primary font-medium">
-                              span {spanId} ({spanName})
-                            </button>
-                          );
-                        }
-
-                        return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
-                      },
-                    }}
+                    components={components}
                   >
                     {summary}
                   </Response>
