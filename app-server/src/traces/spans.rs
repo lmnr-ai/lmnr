@@ -432,7 +432,8 @@ impl SpanAttributes {
         let attr_labels = self
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.labels"));
-        match attr_tags.or(attr_labels) {
+        let aisdk_tags = self.raw_attributes.get("ai.telemetry.metadata.tags");
+        match attr_tags.or(aisdk_tags).or(attr_labels) {
             Some(Value::Array(arr)) => arr
                 .iter()
                 .map(|v| json_value_to_string(v))
