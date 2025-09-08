@@ -11,10 +11,10 @@ interface Props {
   traceDuration: number;
 }
 
-const ITEM_H = 36;
-const MIN_H = 4;
-const TREE_TOP_PADDING = 4;
-const UNIT = 500;
+const MIN_H = 1;
+const TREE_TOP_PADDING = 0;
+const PIXELS_PER_SECOND = 4
+const TIME_MARKER_INTERVAL = 10; // seconds
 
 export default function Minimap({ traceDuration }: Props) {
   const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
@@ -25,23 +25,54 @@ export default function Minimap({ traceDuration }: Props) {
 
     const minTime = Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime()));
 
-    return spanItems.map((s) => ({
-      ...s.span,
-      y: ((new Date(s.span.startTime).getTime() - minTime) * UNIT) / traceDuration,
-      height: Math.max(
-        MIN_H,
-        Math.round(((new Date(s.span.endTime).getTime() - new Date(s.span.startTime).getTime()) * UNIT) / traceDuration)
-      ),
-    }));
+    return spanItems.map((s) => {
+      const startTime = new Date(s.span.startTime).getTime();
+      const endTime = new Date(s.span.endTime).getTime();
+      const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
+      const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
+
+      console.log(relativeStart + spanDuration);
+
+      return {
+        ...s.span,
+        y: relativeStart * PIXELS_PER_SECOND,
+        height: Math.max(MIN_H, spanDuration * PIXELS_PER_SECOND),
+      };
+    });
   }, [spanItems, traceDuration]);
 
   const visibleRange = useMemo(() => {
     const { scrollTop, viewportHeight } = state;
     const adjustedScrollTop = Math.max(0, scrollTop - TREE_TOP_PADDING);
-    const start = Math.max(0, Math.floor(adjustedScrollTop / ITEM_H));
-    const end = Math.min(spansWithPosition.length - 1, Math.floor((adjustedScrollTop + viewportHeight) / ITEM_H));
-    return { start, end };
-  }, [state, spansWithPosition.length]);
+    const visibleStartY = adjustedScrollTop;
+    const visibleEndY = adjustedScrollTop + viewportHeight;
+
+    // Find spans that are visible in the current viewport
+    const start = spansWithPosition.findIndex(span => span.y + span.height >= visibleStartY);
+    const end = spansWithPosition.findLastIndex(span => span.y <= visibleEndY);
+
+    return {
+      start: Math.max(0, start === -1 ? 0 : start),
+      end: Math.min(spansWithPosition.length - 1, end === -1 ? spansWithPosition.length - 1 : end)
+    };
+  }, [state, spansWithPosition]);
+
+  const timeMarkers = useMemo(() => {
+    if (!traceDuration || traceDuration <= 0) return [];
+
+    const markers = [];
+    const totalSeconds = Math.ceil(traceDuration / 1000); // Convert ms to seconds
+
+    for (let seconds = 0; seconds <= totalSeconds; seconds += TIME_MARKER_INTERVAL) {
+      markers.push({
+        seconds,
+        y: seconds * PIXELS_PER_SECOND,
+        label: `${seconds}s`,
+      });
+    }
+
+    return markers;
+  }, [traceDuration]);
 
   const syncTreeToMinimap = useCallback(
     ({
@@ -114,9 +145,12 @@ export default function Minimap({ traceDuration }: Props) {
   const handleSpanClick = useCallback(
     (spanIndex: number, e: React.MouseEvent) => {
       e.stopPropagation();
-      scrollTo(spanIndex * ITEM_H);
+      const span = spansWithPosition[spanIndex];
+      if (span) {
+        scrollTo(span.y);
+      }
     },
-    [scrollTo]
+    [scrollTo, spansWithPosition]
   );
 
   if (!spanItems.length) {
@@ -124,12 +158,25 @@ export default function Minimap({ traceDuration }: Props) {
   }
 
   return (
-    <div className="absolute top-0 right-3 h-full w-fit bg-background z-50 py-1">
+    <div className="absolute top-0 right-2 h-full w-fit bg-background z-50 py-1">
       <div
         ref={minimapRef}
-        className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden w-8 relative"
+        className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden w-10 relative"
         onScroll={handleMinimapScroll}
       >
+        {/* Time markers */}
+        {timeMarkers.map((marker) => (
+          <div
+            key={`marker-${marker.seconds}`}
+            className="absolute right-0 flex pointer-events-none  border-t"
+            style={{ top: marker.y }}
+          >
+            <span className="text-xs text-muted-foreground/60 leading-none">
+              {marker.label}
+            </span>
+          </div>
+        ))}
+
         {spansWithPosition.map((span, index) => {
           const isInVisibleRange = index >= visibleRange.start && index <= visibleRange.end;
           return (
@@ -142,7 +189,7 @@ export default function Minimap({ traceDuration }: Props) {
               className="absolute bg-background"
             >
               <div
-                className={cn("w-8 cursor-pointer rounded-[1px] transition-opacity duration-100 opacity-40", {
+                className={cn("w-2 cursor-pointer rounded-[2px] transition-opacity duration-100 opacity-40", {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
