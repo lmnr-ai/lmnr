@@ -13,7 +13,7 @@ interface Props {
 
 const MIN_H = 1;
 const TREE_TOP_PADDING = 0;
-const PIXELS_PER_SECOND = 4
+const PIXELS_PER_SECOND = 6
 const TIME_MARKER_INTERVAL = 10; // seconds
 
 export default function Minimap({ traceDuration }: Props) {
@@ -30,8 +30,6 @@ export default function Minimap({ traceDuration }: Props) {
       const endTime = new Date(s.span.endTime).getTime();
       const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
       const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
-
-      console.log(relativeStart + spanDuration);
 
       return {
         ...s.span,
@@ -168,7 +166,7 @@ export default function Minimap({ traceDuration }: Props) {
         {timeMarkers.map((marker) => (
           <div
             key={`marker-${marker.seconds}`}
-            className="absolute right-0 flex pointer-events-none  border-t"
+            className="absolute right-0 flex pointer-events-none"
             style={{ top: marker.y }}
           >
             <span className="text-xs text-muted-foreground/60 leading-none">
@@ -182,8 +180,8 @@ export default function Minimap({ traceDuration }: Props) {
           return (
             <div
               style={{
-                top: span.y + index,
-                height: span.height + 4,
+                top: span.y,
+                height: span.height,
               }}
               key={span.spanId}
               className="absolute bg-background"
