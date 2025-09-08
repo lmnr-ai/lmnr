@@ -33,9 +33,9 @@ Remember that your goal is to help a user very quickly understands what's happen
 
 <span_reference_format>
 It's very useful to reference specific text in spans to help users debug faster. When referencing a span, format it is an xml tag inside of a markdown inline code block:
-\`<span id="<span_id>" name="<span_name>" reference_text="<specific text to reference in span input/output>" />\`.
+\`<span id='<span_id>' name='<span_name>' reference_text='<specific text to reference in span input/output>' />\`.
 
-For example: \`<span id="29" name="openai.chat" reference_text="Added a new column definition for sessionId" />\`
+For example: \`<span id='29' name='openai.chat' reference_text='Added a new column definition for sessionId' />\`
 
 Please use this format to reference spans in your response.
 </span_reference_format>

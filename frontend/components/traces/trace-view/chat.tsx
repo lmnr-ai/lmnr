@@ -14,9 +14,10 @@ import { cn } from "@/lib/utils";
 
 interface ChatProps {
   trace: Trace;
+  onSetSpanId: (spanId: string) => void;
 }
 
-export default function Chat({ trace }: ChatProps) {
+export default function Chat({ trace, onSetSpanId }: ChatProps) {
   const [input, setInput] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
   const [spanIdsMap, setSpanIdsMap] = useState<Record<string, string> | null>(null);
@@ -24,9 +25,6 @@ export default function Chat({ trace }: ChatProps) {
   const [newChatLoading, setNewChatLoading] = useState(false);
   const searchContext = useOptionalSearchContext();
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  const pathName = usePathname();
-  const params = useSearchParams();
 
   const components = useMemo(
     () => ({
@@ -34,7 +32,7 @@ export default function Chat({ trace }: ChatProps) {
         const text = String(children);
 
         // Parse XML span tag with proper handling of quotes in reference_text
-        const xmlSpanMatch = text.match(/<span\s+id="(\d+)"\s+name="([^"]+)"\s+reference_text="(.*?)"\s*\/>/);
+        const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/);
 
         if (xmlSpanMatch) {
           const [, spanId, spanName, referenceText] = xmlSpanMatch;
@@ -47,12 +45,7 @@ export default function Chat({ trace }: ChatProps) {
           return (
             <button onClick={() => {
               searchContext?.setSearchTerm(unescapedReferenceText);
-
-              // replace existing spanId with spanUuid
-              const newParams = new URLSearchParams(params);
-              newParams.set("spanId", spanUuid || "");
-              router.push(`${pathName}?${newParams.toString()}`);
-
+              onSetSpanId(spanUuid || "");
               console.log("referenceText", unescapedReferenceText);
               console.log("spanUuid", spanUuid);
 
@@ -65,7 +58,7 @@ export default function Chat({ trace }: ChatProps) {
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [spanIdsMap, params, pathName, router, searchContext]
+    [spanIdsMap, searchContext]
   );
   const projectId = useParams().projectId;
 

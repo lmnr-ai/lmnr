@@ -639,7 +639,14 @@ function TraceViewInternal({
               </div>
             )}
             {showChat && !showTimeline ? (
-              <Chat trace={trace} />
+              <Chat trace={trace} onSetSpanId={(spanId) => {
+                const span = spans.find((span) => span.spanId === spanId);
+                if (span) {
+                  console.log("span", span);
+                  handleSpanSelect(span);
+                }
+              }}
+              />
             ) : showTimeline ? (
               <Timeline
                 setSelectedSpan={handleSpanSelect}
