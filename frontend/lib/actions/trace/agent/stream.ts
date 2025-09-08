@@ -18,13 +18,11 @@ export const TraceStreamChatSchema = z.object({
 export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchema>) {
   const { messages: uiMessages, traceId, traceStartTime, traceEndTime, projectId } = input;
 
-  console.log('UI messages', JSON.stringify(uiMessages, null, 2));
-
   const chatId = await findOrCreateChatSession(traceId, projectId);
 
   const userMessage = uiMessages.filter((message) => message.role === 'user').at(-1);
 
-  saveChatMessage({
+  await saveChatMessage({
     chatId,
     traceId,
     projectId,

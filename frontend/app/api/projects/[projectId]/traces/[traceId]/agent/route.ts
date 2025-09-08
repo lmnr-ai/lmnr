@@ -3,9 +3,6 @@ import { prettifyError } from 'zod/v4';
 import { ChatMessageSchema } from '@/lib/actions/trace/agent/messages';
 import { streamTraceChat } from '@/lib/actions/trace/agent/stream';
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
-
 export async function POST(req: Request, props: { params: Promise<{ projectId: string, traceId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
