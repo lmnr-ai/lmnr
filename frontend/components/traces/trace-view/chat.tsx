@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, Loader2, RotateCcw } from "lucide-react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
