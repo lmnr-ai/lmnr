@@ -30,7 +30,7 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     parts: userMessage?.parts,
   });
 
-  const summary = await generateTraceSummary({
+  const { summary } = await generateTraceSummary({
     traceId,
     traceStartTime,
     traceEndTime,

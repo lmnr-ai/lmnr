@@ -40,26 +40,32 @@ export const getSpansData = async (input: z.infer<typeof GetTraceStructureSchema
   return YAML.stringify(spans);
 };
 
-export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<string> => {
+export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<{ stringifiedSpans: string, spanIdsMap: Record<string, string> }> => {
   const spans = await getFullTraceSpans(input);
 
-  const spanIdToId = spans.reduce((acc, span, index) => {
+  const spanUuidToId = spans.reduce((acc, span, index) => {
     acc[span.spanId] = index + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  const spanIdsMap = Object.fromEntries(Object.entries(spanUuidToId).map(([uuid, id]) => [String(id), uuid]));
 
   const strippedSpans = spans.map((span, index) => ({
     id: index + 1,
     input: span.input,
     output: span.output,
-    parent: spanIdToId[span.parent],
+    parent: spanUuidToId[span.parent],
     status: span.status,
     name: span.name,
     type: span.type,
     start: span.start,
     end: span.end,
   }));
-  return JSON.stringify(strippedSpans, null, 2);
+
+  return {
+    stringifiedSpans: JSON.stringify(strippedSpans, null, 2),
+    spanIdsMap,
+  };
 };
 
 // Re-export summary functionality

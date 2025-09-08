@@ -1,5 +1,5 @@
 {
-  "id": "3e141c95-52a6-4c02-ab88-e1240cc25682",
+  "id": "3b5ad832-7afc-4a5d-b34c-73e6d6eb2224",
   "prevId": "6cd7329e-8e13-4508-ba94-d065a96b0bb2",
   "version": "7",
   "dialect": "postgresql",
@@ -3544,6 +3544,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "span_ids_map": {
+          "name": "span_ids_map",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

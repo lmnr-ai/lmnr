@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, Loader2, RotateCcw } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -19,22 +19,45 @@ interface ChatProps {
 export default function Chat({ trace }: ChatProps) {
   const [input, setInput] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
+  const [spanIdsMap, setSpanIdsMap] = useState<Record<string, string> | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [newChatLoading, setNewChatLoading] = useState(false);
   const searchContext = useOptionalSearchContext();
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const pathName = usePathname();
+  const params = useSearchParams();
 
   const components = useMemo(
     () => ({
       code: ({ children }: any) => {
         const text = String(children);
-        const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
 
-        if (spanIdMatch) {
-          const [, spanId, spanName, spanText] = spanIdMatch;
+        // Parse XML span tag with proper handling of quotes in reference_text
+        const xmlSpanMatch = text.match(/<span\s+id="(\d+)"\s+name="([^"]+)"\s+reference_text="(.*?)"\s*\/>/);
+
+        if (xmlSpanMatch) {
+          const [, spanId, spanName, referenceText] = xmlSpanMatch;
+          // Unescape any escaped quotes in the reference text
+          const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
+          const spanUuid = spanIdsMap?.[spanId];
+
+          const textPreview = unescapedReferenceText.length > 10 ? unescapedReferenceText.slice(0, 10) + "..." : unescapedReferenceText;
+
           return (
-            <button onClick={() => searchContext?.setSearchTerm(spanText)} className="text-primary font-medium">
-              {spanName}
+            <button onClick={() => {
+              searchContext?.setSearchTerm(unescapedReferenceText);
+
+              // replace existing spanId with spanUuid
+              const newParams = new URLSearchParams(params);
+              newParams.set("spanId", spanUuid || "");
+              router.push(`${pathName}?${newParams.toString()}`);
+
+              console.log("referenceText", unescapedReferenceText);
+              console.log("spanUuid", spanUuid);
+
+            }} className="text-primary font-medium">
+              {spanName} ("{textPreview}")
             </button>
           );
         }
@@ -42,7 +65,7 @@ export default function Chat({ trace }: ChatProps) {
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    []
+    [spanIdsMap, params, pathName, router, searchContext]
   );
   const projectId = useParams().projectId;
 
@@ -143,6 +166,7 @@ export default function Chat({ trace }: ChatProps) {
           const data = await response.json();
           console.log("Summary", data);
           setSummary(data.summary);
+          setSpanIdsMap(data.spanIdsMap);
         } else {
           console.error("Failed to fetch summary");
         }

@@ -24,9 +24,10 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   }
 
   try {
-    const summary = await generateTraceSummary(parseResult.data);
+    const { summary, spanIdsMap } = await generateTraceSummary(parseResult.data);
     return Response.json({
       summary,
+      spanIdsMap,
     });
   } catch (error) {
     return Response.json(

@@ -31,19 +31,21 @@ Please provide a concise trace summary with a goal to provide true trace insight
 
 Remember that your goal is to help a user very quickly understands what's happening in the trace and which spans are worth looking at in more details.
 
-It's also useful to reference specific text in spans. When referencing spans, format is as a code block:
 <span_reference_format>
-\`span_id: <span_id>, span_name: <span_name>, text: <specific text to reference in span input/output>\`.
+It's very useful to reference specific text in spans to help users debug faster. When referencing a span, format it is an xml tag inside of a markdown inline code block:
+\`<span id="<span_id>" name="<span_name>" reference_text="<specific text to reference in span input/output>" />\`.
 
-For example: \`span_id:29,span_name:openai.chat,text:Added a new column definition for sessionId\`
+For example: \`<span id="29" name="openai.chat" reference_text="Added a new column definition for sessionId" />\`
+
+Please use this format to reference spans in your response.
 </span_reference_format>
 
+<response_format>
 For the final answer use the following format:
-<format>
-<Very concise summary to help user understand what's going on in this trace>
+<very concise summary to help user understand what's going on in this trace>
 ---
-<Possible things users need to investigate, such logical failures, suboptimal tool calls and so on >
-</format>
+<possible things worth investigating, such logical failures, suboptimal tool calls, failure to adhere to the prompt, etc.>
+</response_xformat>
 
 Here's the complete trace data with all spans data:
 <trace>

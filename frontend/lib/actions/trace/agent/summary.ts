@@ -17,7 +17,7 @@ export const TraceSummarySchema = z.object({
   projectId: z.string().describe('The project ID'),
 });
 
-export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<string> {
+export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
   const { traceId, traceStartTime, traceEndTime, projectId } = input;
 
   // Check database for existing summary
@@ -28,11 +28,14 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
     .limit(1);
 
   if (existingSummary.length > 0 && existingSummary[0].summary) {
-    return (existingSummary[0].summary) || "";
+    return {
+      summary: existingSummary[0].summary || "",
+      spanIdsMap: (existingSummary[0].spanIdsMap || {}) as Record<string, string>,
+    };
   }
 
   // Get the full trace data for summary
-  const fullTraceData = await getFullTraceForSummary({
+  const { stringifiedSpans, spanIdsMap } = await getFullTraceForSummary({
     projectId,
     traceId,
     startTime: traceStartTime,
@@ -40,7 +43,7 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
   });
 
   // Create a summary-focused prompt
-  const summaryPrompt = TraceChatPromptSummaryPrompt.replace('{{fullTraceData}}', fullTraceData);
+  const summaryPrompt = TraceChatPromptSummaryPrompt.replace('{{fullTraceData}}', stringifiedSpans);
 
   const result = await generateText({
     model: google('gemini-2.5-flash'),
@@ -59,7 +62,8 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
     await db
       .update(tracesSummaries)
       .set({
-        summary: summary,
+        summary,
+        spanIdsMap,
       })
       .where(eq(tracesSummaries.traceId, traceId));
   } else {
@@ -67,11 +71,15 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
     await db
       .insert(tracesSummaries)
       .values({
-        traceId: traceId,
-        summary: summary,
-        projectId: projectId,
+        traceId,
+        summary,
+        projectId,
+        spanIdsMap,
       });
   }
 
-  return summary;
+  return {
+    summary,
+    spanIdsMap,
+  };
 }
