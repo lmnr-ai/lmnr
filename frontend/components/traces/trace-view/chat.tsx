@@ -31,11 +31,25 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
       code: ({ children }: any) => {
         const text = String(children);
 
-        // Parse XML span tag with proper handling of quotes in reference_text
-        const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/);
-
+        const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s*\/>/);
+        console.log(text, xmlSpanMatch);
         if (xmlSpanMatch) {
-          const [, spanId, spanName, referenceText] = xmlSpanMatch;
+          const [, spanId, spanName] = xmlSpanMatch;
+          const spanUuid = spanIdsMap?.[spanId];
+          return (
+            <button onClick={() => {
+              onSetSpanId(spanUuid || "");
+            }}>
+              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs">{spanName}</span> span
+            </button>
+          );
+        }
+
+        const xmlSpanWithReferenceTextMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/);
+
+
+        if (xmlSpanWithReferenceTextMatch) {
+          const [, spanId, spanName, referenceText] = xmlSpanWithReferenceTextMatch;
           // Unescape any escaped quotes in the reference text
           const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
           const spanUuid = spanIdsMap?.[spanId];
@@ -46,12 +60,10 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
             <button onClick={() => {
               searchContext?.setSearchTerm(unescapedReferenceText);
               onSetSpanId(spanUuid || "");
-              console.log("referenceText", unescapedReferenceText);
-              console.log("spanUuid", spanUuid);
 
-            }} className="text-primary font-medium">
-              {spanName} ("{textPreview}")
-            </button>
+            }}>
+              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs">{spanName}</span> span
+            </button >
           );
         }
 
@@ -226,24 +238,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                         return (
                           <div key={`${message.id}-${i}`}>
                             <Response
-                              components={{
-                                code({ children }) {
-                                  // Check if children matches the pattern: lmnr_span_id:X,text:...
-                                  const text = String(children);
-                                  const spanIdMatch = text.match(/^lmnr_span_id:(\d+),text:(.*)$/);
-
-                                  if (spanIdMatch) {
-                                    const [, spanId, spanText] = spanIdMatch;
-                                    return <span className="text-primary font-medium">{spanText}</span>;
-                                  }
-
-                                  return (
-                                    <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">
-                                      {children}
-                                    </span>
-                                  );
-                                },
-                              }}
+                              components={components}
                             >
                               {part.text}
                             </Response>
