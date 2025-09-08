@@ -77,7 +77,6 @@ export const baseExtensions = [
       backgroundColor: "hsl(var(--primary) / 0.3)",
       border: "1px solid hsl(var(--primary))",
       borderRadius: "3px",
-      padding: "1px 2px",
     },
     ".cm-searchMatch-selected": {
       backgroundColor: "hsl(var(--primary))",

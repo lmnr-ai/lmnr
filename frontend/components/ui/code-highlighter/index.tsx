@@ -1,4 +1,4 @@
-import { closeSearchPanel, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
+import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
@@ -178,8 +178,10 @@ const PureCodeHighlighter = ({
 
           const selection = view.state.selection.main;
 
+          findNext(view);
+
           view.dispatch({
-            effects: EditorView.scrollIntoView(selection, { y: "start", yMargin: -4 }),
+            effects: EditorView.scrollIntoView(selection, { y: "start" }),
           });
         } else {
           clearSearch(view);
@@ -192,7 +194,7 @@ const PureCodeHighlighter = ({
   );
 
   useEffect(() => {
-    if (editorRef.current?.view && searchTerm) {
+    if (editorRef.current?.view) {
       applySearch(editorRef.current?.view);
     }
   }, [searchTerm, applySearch]);

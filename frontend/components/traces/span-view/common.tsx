@@ -215,7 +215,7 @@ export const MessageWrapper = ({
       <Collapsible
         open={!collapsed(presetKey)}
         onOpenChange={() => toggleCollapse(presetKey)}
-        className="group/message-wrapper divide-y w-full"
+        className="group/message-wrapper divide-y flex flex-col flex-1 w-full"
       >
         <RoleHeader role={role} />
         <CollapsibleContent className="flex h-full flex-col divide-y overflow-hidden">{children}</CollapsibleContent>
