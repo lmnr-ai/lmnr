@@ -1,6 +1,7 @@
+import { prettifyError } from 'zod/v4';
+
 import { ChatMessageSchema } from '@/lib/actions/trace/agent/messages';
 import { streamTraceChat } from '@/lib/actions/trace/agent/stream';
-import { prettifyError } from 'zod/v4';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;

@@ -1,5 +1,6 @@
-import { generateTraceSummary, TraceSummarySchema } from '@/lib/actions/trace/agent/summary';
 import { prettifyError } from 'zod/v4';
+
+import { generateTraceSummary, TraceSummarySchema } from '@/lib/actions/trace/agent/summary';
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string, traceId: string }> }) {
   const params = await props.params;

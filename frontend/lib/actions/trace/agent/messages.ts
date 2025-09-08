@@ -1,7 +1,6 @@
-import { openai } from '@ai-sdk/openai';
-import { streamText, tool } from 'ai';
+import { tool } from 'ai';
+import { and, desc,eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { eq, and, desc } from 'drizzle-orm';
 
 import { db } from '@/lib/db/drizzle';
 import { tracesAgentChats, tracesAgentMessages } from '@/lib/db/migrations/schema';
@@ -23,7 +22,7 @@ export const ChatMessageSchema = z.object({
   })).describe('The conversation messages'),
   traceStartTime: z.iso.datetime().describe('Start time of the trace'),
   traceEndTime: z.iso.datetime().describe('End time of the trace'),
-})
+});
 
 export const GetChatMessagesSchema = z.object({
   traceId: z.string().describe('The trace ID'),

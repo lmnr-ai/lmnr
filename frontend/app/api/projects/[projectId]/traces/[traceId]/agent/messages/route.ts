@@ -1,6 +1,7 @@
-import { getChatMessages, GetChatMessagesSchema, saveChatMessage, findOrCreateChatSession } from '@/lib/actions/trace/agent/messages';
-import { prettifyError } from 'zod/v4';
 import { z } from 'zod';
+import { prettifyError } from 'zod/v4';
+
+import { findOrCreateChatSession,getChatMessages, GetChatMessagesSchema, saveChatMessage } from '@/lib/actions/trace/agent/messages';
 
 export async function GET(req: Request, props: { params: Promise<{ projectId: string, traceId: string }> }) {
   const params = await props.params;

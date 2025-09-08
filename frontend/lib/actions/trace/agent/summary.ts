@@ -1,11 +1,12 @@
 import { google } from '@ai-sdk/google';
-import { generateText } from 'ai';
-import { z } from 'zod';
 import { getTracer } from '@lmnr-ai/lmnr';
+import { generateText } from 'ai';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 
 import { db } from '@/lib/db/drizzle';
 import { tracesSummaries } from '@/lib/db/migrations/schema';
+
 import { getFullTraceForSummary } from './index';
 
 export const TraceSummarySchema = z.object({

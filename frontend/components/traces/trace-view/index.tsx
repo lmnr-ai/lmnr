@@ -13,6 +13,7 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SearchProvider, useSearchContext } from "@/contexts/search-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
@@ -47,7 +48,32 @@ const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 const MIN_TREE_VIEW_WIDTH = 450;
 
-export default function TraceView({
+// Inject search highlight styles once globally
+if (typeof window !== "undefined" && !document.getElementById("search-highlight-styles")) {
+  const styleElement = document.createElement("style");
+  styleElement.id = "search-highlight-styles";
+  styleElement.textContent = `
+    .search-highlight {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      padding: 2px 4px !important;
+      border-radius: 3px !important;
+      font-weight: 500 !important;
+      display: inline !important;
+    }
+    .cm-content .search-highlight,
+    .cm-line .search-highlight {
+      background-color: hsl(var(--primary)) !important;
+      color: hsl(var(--primary-foreground)) !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  `;
+  document.head.appendChild(styleElement);
+}
+
+// Internal component that uses SearchContext
+function TraceViewInternal({
   traceId,
   spanId,
   onClose,
@@ -215,7 +241,11 @@ export default function TraceView({
         const params = new URLSearchParams();
         if (search) {
           params.set("search", search);
+          setSearchSpans(search);
           setSearchEnabled(true);
+        } else {
+          setSearchSpans("");
+          setSearchEnabled(false);
         }
         if (searchIn && searchIn.length > 0) {
           searchIn.forEach((val) => params.append("searchIn", val));
@@ -255,7 +285,7 @@ export default function TraceView({
           spanToSelect = spans[0];
         }
 
-        if (spanToSelect) {
+        if (spanToSelect && !search) {
           setSelectedSpan(spanToSelect);
         }
       } catch (e) {
@@ -264,7 +294,7 @@ export default function TraceView({
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, searchParams, loadSpanPathFromStorage, spanPathsEqual]
+    [projectId, traceId, spanId, searchParams, loadSpanPathFromStorage, spanPathsEqual]
   );
 
   useEffect(() => {
@@ -283,6 +313,7 @@ export default function TraceView({
     return () => {
       setSpans([]);
       setShowBrowserSession(false);
+      setSearchSpans("");
       setSearchEnabled(false);
     };
   }, [traceId, projectId, filters]);
@@ -333,7 +364,26 @@ export default function TraceView({
     [spans]
   );
 
+  const { searchTerm, setSearchTerm: setSearchSpans } = useSearchContext();
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
+
+  useEffect(() => {
+    const searchFromUrl = searchParams.get("search");
+
+    if (searchFromUrl) {
+      setSearchSpans(searchFromUrl);
+    }
+  }, []);
+
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleSetSearchSpans = useCallback(
+    (value: string) => {
+      setSearchSpans(value);
+      setSearchEnabled(value !== "");
+    },
+    [setSearchSpans]
+  );
 
   const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
     spanId: row.span_id,
@@ -514,7 +564,8 @@ export default function TraceView({
             />
             {searchEnabled ? (
               <SearchSpansInput
-                setSearchEnabled={setSearchEnabled}
+                defaultValue={searchTerm}
+                setSearchSpans={handleSetSearchSpans}
                 submit={fetchSpans}
                 filterBoxClassName="top-10"
                 className="rounded-none border-0 border-b ring-0"
@@ -633,7 +684,7 @@ export default function TraceView({
               <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
             </div>
           </div>
-          <div className="flex-grow overflow-hidden flex-wrap">
+          <div className="flex-grow overflow-hidden flex-wrap" ref={contentRef}>
             {selectedSpan ? (
               selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
                 <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
@@ -666,5 +717,14 @@ export default function TraceView({
         {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
       </ResizablePanelGroup>
     </div>
+  );
+}
+
+// Main component wrapper with SearchProvider
+export default function TraceView(props: TraceViewProps) {
+  return (
+    <SearchProvider>
+      <TraceViewInternal {...props} />
+    </SearchProvider>
   );
 }

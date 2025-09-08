@@ -1,11 +1,11 @@
 import { google } from '@ai-sdk/google';
+import { getTracer } from '@lmnr-ai/lmnr';
 import { convertToModelMessages, smoothStream, stepCountIs, streamText, tool, UIMessage } from 'ai';
 import { z } from 'zod';
-import { getTracer } from '@lmnr-ai/lmnr';
 
 import { generateTraceSummary, getSpansData, getTraceStructure } from './index';
-import { TraceChatPrompt } from './prompt';
 import { findOrCreateChatSession, saveChatMessage } from './messages';
+import { TraceChatPrompt } from './prompt';
 
 export const TraceStreamChatSchema = z.object({
   messages: z.array(z.any()).describe('Array of UI messages'),

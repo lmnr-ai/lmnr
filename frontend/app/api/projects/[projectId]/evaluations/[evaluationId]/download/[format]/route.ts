@@ -8,7 +8,7 @@ import { DownloadFormat } from '@/lib/types';
 export async function GET(
   req: Request,
   props: {
-    params: Promise<{ projectId: string; evaluationId: string; format: DownloadFormat }>;
+    params: Promise<{ projectId: string; evaluationId: string; format: string }>;
   }
 ): Promise<Response> {
   const params = await props.params;

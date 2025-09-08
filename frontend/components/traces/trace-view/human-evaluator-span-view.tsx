@@ -54,55 +54,59 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
   }
 
   return (
-    <SpanControls span={span}>
-      <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
-        <div className="border-b flex-shrink-0">
-          <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span" className="truncate">
-              Span
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="truncate">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="truncate">
-              Events
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        <div className="flex-1 flex overflow-hidden">
-          <TabsContent value="span" className="w-full h-full">
-            <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
-              {datapointId && evaluationId && (
-                <HumanEvaluationScore
-                  options={humanEvaluatorOptions}
-                  key={`${datapointId}-${spanId}`}
-                  evaluationId={evaluationId as string}
-                  spanId={span.spanId}
-                  resultId={datapointId}
-                  name={span.name}
-                  projectId={projectId as string}
+    <>
+      <div>
+        <SpanControls span={span}>
+          <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
+            <div className="border-b flex-shrink-0">
+              <TabsList className="border-none text-sm px-4">
+                <TabsTrigger value="span" className="truncate">
+                  Span
+                </TabsTrigger>
+                <TabsTrigger value="attributes" className="truncate">
+                  Attributes
+                </TabsTrigger>
+                <TabsTrigger value="events" className="truncate">
+                  Events
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <div className="flex-1 flex overflow-hidden">
+              <TabsContent value="span" className="w-full h-full">
+                <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
+                  {datapointId && evaluationId && (
+                    <HumanEvaluationScore
+                      options={humanEvaluatorOptions}
+                      key={`${datapointId}-${spanId}`}
+                      evaluationId={evaluationId as string}
+                      spanId={span.spanId}
+                      resultId={datapointId}
+                      name={span.name}
+                      projectId={projectId as string}
+                    />
+                  )}
+                </SpanMessages>
+              </TabsContent>
+              <TabsContent value="attributes" className="h-full w-full">
+                <CodeHighlighter
+                  className="border-none"
+                  readOnly
+                  value={JSON.stringify(span.attributes)}
+                  defaultMode="yaml"
                 />
-              )}
-            </SpanMessages>
-          </TabsContent>
-          <TabsContent value="attributes" className="h-full w-full">
-            <CodeHighlighter
-              className="border-none"
-              readOnly
-              value={JSON.stringify(span.attributes)}
-              defaultMode="yaml"
-            />
-          </TabsContent>
-          <TabsContent value="events" className="h-full w-full mt-0">
-            <CodeHighlighter
-              className="border-none"
-              readOnly
-              value={JSON.stringify(cleanedEvents)}
-              defaultMode="yaml"
-            />
-          </TabsContent>
-        </div>
-      </Tabs>
-    </SpanControls>
+              </TabsContent>
+              <TabsContent value="events" className="h-full w-full mt-0">
+                <CodeHighlighter
+                  className="border-none"
+                  readOnly
+                  value={JSON.stringify(cleanedEvents)}
+                  defaultMode="yaml"
+                />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </SpanControls>
+      </div>
+    </>
   );
 }

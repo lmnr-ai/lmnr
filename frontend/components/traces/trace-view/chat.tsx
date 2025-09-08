@@ -1,47 +1,49 @@
-import { useChat } from '@ai-sdk/react';
+import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, MessageCircle, Send, Sparkles, Loader2, RotateCcw } from "lucide-react";
+import { ArrowUp, Loader2, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
+import { Response } from "@/components/ai-elements/response";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useOptionalSearchContext } from "@/contexts/search-context.tsx";
+import { Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
-import { Trace } from '@/lib/traces/types';
-import { Response } from '@/components/ai-elements/response';
-import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
-
 
 interface ChatProps {
   trace: Trace;
 }
 
 export default function Chat({ trace }: ChatProps) {
-
   const [input, setInput] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [newChatLoading, setNewChatLoading] = useState(false);
+  const searchContext = useOptionalSearchContext();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const components = useMemo(() => ({
-    code: ({ children }: any) => {
-      const text = String(children);
-      const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
+  const components = useMemo(
+    () => ({
+      code: ({ children }: any) => {
+        const text = String(children);
+        const spanIdMatch = text.match(/^span_id:(\d+),span_name:(\w+),text:(.*)$/);
 
-      if (spanIdMatch) {
-        const [, spanId, spanName, spanText] = spanIdMatch;
-        return (
-          <button className="text-primary font-medium">
-            {spanName}
-          </button>
-        );
-      }
+        if (spanIdMatch) {
+          const [, spanId, spanName, spanText] = spanIdMatch;
+          return (
+            <button onClick={() => searchContext?.setSearchTerm(spanText)} className="text-primary font-medium">
+              {spanName}
+            </button>
+          );
+        }
 
-      return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
-    },
-  }), []);
+        return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
+      },
+    }),
+    []
+  );
   const projectId = useParams().projectId;
 
   const { messages, sendMessage, setMessages } = useChat({
@@ -50,30 +52,30 @@ export default function Chat({ trace }: ChatProps) {
       body: {
         traceStartTime: new Date(trace.startTime).toISOString(),
         traceEndTime: new Date(trace.endTime).toISOString(),
-      }
+      },
     }),
     onFinish: async ({ message }) => {
       // save assitant message in the UI format
       try {
         const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            role: 'assistant',
+            role: "assistant",
             parts: message.parts,
             messageId: message.id,
           }),
         });
 
         if (!response.ok) {
-          console.error('Failed to save assistant message:', response.statusText);
+          console.error("Failed to save assistant message:", response.statusText);
         }
       } catch (error) {
-        console.error('Error saving assistant message:', error);
+        console.error("Error saving assistant message:", error);
       }
-    }
+    },
   });
 
   const handleNewChat = async () => {
@@ -81,9 +83,9 @@ export default function Chat({ trace }: ChatProps) {
     try {
       // Create a new chat session in the database
       const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/new-chat`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
@@ -91,10 +93,10 @@ export default function Chat({ trace }: ChatProps) {
         // Clear all messages to start a new conversation
         setMessages([]);
       } else {
-        console.error('Failed to create new chat session');
+        console.error("Failed to create new chat session");
       }
     } catch (error) {
-      console.error('Error creating new chat:', error);
+      console.error("Error creating new chat:", error);
       // Still clear messages even if API call fails
       setMessages([]);
     } finally {
@@ -114,7 +116,7 @@ export default function Chat({ trace }: ChatProps) {
           }
         }
       } catch (error) {
-        console.error('Error loading existing messages:', error);
+        console.error("Error loading existing messages:", error);
       }
     };
 
@@ -127,9 +129,9 @@ export default function Chat({ trace }: ChatProps) {
       try {
         setSummaryLoading(true);
         const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/summary`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             traceStartTime: new Date(trace.startTime).toISOString(),
@@ -139,13 +141,13 @@ export default function Chat({ trace }: ChatProps) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Summary', data);
+          console.log("Summary", data);
           setSummary(data.summary);
         } else {
-          console.error('Failed to fetch summary');
+          console.error("Failed to fetch summary");
         }
       } catch (error) {
-        console.error('Error fetching summary:', error);
+        console.error("Error fetching summary:", error);
       } finally {
         setSummaryLoading(false);
       }
@@ -186,11 +188,7 @@ export default function Chat({ trace }: ChatProps) {
                 </div>
               ) : summary ? (
                 <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                  <Response
-                    components={components}
-                  >
-                    {summary}
-                  </Response>
+                  <Response components={components}>{summary}</Response>
                 </div>
               ) : null}
             </div>
@@ -198,11 +196,16 @@ export default function Chat({ trace }: ChatProps) {
 
           {messages.map((message) => (
             <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
-              <div className={cn("w-full", message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background")}>
+              <div
+                className={cn(
+                  "w-full",
+                  message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background"
+                )}
+              >
                 <div className="text-sm text-foreground leading-relaxed space-y-2">
                   {message.parts.map((part, i) => {
                     switch (part.type) {
-                      case 'text':
+                      case "text":
                         return (
                           <div key={`${message.id}-${i}`}>
                             <Response
@@ -214,14 +217,14 @@ export default function Chat({ trace }: ChatProps) {
 
                                   if (spanIdMatch) {
                                     const [, spanId, spanText] = spanIdMatch;
-                                    return (
-                                      <span className="text-primary font-medium">
-                                        {spanText}
-                                      </span>
-                                    );
+                                    return <span className="text-primary font-medium">{spanText}</span>;
                                   }
 
-                                  return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>
+                                  return (
+                                    <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">
+                                      {children}
+                                    </span>
+                                  );
                                 },
                               }}
                             >
@@ -229,14 +232,12 @@ export default function Chat({ trace }: ChatProps) {
                             </Response>
                           </div>
                         );
-                      case 'tool-getSpansData':
+                      case "tool-getSpansData":
                         // Handle tool invocations - simplified for now
                         return (
                           <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-muted-foreground">
-                                Fetching spans data
-                              </span>
+                              <span className="text-xs font-medium text-muted-foreground">Fetching spans data</span>
                             </div>
                           </div>
                         );
@@ -245,25 +246,23 @@ export default function Chat({ trace }: ChatProps) {
                 </div>
               </div>
             </div>
-          ))
-          }
+          ))}
         </ConversationContent>
       </Conversation>
 
       <div className="flex-none px-3 pb-4 bg-transparent">
         <div className="border rounded bg-muted/40">
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (input.trim()) {
-              sendMessage({
-                role: "user",
-                parts: [
-                  { type: "text", text: input },
-                ],
-              });
-              setInput('');
-            }
-          }}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (input.trim()) {
+                sendMessage({
+                  role: "user",
+                  parts: [{ type: "text", text: input }],
+                });
+                setInput("");
+              }
+            }}
             className="py-2 pr-1"
           >
             <div className="relative">
@@ -277,11 +276,9 @@ export default function Chat({ trace }: ChatProps) {
                     if (input.trim()) {
                       sendMessage({
                         role: "user",
-                        parts: [
-                          { type: "text", text: input },
-                        ],
+                        parts: [{ type: "text", text: input }],
                       });
-                      setInput('');
+                      setInput("");
                     }
                   }
                 }}
@@ -293,16 +290,14 @@ export default function Chat({ trace }: ChatProps) {
                 size="icon"
                 className="absolute right-1 top-1 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
-                disabled={input.trim() === ''}
+                disabled={input.trim() === ""}
                 onClick={() => {
                   if (input.trim()) {
                     sendMessage({
                       role: "user",
-                      parts: [
-                        { type: "text", text: input },
-                      ],
+                      parts: [{ type: "text", text: input }],
                     });
-                    setInput('');
+                    setInput("");
                   }
                 }}
               >
