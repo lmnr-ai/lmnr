@@ -110,7 +110,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                         />
                       </div>
                     )}
-                    name={`messages.${parentIndex}.content.${index}.args` as const}
+                    name={`messages.${parentIndex}.content.${index}.input` as const}
                     control={control}
                   />
                 </div>
@@ -156,7 +156,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                         />
                       </div>
                     )}
-                    name={`messages.${parentIndex}.content.${index}.result` as const}
+                    name={`messages.${parentIndex}.content.${index}.output` as const}
                     control={control}
                   />
                 </div>

@@ -1,4 +1,4 @@
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod/v4";
 
@@ -88,7 +88,7 @@ export const OpenAIMessageSchema = z.union([
 
 export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
 
-const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): CoreMessage[] => {
+const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): ModelMessage[] => {
   const store = new Map();
 
   return map(messages, (message) => {
@@ -127,6 +127,7 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
               type: "file" as const,
               data: String(part.file.file_data),
               mimeType: String(part.file.file_id),
+              mediaType: String(part.file.file_id),
             };
           }),
         };
@@ -151,7 +152,7 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
                 type: "tool-call" as const,
                 toolCallId: part.id,
                 toolName: part.function.name,
-                args: part.function.arguments,
+                input: { type: "json", value: part.function.arguments },
               };
             }),
           ],
@@ -166,7 +167,10 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
               // FIXME: temporary patch
               toolCallId: String(message?.tool_call_id || "-"),
               toolName: store.get(message.tool_call_id) || message.tool_call_id,
-              result: message.content,
+              output:
+                typeof message.content === "string"
+                  ? { type: "text", value: message.content }
+                  : { type: "content", value: message.content },
             },
           ],
         };

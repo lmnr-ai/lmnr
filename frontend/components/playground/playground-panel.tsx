@@ -205,7 +205,7 @@ export default function PlaygroundPanel({
                     <CodeHighlighter
                       codeEditorClassName="rounded-b border-none"
                       className="rounded-b border-none"
-                      value={reasoning}
+                      value={reasoning.map((r) => r.text).join("")}
                       defaultMode="json"
                     />
                   </CollapsibleContent>

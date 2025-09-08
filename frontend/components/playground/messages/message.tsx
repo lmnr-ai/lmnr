@@ -44,14 +44,14 @@ const defaultToolCallPart: ToolCallPart = {
   type: "tool-call",
   toolName: "",
   toolCallId: "-",
-  args: "",
+  input: "",
 };
 
 const defaultToolResultPart: ToolResultPart = {
   type: "tool-result",
   toolCallId: "-",
   toolName: "",
-  result: "",
+  output: { type: "text", value: "" },
 };
 
 const buttonClassName =

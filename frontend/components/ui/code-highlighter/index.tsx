@@ -154,14 +154,18 @@ const PureCodeHighlighter = ({
       if (searchTermTrimmed) {
         const docText = view.state.doc.toString();
 
-        const searchRegex = new RegExp(searchTermTrimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-        const hasMatch = searchRegex.test(docText);
+        const hasEscapeSequences = /\\[nrt]/.test(searchTermTrimmed);
+        const processedSearchTerm = hasEscapeSequences
+          ? searchTermTrimmed.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
+          : searchTermTrimmed;
+
+        const hasMatch = docText.toLowerCase().includes(processedSearchTerm.toLowerCase());
 
         if (hasMatch) {
           openSearchPanel(view);
 
           const searchQuery = new SearchQuery({
-            search: searchTermTrimmed,
+            search: processedSearchTerm,
             caseSensitive: false,
             literal: true,
             wholeWord: false,
@@ -172,7 +176,6 @@ const PureCodeHighlighter = ({
             effects: setSearchQuery.of(searchQuery),
           });
 
-          findNext(view);
           const selection = view.state.selection.main;
 
           view.dispatch({

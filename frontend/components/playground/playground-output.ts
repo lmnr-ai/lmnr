@@ -21,12 +21,14 @@ export type OutputActions = {
 
 const initialState: OutputState = {
   text: "",
-  reasoning: "",
+  reasoning: [{ type: "reasoning", text: "" }],
   toolCalls: [],
   usage: {
+    inputTokens: NaN,
+    outputTokens: NaN,
+    reasoningTokens: NaN,
+    cachedInputTokens: NaN,
     totalTokens: NaN,
-    promptTokens: NaN,
-    completionTokens: NaN,
   },
   history: false,
   isLoading: false,
