@@ -47,7 +47,7 @@ export type Span = {
   outputUrl: string | null;
   pending?: boolean;
   status?: string;
-  color?: string; // Added color property
+  color?: string;
 };
 
 export type Trace = {
