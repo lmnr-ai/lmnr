@@ -158,7 +158,7 @@ const TimelineElement = ({
         className="rounded relative z-20 flex items-center"
         style={{
           backgroundColor:
-            segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[segment.span.spanType],
+            segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : (segment.span.color || SPAN_TYPE_TO_COLOR[segment.span.spanType]),
           marginLeft: segment.left + "%",
           width: `max(${segment.width}%, 2px)`,
           height: 24,

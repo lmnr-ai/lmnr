@@ -147,7 +147,7 @@ export default function Minimap({ traceDuration }: Props) {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
-                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType],
+                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : (span.color || SPAN_TYPE_TO_COLOR[span.spanType]),
                   height: Math.max(MIN_H, span.height),
                   marginTop: 2,
                   marginBottom: 2,
