@@ -69,7 +69,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: searchContext?.searchTerm ? 100 : 32,
+    overscan: searchContext?.searchTerm ? 128 : 32,
     gap: 16,
   });
 
