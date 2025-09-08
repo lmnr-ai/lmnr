@@ -79,7 +79,7 @@ export async function generateChatResponse(
     abortSignal,
     model: getModel(model as `${Provider}:${string}`, decodedKey),
     messages,
-    maxTokens,
+    maxOutputTokens: maxTokens,
     temperature,
     topK,
     topP,

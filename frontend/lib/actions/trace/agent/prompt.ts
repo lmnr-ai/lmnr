@@ -50,4 +50,4 @@ For the final answer use the following format:
 Here's the complete trace data with all spans data:
 <trace>
 {{fullTraceData}}
-</trace>`
+</trace>`;

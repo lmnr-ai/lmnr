@@ -1,4 +1,4 @@
-import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
+import { closeSearchPanel, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
