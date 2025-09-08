@@ -12,6 +12,7 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { createStorageKey } from "@/components/traces/span-view/span-view-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useOptionalSearchContext } from "@/contexts/search-context.tsx";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
@@ -63,11 +64,12 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
     };
   }, [messages]);
 
+  const searchContext = useOptionalSearchContext();
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: 16,
+    overscan: searchContext?.searchTerm ? 100 : 32,
     gap: 16,
   });
 
