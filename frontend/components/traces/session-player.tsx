@@ -4,7 +4,7 @@ import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
-import { Images, Loader2, Video, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -171,7 +171,6 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       }
 
       try {
-
         playerRef.current = new rrwebPlayer({
           target: playerContainerRef.current,
           props: {
@@ -224,19 +223,11 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
           height: dimensions.height,
         });
 
-        playerRef.current.triggerResize?.();
-
         requestAnimationFrame(() => {
           if (playerRef.current) {
             playerRef.current.triggerResize?.();
           }
         });
-
-        setTimeout(() => {
-          if (playerRef.current) {
-            playerRef.current.triggerResize?.();
-          }
-        }, 50);
       } catch (e) {
         console.error("Error resizing player:", e);
       }
@@ -337,7 +328,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+            }`}
           >
             Session
           </button>
@@ -347,7 +338,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${activeTab === "screenshots"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+            }`}
           >
             Images
           </button>
@@ -364,7 +355,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
                 <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
                   <div className="text-center">
                     <h3 className="text-lg font-medium mb-2">No browser session</h3>
-                    <p className="text-sm text-muted-foreground">Either the session is still being processed or you have an outdated SDK version.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Either the session is still being processed or you have an outdated SDK version.
+                    </p>
                   </div>
                 </div>
               ) : (
