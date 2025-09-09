@@ -6,16 +6,15 @@ use std::sync::Arc;
 use anyhow::Result;
 use uuid::Uuid;
 
+use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::{events::Event, spans::Span, utils::span_id_to_uuid},
-    mq::{MessageQueue, MessageQueueTrait},
+    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     opentelemetry::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
-
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
 // TODO: Implement partial_success
 pub async fn push_spans_to_queue(
@@ -55,13 +54,21 @@ pub async fn push_spans_to_queue(
         })
         .collect::<Vec<_>>();
 
-    queue
-        .publish(
-            &serde_json::to_vec(&messages).unwrap(),
-            OBSERVATIONS_EXCHANGE,
-            OBSERVATIONS_ROUTING_KEY,
-        )
-        .await?;
+    let mq_message = serde_json::to_vec(&messages).unwrap();
+
+    if mq_message.len() >= mq_max_payload() {
+        log::warn!(
+            "[SPANS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]. Span count: [{}]",
+            project_id,
+            mq_message.len(),
+            messages.len()
+        );
+        // Don't return error for now, skip publishing
+    } else {
+        queue
+            .publish(&mq_message, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .await?;
+    }
 
     let response = ExportTraceServiceResponse {
         partial_success: None,

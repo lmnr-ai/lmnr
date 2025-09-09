@@ -22,6 +22,7 @@ use crate::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
         ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
+    mq::utils::mq_max_payload,
     opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
     storage::{Storage, StorageTrait},
     traces::{
@@ -793,9 +794,24 @@ impl Span {
                 if data.len() > payload_size_threshold {
                     let key = crate::storage::create_key(project_id, &None);
                     let preview = String::from_utf8_lossy(&data).chars().take(100).collect();
-                    let url = storage.store(data, &key).await?;
-                    self.input_url = Some(url);
-                    self.input = Some(serde_json::Value::String(preview));
+                    log::info!(
+                        "Span input for span_id: [{}], project_id: [{}], is too large, storing in storage. Payload size: [{}]",
+                        self.span_id,
+                        project_id,
+                        data.len()
+                    );
+                    if data.len() >= mq_max_payload() {
+                        log::warn!(
+                            "[STORAGE] MQ payload limit exceeded (span input). Project ID: [{}], span_id: [{}], payload size: [{}]",
+                            project_id,
+                            self.span_id,
+                            data.len()
+                        );
+                    } else {
+                        let url = storage.store(data, &key).await?;
+                        self.input_url = Some(url);
+                        self.input = Some(serde_json::Value::String(preview));
+                    }
                 }
             }
         }
@@ -805,11 +821,26 @@ impl Span {
                 let key = crate::storage::create_key(project_id, &None);
                 let mut data = Vec::new();
                 serde_json::to_writer(&mut data, &output)?;
-                let url = storage.store(data, &key).await?;
-                self.output_url = Some(url);
-                self.output = Some(serde_json::Value::String(
-                    output_str.chars().take(100).collect(),
-                ));
+                log::info!(
+                    "Span output for span_id: [{}], project_id: [{}], is too large, storing in storage. Payload size: [{}]",
+                    self.span_id,
+                    project_id,
+                    data.len()
+                );
+                if data.len() >= mq_max_payload() {
+                    log::warn!(
+                        "[STORAGE] MQ payload limit exceeded (span output). Project ID: [{}], span_id: [{}], payload size: [{}]",
+                        project_id,
+                        self.span_id,
+                        data.len()
+                    );
+                } else {
+                    let url = storage.store(data, &key).await?;
+                    self.output_url = Some(url);
+                    self.output = Some(serde_json::Value::String(
+                        output_str.chars().take(100).collect(),
+                    ));
+                }
             }
         }
         Ok(())

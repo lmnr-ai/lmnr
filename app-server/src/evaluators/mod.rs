@@ -12,7 +12,10 @@ use crate::{
             get_evaluators_by_path_from_db, insert_evaluator_score,
         },
     },
-    mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
+    mq::{
+        MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
+        utils::mq_max_payload,
+    },
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -255,13 +258,25 @@ pub async fn push_to_evaluators_queue(
         span_output,
     };
 
-    queue
-        .publish(
-            &serde_json::to_vec(&message)?,
-            EVALUATORS_EXCHANGE,
-            EVALUATORS_ROUTING_KEY,
-        )
-        .await?;
+    let mq_message = serde_json::to_vec(&message)?;
+
+    if mq_message.len() >= mq_max_payload() {
+        log::warn!(
+            "[EVALUATORS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}], span_id: [{}]",
+            project_id,
+            mq_message.len(),
+            span_id
+        );
+        // Don't return error for now, skip publishing
+    } else {
+        queue
+            .publish(
+                &serde_json::to_vec(&message)?,
+                EVALUATORS_EXCHANGE,
+                EVALUATORS_ROUTING_KEY,
+            )
+            .await?;
+    }
 
     Ok(())
 }
