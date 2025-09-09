@@ -609,6 +609,7 @@ export default function TraceView({
                   <Minimap
                     traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()}
                     setSelectedSpanId={(spanId) => handleSpanSelect(spans.find((span) => span.spanId === spanId) || null)}
+                    browserSessionTime={browserSessionTime}
                   />
                 </div>
               )}

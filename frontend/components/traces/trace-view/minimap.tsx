@@ -10,21 +10,23 @@ import { useScrollContext } from "./virtualization-context";
 
 interface Props {
   traceDuration: number;
+  browserSessionTime: number | null;
   setSelectedSpanId: (spanId: string) => void;
 }
 
 const MIN_H = 1;
-const PIXELS_PER_SECOND = 3;
+const PIXELS_PER_SECOND = 4;
 const TIME_MARKER_INTERVAL = 10; // seconds
 
-export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
+export default function Minimap({ traceDuration, setSelectedSpanId, browserSessionTime }: Props) {
   const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
+
+  const minTime = useMemo(() => Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime())), [spanItems]);
+
   const minimapRef = useRef<HTMLDivElement>(null);
 
   const spansWithPosition = useMemo(() => {
     if (isEmpty(spanItems)) return [];
-
-    const minTime = Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime()));
 
     return spanItems.map((s) => {
       const startTime = new Date(s.span.startTime).getTime();
@@ -32,14 +34,14 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
       const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
       const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
 
-
       return {
+        ...s,
         ...s.span,
         y: relativeStart * PIXELS_PER_SECOND,
         height: Math.max(MIN_H, spanDuration * PIXELS_PER_SECOND),
       };
     });
-  }, [spanItems, traceDuration]);
+  }, [spanItems, traceDuration, minTime]);
 
   const timeMarkers = useMemo(() => {
     if (!traceDuration || traceDuration <= 0) return [];
@@ -129,9 +131,10 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
     (spanIndex: number, e: React.MouseEvent) => {
       e.stopPropagation();
       const span = spansWithPosition[spanIndex];
+
       if (span) {
-        scrollTo(span.y);
-        setSelectedSpanId(span.spanId);
+        scrollTo(span.parentY);
+        setSelectedSpanId(span.span.spanId);
       }
     },
     [scrollTo, spansWithPosition]
@@ -142,12 +145,22 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
   }
 
   return (
-    <div className="h-full flex-none max-w-16 w-fit z-50 px-1 border-l">
+    <div className="h-full flex-none max-w-16 w-fit z-50 border-l">
       <div
         ref={minimapRef}
-        className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1"
+        className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
       >
+        <div>
+          {browserSessionTime && (
+            <div
+              className="bg-primary absolute top-0 left-0 w-full h-[1px] z-50"
+              style={{
+                top: ((browserSessionTime - minTime) / 1000) * PIXELS_PER_SECOND,
+              }}
+            />
+          )}
+        </div>
         <div className="relative w-2 flex-none">
           {spansWithPosition.map((span, index) => (
             <div
@@ -157,7 +170,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
                 left: 0,
               }}
               key={span.spanId}
-              className="bg-background absolute opacity-70 hover:opacity-100 transition-opacity"
+              className="bg-background absolute opacity-70 hover:opacity-100 duration-100 transition-opacity"
             >
               <div
                 className={cn("w-2 cursor-pointer rounded-[2px] h-full transition-all")}
@@ -171,7 +184,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
             </div>
           ))}
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col pr-1">
           {timeMarkers.map((marker) => (
             <div
               key={`marker-${marker.seconds}`}
