@@ -266,7 +266,11 @@ export async function GET(
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
 
   const scoresPromise = db
-    .select()
+    .select({
+      resultId: evaluationScores.resultId,
+      name: evaluationScores.name,
+      score: evaluationScores.score,
+    })
     .from(evaluationScores)
     .where(inArray(evaluationScores.resultId, resultIdsQuery));
 
@@ -274,6 +278,8 @@ export async function GET(
     dbResultsPromise,
     scoresPromise
   ]);
+
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   const scoresMap = groupBy(scores, "resultId");
 
