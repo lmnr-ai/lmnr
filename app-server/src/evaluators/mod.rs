@@ -271,7 +271,7 @@ pub async fn push_to_evaluators_queue(
     } else {
         queue
             .publish(
-                &serde_json::to_vec(&message)?,
+                &mq_message,
                 EVALUATORS_EXCHANGE,
                 EVALUATORS_ROUTING_KEY,
             )
