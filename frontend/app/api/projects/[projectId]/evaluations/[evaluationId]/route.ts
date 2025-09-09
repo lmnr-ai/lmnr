@@ -279,8 +279,6 @@ export async function GET(
     scoresPromise
   ]);
 
-  await new Promise(resolve => setTimeout(resolve, 3000));
-
   const scoresMap = groupBy(scores, "resultId");
 
   const results = dbResults.map((result) => {
