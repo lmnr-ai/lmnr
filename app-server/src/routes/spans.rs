@@ -74,7 +74,7 @@ pub async fn create_span(
 
     if mq_message.len() >= mq_max_payload() {
         log::warn!(
-            "MQ payload limit exceeded. Project ID: [{}], payload size: [{}]",
+            "[SPANS ROUTE] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]",
             project_id,
             mq_message.len()
         );
