@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { groupBy } from "lodash";
 import { NextRequest } from "next/server";
 
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
@@ -174,16 +175,6 @@ export async function GET(
     }
   }
 
-  const subQueryScoreCte = db.$with("scores").as(
-    db
-      .select({
-        resultId: evaluationScores.resultId,
-        cteScores: sql`jsonb_object_agg(${evaluationScores.name}, ${evaluationScores.score})`.as("cte_scores"),
-      })
-      .from(evaluationScores)
-      .groupBy(evaluationScores.resultId)
-  );
-
   // Duration expression (in seconds)
   const durationExpr = sql`EXTRACT(EPOCH FROM (${traces.endTime} - ${traces.startTime}))`;
 
@@ -247,8 +238,12 @@ export async function GET(
       }
     });
 
-  const results = await db
-    .with(subQueryScoreCte)
+  const resultIdsQuery = db
+    .select({ id: evaluationResults.id })
+    .from(evaluationResults)
+    .where(and(...whereConditions));
+
+  const dbResultsPromise = db
     .select({
       id: evaluationResults.id,
       createdAt: evaluationResults.createdAt,
@@ -256,7 +251,6 @@ export async function GET(
       data: evaluationResults.data,
       target: evaluationResults.target,
       executorOutput: evaluationResults.executorOutput,
-      scores: subQueryScoreCte.cteScores,
       index: evaluationResults.index,
       traceId: evaluationResults.traceId,
       startTime: traces.startTime,
@@ -268,9 +262,32 @@ export async function GET(
     })
     .from(evaluationResults)
     .leftJoin(traces, eq(evaluationResults.traceId, traces.id))
-    .leftJoin(subQueryScoreCte, eq(evaluationResults.id, subQueryScoreCte.resultId))
     .where(and(...whereConditions))
     .orderBy(asc(evaluationResults.index), asc(evaluationResults.createdAt));
+
+  const scoresPromise = db
+    .select()
+    .from(evaluationScores)
+    .where(inArray(evaluationScores.resultId, resultIdsQuery));
+
+  const [dbResults, scores] = await Promise.all([
+    dbResultsPromise,
+    scoresPromise
+  ]);
+
+  const scoresMap = groupBy(scores, "resultId");
+
+  const results = dbResults.map((result) => {
+    const flatScores = scoresMap[result.id] || [];
+    const scores = flatScores.reduce((acc, score) => {
+      acc[score.name] = score.score;
+      return acc;
+    }, {} as Record<string, number | null>);
+    return {
+      ...result,
+      scores,
+    };
+  });
 
   // Get all unique score names from the results
   const allScoreNames = [
@@ -292,7 +309,7 @@ export async function GET(
   });
 
   const result = {
-    evaluation: evaluation,
+    evaluation,
     results,
     allStatistics,
     allDistributions,
