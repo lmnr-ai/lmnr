@@ -23,7 +23,6 @@ interface SpanTypeIconProps {
   className?: string;
   iconClassName?: string;
   status?: string;
-  color?: string; // Added color prop
 }
 
 const DEFAULT_CONTAINER_SIZE = 22;
@@ -61,7 +60,6 @@ export default function SpanTypeIcon({
   className,
   iconClassName,
   status,
-  color, // Added color prop
 }: SpanTypeIconProps) {
   const renderIcon = () => {
     if (status === "error") {
@@ -75,7 +73,7 @@ export default function SpanTypeIcon({
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
-        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : (color || SPAN_TYPE_TO_COLOR[spanType]),
+        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[spanType], // Red background for errors
         minWidth: containerWidth,
         minHeight: containerHeight,
         width: containerWidth,

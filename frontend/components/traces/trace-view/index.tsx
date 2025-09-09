@@ -17,7 +17,6 @@ import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, SpanType, Trace } from "@/lib/traces/types";
-import { assignSpanColors } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
@@ -228,12 +227,11 @@ export default function TraceView({
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
         const results = await response.json();
-        const enrichedSpans = enrichSpansWithPending(results);
-        const spansWithColors = assignSpanColors(enrichedSpans);
+        const spans = enrichSpansWithPending(results);
 
-        setSpans(spansWithColors);
+        setSpans(spans);
 
-        const spanIdFromUrl = spansWithColors.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
+        const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
         let spanToSelect: Span | null = null;
 
         if (spanIdFromUrl) {
@@ -244,7 +242,7 @@ export default function TraceView({
           const savedPath = loadSpanPathFromStorage();
           if (savedPath) {
             spanToSelect =
-              spansWithColors.find((span: Span) => {
+              spans.find((span: Span) => {
                 const spanPath = span.attributes?.["lmnr.span.path"];
                 return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
               }) || null;
@@ -252,8 +250,8 @@ export default function TraceView({
         }
 
         // Fallback to first span
-        if (!spanToSelect && spansWithColors.length > 0) {
-          spanToSelect = spansWithColors[0];
+        if (!spanToSelect && spans.length > 0) {
+          spanToSelect = spans[0];
         }
 
         if (spanToSelect) {
@@ -422,8 +420,7 @@ export default function TraceView({
                 newSpans.push(rtEventSpan);
               }
 
-              const enrichedSpans = enrichSpansWithPending(newSpans);
-              return assignSpanColors(enrichedSpans);
+              return enrichSpansWithPending(newSpans);
             });
           }
         }
@@ -455,7 +452,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);

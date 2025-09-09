@@ -14,7 +14,7 @@ interface Props {
 
 const MIN_H = 1;
 const TREE_TOP_PADDING = 0;
-const PIXELS_PER_SECOND = 6
+const PIXELS_PER_SECOND = 6;
 const TIME_MARKER_INTERVAL = 10; // seconds
 
 export default function Minimap({ traceDuration }: Props) {
@@ -47,12 +47,12 @@ export default function Minimap({ traceDuration }: Props) {
     const visibleEndY = adjustedScrollTop + viewportHeight;
 
     // Find spans that are visible in the current viewport
-    const start = spansWithPosition.findIndex(span => span.y + span.height >= visibleStartY);
-    const end = spansWithPosition.findLastIndex(span => span.y <= visibleEndY);
+    const start = spansWithPosition.findIndex((span) => span.y + span.height >= visibleStartY);
+    const end = spansWithPosition.findLastIndex((span) => span.y <= visibleEndY);
 
     return {
       start: Math.max(0, start === -1 ? 0 : start),
-      end: Math.min(spansWithPosition.length - 1, end === -1 ? spansWithPosition.length - 1 : end)
+      end: Math.min(spansWithPosition.length - 1, end === -1 ? spansWithPosition.length - 1 : end),
     };
   }, [state, spansWithPosition]);
 
@@ -170,9 +170,7 @@ export default function Minimap({ traceDuration }: Props) {
             className="absolute right-0 flex pointer-events-none"
             style={{ top: marker.y }}
           >
-            <span className="text-xs text-muted-foreground/60 leading-none">
-              {marker.label}
-            </span>
+            <span className="text-xs text-muted-foreground/60 leading-none">{marker.label}</span>
           </div>
         ))}
 
@@ -192,7 +190,7 @@ export default function Minimap({ traceDuration }: Props) {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
-                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : (span.color || SPAN_TYPE_TO_COLOR[span.spanType]),
+                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType],
                   height: Math.max(MIN_H, span.height),
                   marginTop: 2,
                   marginBottom: 2,

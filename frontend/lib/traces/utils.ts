@@ -4,47 +4,18 @@ import { DatatableFilter, Operator } from "@/components/ui/datatable-filter/util
 import { FilterDef } from "@/lib/db/modifiers";
 
 import { SpanMetricGroupBy } from "../clickhouse/types";
-import { Span, SpanType } from "./types";
+import { SpanType } from "./types";
 
 export const SPAN_TYPE_TO_COLOR = {
-  [SpanType.DEFAULT]: ["rgba(96, 165, 250, 0.7)"], // 70% opacity blue
-  [SpanType.LLM]: ["hsl(var(--llm))"], // 90% opacity purple
-  [SpanType.EXECUTOR]: ["rgba(245, 158, 11, 0.7)"], // 70% opacity yellow
-  [SpanType.EVALUATOR]: ["rgba(6, 182, 212, 0.7)"], // 70% opacity cyan
-  [SpanType.EVALUATION]: ["rgba(16, 185, 129, 0.7)"], // 70% opacity green
-  [SpanType.HUMAN_EVALUATOR]: ["rgba(244, 114, 182, 0.7)"],
-  [SpanType.TOOL]: ["#E3A008"],
-  [SpanType.EVENT]: ["rgba(204, 51, 51, 0.7)"],
+  [SpanType.DEFAULT]: "rgba(96, 165, 250, 0.7)", // 70% opacity blue
+  [SpanType.LLM]: "hsl(var(--llm))", // 90% opacity purple
+  [SpanType.EXECUTOR]: "rgba(245, 158, 11, 0.7)", // 70% opacity yellow
+  [SpanType.EVALUATOR]: "rgba(6, 182, 212, 0.7)", // 70% opacity cyan
+  [SpanType.EVALUATION]: "rgba(16, 185, 129, 0.7)", // 70% opacity green
+  [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
+  [SpanType.TOOL]: "#E3A008",
+  [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
 };
-
-/**
- * Assigns colors to spans based on their type and order within that type
- */
-export function assignSpanColors(spans: Span[]): Span[] {
-  const spanTypeCounters: Record<SpanType, number> = {
-    [SpanType.DEFAULT]: 0,
-    [SpanType.LLM]: 0,
-    [SpanType.EXECUTOR]: 0,
-    [SpanType.EVALUATOR]: 0,
-    [SpanType.EVALUATION]: 0,
-    [SpanType.HUMAN_EVALUATOR]: 0,
-    [SpanType.TOOL]: 0,
-    [SpanType.EVENT]: 0,
-  };
-
-  return spans.map((span) => {
-    const colors = SPAN_TYPE_TO_COLOR[span.spanType];
-    const colorIndex = spanTypeCounters[span.spanType] % colors.length;
-    const assignedColor = colors[colorIndex];
-
-    spanTypeCounters[span.spanType]++;
-
-    return {
-      ...span,
-      color: assignedColor,
-    };
-  });
-}
 
 const buildFilters = (groupBy: SpanMetricGroupBy, value: string): DatatableFilter[] => [
   {
