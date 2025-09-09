@@ -156,7 +156,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
             <div
               className="bg-primary absolute top-0 left-0 w-full h-[1px] z-50"
               style={{
-                top: ((browserSessionTime - minTime) / 1000) * PIXELS_PER_SECOND,
+                top: Math.max(0, ((browserSessionTime - minTime) / 1000) * PIXELS_PER_SECOND),
               }}
             />
           )}
