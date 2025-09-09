@@ -32,7 +32,6 @@ export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
       const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
       const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
 
-      console.log(relativeStart, spanDuration);
 
       return {
         ...s.span,
