@@ -2,6 +2,7 @@ import { VirtualItem } from "@tanstack/react-virtual";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Span } from "@/lib/traces/types";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
 interface Segment {
@@ -156,7 +157,8 @@ const TimelineElement = ({
         ref={blockRef}
         className="rounded relative z-20 flex items-center"
         style={{
-          backgroundColor: segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : segment.span.color,
+          backgroundColor:
+            segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : (segment.span.color || SPAN_TYPE_TO_COLOR[segment.span.spanType]),
           marginLeft: segment.left + "%",
           width: `max(${segment.width}%, 2px)`,
           height: 24,

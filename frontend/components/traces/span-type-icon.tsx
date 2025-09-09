@@ -12,6 +12,7 @@ import {
 import { ReactNode } from "react";
 
 import { SpanType } from "@/lib/traces/types";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 interface SpanTypeIconProps {
@@ -74,7 +75,7 @@ export default function SpanTypeIcon({
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
-        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : color,
+        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : (color || SPAN_TYPE_TO_COLOR[spanType]),
         minWidth: containerWidth,
         minHeight: containerHeight,
         width: containerWidth,

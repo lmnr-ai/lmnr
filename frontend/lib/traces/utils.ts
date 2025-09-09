@@ -35,7 +35,7 @@ export function assignSpanColors(spans: Span[]): Span[] {
   return spans.map((span) => {
     const colors = SPAN_TYPE_TO_COLOR[span.spanType];
     const colorIndex = spanTypeCounters[span.spanType] % colors.length;
-    const assignedColor = colors[colorIndex] || colors[0];
+    const assignedColor = colors[colorIndex];
 
     spanTypeCounters[span.spanType]++;
 

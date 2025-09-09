@@ -3,6 +3,7 @@
 import { isEmpty } from "lodash";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
 import { useScrollContext } from "./virtualization-context";
@@ -191,7 +192,7 @@ export default function Minimap({ traceDuration }: Props) {
                   "opacity-100": isInVisibleRange,
                 })}
                 style={{
-                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : span.color,
+                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : (span.color || SPAN_TYPE_TO_COLOR[span.spanType]),
                   height: Math.max(MIN_H, span.height),
                   marginTop: 2,
                   marginBottom: 2,
