@@ -114,8 +114,7 @@ export default function PlaygroundPanel({
         setText(result.text);
         setToolCalls(result.toolCalls);
         setReasoning(result.reasoning);
-
-        setUsage(result.usage);
+        setUsage(result.totalUsage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -193,7 +192,7 @@ export default function PlaygroundPanel({
             </ResizablePanel>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
             <ResizablePanel minSize={20} className="flex-1 flex flex-col gap-2 px-4">
-              {reasoning && (
+              {!isEmpty(reasoning) && (
                 <Collapsible defaultOpen className="group flex overflow-hidden flex-col border rounded divide-y">
                   <CollapsibleTrigger className="flex items-center">
                     <span className="font-medium text-sm text-secondary-foreground p-2 rounded-t mr-auto">

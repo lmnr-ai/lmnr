@@ -1,5 +1,6 @@
+import { ToolResultPart } from "ai";
 import { Bolt, Image as IconImage, Paperclip, X } from "lucide-react";
-import { ChangeEvent, useCallback, useRef } from "react";
+import React, { ChangeEvent, useCallback, useRef } from "react";
 import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } from "react-hook-form";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
@@ -8,6 +9,7 @@ import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
@@ -104,8 +106,15 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       <div className="flex flex-col gap-1">
                         <span className="text-secondary-foreground text-xs">Arguments</span>
                         <CodeHighlighter
-                          value={String(value)}
-                          onChange={onChange}
+                          value={typeof value === "object" ? JSON.stringify(value, null, 2) : String(value || "{}")}
+                          onChange={(v) => {
+                            try {
+                              onChange(JSON.parse(v));
+                            } catch {
+                              onChange(v);
+                            }
+                          }}
+                          defaultMode="json"
                           className="bg-transparent rounded-md p-0 focus-visible:ring-0 flex-1 h-fit max-h-96"
                         />
                       </div>
@@ -145,20 +154,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                       className="bg-transparent focus-visible:ring-0 flex-1 h-fit max-h-96"
                     />
                   </div>
-                  <Controller
-                    render={({ field: { value, onChange } }) => (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-secondary-foreground text-xs">Result</span>
-                        <CodeHighlighter
-                          value={value}
-                          onChange={onChange}
-                          className="bg-transparent p-0 rounded-md focus-visible:ring-0 flex-1 h-fit max-h-96"
-                        />
-                      </div>
-                    )}
-                    name={`messages.${parentIndex}.content.${index}.output` as const}
-                    control={control}
-                  />
+                  <ToolResultOutput parentIndex={parentIndex} index={index} output={part.output} />
                 </div>
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
@@ -219,4 +215,72 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
   );
 };
 
+const ToolResultOutput = ({
+  parentIndex,
+  index,
+  output,
+}: {
+  parentIndex: number;
+  index: number;
+  output: ToolResultPart["output"];
+}) => {
+  const { control } = useFormContext<PlaygroundForm>();
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-secondary-foreground text-xs">Result</span>
+      <Controller
+        render={({ field: { value, onChange } }) => (
+          <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className="w-fit border-none pl-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Text</SelectItem>
+              <SelectItem value="json">JSON</SelectItem>
+              <SelectItem value="error-text">Error Text</SelectItem>
+              <SelectItem value="error-json">Error JSON</SelectItem>
+              <SelectItem value="content">Content Array</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        name={`messages.${parentIndex}.content.${index}.output.type` as const}
+        control={control}
+      />
+      {output.type === "content" ? (
+        <Controller
+          render={({ field: { value, onChange } }) => (
+            <CodeHighlighter
+              value={JSON.stringify(value, null, 2)}
+              onChange={(v) => {
+                try {
+                  onChange(JSON.parse(v));
+                } catch {
+                  onChange(v);
+                }
+              }}
+              defaultMode="json"
+              className="bg-transparent p-0 rounded-md focus-visible:ring-0 flex-1 h-fit max-h-96"
+            />
+          )}
+          name={`messages.${parentIndex}.content.${index}.output.value` as const}
+          control={control}
+        />
+      ) : (
+        <Controller
+          render={({ field: { value, onChange } }) => (
+            <CodeHighlighter
+              value={value as string}
+              onChange={onChange}
+              defaultMode="json"
+              className="bg-transparent p-0 rounded-md focus-visible:ring-0 flex-1 h-fit max-h-96"
+            />
+          )}
+          name={`messages.${parentIndex}.content.${index}.output.value` as const}
+          control={control}
+        />
+      )}
+    </div>
+  );
+};
 export default MessageParts;

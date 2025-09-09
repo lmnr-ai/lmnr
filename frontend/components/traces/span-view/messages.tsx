@@ -1,5 +1,5 @@
 import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
 import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
@@ -139,7 +139,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
-  | { type: "generic"; messages: (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] };
+  | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
 const MessagesRenderer = ({
   messages,

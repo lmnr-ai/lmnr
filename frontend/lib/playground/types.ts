@@ -27,7 +27,41 @@ export interface ToolResultPart {
   type: "tool-result";
   toolCallId: string;
   toolName: string;
-  output: any;
+  output:
+    | {
+        type: "text";
+        value: string;
+      }
+    | {
+        type: "json";
+        value: string;
+      }
+    | {
+        type: "error-text";
+        value: string;
+      }
+    | {
+        type: "error-json";
+        value: string;
+      }
+    | {
+        type: "content";
+        value: Array<
+          | {
+              type: "text";
+              text: string;
+            }
+          | {
+              type: "media";
+              data: string;
+              /**
+       IANA media type.
+       @see https://www.iana.org/assignments/media-types/media-types.xhtml
+       */
+              mediaType: string;
+            }
+        >;
+      };
 }
 
 export interface ToolCallPart {

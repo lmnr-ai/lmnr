@@ -1,7 +1,11 @@
-import { GenerateTextResult, ToolSet } from "ai";
+import { LanguageModelUsage,ReasoningUIPart, ToolSet, TypedToolCall } from "ai";
 import { create } from "zustand";
 
-export type OutputState = Pick<GenerateTextResult<ToolSet, {}>, "text" | "reasoning" | "toolCalls" | "usage"> & {
+export type OutputState = {
+  text: string;
+  reasoning: ReasoningUIPart[];
+  toolCalls: TypedToolCall<ToolSet>[];
+  usage: LanguageModelUsage;
   isLoading: boolean;
   history: boolean;
   reasoningOpen: boolean;
@@ -21,14 +25,14 @@ export type OutputActions = {
 
 const initialState: OutputState = {
   text: "",
-  reasoning: [{ type: "reasoning", text: "" }],
+  reasoning: [],
   toolCalls: [],
   usage: {
-    inputTokens: NaN,
-    outputTokens: NaN,
-    reasoningTokens: NaN,
-    cachedInputTokens: NaN,
-    totalTokens: NaN,
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cachedInputTokens: 0,
+    totalTokens: 0,
   },
   history: false,
   isLoading: false,

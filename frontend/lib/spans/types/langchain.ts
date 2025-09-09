@@ -1,4 +1,4 @@
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod/v4";
 
@@ -114,7 +114,7 @@ export const LangChainMessageSchema = z.union([
 
 export const LangChainMessagesSchema = z.array(LangChainMessageSchema);
 
-const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessagesSchema>): CoreMessage[] => {
+const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessagesSchema>): ModelMessage[] => {
   const store = new Map();
 
   return map(messages, (message) => {
