@@ -6,9 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
 interface ChartProps {
-  evaluationId: string;
   className?: string;
-  scoreName: string;
+  scoreName?: string;
   distribution: EvaluationScoreDistributionBucket[] | null;
   isLoading?: boolean;
 }
@@ -19,7 +18,7 @@ const newChartConfig = {
   },
 };
 
-export default function Chart({ evaluationId, className, scoreName, distribution, isLoading = false }: ChartProps) {
+export default function Chart({ className, scoreName, distribution, isLoading = false }: ChartProps) {
   // Convert distribution data to the format expected by the chart
   const chartData = distribution
     ? distribution.map((bucket, index) => ({

@@ -74,7 +74,7 @@ export default function Evaluation({
     }
 
     return url;
-  }, [params?.projectId, evaluationId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter]);
 
   const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
 
@@ -99,7 +99,7 @@ export default function Evaluation({
     }
 
     return url;
-  }, [params?.projectId, targetId, search, JSON.stringify(searchIn), JSON.stringify(filter)]);
+  }, [params?.projectId, targetId, search, searchIn, filter]);
 
   const { data: targetData } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
 
@@ -251,7 +251,7 @@ export default function Evaluation({
         <div className="flex flex-grow flex-col">
           <div className="flex flex-col flex-grow">
             <div className="flex flex-row space-x-4 p-4">
-              {isLoading || !selectedScore ? (
+              {isLoading ? (
                 <>
                   <Skeleton className="w-72 h-48" />
                   <Skeleton className="w-full h-48" />
@@ -271,9 +271,6 @@ export default function Evaluation({
                   <div className="flex-grow">
                     {targetId ? (
                       <CompareChart
-                        evaluationId={evaluationId}
-                        comparedEvaluationId={targetId}
-                        scoreName={selectedScore}
                         distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
                         comparedDistribution={
                           selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
@@ -282,7 +279,6 @@ export default function Evaluation({
                       />
                     ) : (
                       <Chart
-                        evaluationId={evaluationId}
                         scoreName={selectedScore}
                         distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
                         isLoading={isLoading}
