@@ -1,7 +1,6 @@
 import { isEmpty } from "lodash";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle } from "react";
 
-import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Span, Trace } from "@/lib/traces/types";
@@ -113,7 +112,7 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
 
     if (isSpansLoading || !virtualizer || !renderProps) {
       return (
-        <div className="flex flex-col gap-2 p-2 pb-4">
+        <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
@@ -122,11 +121,11 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
     }
 
     if (!isSpansLoading && isEmpty(topLevelSpans)) {
-      return <span className="text-base text-secondary-foreground mx-auto mt-4">No spans found.</span>;
+      return <span className="text-base text-secondary-foreground mx-auto mt-4 w-full">No spans found.</span>;
     }
 
     return (
-      <ScrollArea ref={scrollRef} className="overflow-x-hidden flex-grow pr-10 relative">
+      <ScrollArea ref={scrollRef} className="overflow-x-hidden flex-grow relative h-full w-full">
         <div className="flex flex-col pb-4 pt-1">
           <div
             className="relative"
@@ -170,7 +169,6 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
             </div>
           </div>
         </div>
-        <Minimap traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()} />
       </ScrollArea>
     );
   }

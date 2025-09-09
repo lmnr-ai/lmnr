@@ -10,14 +10,14 @@ import { useScrollContext } from "./virtualization-context";
 
 interface Props {
   traceDuration: number;
+  setSelectedSpanId: (spanId: string) => void;
 }
 
 const MIN_H = 1;
-const TREE_TOP_PADDING = 0;
-const PIXELS_PER_SECOND = 6;
+const PIXELS_PER_SECOND = 3;
 const TIME_MARKER_INTERVAL = 10; // seconds
 
-export default function Minimap({ traceDuration }: Props) {
+export default function Minimap({ traceDuration, setSelectedSpanId }: Props) {
   const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
   const minimapRef = useRef<HTMLDivElement>(null);
 
@@ -32,6 +32,8 @@ export default function Minimap({ traceDuration }: Props) {
       const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
       const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
 
+      console.log(relativeStart, spanDuration);
+
       return {
         ...s.span,
         y: relativeStart * PIXELS_PER_SECOND,
@@ -39,22 +41,6 @@ export default function Minimap({ traceDuration }: Props) {
       };
     });
   }, [spanItems, traceDuration]);
-
-  const visibleRange = useMemo(() => {
-    const { scrollTop, viewportHeight } = state;
-    const adjustedScrollTop = Math.max(0, scrollTop - TREE_TOP_PADDING);
-    const visibleStartY = adjustedScrollTop;
-    const visibleEndY = adjustedScrollTop + viewportHeight;
-
-    // Find spans that are visible in the current viewport
-    const start = spansWithPosition.findIndex((span) => span.y + span.height >= visibleStartY);
-    const end = spansWithPosition.findLastIndex((span) => span.y <= visibleEndY);
-
-    return {
-      start: Math.max(0, start === -1 ? 0 : start),
-      end: Math.min(spansWithPosition.length - 1, end === -1 ? spansWithPosition.length - 1 : end),
-    };
-  }, [state, spansWithPosition]);
 
   const timeMarkers = useMemo(() => {
     if (!traceDuration || traceDuration <= 0) return [];
@@ -65,7 +51,6 @@ export default function Minimap({ traceDuration }: Props) {
     for (let seconds = 0; seconds <= totalSeconds; seconds += TIME_MARKER_INTERVAL) {
       markers.push({
         seconds,
-        y: seconds * PIXELS_PER_SECOND,
         label: `${seconds}s`,
       });
     }
@@ -147,6 +132,7 @@ export default function Minimap({ traceDuration }: Props) {
       const span = spansWithPosition[spanIndex];
       if (span) {
         scrollTo(span.y);
+        setSelectedSpanId(span.spanId);
       }
     },
     [scrollTo, spansWithPosition]
@@ -157,49 +143,48 @@ export default function Minimap({ traceDuration }: Props) {
   }
 
   return (
-    <div className="absolute top-0 right-2 h-full w-fit bg-background z-50 py-1">
+    <div className="h-full flex-none max-w-16 w-fit z-50 px-1 border-l">
       <div
         ref={minimapRef}
-        className="h-full no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden w-10 relative"
+        className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1"
         onScroll={handleMinimapScroll}
       >
-        {/* Time markers */}
-        {timeMarkers.map((marker) => (
-          <div
-            key={`marker-${marker.seconds}`}
-            className="absolute right-0 flex pointer-events-none"
-            style={{ top: marker.y }}
-          >
-            <span className="text-xs text-muted-foreground/60 leading-none">{marker.label}</span>
-          </div>
-        ))}
-
-        {spansWithPosition.map((span, index) => {
-          const isInVisibleRange = index >= visibleRange.start && index <= visibleRange.end;
-          return (
+        <div className="relative w-2 flex-none">
+          {spansWithPosition.map((span, index) => (
             <div
               style={{
                 top: span.y,
                 height: span.height,
+                left: 0,
               }}
               key={span.spanId}
-              className="absolute bg-background"
+              className="bg-background absolute opacity-70 hover:opacity-100 transition-opacity"
             >
               <div
-                className={cn("w-2 cursor-pointer rounded-[2px] transition-opacity duration-100 opacity-40", {
-                  "opacity-100": isInVisibleRange,
-                })}
+                className={cn("w-2 cursor-pointer rounded-[2px] h-full transition-all")}
                 style={{
-                  backgroundColor: span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.spanType],
-                  height: Math.max(MIN_H, span.height),
+                  backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[span.spanType],
                   marginTop: 2,
-                  marginBottom: 2,
+                  paddingBottom: 0,
                 }}
                 onClick={(e) => handleSpanClick(index, e)}
               />
             </div>
-          );
-        })}
+          ))}
+        </div>
+        <div className="flex flex-col">
+          {timeMarkers.map((marker) => (
+            <div
+              key={`marker-${marker.seconds}`}
+              className="flex pointer-events-none w-full text-right"
+              style={{
+                minHeight: `${PIXELS_PER_SECOND * TIME_MARKER_INTERVAL}px`,
+              }}
+            >
+              <span className="text-xs text-muted-foreground/60 leading-none font-mono text-right w-full">{marker.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

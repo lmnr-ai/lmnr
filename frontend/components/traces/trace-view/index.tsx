@@ -23,6 +23,7 @@ import { Button } from "../../ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
+import Minimap from "./minimap";
 import Timeline from "./timeline";
 import Tree from "./tree";
 import { ScrollContextProvider } from "./virtualization-context";
@@ -452,7 +453,7 @@ export default function TraceView({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) {}
+    } catch (e) { }
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -604,6 +605,10 @@ export default function TraceView({
                     onSelectTime={(time) => {
                       browserSessionRef.current?.goto(time);
                     }}
+                  />
+                  <Minimap
+                    traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()}
+                    setSelectedSpanId={(spanId) => handleSpanSelect(spans.find((span) => span.spanId === spanId) || null)}
                   />
                 </div>
               )}
