@@ -1,5 +1,5 @@
 import { google } from '@ai-sdk/google';
-import { getTracer } from '@lmnr-ai/lmnr';
+import { getTracer, observe } from '@lmnr-ai/lmnr';
 import { generateText } from 'ai';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -35,14 +35,13 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
   }
 
   // Get the full trace data for summary
-  const { stringifiedSpans, spanIdsMap } = await getFullTraceForSummary({
+  const { stringifiedSpans, spanIdsMap } = await observe({ name: "getFullTraceForSummary" }, async () => await getFullTraceForSummary({
     projectId,
     traceId,
     startTime: traceStartTime,
     endTime: traceEndTime
-  });
+  }));
 
-  // Create a summary-focused prompt
   const summaryPrompt = TraceChatPromptSummaryPrompt.replace('{{fullTraceData}}', stringifiedSpans);
 
   const result = await generateText({
