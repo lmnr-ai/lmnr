@@ -962,6 +962,12 @@ fn input_chat_messages_from_genai_attributes(
             attributes.remove(&format!("{prefix}.{i}.content"))
         {
             s
+            // Some instrumentations send reasoning as a separate field
+            // While others like Anthropic send it as a separate message with role "reasoning"
+        } else if let Some(serde_json::Value::String(s)) =
+            attributes.remove(&format!("{prefix}.{i}.reasoning"))
+        {
+            s
         } else {
             "".to_string()
         };
@@ -1119,7 +1125,10 @@ fn output_message_from_genai_attributes(
     attributes: &mut HashMap<String, Value>,
     prefix: &str,
 ) -> Option<ChatMessage> {
-    let msg_content = attributes.remove(&format!("{prefix}.content"));
+    let msg_content = attributes
+        .remove(&format!("{prefix}.content"))
+        // Some instrumentations send reasoning as a separate field
+        .or(attributes.remove(&format!("{prefix}.reasoning")));
     let msg_role = attributes
         .remove(&format!("{prefix}.role"))
         .map(|v| match v {

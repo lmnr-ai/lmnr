@@ -181,6 +181,11 @@ struct OpenAIToolChatMessage {
 }
 
 #[derive(Serialize)]
+struct OpenAIChatMessageComputerCallOutput {
+    content: OpenAIChatMessageContent,
+}
+
+#[derive(Serialize)]
 #[serde(tag = "role", rename_all = "snake_case")]
 enum OpenAIChatMessage {
     Developer(OpenAIDeveloperChatMessage),
@@ -188,6 +193,8 @@ enum OpenAIChatMessage {
     System(OpenAISystemChatMessage),
     Assistant(OpenAIAssistantChatMessage),
     Tool(OpenAIToolChatMessage),
+    // one part with image_url or file
+    ComputerCallOutput(OpenAIChatMessageComputerCallOutput),
 }
 
 pub fn convert_span_to_openai(span: &mut Span) {
@@ -232,7 +239,38 @@ fn message_to_openai_format(message: ChatMessage) -> Result<Value> {
         "assistant" => convert_assistant_message(message)?,
         "tool" => convert_tool_message(message)?,
         "developer" => convert_developer_message(message)?,
-        _ => return Err(anyhow::anyhow!("Invalid role: {}", message.role)),
+        "computer_call_output" => convert_computer_call_output_message(message)?,
+
+        // LiteLLM sets the role to "function" on computer call output messages if
+        // this was called via completions (not responses API) to e.g. claude model with computer use.
+        // We check if the content parts are all image URLs and if so, convert to computer call output message.
+        "function" => {
+            if let ChatMessageContent::ContentPartList(ref parts) = message.content {
+                if parts
+                    .iter()
+                    .all(|part| matches!(part, ChatMessageContentPart::ImageUrl(_)))
+                {
+                    convert_computer_call_output_message(message)?
+                } else {
+                    log::warn!(
+                        "Error converting chat message to OpenAI format: Function message contains non-image URL content parts"
+                    );
+                    return Ok(serde_json::to_value(message)?);
+                }
+            } else {
+                log::warn!(
+                    "Error converting chat message to OpenAI format: Function message is not array of content parts"
+                );
+                return Ok(serde_json::to_value(message)?);
+            }
+        }
+        _ => {
+            log::warn!(
+                "Error converting chat message to OpenAI format: Invalid role: {}",
+                message.role
+            );
+            return Ok(serde_json::to_value(message)?);
+        }
     };
 
     Ok(serde_json::to_value(openai_message)?)
@@ -241,6 +279,13 @@ fn message_to_openai_format(message: ChatMessage) -> Result<Value> {
 fn convert_user_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
     let content = convert_to_openai_user_content(message.content)?;
     Ok(OpenAIChatMessage::User(OpenAIUserChatMessage { content }))
+}
+
+fn convert_computer_call_output_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
+    let content = convert_to_openai_user_content(message.content)?;
+    Ok(OpenAIChatMessage::ComputerCallOutput(
+        OpenAIChatMessageComputerCallOutput { content },
+    ))
 }
 
 fn convert_developer_message(message: ChatMessage) -> Result<OpenAIChatMessage> {
@@ -1276,12 +1321,12 @@ mod tests {
         };
 
         let result = message_to_openai_format(message);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Invalid role: invalid_role")
+        assert_eq!(
+            result.unwrap(),
+            json!({
+                "role": "invalid_role",
+                "content": "Test"
+            })
         );
     }
 
