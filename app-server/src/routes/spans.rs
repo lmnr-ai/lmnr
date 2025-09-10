@@ -12,7 +12,7 @@ use crate::{
         events::Event,
         spans::{Span, SpanType},
     },
-    mq::{MessageQueue, MessageQueueTrait},
+    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     routes::types::ResponseResult,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
@@ -70,19 +70,24 @@ pub async fn create_span(
     let events: Vec<Event> = vec![];
 
     let rabbitmq_span_message = RabbitMqSpanMessage { span, events };
+    let mq_message = serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap();
 
-    spans_message_queue
-        .publish(
-            &serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap(),
-            OBSERVATIONS_EXCHANGE,
-            OBSERVATIONS_ROUTING_KEY,
-        )
-        .await
-        .map_err(|e| {
-            log::error!("Failed to publish span to queue: {:?}", e);
-            anyhow::anyhow!("Failed to publish span")
-        })?;
-
+    if mq_message.len() >= mq_max_payload() {
+        log::warn!(
+            "[SPANS ROUTE] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]",
+            project_id,
+            mq_message.len()
+        );
+        // Don't return error for now, skip publishing
+    } else {
+        spans_message_queue
+            .publish(&mq_message, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to publish span to queue: {:?}", e);
+                anyhow::anyhow!("Failed to publish span")
+            })?;
+    }
     let response = CreateSpanResponse { span_id, trace_id };
 
     Ok(HttpResponse::Ok().json(response))
