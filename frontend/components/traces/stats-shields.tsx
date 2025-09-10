@@ -99,6 +99,19 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
 };
 
 const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
+  const aiPromptTools = get(attributes, "ai.prompt.tools");
+  if (aiPromptTools) {
+    try {
+      return aiPromptTools.map((tool: any) => ({
+        name: get(tool, "name", ""),
+        description: get(tool, "description", ""),
+        parameters: typeof tool.parameters === "string" ? tool.parameters : JSON.stringify(tool.parameters || {}),
+      }));
+    } catch (e) {
+      console.error("Failed to parse ai.prompt.tools:", e);
+    }
+  }
+
   const functionIndices = uniq(
     Object.keys(attributes)
       .map((key) => key.match(/^llm\.request\.functions\.(\d+)\.name$/)?.[1])

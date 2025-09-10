@@ -1,9 +1,9 @@
-import { LanguageModelUsage,ReasoningUIPart, ToolSet, TypedToolCall } from "ai";
+import { LanguageModelUsage, ToolSet, TypedToolCall } from "ai";
 import { create } from "zustand";
 
 export type OutputState = {
   text: string;
-  reasoning: ReasoningUIPart[];
+  reasoning: string;
   toolCalls: TypedToolCall<ToolSet>[];
   usage: LanguageModelUsage;
   isLoading: boolean;
@@ -25,7 +25,7 @@ export type OutputActions = {
 
 const initialState: OutputState = {
   text: "",
-  reasoning: [],
+  reasoning: "",
   toolCalls: [],
   usage: {
     inputTokens: 0,

@@ -113,7 +113,7 @@ export default function PlaygroundPanel({
 
         setText(result.text);
         setToolCalls(result.toolCalls);
-        setReasoning(result.reasoning);
+        setReasoning(result.reasoning.map((r) => r.text).join(""));
         setUsage(result.totalUsage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
@@ -204,7 +204,7 @@ export default function PlaygroundPanel({
                     <CodeHighlighter
                       codeEditorClassName="rounded-b border-none"
                       className="rounded-b border-none"
-                      value={reasoning.map((r) => r.text).join("")}
+                      value={reasoning}
                       defaultMode="json"
                     />
                   </CollapsibleContent>
