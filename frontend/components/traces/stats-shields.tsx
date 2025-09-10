@@ -243,7 +243,8 @@ const SpanStatsShields = ({
   const cost = attributes["gen_ai.usage.cost"] ?? 0;
   const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(attributes);
-  const structuredOutputSchema = attributes["gen_ai.request.structured_output_schema"];
+  const structuredOutputSchema =
+    get(attributes, "gen_ai.request.structured_output_schema") || get(attributes, "ai.schema");
 
   return (
     <div className="flex flex-wrap flex-col gap-1.5">
