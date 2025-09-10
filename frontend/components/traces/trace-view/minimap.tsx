@@ -15,11 +15,39 @@ interface Props {
 }
 
 const MIN_H = 1;
-const PIXELS_PER_SECOND = 4;
-const TIME_MARKER_INTERVAL = 10; // seconds
 
 export default function Minimap({ traceDuration, setSelectedSpanId, browserSessionTime }: Props) {
   const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
+
+  // Dynamic PIXELS_PER_SECOND based on trace duration
+  const pixelsPerSecond = useMemo(() => {
+    if (!traceDuration || traceDuration <= 0) return 4; // Default fallback
+
+    const durationInSeconds = traceDuration / 1000;
+
+    if (durationInSeconds <= 30) {
+      return 16; // High detail for short traces
+    } else if (durationInSeconds <= 120) {
+      return 12; // Medium detail for medium traces
+    } else if (durationInSeconds <= 300) {
+      return 4; // Lower detail for longer traces
+    } else {
+      return 2; // Minimal detail for very long traces
+    }
+  }, [traceDuration]);
+
+  // Dynamic TIME_MARKER_INTERVAL based on pixels per second
+  const timeMarkerInterval = useMemo(() => {
+    if (pixelsPerSecond == 16) {
+      return 2; // seconds
+    } else if (pixelsPerSecond == 12) {
+      return 4; // seconds
+    } else if (pixelsPerSecond == 4) {
+      return 10; // seconds
+    } else {
+      return 10; // seconds
+    }
+  }, [pixelsPerSecond]);
 
   const minTime = useMemo(() => Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime())), [spanItems]);
 
@@ -37,11 +65,11 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
       return {
         ...s,
         ...s.span,
-        y: relativeStart * PIXELS_PER_SECOND,
-        height: Math.max(MIN_H, spanDuration * PIXELS_PER_SECOND),
+        y: relativeStart * pixelsPerSecond,
+        height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
       };
     });
-  }, [spanItems, traceDuration, minTime]);
+  }, [spanItems, traceDuration, minTime, pixelsPerSecond]);
 
   const timeMarkers = useMemo(() => {
     if (!traceDuration || traceDuration <= 0) return [];
@@ -49,7 +77,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
     const markers = [];
     const totalSeconds = Math.ceil(traceDuration / 1000); // Convert ms to seconds
 
-    for (let seconds = 0; seconds <= totalSeconds; seconds += TIME_MARKER_INTERVAL) {
+    for (let seconds = 0; seconds <= totalSeconds; seconds += timeMarkerInterval) {
       markers.push({
         seconds,
         label: `${seconds}s`,
@@ -57,7 +85,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
     }
 
     return markers;
-  }, [traceDuration]);
+  }, [traceDuration, timeMarkerInterval]);
 
   const syncTreeToMinimap = useCallback(
     ({
@@ -156,7 +184,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
             <div
               className="bg-primary absolute top-0 left-0 w-full h-[1px] z-50"
               style={{
-                top: Math.max(0, ((browserSessionTime - minTime) / 1000) * PIXELS_PER_SECOND),
+                top: Math.max(0, ((browserSessionTime - minTime) / 1000) * pixelsPerSecond),
               }}
             />
           )}
@@ -190,7 +218,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
               key={`marker-${marker.seconds}`}
               className="flex pointer-events-none w-full text-right"
               style={{
-                minHeight: `${PIXELS_PER_SECOND * TIME_MARKER_INTERVAL}px`,
+                minHeight: `${pixelsPerSecond * timeMarkerInterval}px`,
               }}
             >
               <span className="text-xs text-muted-foreground/60 leading-none font-mono text-right w-full">{marker.label}</span>
