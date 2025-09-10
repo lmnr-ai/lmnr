@@ -68,10 +68,6 @@ export const baseExtensions = [
       left: 0,
       overflow: "auto",
     },
-    // Hide the search panel but keep functionality
-    ".cm-panels": {
-      display: "none !important",
-    },
     // Enhanced search match styling
     ".cm-searchMatch": {
       backgroundColor: "hsl(var(--primary) / 0.3)",
@@ -84,7 +80,13 @@ export const baseExtensions = [
       fontWeight: "500",
     },
   }),
-  search(),
+  search({
+    createPanel: (view) => {
+      // empty div to hide the search panel
+      const dom = document.createElement("div");
+      return { dom };
+    },
+  }),
   highlightSelectionMatches(),
 ];
 

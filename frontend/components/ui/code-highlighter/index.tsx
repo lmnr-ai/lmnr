@@ -162,6 +162,7 @@ const PureCodeHighlighter = ({
         const hasMatch = docText.toLowerCase().includes(processedSearchTerm.toLowerCase());
 
         if (hasMatch) {
+          console.log("hasMatch");
           openSearchPanel(view);
 
           const searchQuery = new SearchQuery({
@@ -178,11 +179,13 @@ const PureCodeHighlighter = ({
 
           const selection = view.state.selection.main;
 
-          findNext(view);
+          setTimeout(() => {
+            view.dispatch({
+              effects: EditorView.scrollIntoView(selection, { y: "start" }),
+            });
+            findNext(view);
+          }, 100);
 
-          view.dispatch({
-            effects: EditorView.scrollIntoView(selection, { y: "start" }),
-          });
         } else {
           clearSearch(view);
         }
@@ -197,7 +200,7 @@ const PureCodeHighlighter = ({
     if (editorRef.current?.view) {
       applySearch(editorRef.current?.view);
     }
-  }, [searchTerm, applySearch]);
+  }, [searchTerm, applySearch, editorRef]);
 
   const renderHeaderContent = () => (
     <>
