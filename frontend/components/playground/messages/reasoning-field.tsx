@@ -30,7 +30,7 @@ const ReasoningField = () => {
                 <SelectValue placeholder="Select reasoning" />
               </SelectTrigger>
               <SelectContent>
-                {["low", "medium", "high"].map((item) => (
+                {[...((model.includes("gpt-5") && ["minimal"]) || []), "low", "medium", "high"].map((item) => (
                   <SelectItem key={item} value={item}>
                     {item}
                   </SelectItem>
