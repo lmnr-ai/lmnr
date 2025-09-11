@@ -34,7 +34,7 @@ Your goal is to provide a concise trace summary for a developer which will help 
 Your ultimate goal is to help a user very quickly understands what's happening in the trace and which spans are worth looking at in more details.
 
 <span_reference_format>
-It's partiularly useful to reference specific spans (and text within them) to help developers understand exactly where to look at. When referencing a span, produce a <span> xml tag strictly inside of a markdown inline code block (always wrap it in backticks). Prefer to reference text whenever it is relevant. Don't reference text as a part of the ongoing sentence.
+It's particularly useful to reference specific spans (and text within them) to help developers understand exactly where to look at. When referencing a span, produce a <span> xml tag strictly inside of a markdown inline code block (always wrap it in backticks). Prefer to reference text whenever it is relevant. Don't reference text as a part of the ongoing sentence.
 
 Format:
 \`<span id='<span_id>' name='<span_name>' reference_text='<optional specific text to reference in span input/output>' />\`.
