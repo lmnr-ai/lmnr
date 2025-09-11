@@ -1,4 +1,3 @@
-import { RealtimeChannel } from "@supabase/supabase-js";
 import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -202,7 +201,7 @@ export default function TraceView({
         router.push(`${pathName}?${params.toString()}`);
       }
     },
-    [saveSpanPathToStorage, searchParams, router, pathName]
+    [saveSpanPathToStorage, router, pathName]
   );
 
   const fetchSpans = useCallback(
@@ -354,19 +353,16 @@ export default function TraceView({
   });
 
   const { supabaseClient: supabase } = useUserContext();
-  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!supabase || !traceId) {
       return;
     }
 
-    // Clean up existing channel first
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    // Clean up existing channel first - same pattern as traces-table
+    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
 
-    channelRef.current = supabase
+    const channel = supabase
       .channel(`trace-updates-${traceId}`)
       .on(
         "postgres_changes",
@@ -426,11 +422,9 @@ export default function TraceView({
       )
       .subscribe();
 
+    // remove the channel on unmount - same pattern as traces-table
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      channel.unsubscribe();
     };
   }, [supabase, traceId]);
 
