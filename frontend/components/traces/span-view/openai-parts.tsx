@@ -159,6 +159,16 @@ const PureOpenAIContentParts = ({
         </ToolResultContentPart>
       ));
 
+    case "computer_call_output":
+      return message.content.map((part, index) => {
+        switch (part.type) {
+          case "file":
+            return <OpenAIFileContentPart key={`${part.type}-${index}`} part={part} />;
+          case "image_url":
+            return <OpenAIImageContentPart key={`${part.type}-${index}`} part={part} />;
+        }
+      });
+
     default:
       return null;
   }

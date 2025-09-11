@@ -36,6 +36,9 @@ pub struct AnthropicImageUrl {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessageText {
+    // FIXME: remove aliases when we are fully ready to parse
+    // OpenAI Responses API formats strongly typed.
+    #[serde(alias = "input_text", alias = "output_text")]
     pub text: String,
 }
 
