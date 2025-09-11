@@ -8,6 +8,12 @@ export async function register() {
   if (process.env.ENVIRONMENT === "PRODUCTION") {
     registerOTel({ serviceName: "lmnr-web" });
   }
+
+  if (process.env.NEXT_PUBLIC_ENABLE_TELEMETRY === "true") {
+    console.log(
+      "Telemetry is enabled. To opt out, set NEXT_PUBLIC_ENABLE_TELEMETRY=false in your .env file or remove the variable entirely."
+    );
+  }
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");

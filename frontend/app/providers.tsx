@@ -1,6 +1,6 @@
 // app/providers.tsx
 "use client";
-import posthog from "posthog-js";
+import posthog, { PostHogConfig } from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import { PropsWithChildren } from "react";
 
@@ -10,7 +10,7 @@ if (typeof window !== "undefined") {
     process.env.NEXT_PUBLIC_ENABLE_TELEMETRY === "true" ||
     process.env.NEXT_PUBLIC_ENABLE_PRODUCTION_TELEMETRY === "true"
   ) {
-    const config: any = {
+    const config: Partial<PostHogConfig> = {
       api_host: "https://p.laminar.sh",
       person_profiles: "identified_only",
     };
