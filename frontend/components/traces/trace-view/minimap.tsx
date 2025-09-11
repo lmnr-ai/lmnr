@@ -32,7 +32,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
     } else if (durationInSeconds <= 300) {
       return 4;
     } else {
-      return 2;
+      return 3;
     }
   }, [traceDuration]);
 
@@ -160,7 +160,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
       const span = spansWithPosition[spanIndex];
 
       if (span) {
-        scrollTo(span.parentY);
+        scrollTo(span.yOffset - 48);
         setSelectedSpanId(span.span.spanId);
       }
     },
@@ -197,7 +197,7 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
                 left: 0,
               }}
               key={span.spanId}
-              className="bg-background absolute opacity-70 hover:opacity-100 duration-100 transition-opacity"
+              className="bg-background absolute opacity-80 hover:opacity-100 duration-100 transition-opacity"
             >
               <div
                 className={cn("w-2 cursor-pointer rounded-[2px] h-full transition-all")}
