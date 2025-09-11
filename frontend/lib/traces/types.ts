@@ -69,7 +69,6 @@ export type Trace = {
   topSpanPath: string | null;
   hasBrowserSession: boolean | null;
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
-  agentSessionId: string | null;
   visibility?: string;
   status: string | null;
   userId: string | null;
