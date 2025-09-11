@@ -11,17 +11,12 @@ use crate::{
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
-    bucket: String,
     queue: Arc<MessageQueue>,
 }
 
 impl S3Storage {
-    pub fn new(client: Client, bucket: String, queue: Arc<MessageQueue>) -> Self {
-        Self {
-            client,
-            bucket,
-            queue,
-        }
+    pub fn new(client: Client, queue: Arc<MessageQueue>) -> Self {
+        Self { client, queue }
     }
 
     fn get_url(&self, key: &str) -> String {
@@ -38,7 +33,7 @@ impl S3Storage {
 impl super::StorageTrait for S3Storage {
     type StorageBytesStream =
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-    async fn store(&self, data: Vec<u8>, key: &str) -> Result<String> {
+    async fn store(&self, _bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Push to queue instead of storing directly
         let message = QueuePayloadMessage {
             key: key.to_string(),
@@ -57,11 +52,11 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
-    async fn store_direct(&self, data: Vec<u8>, key: &str) -> Result<String> {
+    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Direct storage method used by the payload worker
         self.client
             .put_object()
-            .bucket(&self.bucket)
+            .bucket(bucket)
             .key(key)
             .body(data.into())
             .send()
@@ -70,15 +65,11 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
-    async fn get_stream(
-        &self,
-        key: &str,
-        bucket: &Option<String>,
-    ) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {
         let response = self
             .client
             .get_object()
-            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
+            .bucket(bucket)
             .key(key)
             .send()
             .await?;
@@ -92,11 +83,11 @@ impl super::StorageTrait for S3Storage {
         )))
     }
 
-    async fn get_size(&self, key: &str, bucket: &Option<String>) -> Result<u64> {
+    async fn get_size(&self, bucket: &str, key: &str) -> Result<u64> {
         let response = self
             .client
             .head_object()
-            .bucket(bucket.as_ref().unwrap_or(&self.bucket))
+            .bucket(bucket)
             .key(key)
             .send()
             .await?;
