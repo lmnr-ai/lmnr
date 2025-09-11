@@ -33,7 +33,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
       if (options) {
         return JSON.parse(options) as { value: number; label: string }[];
       }
-    } catch { }
+    } catch {}
   }, [span?.attributes]);
 
   if (isLoading || !span) {

@@ -97,6 +97,8 @@ function Timeline({
       traverse(span, childSpans, orderedSpans);
     }
 
+    orderedSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
     if (orderedSpans.length === 0) {
       return;
     }

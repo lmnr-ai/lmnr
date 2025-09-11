@@ -1,4 +1,4 @@
-import { CoreMessage, FilePart, ImagePart, TextPart, ToolCallPart, ToolResultPart } from "ai";
+import { FilePart, ImagePart, ModelMessage, TextPart, ToolCallPart, ToolResultPart } from "ai";
 import { omit } from "lodash";
 import React, { memo } from "react";
 
@@ -57,7 +57,7 @@ const PureContentParts = ({
   parentIndex,
   type,
 }: {
-  message: Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] };
+  message: Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] };
   spanPath: string;
   parentIndex: number;
   type: "input" | "output";

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -145,18 +146,3 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   });
 }
 
-const tryParseJson = (value: string) => {
-  if (value === "" || value === undefined) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch (e) {
-    // Parse with brackets because we stringify array using comma separator on server.
-    try {
-      return JSON.parse(`[${value}]`);
-    } catch (e2) {
-      console.log("Failed to parse JSON with brackets:", e2);
-      return value;
-    }
-  }
-};

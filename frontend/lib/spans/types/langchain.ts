@@ -1,4 +1,4 @@
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod/v4";
 
@@ -114,7 +114,7 @@ export const LangChainMessageSchema = z.union([
 
 export const LangChainMessagesSchema = z.array(LangChainMessageSchema);
 
-const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessagesSchema>): CoreMessage[] => {
+const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessagesSchema>): ModelMessage[] => {
   const store = new Map();
 
   return map(messages, (message) => {
@@ -164,6 +164,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
                     type: "file" as const,
                     data: part.data,
                     mimeType: part.mime_type || "application/octet-stream",
+                    mediaType: "base64",
                   };
                 case "url":
                   if (part.type === "image") {
@@ -176,6 +177,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
                     type: "file" as const,
                     data: part.url,
                     mimeType: part.mime_type || "application/octet-stream",
+                    mediaType: "url",
                   };
                 case "text":
                   return {
@@ -187,6 +189,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
                     type: "file" as const,
                     data: part.id,
                     mimeType: part.mime_type || "application/octet-stream",
+                    mediaType: part.source_type,
                   };
               }
             }
@@ -235,7 +238,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
                 type: "tool-call" as const,
                 toolCallId: id,
                 toolName: toolCall.name,
-                args: JSON.stringify(toolCall.arguments),
+                input: { type: "json", value: JSON.stringify(toolCall.arguments) },
               };
             }),
           ],
@@ -250,7 +253,10 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
               type: "tool-result" as const,
               toolCallId: toolCallId || "-",
               toolName: store.get(toolCallId) || toolCallId,
-              result: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
+              output:
+                typeof message.content === "string"
+                  ? { type: "text", value: message.content }
+                  : { type: "content", value: [] },
             },
           ],
         };

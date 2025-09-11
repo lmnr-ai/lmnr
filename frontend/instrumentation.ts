@@ -89,5 +89,10 @@ export async function register() {
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
+    if (process.env.LMNR_PROJECT_API_KEY) {
+      const { Laminar } = await import("@lmnr-ai/lmnr");
+      console.log("Initializing Laminar");
+      Laminar.initialize();
+    }
   }
 }
