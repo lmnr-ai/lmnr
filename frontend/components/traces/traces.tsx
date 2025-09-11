@@ -28,9 +28,9 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-      traceId: string;
-      spanId: string;
-    };
+    traceId: string;
+    spanId: string;
+  };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
@@ -52,7 +52,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     }
   }, []);
 
-  if (isFeatureEnabled(Feature.POSTHOG)) {
+  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
     posthog.identify(email);
   }
 

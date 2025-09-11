@@ -15,7 +15,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import PostHogClient from "../posthog";
 import PostHogIdentifier from "../posthog-identifier";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -46,9 +46,11 @@ export default async function ProjectsPage() {
   }
 
   const posthog = PostHogClient();
-  posthog.identify({
-    distinctId: user.email ?? "",
-  });
+  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
+    posthog.identify({
+      distinctId: user.email ?? "",
+    });
+  }
 
   return (
     <UserContextProvider

@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
-import { usePostHog } from 'posthog-js/react';
-import { useEffect } from 'react';
+import { usePostHog } from "posthog-js/react";
+import { useEffect } from "react";
+
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 
 interface PostHogIdentifierProps {
-  email: string
+  email: string;
 }
 
 export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
@@ -12,7 +14,8 @@ export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
 
   useEffect(() => {
     // This runs in the browser and connects the current session with the user
-    if (email && posthog) {
+    // Only identify users if production telemetry is enabled (includes user identification)
+    if (email && posthog && isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
       posthog.identify(email, {
         email: email,
       });

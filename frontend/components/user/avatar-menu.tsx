@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { posthog } from "posthog-js";
 
 import { useUserContext } from "@/contexts/user-context";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
@@ -29,7 +30,10 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => {
-          posthog.reset();
+          // Only reset PostHog if telemetry is enabled
+          if (isFeatureEnabled(Feature.POSTHOG) && typeof window !== 'undefined' && posthog && posthog.__loaded) {
+            posthog.reset();
+          }
           signOut({ callbackUrl: "/" });
         }}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
