@@ -74,7 +74,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
   );
   const projectId = useParams().projectId;
 
-  const { messages, sendMessage, setMessages } = useChat({
+  const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
       api: `/api/projects/${projectId}/traces/${trace.id}/agent`,
       body: {
@@ -259,6 +259,14 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
               </div>
             </div>
           ))}
+          {
+            status === "submitted" && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Thinking...</span>
+              </div>
+            )
+          }
         </ConversationContent>
       </Conversation>
 
@@ -302,7 +310,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                 size="icon"
                 className="absolute right-1 top-1 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
-                disabled={input.trim() === ""}
+                disabled={input.trim() === "" || summary === null || status === "streaming"}
                 onClick={() => {
                   if (input.trim()) {
                     sendMessage({
