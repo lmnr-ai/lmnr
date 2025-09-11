@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Span } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
-import { cn, formatSecondsToMinutesAndSeconds, getDuration, getDurationString } from "@/lib/utils";
+import { cn, getDurationString } from "@/lib/utils";
 
 import { Skeleton } from "../ui/skeleton";
 import { NoSpanTooltip } from "./no-span-tooltip";
@@ -15,7 +15,6 @@ const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
   span: Span;
-  activeSpans: string[];
   parentY: number;
   childSpans: { [key: string]: Span[] };
   containerWidth: number;
@@ -23,10 +22,8 @@ interface SpanCardProps {
   yOffset: number;
   selectedSpan?: Span | null;
   collapsedSpans: Set<string>;
-  traceStartTime: string;
   onSpanSelect?: (span: Span) => void;
   onToggleCollapse?: (spanId: string) => void;
-  onSelectTime?: (time: number) => void;
 }
 
 export function SpanCard({
@@ -40,9 +37,6 @@ export function SpanCard({
   selectedSpan,
   collapsedSpans,
   onToggleCollapse,
-  traceStartTime,
-  activeSpans,
-  onSelectTime,
 }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -155,24 +149,6 @@ export function SpanCard({
             </button>
           )}
           <div className="flex-grow" />
-          <div
-            className="flex items-center z-40"
-            style={{
-              height: ROW_HEIGHT,
-            }}
-            onClick={() => {
-              onSelectTime?.(getDuration(traceStartTime, span.startTime) / 1000);
-            }}
-          >
-            <div
-              className={cn(
-                "flex items-center text-xs font-mono text-muted-foreground p-1 cursor-pointer rounded-l-full px-2",
-                activeSpans.includes(span.spanId) ? "bg-primary/80 text-white" : "hover:bg-muted"
-              )}
-            >
-              {formatSecondsToMinutesAndSeconds(getDuration(traceStartTime, span.startTime) / 1000)}
-            </div>
-          </div>
         </div>
       </div>
     </div>

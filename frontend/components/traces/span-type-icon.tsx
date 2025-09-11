@@ -4,6 +4,7 @@ import {
   Bolt,
   Braces,
   CircleAlert,
+  FlagTriangleRight,
   Gauge,
   MessageCircle,
   PersonStanding,
@@ -43,6 +44,8 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
       return <Gauge {...iconProps} />;
     case SpanType.TOOL:
       return <Bolt {...iconProps} />;
+    case SpanType.EVENT:
+      return <FlagTriangleRight {...iconProps} />;
     case SpanType.HUMAN_EVALUATOR:
       return <PersonStanding {...iconProps} />;
     default:
