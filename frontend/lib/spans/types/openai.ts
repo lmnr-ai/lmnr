@@ -196,7 +196,7 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
             return {
               type: "file" as const,
               data: String(part.file.file_data),
-              mimeType: String(part.file.file_id),
+              mediaType: String(part.file.file_id),
             };
           }),
         };
