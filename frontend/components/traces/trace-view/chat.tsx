@@ -285,7 +285,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                 setInput("");
               }
             }}
-            className="py-2 pr-1"
+            className="py-1 pr-1"
           >
             <div className="relative">
               <Input
