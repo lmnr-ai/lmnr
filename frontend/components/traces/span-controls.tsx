@@ -8,6 +8,7 @@ import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
 import TagsContextProvider from "@/components/tags/tags-context";
 import TagsList from "@/components/tags/tags-list";
+import TagsTrigger from "@/components/tags/tags-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
@@ -20,7 +21,6 @@ import { ErrorEventAttributes } from "@/lib/types";
 
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
-import TagsTrigger from "@/components/tags/tags-trigger";
 
 interface SpanControlsProps {
   span: Span;
