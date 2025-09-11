@@ -48,6 +48,8 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
       return <FlagTriangleRight {...iconProps} />;
     case SpanType.HUMAN_EVALUATOR:
       return <PersonStanding {...iconProps} />;
+    case SpanType.EVENT:
+      return <FlagTriangleRight {...iconProps} />;
     default:
       return <Braces {...iconProps} />;
   }
