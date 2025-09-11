@@ -57,6 +57,70 @@ const createPlaceholderMessage = (count: number): ChatMessage => ({
 });
 
 /**
+ * Detects if a string contains base64 encoded image data
+ */
+const isBase64Image = (str: string): boolean => {
+  // Check for data URL format: data:image/[type];base64,[data]
+  const dataUrlPattern = /^data:image\/[a-zA-Z]+;base64,/;
+  if (dataUrlPattern.test(str)) return true;
+
+  // Check for standalone base64 that could be an image (minimum reasonable length)
+  // Base64 images are typically quite long (>50 chars for even very small images)
+  if (str.length < 50) return false;
+
+  // Check if string is valid base64
+  const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/;
+  if (!base64Pattern.test(str)) return false;
+
+  try {
+    // Try to decode and check for image magic numbers
+    const decoded = atob(str);
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length && i < 12; i++) {
+      bytes[i] = decoded.charCodeAt(i);
+    }
+
+    // Convert first few bytes to hex for magic number detection
+    const hex = Array.from(bytes.slice(0, 12))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Check magic numbers for common image formats
+    return (
+      hex.startsWith("89504e47") || // PNG: 89 50 4E 47
+      hex.startsWith("ffd8ff") || // JPEG: FF D8 FF
+      hex.startsWith("47494638") || // GIF: 47 49 46 38
+      (hex.startsWith("52494646") && hex.substring(16, 24) === "57454250") // WEBP: RIFF...WEBP
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Recursively processes any data structure to replace base64 images with placeholders
+ */
+const replaceBase64Images = (data: any): any => {
+  if (typeof data === 'string') {
+    return isBase64Image(data) ? '[base64_image_placeholder]' : data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(replaceBase64Images);
+  }
+
+  if (data && typeof data === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      result[key] = replaceBase64Images(value);
+    }
+    return result;
+  }
+
+  return data;
+};
+
+/**
  * Calculates a simple hash of a message for comparison
  */
 const getMessageString = (message: ChatMessage): string => `${message.role}:${normalizeMessageContent(message.content)}`;
@@ -79,12 +143,25 @@ const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMess
 };
 
 /**
+ * Processes spans to replace base64 images with placeholders
+ */
+export const replaceBase64ImagesInSpans = (spans: CacheSpan[]): CacheSpan[] => spans.map(span => ({
+  ...span,
+  input: replaceBase64Images(span.input),
+  output: replaceBase64Images(span.output)
+}));
+
+/**
  * Removes repetitive inputs and outputs from LLM spans in conversation chains.
+ * Also replaces base64 images with placeholders.
  * Modifies spans in-place to preserve original ordering.
  */
 export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
+  // First replace base64 images in all spans
+  const spansWithBase64Replaced = replaceBase64ImagesInSpans(spans);
+
   // Create a copy to avoid mutating the original array
-  const result = [...spans];
+  const result = [...spansWithBase64Replaced];
 
   // Store original inputs to avoid using modified data for comparisons
   const originalInputs = new Map<number, ChatMessage[]>();
@@ -193,7 +270,7 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
           newInput = [createPlaceholderMessage(originalInput.length)];
         }
       } else {
-        console.log(span.spanId, "first span in chain. Removed messages", originalInput.length - 1);
+
         // First span in chain - replace entire input with placeholder
         newInput = [createPlaceholderMessage(originalInput.length - 1), ...originalInput.slice(-1)];
       }

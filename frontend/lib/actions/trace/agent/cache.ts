@@ -7,7 +7,7 @@ import { SpanType } from "@/lib/clickhouse/types";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
 import { GetTraceStructureSchema } from ".";
-import { deduplicateSpanContent } from "./utils";
+import { deduplicateSpanContent, replaceBase64ImagesInSpans } from "./utils";
 
 const ClickHouseToCacheSpanSchema = z.object({
   span_id: z.string(),
@@ -248,7 +248,10 @@ export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStruct
     allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
   }
 
-  return allData.map((span, index) => ({
+  // Replace base64 images before returning
+  const processedData = replaceBase64ImagesInSpans(allData);
+
+  return processedData.map((span, index) => ({
     name: span.name,
     id: index + 1,
     input: span.input,

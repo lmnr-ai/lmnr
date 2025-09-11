@@ -63,7 +63,7 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
   }));
 
   return {
-    stringifiedSpans: JSON.stringify(strippedSpans, null, 2),
+    stringifiedSpans: YAML.stringify(strippedSpans),
     spanIdsMap,
   };
 };

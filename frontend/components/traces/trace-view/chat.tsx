@@ -54,7 +54,8 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
           const spanUuid = spanIdsMap?.[spanId];
 
-          const textPreview = unescapedReferenceText.length > 10 ? unescapedReferenceText.slice(0, 10) + "..." : unescapedReferenceText;
+          const previewLength = 24;
+          const textPreview = unescapedReferenceText.length > previewLength ? unescapedReferenceText.slice(0, previewLength) + "..." : unescapedReferenceText;
 
           return (
             <button onClick={() => {
@@ -62,7 +63,9 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
               onSetSpanId(spanUuid || "");
 
             }}>
-              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs">{spanName}</span> span
+              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs mr-1">{spanName}</span>
+              span
+              <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
             </button >
           );
         }
@@ -245,7 +248,6 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                           </div>
                         );
                       case "tool-getSpansData":
-                        // Handle tool invocations - simplified for now
                         return (
                           <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
                             <div className="flex items-center gap-2">

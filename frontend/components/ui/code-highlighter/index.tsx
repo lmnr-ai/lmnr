@@ -181,7 +181,7 @@ const PureCodeHighlighter = ({
 
           setTimeout(() => {
             view.dispatch({
-              effects: EditorView.scrollIntoView(selection, { y: "start" }),
+              effects: EditorView.scrollIntoView(selection, { y: "end" }),
             });
             findNext(view);
           }, 100);

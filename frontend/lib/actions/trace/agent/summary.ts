@@ -1,7 +1,7 @@
 import { google } from '@ai-sdk/google';
 import { getTracer, observe } from '@lmnr-ai/lmnr';
 import { generateText } from 'ai';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db } from '@/lib/db/drizzle';
@@ -22,15 +22,17 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
 
   // Check database for existing summary
   const existingSummary = await db
-    .select()
-    .from(tracesSummaries)
-    .where(eq(tracesSummaries.traceId, traceId))
-    .limit(1);
+    .query.tracesSummaries.findFirst({
+      where: and(
+        eq(tracesSummaries.projectId, projectId),
+        eq(tracesSummaries.traceId, traceId)
+      ),
+    });
 
-  if (existingSummary.length > 0 && existingSummary[0].summary) {
+  if (existingSummary) {
     return {
-      summary: existingSummary[0].summary || "",
-      spanIdsMap: (existingSummary[0].spanIdsMap || {}) as Record<string, string>,
+      summary: existingSummary.summary || "",
+      spanIdsMap: (existingSummary.spanIdsMap || {}) as Record<string, string>,
     };
   }
 
@@ -56,26 +58,14 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
 
   const summary = result.text;
 
-  if (existingSummary.length > 0) {
-    // Update existing record
-    await db
-      .update(tracesSummaries)
-      .set({
-        summary,
-        spanIdsMap,
-      })
-      .where(eq(tracesSummaries.traceId, traceId));
-  } else {
-    // Create new record
-    await db
-      .insert(tracesSummaries)
-      .values({
-        traceId,
-        summary,
-        projectId,
-        spanIdsMap,
-      });
-  }
+  await db
+    .insert(tracesSummaries)
+    .values({
+      traceId,
+      summary,
+      projectId,
+      spanIdsMap,
+    });
 
   return {
     summary,
