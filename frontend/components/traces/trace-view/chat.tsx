@@ -272,7 +272,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         </ConversationContent>
       </Conversation>
 
-      <div className="flex-none px-3 pb-4 bg-transparent">
+      <div className="flex-none px-3 pb-2 bg-transparent">
         <div className="border rounded bg-muted/40">
           <form
             onSubmit={(e) => {
@@ -329,6 +329,9 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           </form>
         </div>
       </div>
+      <span className="text-xs text-muted-foreground/50 text-center pb-2">
+        Trace assistant is in beta and can make mistakes
+      </span>
     </div>
   );
 }

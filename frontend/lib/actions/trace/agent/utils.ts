@@ -52,8 +52,8 @@ const getMessagePrefixLength = (shorter: ChatMessage[], longer: ChatMessage[]): 
  * Creates a placeholder message for removed content
  */
 const createPlaceholderMessage = (count: number): ChatMessage => ({
-  role: "system",
-  content: `[REMOVED FOR BREVITY, SEE IN THE HISTORY OF A SUBSEQUENT TURN BELOW - ${count} message${count !== 1 ? 's' : ''} omitted]`
+  role: "[PLACEHOLDER]",
+  content: `[MESSAGES ARE REPLACED WITH A PLACEHOLDER BECAUSE THEY ARE REPEATED FROM PREVIOUS CONVERSATION TURNS. ${count} message${count !== 1 ? 's' : ''} omitted]`
 });
 
 /**
@@ -271,8 +271,8 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
         }
       } else {
 
-        // First span in chain - replace entire input with placeholder
-        newInput = [createPlaceholderMessage(originalInput.length - 1), ...originalInput.slice(-1)];
+        // First span in chain - keep the original input
+        newInput = originalInput;
       }
 
       // Modify the span in-place
