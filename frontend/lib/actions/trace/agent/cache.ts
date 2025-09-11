@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, TRACE_CHATS_CACHE_KEY } from "@/lib/cache";
 import { SpanType } from "@/lib/clickhouse/types";
-import { convertToLocalTimeWithMillis } from "@/lib/utils";
+import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
 import { GetTraceStructureSchema } from ".";
 import { deduplicateSpanContent } from "./utils";
@@ -56,7 +56,7 @@ const ClickHouseToCacheSpanSchema = z.object({
     parent: span.parent_span_id,
     name: span.name,
     status: span.status === "error" ? "error" : "success",
-    attributes: JSON.parse(span.attributes),
+    attributes: tryParseJson(span.attributes),
     input,
     output,
     requestModel: span.request_model,

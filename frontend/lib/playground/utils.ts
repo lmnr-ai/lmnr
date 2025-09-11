@@ -2,6 +2,8 @@ import { ModelMessage, SystemModelMessage } from "ai";
 
 import { Message } from "@/lib/playground/types";
 
+import { tryParseJson } from "../utils";
+
 export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
   messages.map((message) => {
     // Handle system messages with text content
@@ -27,7 +29,7 @@ export const transformFromLegacy = (messages: Message[]): Message[] =>
             const { args, ...rest } = part;
             return {
               ...rest,
-              input: typeof args === "string" ? JSON.parse(args || "{}") : args || {},
+              input: typeof args === "string" ? tryParseJson(args || "{}") : args || {},
             };
           }
           return part;

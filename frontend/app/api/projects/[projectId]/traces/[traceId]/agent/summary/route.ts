@@ -31,6 +31,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       spanIdsMap,
     });
   } catch (error) {
+    console.error(error);
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to generate trace summary." },
       { status: 500 }

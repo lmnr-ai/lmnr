@@ -50,11 +50,3 @@ ALTER TABLE "traces_summaries" ADD CONSTRAINT "traces_summaries_project_id_fkey"
 ALTER TABLE "traces_summaries" ADD CONSTRAINT "traces_summaries_trace_id_fkey" FOREIGN KEY ("trace_id") REFERENCES "public"."traces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "dashboard_charts" ADD CONSTRAINT "dashboard_charts_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "events_span_id_idx" ON "events" USING btree ("span_id" uuid_ops);--> statement-breakpoint
-CREATE POLICY "select_by_next_api_key" ON "agent_chats" AS PERMISSIVE FOR SELECT TO "authenticated" USING (is_user_id_accessible_for_api_key(api_key(), user_id));--> statement-breakpoint
-CREATE POLICY "Enable insert for authenticated users only" ON "api_keys" AS PERMISSIVE FOR ALL TO "service_role" USING (true) WITH CHECK (true);--> statement-breakpoint
-CREATE POLICY "select_by_next_api_key" ON "evaluation_results" AS PERMISSIVE FOR SELECT TO "anon", "authenticated" USING (is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id));--> statement-breakpoint
-CREATE POLICY "select_by_next_api_key" ON "evaluations" AS PERMISSIVE FOR SELECT TO "anon", "authenticated" USING (is_evaluation_id_accessible_for_api_key(api_key(), id));--> statement-breakpoint
-CREATE POLICY "all_actions_by_next_api_key" ON "pipeline_versions" AS PERMISSIVE FOR ALL TO "anon", "authenticated" USING (is_pipeline_id_accessible_for_api_key(api_key(), pipeline_id));--> statement-breakpoint
-CREATE POLICY "select_by_next_api_key" ON "spans" AS PERMISSIVE FOR SELECT TO public USING (is_project_id_accessible_for_api_key(api_key(), project_id));--> statement-breakpoint
-CREATE POLICY "select_by_next_api_key" ON "traces" AS PERMISSIVE FOR SELECT TO "anon", "authenticated" USING (is_project_id_accessible_for_api_key(api_key(), project_id));--> statement-breakpoint
-CREATE POLICY "Enable insert for authenticated users only" ON "users" AS PERMISSIVE FOR INSERT TO "service_role" WITH CHECK (true);
