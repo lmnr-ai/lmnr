@@ -27,14 +27,6 @@ CREATE TABLE "traces_summaries" (
 	"span_ids_map" jsonb
 );
 --> statement-breakpoint
-ALTER TABLE "agent_chats" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "api_keys" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "evaluation_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "evaluations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "pipeline_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "spans" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "traces" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "dashboard_charts" DROP CONSTRAINT "fk_dashboard_charts_project_id";
 --> statement-breakpoint
 ALTER TABLE "events" DROP CONSTRAINT "events_span_id_project_id_fkey";
@@ -43,7 +35,6 @@ ALTER TABLE "subscription_tiers" ALTER COLUMN "spans" DROP DEFAULT;--> statement
 ALTER TABLE "subscription_tiers" ALTER COLUMN "spans" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "subscription_tiers" ALTER COLUMN "extra_span_price" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "subscription_tiers" ALTER COLUMN "extra_span_price" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "traces_agent_chats" ADD CONSTRAINT "traces_agent_chats_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "traces_agent_messages" ADD CONSTRAINT "traces_agent_messages_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "traces_summaries" ADD CONSTRAINT "traces_summaries_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
