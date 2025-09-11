@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
-import { useScrollContext } from "./virtualization-context";
+import { useScrollContext } from "./scroll-context";
 
 interface Props {
   traceDuration: number;
@@ -21,31 +21,30 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
-    if (!traceDuration || traceDuration <= 0) return 4; // Default fallback
+    if (!traceDuration || traceDuration <= 0) return 4;
 
     const durationInSeconds = traceDuration / 1000;
 
     if (durationInSeconds <= 30) {
-      return 16; // High detail for short traces
+      return 16;
     } else if (durationInSeconds <= 120) {
-      return 12; // Medium detail for medium traces
+      return 12;
     } else if (durationInSeconds <= 300) {
-      return 4; // Lower detail for longer traces
+      return 4;
     } else {
-      return 2; // Minimal detail for very long traces
+      return 2;
     }
   }, [traceDuration]);
 
-  // Dynamic TIME_MARKER_INTERVAL based on pixels per second
   const timeMarkerInterval = useMemo(() => {
     if (pixelsPerSecond == 16) {
-      return 2; // seconds
+      return 2;
     } else if (pixelsPerSecond == 12) {
-      return 4; // seconds
+      return 4;
     } else if (pixelsPerSecond == 4) {
-      return 10; // seconds
+      return 10;
     } else {
-      return 10; // seconds
+      return 10;
     }
   }, [pixelsPerSecond]);
 
@@ -221,7 +220,9 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
                 minHeight: `${pixelsPerSecond * timeMarkerInterval}px`,
               }}
             >
-              <span className="text-xs text-muted-foreground/60 leading-none font-mono text-right w-full">{marker.label}</span>
+              <span className="text-xs text-muted-foreground/60 leading-none font-mono text-right w-full">
+                {marker.label}
+              </span>
             </div>
           ))}
         </div>

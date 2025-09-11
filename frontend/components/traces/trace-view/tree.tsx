@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Span, Trace } from "@/lib/traces/types";
 
 import { SpanCard } from "../span-card";
-import { useScrollContext } from "./virtualization-context";
+import { useScrollContext } from "./scroll-context";
 
 export interface TreeHandle {
   scrollTo: (position: number) => void;
