@@ -3,6 +3,7 @@ import { html } from "@codemirror/lang-html";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { yaml } from "@codemirror/lang-yaml";
+import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, CreateThemeOptions } from "@uiw/codemirror-themes";
@@ -67,7 +68,26 @@ export const baseExtensions = [
       left: 0,
       overflow: "auto",
     },
+    // Enhanced search match styling
+    ".cm-searchMatch": {
+      backgroundColor: "hsl(var(--primary) / 0.3)",
+      border: "1px solid hsl(var(--primary))",
+      borderRadius: "3px",
+    },
+    ".cm-searchMatch-selected": {
+      backgroundColor: "hsl(var(--primary))",
+      color: "hsl(var(--primary-foreground))",
+      fontWeight: "500",
+    },
   }),
+  search({
+    createPanel: (view) => {
+      // empty div to hide the search panel
+      const dom = document.createElement("div");
+      return { dom };
+    },
+  }),
+  highlightSelectionMatches(),
 ];
 
 export const languageExtensions = {

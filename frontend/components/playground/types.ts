@@ -91,6 +91,21 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "gpt-4.1-mini",
         label: "GPT-4.1 Mini",
       },
+      {
+        id: "openai:gpt-5",
+        name: "gpt-5",
+        label: "GPT-5",
+      },
+      {
+        id: "openai:gpt-5-mini",
+        name: "gpt-5-mini",
+        label: "GPT-5-mini",
+      },
+      {
+        id: "openai:gpt-5-nano",
+        name: "gpt-5-nano",
+        label: "GPT-5-nano",
+      },
     ],
   },
   {
@@ -147,29 +162,19 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Gemini 1.5 Pro",
       },
       {
-        id: "gemini:gemini-2.5-flash-preview-05-20",
-        name: "gemini-2.5-flash-preview-05-20",
-        label: "Gemini 2.5 Flash Preview",
-      },
-      {
-        id: "gemini:gemini-2.5-pro-exp-03-25",
-        name: "gemini-2.5-pro-exp-03-25",
-        label: "Gemini 2.5 Pro Experimental",
-      },
-      {
-        id: "gemini:gemini-2.5-pro-preview-05-06",
-        name: "gemini-2.5-pro-preview-05-06",
-        label: "Gemini 2.5 Pro Preview (05-06)",
-      },
-      {
-        id: "gemini:gemini-2.5-pro-preview-06-05",
-        name: "gemini-2.5-pro-preview-06-05",
-        label: "Gemini 2.5 Pro Preview (06-05)",
-      },
-      {
         id: "gemini:gemini-2.5-pro",
         name: "gemini-2.5-pro",
         label: "Gemini 2.5 Pro",
+      },
+      {
+        id: "gemini:gemini-2.5-flash",
+        name: "gemini-2.5-flash",
+        label: "Gemini 2.5 Flash",
+      },
+      {
+        id: "gemini:gemini-2.5-flash-lite",
+        name: "gemini-2.5-flash-lite",
+        label: "Gemini 2.5 Flash Lite",
       },
     ],
   },
