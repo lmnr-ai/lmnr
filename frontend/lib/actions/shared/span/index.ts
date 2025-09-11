@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { events, spans } from "@/lib/db/migrations/schema";
@@ -81,18 +82,3 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
   return rows;
 };
 
-const tryParseJson = (value: string) => {
-  if (value === "" || value === undefined) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch (e) {
-    // Parse with brackets because we stringify array using comma separator on server.
-    try {
-      return JSON.parse(`[${value}]`);
-    } catch (e2) {
-      console.log("Failed to parse JSON with brackets:", e2);
-      return value;
-    }
-  }
-};
