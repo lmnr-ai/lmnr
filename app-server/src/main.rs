@@ -393,8 +393,6 @@ fn main() -> anyhow::Result<()> {
                     let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
                     let s3_storage = storage::s3::S3Storage::new(
                         s3_client,
-                        env::var("S3_TRACE_PAYLOADS_BUCKET")
-                            .expect("S3_TRACE_PAYLOADS_BUCKET must be set"),
                         mq_for_http.clone(),
                     );
                     Arc::new(s3_storage.into())

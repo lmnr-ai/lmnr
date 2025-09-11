@@ -436,6 +436,7 @@ impl ChatMessageContentPart {
         &self,
         project_id: &Uuid,
         storage: Arc<Storage>,
+        bucket: &str,
     ) -> Result<ChatMessageContentPart> {
         match self {
             ChatMessageContentPart::Image(image) => {
@@ -460,7 +461,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(&bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: Some(format!("media_type:{};base64", media_type)),
@@ -484,7 +485,7 @@ impl ChatMessageContentPart {
                     // Leave intact in case of error
                     return Ok(self.clone());
                 }
-                let url = storage.store(data, &key).await?;
+                let url = storage.store(&bucket, &key, data).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
                         media_type: document.source.media_type.clone(),
@@ -505,7 +506,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.store(data, &key).await?;
+                    let url = storage.store(&bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: image_url.detail.clone(),
@@ -526,7 +527,7 @@ impl ChatMessageContentPart {
                     // Leave intact in case of error
                     return Ok(self.clone());
                 }
-                let url = storage.store(image.image.clone(), &key).await?;
+                let url = storage.store(&bucket, &key, image.image.clone()).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
                     detail: image

@@ -31,7 +31,12 @@ pub async fn get_payload(
     let key = format!("project/{}/{}", project_id, payload_id);
 
     // Get the payload stream from storage
-    let mut stream = match storage.as_ref().get_stream(&key, &None).await {
+    let Ok(bucket) = std::env::var("S3_TRACE_PAYLOADS_BUCKET") else {
+        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "payloads storage is not configured"
+        })));
+    };
+    let mut stream = match storage.as_ref().get_stream(&bucket, &key).await {
         Ok(stream) => stream,
         Err(e) => {
             log::error!("Failed to retrieve payload from storage: {:?}", e);
