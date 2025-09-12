@@ -2,7 +2,7 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { has } from "lodash";
-import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
+import { ChartNoAxesGantt, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
