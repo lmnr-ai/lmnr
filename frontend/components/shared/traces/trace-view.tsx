@@ -319,6 +319,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   }}
                 >
                   <SessionPlayer
+                    onClose={() => setShowBrowserSession(false)}
                     ref={browserSessionRef}
                     hasBrowserSession={trace.hasBrowserSession}
                     traceId={trace.id}
