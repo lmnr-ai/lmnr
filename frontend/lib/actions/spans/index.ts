@@ -162,6 +162,16 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
   // to force PostgreSQL to use the correct indexes always.
   const spanEvents = await db
     .query.events.findMany({
+      columns: {
+        id: true,
+        timestamp: true,
+        spanId: true,
+        projectId: true,
+        // we only need basic event data for trace spans overview,
+        // not attributes, so we mark it as false
+        name: false,
+        attributes: false,
+      },
       where: and(
         eq(events.projectId, projectId),
         inArray(events.spanId, spanItems.map((span) => span.spanId))
@@ -174,10 +184,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
   // so we explicitly set the parentSpanId to null
   return spanItems.map((span) => ({
     ...span,
-    events: (spanEventsMap[span.spanId] || []).map((event) => ({
-      ...event,
-      attributes: event.attributes as Record<string, any>,
-    })),
+    events: (spanEventsMap[span.spanId] || []),
     parentSpanId: searchSpanIds.length > 0 || urlParamFilters.length > 0 ? null : span.parentSpanId,
   }));
 }

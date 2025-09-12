@@ -26,6 +26,10 @@ export async function register() {
             llm_prices: llmPrices,
           };
           const table = tables[tableName];
+          if (!table) {
+            console.warn(`Table ${tableName} not found in initial data`);
+            continue;
+          }
           const rows: Record<string, unknown>[] = entry.data.map((row: Record<string, unknown>) =>
             Object.fromEntries(
               Object.entries(row).map(([k, v]) =>

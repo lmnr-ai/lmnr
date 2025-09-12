@@ -1,21 +1,18 @@
-import { and, asc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { db } from '@/lib/db/drizzle';
-import { events } from '@/lib/db/migrations/schema';
+import { getEvents } from '@/lib/actions/events';
 
 export async function GET(
   req: Request,
   props: { params: Promise<{ projectId: string; spanId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
-  const spanId = params.spanId;
+  const { projectId, spanId } = params;
 
-  const rows = await db.query.events.findMany({
-    where: and(eq(events.spanId, spanId), eq(events.projectId, projectId)),
-    orderBy: asc(events.timestamp),
-  });
-
-  return NextResponse.json(rows);
+  try {
+    const events = await getEvents({ spanId, projectId });
+    return NextResponse.json(events);
+  } catch (error) {
+    return NextResponse.json({ error: "Events not found" }, { status: 404 });
+  }
 }
