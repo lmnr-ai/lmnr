@@ -3,14 +3,16 @@ import React, { memo } from "react";
 import { PlaygroundOutputStore } from "./playground-output";
 
 const tokenLabels: Record<keyof PlaygroundOutputStore["usage"], string> = {
-  promptTokens: "Prompt Tokens",
-  completionTokens: "Completion Tokens",
+  inputTokens: "Input Tokens",
+  outputTokens: "Output Tokens",
+  cachedInputTokens: "Cached Input Tokens",
+  reasoningTokens: "Reasoning Tokens",
   totalTokens: "Total Tokens",
 };
 
 const Usage = ({ usage }: Pick<PlaygroundOutputStore, "usage">) => {
   const validTokens = (Object.entries(tokenLabels) as [keyof PlaygroundOutputStore["usage"], string][]).filter(
-    ([key]) => !isNaN(usage?.[key])
+    ([key]) => usage?.[key] && !isNaN(usage?.[key])
   );
 
   if (validTokens.length > 0) {

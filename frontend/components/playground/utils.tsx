@@ -110,7 +110,7 @@ export const parseTools = (tools?: string) => {
     (acc, [toolName, toolItem]) => {
       acc[toolName] = tool({
         ...toolItem,
-        parameters: jsonSchema(toolItem.parameters),
+        inputSchema: jsonSchema(toolItem.parameters),
       });
       return acc;
     },

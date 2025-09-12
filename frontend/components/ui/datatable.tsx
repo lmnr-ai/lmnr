@@ -6,6 +6,7 @@ import {
   getExpandedRowModel,
   getPaginationRowModel,
   Row,
+  RowData,
   useReactTable,
 } from "@tanstack/react-table";
 import { X } from "lucide-react";
@@ -60,6 +61,8 @@ interface DataTableProps<TData> {
   pageSizeOptions?: number[];
   childrenClassName?: string;
 }
+
+const EMPTY_ARRAY: RowData[] = [];
 
 const checkboxColumn = <TData,>(
   setAllRowsAcrossAllPagesSelected: Dispatch<SetStateAction<boolean>>,
@@ -157,7 +160,7 @@ export function DataTable<TData>({
     : [];
 
   const table = useReactTable<TData>({
-    data: data ?? [],
+    data: data || (EMPTY_ARRAY as TData[]),
     columns: [...selectionColumns, ...columns],
     columnResizeMode: "onChange",
     columnResizeDirection: "ltr",

@@ -328,3 +328,13 @@ export const getDuration = (startTime: string, endTime: string) => {
   const end = new Date(endTime);
   return Math.max(end.getTime() - start.getTime(), 0);
 };
+
+export const tryParseJson = (value: string) => {
+  if (value === "" || value === undefined) return null;
+
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return null;
+  }
+};

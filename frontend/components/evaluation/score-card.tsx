@@ -8,7 +8,7 @@ import { Skeleton } from "../ui/skeleton";
 
 interface ScoreCardProps {
   scores: string[];
-  selectedScore: string;
+  selectedScore?: string;
   setSelectedScore: (score: string) => void;
   statistics: EvaluationScoreStatistics | null;
   comparedStatistics?: EvaluationScoreStatistics | null;
@@ -21,7 +21,7 @@ export default function ScoreCard({
   setSelectedScore,
   statistics,
   comparedStatistics,
-  isLoading = false
+  isLoading = false,
 }: ScoreCardProps) {
   const average = statistics?.averageValue;
   const comparedAverage = comparedStatistics?.averageValue;
@@ -40,7 +40,7 @@ export default function ScoreCard({
         <>
           <Select value={selectedScore} onValueChange={setSelectedScore}>
             <SelectTrigger className="w-fit font-medium text-secondary-foreground h-7">
-              <SelectValue placeholder="select score" className="text-lg" />
+              <SelectValue placeholder="Select score" className="text-lg" />
             </SelectTrigger>
             <SelectContent>
               {scores.map((score) => (

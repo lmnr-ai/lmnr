@@ -13,12 +13,14 @@ const SearchSpansInput = ({
   submit,
   className,
   filterBoxClassName,
-  setSearchEnabled,
+  defaultValue,
+  setSearchSpans,
 }: PropsWithChildren<{
   submit: (search: string, searchIn: string[], filters: DatatableFilter[]) => Promise<void>;
+  defaultValue?: string;
   className?: string;
   filterBoxClassName?: string;
-  setSearchEnabled: (v: boolean) => void;
+  setSearchSpans: (v: string) => void;
 }>) => {
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
@@ -41,10 +43,12 @@ const SearchSpansInput = ({
 
   const handleSubmit = useCallback(() => {
     if (inputRef.current) {
-      submit(inputRef?.current?.value, value === "all" ? ["input", "output"] : [value], []);
+      const searchValue = inputRef.current.value;
+      submit(searchValue, value === "all" ? ["input", "output"] : [value], []);
+      setSearchSpans(searchValue);
     }
     inputRef?.current?.blur();
-  }, [submit, value]);
+  }, [submit, value, setSearchSpans]);
 
   const handleBlur = useCallback(() => {
     handleSubmit();
@@ -65,15 +69,16 @@ const SearchSpansInput = ({
       if (inputRef.current?.value !== "") {
         inputRef.current.value = "";
         setInputValue("");
+        setSearchSpans("");
       }
     }
-  }, []);
+  }, [setSearchSpans]);
 
   const handleCloseSearch = useCallback(() => {
-    setSearchEnabled(false);
+    setSearchSpans("");
     handleClearInput();
     handleSubmit();
-  }, [handleClearInput, handleSubmit, setSearchEnabled]);
+  }, [handleClearInput, handleSubmit, setSearchSpans]);
 
   return (
     <div className="flex flex-col top-0 sticky bg-background z-30 box-border">
@@ -89,7 +94,7 @@ const SearchSpansInput = ({
         </Button>
         <Search size={18} className="text-secondary-foreground min-w-[18px]" />
         <Input
-          defaultValue={searchParams.get("search") ?? ""}
+          defaultValue={defaultValue}
           className="focus-visible:ring-0 border-none max-h-8 px-1"
           type="text"
           placeholder="Search"

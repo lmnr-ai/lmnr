@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    mq::utils::mq_max_payload,
     storage::{Storage, StorageTrait},
     utils::is_url,
 };
@@ -35,6 +36,9 @@ pub struct AnthropicImageUrl {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessageText {
+    // FIXME: remove aliases when we are fully ready to parse
+    // OpenAI Responses API formats strongly typed.
+    #[serde(alias = "input_text", alias = "output_text")]
     pub text: String,
 }
 
@@ -447,6 +451,15 @@ impl ChatMessageContentPart {
                     let key = crate::storage::create_key(project_id, &None);
                     let data = crate::storage::base64_to_bytes(&image.data)?;
                     let media_type = image.media_type.clone();
+                    if data.len() >= mq_max_payload() {
+                        log::warn!(
+                            "[STORAGE] MQ payload limit exceeded (image). Project ID: [{}], payload size: [{}]",
+                            project_id,
+                            data.len()
+                        );
+                        // Leave intact in case of error
+                        return Ok(self.clone());
+                    }
                     let url = storage.store(data, &key).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
@@ -462,6 +475,15 @@ impl ChatMessageContentPart {
                 };
                 let key = crate::storage::create_key(project_id, &file_extension);
                 let data = crate::storage::base64_to_bytes(&document.source.data)?;
+                if data.len() >= mq_max_payload() {
+                    log::warn!(
+                        "[STORAGE] MQ payload limit exceeded (document). Project ID: [{}], payload size: [{}]",
+                        project_id,
+                        data.len()
+                    );
+                    // Leave intact in case of error
+                    return Ok(self.clone());
+                }
                 let url = storage.store(data, &key).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
@@ -474,6 +496,15 @@ impl ChatMessageContentPart {
                 if let Some(base64_data) = raw_base64_from_data_url(&image_url.url) {
                     let data = crate::storage::base64_to_bytes(base64_data)?;
                     let key = crate::storage::create_key(project_id, &None);
+                    if data.len() >= mq_max_payload() {
+                        log::warn!(
+                            "[STORAGE] MQ payload limit exceeded (image url). Project ID: [{}], payload size: [{}]",
+                            project_id,
+                            data.len()
+                        );
+                        // Leave intact in case of error
+                        return Ok(self.clone());
+                    }
                     let url = storage.store(data, &key).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
@@ -486,6 +517,15 @@ impl ChatMessageContentPart {
             }
             ChatMessageContentPart::ImageRawBytes(image) => {
                 let key = crate::storage::create_key(project_id, &None);
+                if image.image.len() >= mq_max_payload() {
+                    log::warn!(
+                        "[STORAGE] MQ payload limit exceeded (image raw bytes/aisdk). Project ID: [{}], payload size: [{}]",
+                        project_id,
+                        image.image.len()
+                    );
+                    // Leave intact in case of error
+                    return Ok(self.clone());
+                }
                 let url = storage.store(image.image.clone(), &key).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,

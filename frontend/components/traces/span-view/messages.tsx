@@ -1,5 +1,5 @@
 import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { isEqual } from "lodash";
 import { ChevronDown } from "lucide-react";
 import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
@@ -12,6 +12,7 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { createStorageKey } from "@/components/traces/span-view/span-view-store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useOptionalSearchContext } from "@/contexts/search-context.tsx";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
@@ -63,11 +64,12 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
     };
   }, [messages]);
 
+  const searchContext = useOptionalSearchContext();
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: 16,
+    overscan: searchContext?.searchTerm ? 128 : 32,
     gap: 16,
   });
 
@@ -137,7 +139,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
-  | { type: "generic"; messages: (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] };
+  | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
 const MessagesRenderer = ({
   messages,

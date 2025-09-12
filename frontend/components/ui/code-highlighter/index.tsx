@@ -1,7 +1,8 @@
+import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
@@ -36,6 +37,7 @@ interface CodeEditorProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
+  searchTerm?: string;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -64,6 +66,7 @@ const PureCodeHighlighter = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
+  searchTerm = "",
 }: CodeEditorProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [mode, setMode] = useState(() => {
@@ -99,7 +102,6 @@ const PureCodeHighlighter = ({
     setShouldRenderImages((prev) => !prev);
   }, []);
 
-  // Toggle line numbers
   const toggleLineNumbers = useCallback(() => {
     setShowLineNumbers((prev) => !prev);
   }, []);
@@ -135,7 +137,70 @@ const PureCodeHighlighter = ({
     }
 
     return extensions;
-  }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap]);
+  }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap, searchTerm]);
+
+  const clearSearch = (view: EditorView) => {
+    closeSearchPanel(view);
+
+    const emptyQuery = new SearchQuery({ search: "" });
+    view.dispatch({
+      effects: setSearchQuery.of(emptyQuery),
+    });
+  };
+
+  const applySearch = useCallback(
+    (view: EditorView) => {
+      const searchTermTrimmed = searchTerm.trim();
+      if (searchTermTrimmed) {
+        const docText = view.state.doc.toString();
+
+        const hasEscapeSequences = /\\[nrt]/.test(searchTermTrimmed);
+        const processedSearchTerm = hasEscapeSequences
+          ? searchTermTrimmed.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
+          : searchTermTrimmed;
+
+        const hasMatch = docText.toLowerCase().includes(processedSearchTerm.toLowerCase());
+
+        if (hasMatch) {
+          console.log("hasMatch");
+          openSearchPanel(view);
+
+          const searchQuery = new SearchQuery({
+            search: processedSearchTerm,
+            caseSensitive: false,
+            literal: true,
+            wholeWord: false,
+            regexp: false,
+          });
+
+          view.dispatch({
+            effects: setSearchQuery.of(searchQuery),
+          });
+
+          const selection = view.state.selection.main;
+
+          setTimeout(() => {
+            view.dispatch({
+              effects: EditorView.scrollIntoView(selection, { y: "end" }),
+            });
+            findNext(view);
+          }, 100);
+
+        } else {
+          clearSearch(view);
+        }
+      } else {
+        closeSearchPanel(view);
+      }
+    },
+    [searchTerm]
+  );
+
+  useEffect(() => {
+    if (editorRef.current?.view) {
+      applySearch(editorRef.current?.view);
+    }
+  }, [searchTerm, applySearch, editorRef]);
 
   const renderHeaderContent = () => (
     <>
@@ -161,10 +226,12 @@ const PureCodeHighlighter = ({
         variant="ghost"
         text={value}
       />
-      <div className={cn(
-        "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
-        isSettingsOpen && "opacity-100"
-      )}>
+      <div
+        className={cn(
+          "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
+          isSettingsOpen && "opacity-100"
+        )}
+      >
         <CodeSheet
           renderedValue={value}
           mode={mode}
@@ -229,6 +296,7 @@ const PureCodeHighlighter = ({
             extensions={extensions}
             value={renderedValue}
             readOnly={readOnly}
+            onCreateEditor={applySearch}
           />
         </div>
       )}

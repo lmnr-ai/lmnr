@@ -1,4 +1,4 @@
-import { coreMessageSchema, generateText, GenerateTextResult, ToolSet } from "ai";
+import { generateText, GenerateTextResult, modelMessageSchema, ToolSet } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -12,7 +12,7 @@ import { getModel } from "@/lib/playground/providersRegistry";
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
 export const PlaygroundParamsSchema = z.object({
-  messages: z.array(coreMessageSchema).min(1),
+  messages: z.array(modelMessageSchema).min(1),
   model: z.string().min(1),
   projectId: z.string().min(1),
   providerOptions: z.any().optional(),
@@ -79,7 +79,7 @@ export async function generateChatResponse(
     abortSignal,
     model: getModel(model as `${Provider}:${string}`, decodedKey),
     messages,
-    maxTokens,
+    maxOutputTokens: maxTokens,
     temperature,
     topK,
     topP,
@@ -104,13 +104,39 @@ export async function handleChatGeneration(
 
   const { result, startTime, endTime } = await generateChatResponse(params);
 
+  // Ensure the result has safe fallback values for required properties
+  const safeResult: GenerateTextResult<ToolSet, {}> = {
+    ...result,
+    text: result.text || "",
+    reasoning: result.reasoning || [],
+    toolCalls: result.toolCalls || [],
+    usage: result.usage || {
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      totalTokens: 0,
+    },
+    totalUsage: result.totalUsage || {
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      totalTokens: 0,
+    },
+    content: result.content || [],
+    files: result.files || [],
+    sources: result.sources || [],
+    reasoningText: result.reasoningText || "",
+  };
+
   try {
     const provider = model.split(":")[0] as Provider;
 
     const spanData: SpanData = {
       provider,
       model,
-      result,
+      result: safeResult,
       messages,
       maxTokens,
       temperature,
@@ -125,5 +151,5 @@ export async function handleChatGeneration(
   } catch (error) {
     console.error("Error saving run to history.", error);
   }
-  return result;
+  return safeResult;
 }

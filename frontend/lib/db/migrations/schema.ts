@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
 export const labelSource = pgEnum("label_source", ['MANUAL', 'AUTO', 'CODE']);
-export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL', 'HUMAN_EVALUATOR']);
+export const spanType = pgEnum("span_type", ['DEFAULT', 'LLM', 'PIPELINE', 'EXECUTOR', 'EVALUATOR', 'EVALUATION', 'TOOL', 'HUMAN_EVALUATOR', 'EVENT']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION', 'PLAYGROUND']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner', 'admin']);
 
@@ -64,6 +64,22 @@ export const userUsage = pgTable("user_usage", {
     columns: [table.userId],
     foreignColumns: [users.id],
     name: "user_usage_user_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const tracesAgentMessages = pgTable("traces_agent_messages", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  role: text().notNull(),
+  parts: jsonb().notNull(),
+  chatId: uuid("chat_id").notNull(),
+  traceId: uuid("trace_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "traces_agent_messages_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
@@ -169,6 +185,19 @@ export const renderTemplates = pgTable("render_templates", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const tracesAgentChats = pgTable("traces_agent_chats", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  traceId: uuid("trace_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "traces_agent_chats_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const labelingQueueItems = pgTable("labeling_queue_items", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -270,22 +299,8 @@ export const events = pgTable("events", {
   spanId: uuid("span_id").notNull(),
   projectId: uuid("project_id").notNull(),
 }, (table) => [
+  index("events_span_id_idx").using("btree", table.spanId.asc().nullsLast().op("uuid_ops")),
   index("events_span_id_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.spanId.asc().nullsLast().op("uuid_ops")),
-]);
-
-export const labelClassesForPath = pgTable("label_classes_for_path", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  projectId: uuid("project_id").defaultRandom().notNull(),
-  path: text().notNull(),
-  labelClassId: uuid("label_class_id").notNull(),
-}, (table) => [
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "autoeval_labels_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  unique("unique_project_id_path_label_class").on(table.projectId, table.path, table.labelClassId),
 ]);
 
 export const llmPrices = pgTable("llm_prices", {
@@ -520,6 +535,26 @@ export const pipelines = pgTable("pipelines", {
     name: "pipelines_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
   unique("unique_project_id_pipeline_name").on(table.projectId, table.name),
+]);
+
+export const tracesSummaries = pgTable("traces_summaries", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  traceId: uuid("trace_id").defaultRandom().notNull(),
+  summary: text(),
+  projectId: uuid("project_id").notNull(),
+  spanIdsMap: jsonb("span_ids_map"),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "traces_summaries_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  foreignKey({
+    columns: [table.traceId],
+    foreignColumns: [traces.id],
+    name: "traces_summaries_trace_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
 export const datasetDatapoints = pgTable("dataset_datapoints", {

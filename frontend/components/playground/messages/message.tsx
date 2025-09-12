@@ -1,5 +1,4 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ImagePart, TextPart, ToolCallPart, ToolResultPart } from "ai";
 import { capitalize } from "lodash";
 import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import React from "react";
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { ImagePart, PlaygroundForm, TextPart, ToolCallPart, ToolResultPart } from "@/lib/playground/types";
 
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];
@@ -43,15 +42,15 @@ const defaultImagePart: ImagePart = {
 const defaultToolCallPart: ToolCallPart = {
   type: "tool-call",
   toolName: "",
-  toolCallId: "-",
-  args: "",
+  toolCallId: "",
+  input: {},
 };
 
 const defaultToolResultPart: ToolResultPart = {
   type: "tool-result",
-  toolCallId: "-",
+  toolCallId: "",
   toolName: "",
-  result: "",
+  output: { type: "text", value: "" },
 };
 
 const buttonClassName =

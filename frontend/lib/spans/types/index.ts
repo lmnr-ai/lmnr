@@ -1,4 +1,4 @@
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
 import { Message } from "@/lib/playground/types";
@@ -120,7 +120,7 @@ const processContentPart = (
         type: "tool-call" as const,
         toolCallId: toolCallId || "",
         toolName,
-        args: part.arguments,
+        input: part.arguments,
       };
 
     default:
@@ -131,7 +131,7 @@ const processContentPart = (
           type: "tool-result" as const,
           toolCallId,
           toolName,
-          result: part.type === "text" ? part.text : JSON.stringify(part),
+          output: { type: "text", value: part.type === "text" ? part.text : JSON.stringify(part) },
         };
       }
 
@@ -155,7 +155,7 @@ const processMessageContent = (
           type: "tool-result" as const,
           toolCallId: message?.tool_call_id || "-",
           toolName: store.get(message?.tool_call_id) || "-",
-          result: content,
+          output: { type: "text", value: content },
         },
       ];
     }
@@ -177,7 +177,7 @@ const processMessageContent = (
 
 export const convertToMessages = (
   messages: ChatMessage[] | Record<string, unknown> | string | undefined
-): (Omit<CoreMessage, "role"> & { role?: CoreMessage["role"] })[] => {
+): (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] => {
   if (isString(messages) || isNumber(messages)) {
     return [
       {
@@ -192,7 +192,7 @@ export const convertToMessages = (
       if (isString(message) || isNumber(message)) {
         return {
           content: String(message),
-        } as CoreMessage;
+        } as ModelMessage;
       }
 
       if (typeof message === "object" && message !== null && "content" in message) {
@@ -205,7 +205,7 @@ export const convertToMessages = (
       }
       return {
         content: JSON.stringify(message),
-      } as CoreMessage;
+      } as ModelMessage;
     });
   }
 
