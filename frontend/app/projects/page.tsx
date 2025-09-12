@@ -60,7 +60,7 @@ export default async function ProjectsPage() {
       username={user.name!}
       imageUrl={user.image!}
     >
-      <PostHogIdentifier email={user.email!} />
+      <PostHogIdentifier email={user.email!} isEnabled={isFeatureEnabled(Feature.POSTHOG_IDENTIFY)} />
       <WorkspacesNavbar />
       <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
         <Header path="Projects" showSidebarTrigger={false} />

@@ -5,15 +5,18 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
-import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
+interface PostHogPageViewProps {
+  isEnabled?: boolean;
+}
 
-export default function PostHogPageView(): null {
+export default function PostHogPageView({ isEnabled = false }: PostHogPageViewProps): null {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
+
   useEffect(() => {
     // Track pageviews
-    if (pathname && posthog && isFeatureEnabled(Feature.POSTHOG)) {
+    if (pathname && posthog && isEnabled) {
       let url = window.origin + pathname;
       if (searchParams.toString()) {
         url = url + `?${searchParams.toString()}`;
@@ -22,7 +25,7 @@ export default function PostHogPageView(): null {
         $current_url: url,
       });
     }
-  }, [pathname, searchParams, posthog]);
+  }, [pathname, searchParams, posthog, isEnabled]);
 
   return null;
 }

@@ -126,7 +126,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       imageUrl={user.image!}
       supabaseAccessToken={session.supabaseAccessToken}
     >
-      <PostHogIdentifier email={user.email!} />
+      <PostHogIdentifier email={user.email!} isEnabled={isFeatureEnabled(Feature.POSTHOG_IDENTIFY)} />
       <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>

@@ -4,7 +4,8 @@ import { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import { Toaster } from '@/components/ui/toaster';
-import { manrope,sans } from '@/lib/fonts';
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { manrope, sans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 import PostHogPageView from './posthog-pageview';
@@ -40,6 +41,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isPostHogEnabled = isFeatureEnabled(Feature.POSTHOG);
+
   return (
     <html lang="en" className={cn('h-full antialiased', sans.variable, manrope.variable)}>
       <PHProvider>
@@ -47,7 +50,7 @@ export default async function RootLayout({
           className="flex flex-col h-full"
         >
           <Suspense fallback={null}>
-            <PostHogPageView />
+            <PostHogPageView isEnabled={isPostHogEnabled} />
           </Suspense>
           <div className="flex">
             <div className="flex flex-col flex-grow max-w-full min-h-screen">
