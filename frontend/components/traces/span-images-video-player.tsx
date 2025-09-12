@@ -15,9 +15,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { SpanImage } from "@/lib/actions/span/images";
 import { SharedSpanImage } from "@/lib/actions/shared/spans/images";
-import { formatSecondsToMinutesAndSeconds, swrFetcher } from "@/lib/utils";
+import { SpanImage } from "@/lib/actions/span/images";
+import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SpanImagesVideoPlayerProps {
   traceId: string;
@@ -72,20 +72,18 @@ const SpanImagesVideoPlayer = forwardRef<SpanImagesVideoPlayerHandle, SpanImages
       setIsLoadingImages(true);
       const imageMap = new Map<string, HTMLImageElement>();
 
-      const loadPromises = imageData.map((img) => {
-        return new Promise<void>((resolve, reject) => {
-          const htmlImg = new Image();
-          htmlImg.onload = () => {
-            imageMap.set(img.imageUrl, htmlImg);
-            resolve();
-          };
-          htmlImg.onerror = () => {
-            console.warn(`Failed to load image: ${img.imageUrl}`);
-            resolve(); // Don't reject, just skip this image
-          };
-          htmlImg.src = img.imageUrl;
-        });
-      });
+      const loadPromises = imageData.map((img) => new Promise<void>((resolve, reject) => {
+        const htmlImg = new Image();
+        htmlImg.onload = () => {
+          imageMap.set(img.imageUrl, htmlImg);
+          resolve();
+        };
+        htmlImg.onerror = () => {
+          console.warn(`Failed to load image: ${img.imageUrl}`);
+          resolve(); // Don't reject, just skip this image
+        };
+        htmlImg.src = img.imageUrl;
+      }));
 
       try {
         await Promise.all(loadPromises);
