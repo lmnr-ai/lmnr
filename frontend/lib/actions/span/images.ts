@@ -15,6 +15,7 @@ export interface SpanImage {
   startTime: string;
   endTime: string;
   imageUrl: string;
+  timestamp: number; // Unix timestamp in milliseconds for video timeline
 }
 
 export async function getSpanImages(input: z.infer<typeof GetSpanImagesSchema>): Promise<SpanImage[]> {
@@ -56,6 +57,7 @@ export async function getSpanImages(input: z.infer<typeof GetSpanImagesSchema>):
         startTime: spanData.start_time,
         endTime: spanData.end_time,
         imageUrl,
+        timestamp: new Date(`${spanData.start_time}Z`).getTime(),
       })
     );
   });
@@ -73,7 +75,9 @@ function extractImagesFromMessages(messages: any): string[] {
         .filter((part: any) => part.type === "image_url")
         .map((part: any) => part.image_url?.url || part.url)
         .filter(Boolean)
-    );
+    )
+    .reverse()
+    .slice(0, 1);
 }
 
 const tryParseJson = (value: string) => {

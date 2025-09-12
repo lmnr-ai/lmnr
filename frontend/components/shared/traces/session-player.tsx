@@ -10,7 +10,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
-import SpanImagesCarousel from "@/components/traces/span-images-carousel";
+import SpanImagesVideoPlayer, { SpanImagesVideoPlayerHandle } from "@/components/traces/span-images-video-player";
 import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
@@ -46,6 +46,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const playerContainerRef = useRef<HTMLDivElement | null>(null);
     const browserContentRef = useRef<HTMLDivElement | null>(null);
     const playerRef = useRef<any>(null);
+    const imageVideoPlayerRef = useRef<SpanImagesVideoPlayerHandle | null>(null);
     const [events, setEvents] = useState<Event[]>([]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -58,7 +59,14 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     const currentUrlIndexRef = useRef<number>(0);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState("browser-session");
+    const [activeTab, setActiveTab] = useState(hasBrowserSession ? "browser-session" : "images");
+
+    // Update active tab when hasBrowserSession changes
+    useEffect(() => {
+      if (!hasBrowserSession && activeTab === "browser-session") {
+        setActiveTab("images");
+      }
+    }, [hasBrowserSession, activeTab]);
 
     useEffect(() => {
       if (!browserContentRef.current || activeTab !== "browser-session") return;
@@ -293,14 +301,16 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
       ref,
       () => ({
         goto: (time: number) => {
-          if (playerRef.current) {
+          if (activeTab === "browser-session" && playerRef.current) {
             setCurrentTime(time);
             playerRef.current.goto(time * 1000);
             updateCurrentUrl(startTime + time * 1000);
+          } else if (activeTab === "images" && imageVideoPlayerRef.current) {
+            imageVideoPlayerRef.current.goto(time);
           }
         },
       }),
-      [startTime, urlChanges, currentUrl]
+      [activeTab, startTime, urlChanges, currentUrl]
     );
 
     useHotkeys("space", handlePlayPause, { enabled: activeTab === "browser-session" });
@@ -322,24 +332,24 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
     return (
       <div className="relative w-full h-full flex flex-col">
         <div className="h-10 border-b pl-4 pr-2 flex items-center gap-0 flex-shrink-0">
-          <button
-            onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
-              activeTab === "browser-session"
+          {hasBrowserSession && (
+            <button
+              onClick={() => setActiveTab("browser-session")}
+              className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
                 ? "border-secondary-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Session
-          </button>
+                }`}
+            >
+              Session
+            </button>
+          )}
 
           <button
-            onClick={() => setActiveTab("screenshots")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${
-              activeTab === "screenshots"
-                ? "border-secondary-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={() => setActiveTab("images")}
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${activeTab === "images"
+              ? "border-secondary-foreground text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+              } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
           >
             Images
           </button>
@@ -429,9 +439,15 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             </div>
           )}
 
-          {activeTab === "screenshots" && (
+          {activeTab === "images" && (
             <div className="h-full">
-              <SpanImagesCarousel traceId={traceId} spanIds={llmSpanIds} onTimelineChange={onTimelineChange} isShared />
+              <SpanImagesVideoPlayer
+                ref={imageVideoPlayerRef}
+                traceId={traceId}
+                spanIds={llmSpanIds}
+                onTimelineChange={onTimelineChange}
+                isShared
+              />
             </div>
           )}
         </div>

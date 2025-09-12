@@ -14,6 +14,7 @@ export interface SharedSpanImage {
   startTime: string;
   endTime: string;
   imageUrl: string;
+  timestamp: number; // Unix timestamp in milliseconds for video timeline
 }
 
 export async function getSharedSpanImages(input: z.infer<typeof GetSharedSpanImagesSchema>): Promise<SharedSpanImage[]> {
@@ -56,6 +57,7 @@ export async function getSharedSpanImages(input: z.infer<typeof GetSharedSpanIma
         startTime: spanData.start_time,
         endTime: spanData.end_time,
         imageUrl,
+        timestamp: new Date(`${spanData.start_time}Z`).getTime(),
       })
     );
   });

@@ -3,16 +3,21 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { getSpanImages } from "@/lib/actions/span/images";
 
-export async function GET(
+export async function POST(
   req: NextRequest,
   props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const { projectId, traceId } = params;
 
-  const spanIds = req.nextUrl.searchParams.getAll("id");
-
   try {
+    const body = await req.json();
+    const { spanIds } = body;
+
+    if (!Array.isArray(spanIds)) {
+      return Response.json({ error: "spanIds must be an array" }, { status: 400 });
+    }
+
     const images = await getSpanImages({ projectId, traceId, spanIds });
     return Response.json({ images });
   } catch (error) {
