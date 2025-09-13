@@ -1,10 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { events, spans } from "@/lib/db/migrations/schema";
+import { spans } from "@/lib/db/migrations/schema";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
@@ -74,11 +74,22 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
     throw new Error("Span not found or does not belong to the given trace");
   }
 
-  const rows = await db.query.events.findMany({
-    where: and(eq(events.spanId, spanId)),
-    orderBy: asc(events.timestamp),
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT id, timestamp, span_id spanId, name, attributes
+      FROM events
+      WHERE span_id = {spanId: UUID}
+    `,
+    format: "JSONEachRow",
+    query_params: { spanId },
   });
 
-  return rows;
+  const rows = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string; attributes: string }[];
+
+  return rows.map((row) => ({
+    ...row,
+    timestamp: new Date(`${row.timestamp}Z`),
+    attributes: tryParseJson(row.attributes),
+  }));
 };
 

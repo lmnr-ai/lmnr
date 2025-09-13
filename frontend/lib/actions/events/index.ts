@@ -34,6 +34,7 @@ export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise
 
   return chEvents.map((event) => ({
     ...event,
+    timestamp: new Date(`${event.timestamp}Z`).toISOString(),
     attributes: tryParseJson(event.attributes),
   }));
 }
