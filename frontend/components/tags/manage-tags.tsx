@@ -1,18 +1,18 @@
 "use client";
 import { PropsWithChildren, useMemo, useState } from "react";
 
-import CreateLabel from "@/components/labels/create-label";
-import PickLabel from "@/components/labels/pick-label";
+import CreateTag from "@/components/tags/create-tag";
+import PickTag from "@/components/tags/pick-tag";
 import { DropdownMenu, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 
-const ManageLabels = ({ children }: PropsWithChildren) => {
+const ManageTags = ({ children }: PropsWithChildren) => {
   const [step, setStep] = useState<0 | 1>(0);
   const [query, setQuery] = useState("");
 
   const renderStep = useMemo(
     () => ({
-      0: <PickLabel query={query} setQuery={setQuery} setStep={setStep} />,
-      1: <CreateLabel name={query} />,
+      0: <PickTag query={query} setQuery={setQuery} setStep={setStep} />,
+      1: <CreateTag name={query} />,
     }),
     [query]
   );
@@ -32,4 +32,4 @@ const ManageLabels = ({ children }: PropsWithChildren) => {
   );
 };
 
-export default ManageLabels;
+export default ManageTags;

@@ -3,7 +3,7 @@ import { and, eq, inArray, not, sql } from "drizzle-orm";
 import { Operator } from "@/components/ui/datatable-filter/utils";
 import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
-import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
+import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 import { createModelFilter } from "@/lib/traces/utils";
 
@@ -79,9 +79,9 @@ export const processSpanFilters = (filters: FilterDef[]) =>
             db
               .select({ span_id: spans.spanId })
               .from(spans)
-              .innerJoin(labels, eq(spans.spanId, labels.spanId))
-              .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-              .where(and(eq(labelClasses.name, filter.value)))
+              .innerJoin(tags, eq(spans.spanId, tags.spanId))
+              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
+              .where(and(eq(tagClasses.name, filter.value)))
           );
           return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
         },
@@ -140,9 +140,9 @@ export const processTraceSpanFilters = (filters: FilterDef[]) =>
             db
               .select({ span_id: spans.spanId })
               .from(spans)
-              .innerJoin(labels, eq(spans.spanId, labels.spanId))
-              .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-              .where(and(eq(labelClasses.name, name)))
+              .innerJoin(tags, eq(spans.spanId, tags.spanId))
+              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
+              .where(and(eq(tagClasses.name, name)))
           );
           return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
         },

@@ -12,16 +12,6 @@
     ]
   },
   {
-    "table": "user_subscription_tiers",
-    "data": [
-      {
-        "id": 1,
-        "name": "unlimited",
-        "index_chat_messages": -1
-      }
-    ]
-  },
-  {
     "table": "llm_prices",
     "data": [
       {

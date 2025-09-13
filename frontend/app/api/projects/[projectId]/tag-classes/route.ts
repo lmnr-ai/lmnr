@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/drizzle";
-import { labelClasses } from "@/lib/db/migrations/schema";
+import { tagClasses } from "@/lib/db/migrations/schema";
 
 export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -9,9 +9,9 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
 
   const res = await db
     .select()
-    .from(labelClasses)
-    .where(eq(labelClasses.projectId, projectId))
-    .orderBy(desc(labelClasses.createdAt));
+    .from(tagClasses)
+    .where(eq(tagClasses.projectId, projectId))
+    .orderBy(desc(tagClasses.createdAt));
 
   return new Response(JSON.stringify(res), { status: 200 });
 }
@@ -23,7 +23,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const body = await req.json();
 
   const res = await db
-    .insert(labelClasses)
+    .insert(tagClasses)
     .values({
       projectId,
       name: body.name,
@@ -32,7 +32,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     .returning();
 
   if (res.length === 0) {
-    return new Response(JSON.stringify({ error: "Failed to create label class" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Failed to create tag class" }), { status: 500 });
   }
 
   return new Response(JSON.stringify(res[0]), { status: 200 });

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     env,
     sync::{Arc, LazyLock},
 };
@@ -16,8 +17,8 @@ use crate::{
     db::{
         self, DB,
         events::Event,
-        labels::LabelSource,
         spans::{Span, SpanType},
+        tags::TagSource,
         trace,
     },
     language_model::costs::estimate_cost_by_provider_name,
@@ -193,33 +194,37 @@ pub async fn record_spans_batch(
     Ok(())
 }
 
-pub async fn record_labels_to_db_and_ch(
+pub async fn record_tags_to_db_and_ch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
-    labels: &[String],
+    tags: &[String],
     span_id: &Uuid,
     project_id: &Uuid,
 ) -> anyhow::Result<()> {
-    if labels.is_empty() {
+    if tags.is_empty() {
         return Ok(());
     }
 
-    let project_labels =
-        db::labels::get_label_classes_by_project_id(&db.pool, *project_id, None).await?;
+    let project_tag_class_ids =
+        db::tags::get_tag_classes_by_project_id(&db.pool, *project_id, None)
+            .await?
+            .into_iter()
+            .map(|tag_class| (tag_class.name, tag_class.id))
+            .collect::<HashMap<_, _>>();
 
-    for label_name in labels {
-        let label_class = project_labels.iter().find(|l| l.name == *label_name);
+    for tag_name in tags {
+        let tag_class_id = project_tag_class_ids.get(tag_name).cloned();
         let id = Uuid::new_v4();
-        crate::labels::insert_or_update_label(
+        crate::tags::insert_or_update_tag(
             &db.pool,
             clickhouse.clone(),
             *project_id,
             id,
             *span_id,
-            label_class.map(|l| l.id),
+            tag_class_id,
             None,
-            label_name.clone(),
-            LabelSource::CODE,
+            tag_name.clone(),
+            TagSource::CODE,
         )
         .await?;
     }

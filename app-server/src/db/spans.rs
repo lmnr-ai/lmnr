@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::utils::get_string_preview;
@@ -44,7 +44,7 @@ impl FromStr for SpanType {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, Default, FromRow)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub span_id: Uuid,
@@ -60,7 +60,7 @@ pub struct Span {
     pub end_time: DateTime<Utc>,
     pub events: Option<Value>,
     pub status: Option<String>,
-    pub labels: Option<Value>,
+    pub tags: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
 }
@@ -264,7 +264,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -486,7 +486,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -741,7 +741,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };

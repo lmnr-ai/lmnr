@@ -3,7 +3,7 @@ import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
 import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
-import { labelClasses, labels, spans } from "@/lib/db/migrations/schema";
+import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 
 enum AllowedCastType {
@@ -32,15 +32,15 @@ export const processSessionFilters = (filters: FilterDef[]) => {
         column: "tags",
         operators: [Operator.Eq, Operator.Ne],
         process: (filter) => {
-          const labelName = filter.value;
+          const tagName = filter.value;
           const inArrayFilter = inArray(
             sql`id`,
             db
               .select({ id: spans.traceId })
               .from(spans)
-              .innerJoin(labels, eq(spans.spanId, labels.spanId))
-              .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-              .where(and(eq(labelClasses.name, labelName)))
+              .innerJoin(tags, eq(spans.spanId, tags.spanId))
+              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
+              .where(and(eq(tagClasses.name, tagName)))
           );
           return filter.operator === Operator.Eq ? inArrayFilter : not(inArrayFilter);
         },
