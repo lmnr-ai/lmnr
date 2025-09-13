@@ -11,7 +11,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import smallLogo from "@/assets/logo/icon.svg";
 import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
-import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -206,7 +205,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
             </TooltipProvider>
           )}
           {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
-          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
           <ResizablePanelGroup direction="vertical">

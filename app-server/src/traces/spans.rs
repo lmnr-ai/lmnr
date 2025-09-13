@@ -426,7 +426,7 @@ impl SpanAttributes {
         );
     }
 
-    pub fn labels(&self) -> Vec<String> {
+    pub fn tags(&self) -> Vec<String> {
         let attr_tags = self
             .raw_attributes
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.tags"));
@@ -1380,7 +1380,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -1705,7 +1705,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -2050,7 +2050,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -2196,7 +2196,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -2668,7 +2668,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -2821,7 +2821,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -3081,7 +3081,7 @@ mod tests {
             output: None,
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };

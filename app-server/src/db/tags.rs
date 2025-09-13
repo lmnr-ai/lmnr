@@ -5,8 +5,8 @@ use sqlx::{FromRow, PgPool, QueryBuilder};
 use uuid::Uuid;
 
 #[derive(sqlx::Type, Serialize, Deserialize, Clone, PartialEq)]
-#[sqlx(type_name = "label_source")]
-pub enum LabelSource {
+#[sqlx(type_name = "tag_source")]
+pub enum TagSource {
     MANUAL,
     AUTO,
     CODE,
@@ -14,7 +14,7 @@ pub enum LabelSource {
 
 #[derive(Serialize, FromRow, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct LabelClass {
+pub struct TagClass {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
     pub name: String,
@@ -24,25 +24,25 @@ pub struct LabelClass {
 // (type_id, span_id) is a unique constraint
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct DBSpanLabel {
+pub struct DBSpanTag {
     pub id: Uuid,
     pub span_id: Uuid,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
-    pub label_source: LabelSource,
+    pub source: TagSource,
     pub project_id: Uuid,
 }
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct SpanLabel {
+pub struct SpanTag {
     pub id: Uuid,
     pub span_id: Uuid,
     pub class_id: Uuid,
     pub created_at: DateTime<Utc>,
-    pub label_source: LabelSource,
+    pub source: TagSource,
 
     pub class_name: String,
 
@@ -51,52 +51,42 @@ pub struct SpanLabel {
     pub user_email: Option<String>,
 }
 
-#[derive(Serialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct RegisteredLabelClassForPath {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub path: String,
-    pub project_id: Uuid,
-    pub label_class_id: Uuid,
-}
-
-pub async fn get_label_classes_by_project_id(
+pub async fn get_tag_classes_by_project_id(
     pool: &PgPool,
     project_id: Uuid,
-    label_class_ids: Option<Vec<Uuid>>,
-) -> Result<Vec<LabelClass>> {
+    tag_class_ids: Option<Vec<Uuid>>,
+) -> Result<Vec<TagClass>> {
     let mut query = QueryBuilder::new(
         "SELECT
             id,
             created_at,
             name,
             project_id
-        FROM label_classes
+        FROM tag_classes
         WHERE project_id = ",
     );
     query.push_bind(project_id);
-    if let Some(label_class_ids) = label_class_ids {
+    if let Some(tag_class_ids) = tag_class_ids {
         query.push(" AND id = ANY(");
-        query.push_bind(label_class_ids);
+        query.push_bind(tag_class_ids);
         query.push(")");
     }
     query.push(" ORDER BY created_at DESC");
-    let label_classes = query.build_query_as::<LabelClass>().fetch_all(pool).await?;
+    let tag_classes = query.build_query_as::<TagClass>().fetch_all(pool).await?;
 
-    Ok(label_classes)
+    Ok(tag_classes)
 }
 
-pub async fn update_span_label(
+pub async fn update_span_tag(
     pool: &PgPool,
     id: Uuid,
     span_id: Uuid,
     user_email: Option<String>,
     class_id: Option<Uuid>,
-    label_source: &LabelSource,
+    source: &TagSource,
     project_id: Uuid,
-    label_name: &String,
-) -> Result<DBSpanLabel> {
+    tag_name: &String,
+) -> Result<DBSpanTag> {
     let class_id = match class_id {
         Some(class_id) => class_id,
         None => {
@@ -106,31 +96,31 @@ pub async fn update_span_label(
             sqlx::query_scalar::<_, Uuid>(
                 "
                 WITH insertion AS (
-                    INSERT INTO label_classes (project_id, name)
+                    INSERT INTO tag_classes (project_id, name)
                     VALUES ($1, $2)
                     ON CONFLICT (project_id, name) DO NOTHING
                     RETURNING id
                 )
                 SELECT * FROM insertion
                 UNION
-                    SELECT id FROM label_classes
+                    SELECT id FROM tag_classes
                     WHERE project_id = $1 AND name = $2
                 ",
             )
             .bind(project_id)
-            .bind(label_name)
+            .bind(tag_name)
             .fetch_one(pool)
             .await?
         }
     };
-    let span_label = sqlx::query_as::<_, DBSpanLabel>(
-        "INSERT INTO labels
+    let span_tag = sqlx::query_as::<_, DBSpanTag>(
+        "INSERT INTO tags
             (id,
             span_id,
             class_id,
             user_id,
             updated_at,
-            label_source,
+            source,
             project_id
         )
         VALUES (
@@ -145,7 +135,7 @@ pub async fn update_span_label(
         ON CONFLICT (span_id, class_id)
         DO UPDATE SET
             updated_at = now(),
-            label_source = $5,
+            source = $5,
             user_id = EXCLUDED.user_id
         RETURNING
             id,
@@ -154,17 +144,17 @@ pub async fn update_span_label(
             created_at,
             updated_at,
             user_id,
-            label_source,
+            source,
             project_id",
     )
     .bind(id)
     .bind(span_id)
     .bind(class_id)
     .bind(user_email)
-    .bind(label_source)
+    .bind(source)
     .bind(project_id)
     .fetch_one(pool)
     .await?;
 
-    Ok(span_label)
+    Ok(span_tag)
 }

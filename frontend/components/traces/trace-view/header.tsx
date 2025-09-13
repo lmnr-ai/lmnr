@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useMemo } from "react";
 
-import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
@@ -144,7 +143,6 @@ const Header = ({
           </TooltipPortal>
         </Tooltip>
         {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
-        {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         {trace && (
           <ShareTraceButton
             refetch={handleFetchTrace}

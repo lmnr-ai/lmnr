@@ -2,11 +2,11 @@
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { useLabelsContext } from "@/components/labels/labels-context";
+import { useTagsContext } from "@/components/tags/tags-context";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelClass, SpanLabel } from "@/lib/traces/types";
+import { SpanTag,TagClass } from "@/lib/traces/types";
 
 const defaultColors: { color: string; name: string }[] = [
   {
@@ -47,24 +47,24 @@ const defaultColors: { color: string; name: string }[] = [
   },
 ];
 
-interface CreateLabelProps {
+interface CreateTagProps {
   name: string;
 }
 
-const CreateLabel = ({ name }: CreateLabelProps) => {
+const CreateTag = ({ name }: CreateTagProps) => {
   const [query, setQuery] = useState("");
   const params = useParams();
   const colors = useMemo(
-    () => defaultColors.filter((label) => label.name.toLowerCase().includes(query.toLowerCase())),
+    () => defaultColors.filter((tag) => tag.name.toLowerCase().includes(query.toLowerCase())),
     [query]
   );
 
   const { toast } = useToast();
-  const { labelClasses, mutateLabelClass, mutate, labels, spanId } = useLabelsContext();
+  const { tagClasses: tagClasses, mutateTagClass: mutateTagClass, mutate, tags: tags, spanId } = useTagsContext();
 
-  const handleCreateLabelClass = async (color: string) => {
+  const handleCreateTagClass = async (color: string) => {
     try {
-      const response = await fetch(`/api/projects/${params?.projectId}/label-classes`, {
+      const response = await fetch(`/api/projects/${params?.projectId}/tag-classes`, {
         method: "POST",
         body: JSON.stringify({
           name,
@@ -77,13 +77,13 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
         return;
       }
 
-      const data = (await response.json()) as LabelClass;
-      await mutateLabelClass([...labelClasses, data], {
+      const data = (await response.json()) as TagClass;
+      await mutateTagClass([...tagClasses, data], {
         revalidate: false,
       });
 
-      // attach label right away
-      const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/labels`, {
+      // attach tag right away
+      const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
         method: "POST",
         body: JSON.stringify({
           classId: data.id,
@@ -95,9 +95,9 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
         toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
         return;
       }
-      const label = (await res.json()) as SpanLabel;
+      const tag = (await res.json()) as SpanTag;
 
-      await mutate([...labels, label], {
+      await mutate([...tags, tag], {
         revalidate: false,
       });
     } catch (e) {
@@ -113,13 +113,13 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
         autoFocus
         onKeyDown={(e) => e.stopPropagation()}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Pick a color for label..."
+        placeholder="Pick a color for tag..."
         className="border-none bg-transparent focus-visible:ring-0 flex-1 h-fit rounded-none"
       />
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
         {colors.map((c) => (
-          <DropdownMenuItem onSelect={() => handleCreateLabelClass(c.color)} key={c.name}>
+          <DropdownMenuItem onSelect={() => handleCreateTagClass(c.color)} key={c.name}>
             <div style={{ background: c.color }} className={`w-2 h-2 rounded-full`} />
             <span className="ml-1.5">{c.name}</span>
           </DropdownMenuItem>
@@ -129,4 +129,4 @@ const CreateLabel = ({ name }: CreateLabelProps) => {
   );
 };
 
-export default CreateLabel;
+export default CreateTag;

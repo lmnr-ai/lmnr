@@ -59,7 +59,7 @@ mod db;
 mod evaluations;
 mod evaluators;
 mod features;
-mod labels;
+mod tags;
 mod language_model;
 mod mq;
 mod names;
