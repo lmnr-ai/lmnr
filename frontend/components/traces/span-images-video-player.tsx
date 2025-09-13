@@ -265,7 +265,7 @@ const SpanImagesVideoPlayer = forwardRef<SpanImagesVideoPlayerHandle, SpanImages
         <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
           <div className="text-center">
             <h3 className="text-lg font-medium mb-2">No images</h3>
-            <p className="text-sm text-muted-foreground">There are no images in this trace.</p>
+            <p className="text-sm text-muted-foreground">There are no images in the selected spans.</p>
           </div>
         </div>
       );

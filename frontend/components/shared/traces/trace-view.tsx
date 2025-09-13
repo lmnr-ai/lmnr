@@ -200,7 +200,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipPortal>
-                  <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+                  <TooltipContent>{showBrowserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
                 </TooltipPortal>
               </Tooltip>
             </TooltipProvider>

@@ -338,7 +338,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
               className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
                 ? "border-secondary-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Session
             </button>
@@ -349,7 +349,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${activeTab === "images"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-            } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
+              } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
           >
             Images
           </button>
@@ -360,96 +360,97 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         </div>
 
         <div className="flex-1 min-h-0">
-          {activeTab === "browser-session" && (
-            <div ref={browserContentRef} className="h-full flex flex-col">
-              {!hasBrowserSession ? (
-                <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                  <div className="text-center">
-                    <h3 className="text-lg font-medium mb-2">No browser session</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Either the session is still being processed or you have an outdated SDK version.
-                    </p>
-                  </div>
+          {/* Browser Session Tab */}
+          <div
+            ref={browserContentRef}
+            className={`h-full flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
+          >
+            {!hasBrowserSession ? (
+              <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                <div className="text-center">
+                  <h3 className="text-lg font-medium mb-2">No browser session</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Either the session is still being processed or you have an outdated SDK version.
+                  </p>
                 </div>
-              ) : (
-                <>
-                  <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
-                    <button onClick={handlePlayPause} className="text-white py-1 rounded">
-                      {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
-                    </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
+                  <button onClick={handlePlayPause} className="text-white py-1 rounded">
+                    {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+                  </button>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
-                        {speed}x
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {speedOptions.map((speedOption) => (
-                          <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
-                            {speedOption}x
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                      {speed}x
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {speedOptions.map((speedOption) => (
+                        <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
+                          {speedOption}x
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                    <input
-                      type="range"
-                      className="flex-grow cursor-pointer"
-                      min="0"
-                      step="0.1"
-                      max={totalDuration || 0}
-                      value={currentTime || 0}
-                      onChange={handleTimelineChange}
-                    />
-                    <span className="font-mono">
-                      {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
-                      {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
-                    </span>
+                  <input
+                    type="range"
+                    className="flex-grow cursor-pointer"
+                    min="0"
+                    step="0.1"
+                    max={totalDuration || 0}
+                    value={currentTime || 0}
+                    onChange={handleTimelineChange}
+                  />
+                  <span className="font-mono">
+                    {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
+                    {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+                  </span>
+                </div>
+
+                {currentUrl && (
+                  <div className="flex items-center px-4 py-1 border-b flex-shrink-0">
+                    <a
+                      href={currentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                      title={currentUrl}
+                    >
+                      {currentUrl}
+                    </a>
                   </div>
+                )}
 
-                  {currentUrl && (
-                    <div className="flex items-center px-4 py-1 border-b flex-shrink-0">
-                      <a
-                        href={currentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
-                        title={currentUrl}
-                      >
-                        {currentUrl}
-                      </a>
+                <div className="flex-1 min-h-0">
+                  {isLoading && (
+                    <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                      <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
                     </div>
                   )}
+                  {!isLoading && events.length === 0 && hasBrowserSession && (
+                    <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                      No browser session was recorded. Either the session is still being processed or you have an
+                      outdated SDK version.
+                    </div>
+                  )}
+                  {!isLoading && events.length > 0 && <div ref={playerContainerRef} className="w-full h-full" />}
+                </div>
+              </>
+            )}
+          </div>
 
-                  <div className="flex-1 min-h-0">
-                    {isLoading && (
-                      <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                        <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
-                      </div>
-                    )}
-                    {!isLoading && events.length === 0 && hasBrowserSession && (
-                      <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                        No browser session was recorded. Either the session is still being processed or you have an
-                        outdated SDK version.
-                      </div>
-                    )}
-                    {!isLoading && events.length > 0 && <div ref={playerContainerRef} className="w-full h-full" />}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === "images" && (
-            <div className="h-full">
-              <SpanImagesVideoPlayer
-                ref={imageVideoPlayerRef}
-                traceId={traceId}
-                spanIds={llmSpanIds}
-                onTimelineChange={onTimelineChange}
-                isShared
-              />
-            </div>
-          )}
+          {/* Images Tab */}
+          <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
+            <SpanImagesVideoPlayer
+              ref={imageVideoPlayerRef}
+              traceId={traceId}
+              spanIds={llmSpanIds}
+              onTimelineChange={onTimelineChange}
+              isShared
+            />
+          </div>
         </div>
       </div>
     );
