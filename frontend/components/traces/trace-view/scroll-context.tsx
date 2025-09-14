@@ -14,7 +14,6 @@ interface State {
 interface RenderProps {
   topLevelSpans: Span[];
   childSpans: { [key: string]: Span[] };
-  activeSpans: string[];
   collapsedSpans: Set<string>;
   containerWidth: number;
   selectedSpan: Span | null;

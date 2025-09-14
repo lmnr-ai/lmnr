@@ -11,7 +11,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import smallLogo from "@/assets/logo/icon.svg";
 import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
-import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -67,8 +66,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       : spans?.[0] || null
   );
 
-  const [activeSpans, setActiveSpans] = useState<string[]>([]);
-
   // Add new state for collapsed spans
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
@@ -100,6 +97,10 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
 
   const [treeViewWidth, setTreeViewWidth] = useState(MIN_TREE_VIEW_WIDTH);
 
+  const handleTimelineChange = useCallback((time: number) => {
+    setBrowserSessionTime(time);
+  }, []);
+
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
@@ -108,7 +109,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
           setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
         }
       }
-    } catch (e) { }
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   useEffect(() => {
@@ -175,13 +176,14 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipPortal>
-                  <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+                  <TooltipContent>
+                    {showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}
+                  </TooltipContent>
                 </TooltipPortal>
               </Tooltip>
             </TooltipProvider>
           )}
           {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
-          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
           <ResizablePanelGroup direction="vertical">
@@ -236,7 +238,6 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                     <Tree
                       topLevelSpans={topLevelSpans}
                       childSpans={childSpans}
-                      activeSpans={activeSpans}
                       collapsedSpans={collapsedSpans}
                       containerWidth={treeViewWidth}
                       selectedSpan={selectedSpan}
@@ -264,7 +265,9 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                       }}
                     />
                     <Minimap
-                      traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()}
+                      traceDuration={
+                        new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()
+                      }
                       setSelectedSpanId={(spanId) =>
                         setSelectedSpan(spans.find((span) => span.spanId === spanId) || null)
                       }
@@ -297,18 +300,7 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                     ref={browserSessionRef}
                     hasBrowserSession={trace.hasBrowserSession}
                     traceId={trace.id}
-                    onTimelineChange={(time) => {
-                      setBrowserSessionTime(time);
-
-                      const activeSpans = spans.filter((span: Span) => {
-                        const spanStartTime = new Date(span.startTime).getTime();
-                        const spanEndTime = new Date(span.endTime).getTime();
-
-                        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                      });
-
-                      setActiveSpans(activeSpans.map((span) => span.spanId));
-                    }}
+                    onTimelineChange={handleTimelineChange}
                   />
                 </ResizablePanel>
               </>

@@ -15,7 +15,6 @@ export interface TreeHandle {
 interface TreeProps {
   topLevelSpans: Span[];
   childSpans: { [key: string]: Span[] };
-  activeSpans: string[];
   collapsedSpans: Set<string>;
   containerWidth: number;
   selectedSpan: Span | null;
@@ -31,7 +30,6 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
     {
       topLevelSpans,
       childSpans,
-      activeSpans,
       collapsedSpans,
       containerWidth,
       selectedSpan,
@@ -77,7 +75,6 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
       render({
         topLevelSpans,
         childSpans,
-        activeSpans,
         collapsedSpans,
         containerWidth,
         selectedSpan,
@@ -90,7 +87,6 @@ const Tree = forwardRef<TreeHandle, TreeProps>(
       render,
       topLevelSpans,
       childSpans,
-      activeSpans,
       collapsedSpans,
       containerWidth,
       selectedSpan,

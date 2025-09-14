@@ -4,20 +4,18 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useMemo } from "react";
 
-import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span, Trace } from "@/lib/traces/types";
+import { Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../stats-shields";
 
 interface HeaderProps {
-  selectedSpan: Span | null;
   trace: Trace | null;
   fullScreen: boolean;
   handleClose: () => void;
@@ -30,7 +28,6 @@ interface HeaderProps {
 }
 
 const Header = ({
-  selectedSpan,
   trace,
   fullScreen,
   handleClose,
@@ -150,7 +147,6 @@ const Header = ({
           </Tooltip>
         )}
         {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
-        {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
         {trace && (
           <ShareTraceButton
             refetch={handleFetchTrace}

@@ -7,7 +7,7 @@ import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
-import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
+import { dbSpanRowToSpan, enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
@@ -125,8 +125,6 @@ function TraceViewInternal({
   const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
-
-  const [activeSpans, setActiveSpans] = useState<string[]>([]);
 
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
@@ -349,21 +347,9 @@ function TraceViewInternal({
     onClose();
   }, [onClose, pathName, router, searchParams]);
 
-  const handleTimelineChange = useCallback(
-    (time: number) => {
-      setBrowserSessionTime(time);
-
-      const activeSpans = spans.filter((span: Span) => {
-        const spanStartTime = new Date(span.startTime).getTime();
-        const spanEndTime = new Date(span.endTime).getTime();
-
-        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-      });
-
-      setActiveSpans(activeSpans.map((span) => span.spanId));
-    },
-    [spans]
-  );
+  const handleTimelineChange = useCallback((time: number) => {
+    setBrowserSessionTime(time);
+  }, []);
 
   const { searchTerm, setSearchTerm: setSearchSpans } = useSearchContext();
   const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
@@ -376,8 +362,6 @@ function TraceViewInternal({
     }
   }, []);
 
-  const contentRef = useRef<HTMLDivElement>(null);
-
   const handleSetSearchSpans = useCallback(
     (value: string) => {
       setSearchSpans(value);
@@ -385,26 +369,6 @@ function TraceViewInternal({
     },
     [setSearchSpans]
   );
-
-  const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
-    spanId: row.span_id,
-    parentSpanId: row.parent_span_id,
-    traceId: row.trace_id,
-    spanType: row.span_type,
-    name: row.name,
-    path: row.attributes["lmnr.span.path"] ?? "",
-    startTime: row.start_time,
-    endTime: row.end_time,
-    attributes: row.attributes,
-    input: null,
-    output: null,
-    inputPreview: row.input_preview,
-    outputPreview: row.output_preview,
-    events: [],
-    inputUrl: row.input_url,
-    outputUrl: row.output_url,
-    model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
-  });
 
   const { supabaseClient: supabase } = useUserContext();
 
@@ -499,7 +463,7 @@ function TraceViewInternal({
       if (typeof window !== "undefined") {
         localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
       }
-    } catch (e) { }
+    } catch (e) {}
   }, [treeViewWidth]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
@@ -548,7 +512,6 @@ function TraceViewInternal({
           <ResizablePanel className="flex size-full">
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
               <Header
-                selectedSpan={selectedSpan}
                 trace={trace}
                 fullScreen={fullScreen}
                 handleClose={handleClose}
@@ -576,10 +539,14 @@ function TraceViewInternal({
                         Filters
                       </Button>
                     </StatefulFilter>
-                    <Button onClick={() => {
-                      setSearchEnabled(true);
-                      setShowChat(false);
-                    }} variant="outline" className="h-6 text-xs px-1.5">
+                    <Button
+                      onClick={() => {
+                        setSearchEnabled(true);
+                        setShowChat(false);
+                      }}
+                      variant="outline"
+                      className="h-6 text-xs px-1.5"
+                    >
                       <Search size={14} className="mr-1" />
                       <span>Search</span>
                     </Button>
@@ -636,13 +603,15 @@ function TraceViewInternal({
                 </div>
               )}
               {showChat && !showTimeline ? (
-                <Chat trace={trace} onSetSpanId={(spanId) => {
-                  const span = spans.find((span) => span.spanId === spanId);
-                  if (span) {
-                    console.log("span", span);
-                    handleSpanSelect(span);
-                  }
-                }}
+                <Chat
+                  trace={trace}
+                  onSetSpanId={(spanId) => {
+                    const span = spans.find((span) => span.spanId === spanId);
+                    if (span) {
+                      console.log("span", span);
+                      handleSpanSelect(span);
+                    }
+                  }}
                 />
               ) : showTimeline ? (
                 <Timeline
@@ -659,7 +628,6 @@ function TraceViewInternal({
                   <Tree
                     topLevelSpans={topLevelSpans}
                     childSpans={childSpans}
-                    activeSpans={activeSpans}
                     collapsedSpans={collapsedSpans}
                     containerWidth={treeViewWidth}
                     selectedSpan={selectedSpan}
@@ -697,7 +665,7 @@ function TraceViewInternal({
                 <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
               </div>
             </div>
-            <div className="flex-grow overflow-hidden flex-wrap" ref={contentRef}>
+            <div className="flex-grow overflow-hidden flex-wrap">
               {selectedSpan ? (
                 selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
                   <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />

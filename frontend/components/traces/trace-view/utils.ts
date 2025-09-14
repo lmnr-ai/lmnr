@@ -155,3 +155,23 @@ export const getDefaultTraceViewWidth = () => {
   }
   return 1000;
 };
+
+export const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
+  spanId: row.span_id,
+  parentSpanId: row.parent_span_id,
+  traceId: row.trace_id,
+  spanType: row.span_type,
+  name: row.name,
+  path: row.attributes["lmnr.span.path"] ?? "",
+  startTime: row.start_time,
+  endTime: row.end_time,
+  attributes: row.attributes,
+  input: null,
+  output: null,
+  inputPreview: row.input_preview,
+  outputPreview: row.output_preview,
+  events: [],
+  inputUrl: row.input_url,
+  outputUrl: row.output_url,
+  model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
+});
