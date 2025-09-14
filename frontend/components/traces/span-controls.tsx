@@ -6,9 +6,9 @@ import React, { PropsWithChildren, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
-import LabelsContextProvider from "@/components/labels/labels-context";
-import LabelsList from "@/components/labels/labels-list";
-import LabelsTrigger from "@/components/labels/labels-trigger";
+import TagsContextProvider from "@/components/tags/tags-context";
+import TagsList from "@/components/tags/tags-list";
+import TagsTrigger from "@/components/tags/tags-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
@@ -88,16 +88,16 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
               {new Date(span.startTime).toLocaleString()}
             </div>
           </SpanStatsShields>
-          <LabelsContextProvider spanId={span.spanId}>
+          <TagsContextProvider spanId={span.spanId}>
             <div className="flex gap-2 flex-wrap items-center">
-              <LabelsTrigger />
+              <TagsTrigger />
               <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               <AddToLabelingQueuePopover spanId={span.spanId} />
               <ExportSpansPopover span={span} />
             </div>
-            <LabelsList />
+            <TagsList />
             <EvaluatorScoresList spanId={span.spanId} />
-          </LabelsContextProvider>
+          </TagsContextProvider>
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

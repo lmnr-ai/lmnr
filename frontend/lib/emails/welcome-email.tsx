@@ -32,11 +32,6 @@ export default function WelcomeEmail({ }: {}) {
             </Link>
           </Text>
           <Text style={bulletPoint}>
-            • <Link style={link} href="https://docs.lmnr.ai/labels" target="_blank">
-              Creating and managing labels
-            </Link>
-          </Text>
-          <Text style={bulletPoint}>
             • <Link style={link} href="https://docs.lmnr.ai/datasets" target="_blank">
               Working with datasets
             </Link>

@@ -28,7 +28,7 @@
     - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
 - [x] Modern Open-Source stack
     - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
-- [x] Dashboards for statistics / traces / evaluations / labels.
+- [x] Dashboards for statistics / traces / evaluations / tags.
 
 <img alt="traces" src="./images/traces.png">
 
@@ -62,7 +62,7 @@ For production environment, we recommend using our [managed platform](https://ww
 - rabbitmq – message queue for reliable trace processing
 - frontend – Next.js frontend and backend
 - postgres – Postgres database for all the application data
-- clickhouse – columnar OLAP database for more efficient trace and label analytics
+- clickhouse – columnar OLAP database for more efficient trace and tag analytics
 
 ## Contributing
 

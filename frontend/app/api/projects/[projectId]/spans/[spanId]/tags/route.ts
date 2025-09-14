@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { dateToNanoseconds } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { labelClasses, labels, users } from "@/lib/db/migrations/schema";
+import { tagClasses, tags, users } from "@/lib/db/migrations/schema";
 
 export async function GET(
   _req: Request,
@@ -16,18 +16,18 @@ export async function GET(
 
   const res = await db
     .select({
-      id: labels.id,
-      createdAt: labels.createdAt,
-      classId: labels.classId,
-      spanId: labels.spanId,
-      name: labelClasses.name,
+      id: tags.id,
+      createdAt: tags.createdAt,
+      classId: tags.classId,
+      spanId: tags.spanId,
+      name: tagClasses.name,
       email: users.email,
     })
-    .from(labels)
-    .innerJoin(labelClasses, eq(labels.classId, labelClasses.id))
-    .leftJoin(users, eq(labels.userId, users.id))
-    .where(eq(labels.spanId, spanId))
-    .orderBy(desc(labels.createdAt));
+    .from(tags)
+    .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
+    .leftJoin(users, eq(tags.userId, users.id))
+    .where(eq(tags.spanId, spanId))
+    .orderBy(desc(tags.createdAt));
 
   return new Response(JSON.stringify(res), { status: 200 });
 }
@@ -45,7 +45,7 @@ export async function POST(
   const body = (await req.json()) as { classId: string; name: string };
 
   const [res] = await db
-    .insert(labels)
+    .insert(tags)
     .values({
       projectId,
       classId: body.classId,
@@ -56,7 +56,7 @@ export async function POST(
 
   if (res?.id) {
     await clickhouseClient.insert({
-      table: "default.labels",
+      table: "default.tags",
       format: "JSONEachRow",
       values: [
         {
@@ -65,7 +65,7 @@ export async function POST(
           id: res.id,
           name: body.name,
           project_id: projectId,
-          label_source: 0,
+          source: 0,
           created_at: dateToNanoseconds(new Date()),
         },
       ],

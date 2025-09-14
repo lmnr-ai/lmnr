@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { deleteAllProjectsWorkspaceInfoFromCache } from '../actions/project';
 import { cache, WORKSPACE_LIMITS_CACHE_KEY } from '../cache';
 import { db } from '../db/drizzle';
-import { users, userSubscriptionInfo, userUsage, workspaces } from '../db/migrations/schema';
+import { users, userSubscriptionInfo, workspaces } from '../db/migrations/schema';
 
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
@@ -94,47 +94,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
   }
 
   await updateUsageCacheForWorkspace(workspaceId);
-};
-
-export const manageUserSubscriptionEvent = async ({
-  stripeCustomerId,
-  productId,
-  subscriptionId,
-  userId,
-  cancel,
-}: ManageUserSubscriptionEventArgs) => {
-  // Activate the stripe customer
-  await db.update(userSubscriptionInfo).set({
-    stripeCustomerId,
-    activated: true
-  }).where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
-
-  await db.update(users).set({
-    tierId: sql`CASE
-      WHEN ${cancel ?? false} THEN 1 
-      ELSE (
-        SELECT id
-        FROM user_subscription_tiers
-        WHERE stripe_product_id = ${productId})
-      END
-    `,
-    subscriptionId,
-  }).where(eq(users.id, userId));
-
-
-  const currentTier = (await db.select({
-    tierId: users.tierId
-  }).from(users).where(eq(users.id, userId)))?.[0];
-
-  // If the workspace is upgrading from the free tier, reset the usage
-  if (currentTier?.tierId === 1) {
-    await db.update(userUsage).set({
-      prevIndexChatMessageCount: userUsage.indexChatMessageCount,
-      indexChatMessageCountSinceReset: 0,
-      resetTime: sql`now()`,
-      resetReason: 'subscription_change'
-    }).where(eq(userUsage.userId, userId));
-  }
 };
 
 export const getIdFromStripeObject = (

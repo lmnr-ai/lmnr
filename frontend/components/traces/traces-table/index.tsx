@@ -146,7 +146,6 @@ export default function TracesTable() {
     hasBrowserSession: row.has_browser_session,
     topSpanId: row.top_span_id,
     traceType: row.trace_type,
-    agentSessionId: row.agent_session_id,
     topSpanInputPreview: null,
     topSpanOutputPreview: null,
     topSpanName: null,

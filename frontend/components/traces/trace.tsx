@@ -76,7 +76,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           ref={traceViewRef}
           propsTrace={trace}
           fullScreen
-          onClose={() => {}}
+          onClose={() => { }}
           traceId={trace.id}
         />
       </FiltersContextProvider>

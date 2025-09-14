@@ -1,12 +1,12 @@
-import { labelClasses, traces } from "../db/migrations/schema";
+import { tagClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
 
-export type LabelClass = {
+export type TagClass = {
   evaluatorRunnableGraph: any;
   pipelineVersionId?: string | null;
-} & typeof labelClasses.$inferSelect;
+} & typeof tagClasses.$inferSelect;
 
-export type SpanLabel = {
+export type SpanTag = {
   id: string;
   createdAt: string;
   classId: string;
@@ -69,7 +69,6 @@ export type Trace = {
   topSpanPath: string | null;
   hasBrowserSession: boolean | null;
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
-  agentSessionId: string | null;
   visibility?: string;
   status: string | null;
   userId: string | null;
