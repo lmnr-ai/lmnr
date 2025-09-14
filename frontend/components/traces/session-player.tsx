@@ -332,11 +332,11 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
     return (
       <div className="relative w-full h-full flex flex-col">
-        <div className="h-10 border-b pl-4 pr-2 flex items-center gap-0 flex-shrink-0">
+        <div className="h-8 border-b pl-4 flex items-center gap-0 flex-shrink-0">
           {hasBrowserSession && (
             <button
               onClick={() => setActiveTab("browser-session")}
-              className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
+              className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
                 ? "border-secondary-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
@@ -347,7 +347,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
 
           <button
             onClick={() => setActiveTab("images")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${activeTab === "images"
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "images"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
               } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
