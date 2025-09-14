@@ -186,7 +186,7 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
             showDebug: false,
             speedOption: speedOptions,
             autoPlay: false,
-            skipInactive: false,
+            skipInactive: true,
             events,
             showController: false,
             mouseTail: false,
@@ -213,9 +213,9 @@ const SessionPlayer = forwardRef<SessionPlayerHandle, SessionPlayerProps>(
         playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
           const newTime = event.payload / 1000;
           setCurrentTime(newTime);
-          onTimelineChange(startTime + event.payload);
+          // onTimelineChange(startTime + event.payload);
 
-          updateCurrentUrl(startTime + event.payload);
+          // updateCurrentUrl(startTime + event.payload);
         });
       } catch (e) {
         console.error("Error initializing player:", e);

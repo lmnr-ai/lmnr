@@ -1,14 +1,14 @@
 "use client";
 
+// Import CSS at module level - these are safe for SSR
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
 import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
-
-// Import CSS at module level - these are safe for SSR
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
 
 import { Button } from "./button";
 import DownloadButton from "./download-button";

@@ -141,35 +141,27 @@ const SpanImagesVideoPlayer = forwardRef<SpanImagesVideoPlayerHandle, SpanImages
       }
     }, [findImageIndexForTime, currentImageIndex]);
 
-    // Debounced version for timeline changes to reduce parent updates
-    const debouncedTimelineChange = useCallback((time: number) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        onTimelineChange(time);
-      }, 16); // ~60fps for parent updates
-    }, [onTimelineChange]);
+    useEffect(() => {
+      onTimelineChange(startTime + currentTime * 1000);
+    }, [currentTime, onTimelineChange, startTime]);
 
     // Auto-play functionality
     useEffect(() => {
       if (isPlaying && totalDuration > 0) {
         playIntervalRef.current = setInterval(() => {
           setCurrentTime((prevTime) => {
-            const newTime = prevTime + (0.01 * speed); // 10ms interval = 0.01 seconds
+            const newTime = prevTime + (0.016 * speed); // 10ms interval = 0.01 seconds
             if (newTime >= totalDuration) {
               setIsPlaying(false);
               return totalDuration;
             }
 
-            // Update image and notify parent
-            const absoluteTime = startTime + newTime * 1000;
+            // Update image
             updateCurrentImage(newTime * 1000);
-            debouncedTimelineChange(absoluteTime);
 
             return newTime;
           });
-        }, 10);
+        }, 16);
       } else {
         if (playIntervalRef.current) {
           clearInterval(playIntervalRef.current);
