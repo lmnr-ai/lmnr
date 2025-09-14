@@ -1,6 +1,6 @@
 import { has } from "lodash";
-import { createContext, useContext } from "react";
-import { createStore, StoreApi } from "zustand";
+import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createStore, StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
@@ -23,7 +23,9 @@ export type TraceViewSpan = Span & { collapsed: boolean };
 
 interface TraceViewStoreState {
   trace?: Trace;
+  isTraceLoading: boolean;
   spans: TraceViewSpan[];
+  isSpansLoading: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
@@ -37,6 +39,8 @@ interface TraceViewStoreState {
 interface TraceViewStoreActions {
   setTrace: (trace?: Trace) => void;
   setSpans: (spans: Span[]) => void;
+  setIsTraceLoading: (isTraceLoading: boolean) => void;
+  setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
@@ -51,7 +55,7 @@ interface TraceViewStoreActions {
   getTreeSpans: () => TreeSpan[];
   getTimelineData: () => TimelineData;
   getMinimapSpans: () => MinimapSpan[];
-  hasLangGraph: () => boolean;
+  getHasLangGraph: () => boolean;
 }
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
@@ -61,7 +65,9 @@ const createTraceViewStore = () =>
     persist(
       (set, get) => ({
         trace: undefined,
+        isTraceLoading: false,
         spans: [],
+        isSpansLoading: false,
         selectedSpan: undefined,
         browserSession: false,
         sessionTime: undefined,
@@ -87,8 +93,17 @@ const createTraceViewStore = () =>
 
         setSelectedSpan: (span) => set({ selectedSpan: span }),
         setSessionTime: (sessionTime) => set({ sessionTime }),
+        setIsTraceLoading: (isTraceLoading) => set({ isTraceLoading }),
+        setIsSpansLoading: (isSpansLoading) => set({ isSpansLoading }),
         setLangGraph: (langGraph: boolean) => set({ langGraph }),
-        setTab: (tab) => set({ tab }),
+        setTab: (tab) => {
+          const storeTab = get().tab;
+          if (tab === storeTab) {
+            set({ tab: "tree" });
+          } else {
+            set({ tab });
+          }
+        },
         setSearch: (search) => set({ search }),
         setTreeWidth: (treeWidth) => set({ treeWidth }),
         setZoom: (type) => {
@@ -105,7 +120,7 @@ const createTraceViewStore = () =>
             spans: spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span)),
           });
         },
-        hasLangGraph: () =>
+        getHasLangGraph: () =>
           !!get().spans.find(
             (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
           ),
@@ -121,9 +136,23 @@ const createTraceViewStore = () =>
 
 const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
 
+const TraceViewStoreProvider = ({ children }: PropsWithChildren) => {
+  const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
+
+  if (!storeRef.current) {
+    storeRef.current = createTraceViewStore();
+  }
+
+  return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;
+};
+
 export const useTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) => T): T => {
   const store = useContext(TraceViewStoreContext);
   if (!store) {
     throw new Error("useTraceViewStoreContext must be used within a TraceViewStoreContext");
   }
+
+  return useStore(store, selector);
 };
+
+export default TraceViewStoreProvider;

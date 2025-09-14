@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Span } from "@/lib/traces/types.ts";
+import { Span, SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
 export interface TreeSpan {
@@ -35,7 +35,7 @@ export interface MinimapSpan extends TreeSpan {
   y: number;
   height: number;
   status?: string;
-  spanType: string;
+  spanType: SpanType;
   spanId: string;
 }
 

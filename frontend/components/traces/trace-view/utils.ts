@@ -1,12 +1,14 @@
+import { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import { Span, SpanType } from "@/lib/traces/types";
+import { Span, SpanType, Trace } from "@/lib/traces/types";
 
-export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
+export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
-  const pendingSpans = new Map<string, Span>();
+  const pendingSpans = new Map<string, TraceViewSpan>();
 
   // First, add all existing pending spans to the pendingSpans map
   for (const span of existingSpans) {
@@ -78,7 +80,8 @@ export const enrichSpansWithPending = (existingSpans: Span[]): Span[] => {
           outputUrl: null,
           pending: true,
           status: span.status,
-        } as Span;
+          collapsed: false,
+        } as TraceViewSpan;
         pendingSpans.set(spanId, pendingSpan);
       }
     }
@@ -156,7 +159,7 @@ export const getDefaultTraceViewWidth = () => {
   return 1000;
 };
 
-export const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
+const dbSpanRowToSpan = (row: Record<string, any>): TraceViewSpan => ({
   spanId: row.span_id,
   parentSpanId: row.parent_span_id,
   traceId: row.trace_id,
@@ -174,4 +177,53 @@ export const dbSpanRowToSpan = (row: Record<string, any>): Span => ({
   inputUrl: row.input_url,
   outputUrl: row.output_url,
   model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
+  collapsed: false,
 });
+
+export const onRealtimeUpdateSpans =
+  (
+    spans: TraceViewSpan[],
+    setSpans: (spans: Span[]) => void,
+    setTrace: (trace?: Trace) => void,
+    setShowBrowserSession: (show: boolean) => void,
+    trace?: Trace
+  ) =>
+  (payload: RealtimePostgresInsertPayload<Record<string, any>>) => {
+    const rtEventSpan = dbSpanRowToSpan(payload.new);
+
+    if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
+      setShowBrowserSession(true);
+    }
+
+    if (trace) {
+      const newTrace = { ...trace };
+      newTrace.endTime = new Date(
+        Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
+      ).toUTCString();
+      newTrace.totalTokenCount +=
+        (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
+        (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
+      newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+      newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+      newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
+      newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
+      newTrace.cost +=
+        (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
+        (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+      newTrace.hasBrowserSession =
+        trace.hasBrowserSession || rtEventSpan.attributes["lmnr.internal.has_browser_session"];
+
+      setTrace(newTrace);
+    }
+
+    const newSpans = [...spans];
+    const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
+    if (index !== -1) {
+      // Always replace existing span, regardless of pending status
+      newSpans[index] = rtEventSpan;
+    } else {
+      newSpans.push(rtEventSpan);
+    }
+
+    setSpans(enrichSpansWithPending(newSpans));
+  };

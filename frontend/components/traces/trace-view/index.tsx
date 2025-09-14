@@ -1,4 +1,3 @@
-import { has } from "lodash";
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
@@ -7,7 +6,11 @@ import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
-import { dbSpanRowToSpan, enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
+import TraceViewStoreProvider, {
+  TraceViewSpan,
+  useTraceViewStoreContext,
+} from "@/components/traces/trace-view/trace-view-store.tsx";
+import { enrichSpansWithPending, filterColumns, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
@@ -15,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SearchProvider, useSearchContext } from "@/contexts/search-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -46,32 +48,7 @@ interface TraceViewProps {
 
 const MAX_ZOOM = 5;
 const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
 const MIN_TREE_VIEW_WIDTH = 450;
-
-// Inject search highlight styles once globally
-if (typeof window !== "undefined" && !document.getElementById("search-highlight-styles")) {
-  const styleElement = document.createElement("style");
-  styleElement.id = "search-highlight-styles";
-  styleElement.textContent = `
-    .search-highlight {
-      background-color: hsl(var(--primary)) !important;
-      color: hsl(var(--primary-foreground)) !important;
-      padding: 2px 4px !important;
-      border-radius: 3px !important;
-      font-weight: 500 !important;
-      display: inline !important;
-    }
-    .cm-content .search-highlight,
-    .cm-line .search-highlight {
-      background-color: hsl(var(--primary)) !important;
-      color: hsl(var(--primary-foreground)) !important;
-      opacity: 1 !important;
-      visibility: visible !important;
-    }
-  `;
-  document.head.appendChild(styleElement);
-}
 
 // Internal component that uses SearchContext
 function TraceViewInternal({
@@ -89,22 +66,60 @@ function TraceViewInternal({
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { value: filters } = useFiltersContextProvider();
-  const [isSpansLoading, setIsSpansLoading] = useState(false);
-  const [isTraceLoading, setIsTraceLoading] = useState(false);
+  const {
+    selectedSpan,
+    setSelectedSpan,
+    spans,
+    setSpans,
+    trace,
+    setTrace,
+    isSpansLoading,
+    isTraceLoading,
+    setIsTraceLoading,
+    setIsSpansLoading,
+  } = useTraceViewStoreContext((state) => ({
+    selectedSpan: state.selectedSpan,
+    setSelectedSpan: state.setSelectedSpan,
+    spans: state.spans,
+    setSpans: state.setSpans,
+    trace: state.trace,
+    setTrace: state.setTrace,
+    isTraceLoading: state.isTraceLoading,
+    isSpansLoading: state.isSpansLoading,
+    setIsSpansLoading: state.setIsTraceLoading,
+    setIsTraceLoading: state.setIsTraceLoading,
+  }));
 
-  const [showBrowserSession, setShowBrowserSession] = useState(false);
+  const {
+    tab,
+    setTab,
+    treeWidth,
+    setTreeWidth,
+    zoom,
+    handleZoom,
+    browserSession,
+    setBrowserSession,
+    setBrowserSessionTime,
+    getHasLangGraph,
+  } = useTraceViewStoreContext((state) => ({
+    tab: state.tab,
+    setTab: state.setTab,
+    treeWidth: state.treeWidth,
+    setTreeWidth: state.setTreeWidth,
+    zoom: state.zoom,
+    handleZoom: state.setZoom,
+    browserSession: state.browserSession,
+    setBrowserSession: state.setBrowserSession,
+    setBrowserSessionTime: state.setSessionTime,
+    getHasLangGraph: state.getHasLangGraph,
+  }));
+
+  const { value: filters } = useFiltersContextProvider();
+
   const [showLangGraph, setShowLangGraph] = useState(true);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
-  const [trace, setTrace] = useState<Trace | null>(null);
-
-  const [spans, setSpans] = useState<Span[]>([]);
-
-  const hasLangGraph = useMemo(
-    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
-    [spans]
-  );
+  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
 
   useEffect(() => {
     if (hasLangGraph) {
@@ -115,31 +130,11 @@ function TraceViewInternal({
   useImperativeHandle(
     ref,
     () => ({
-      toggleBrowserSession: () => setShowBrowserSession((prev) => !prev),
+      toggleBrowserSession: () => setBrowserSession(!browserSession),
       toggleLangGraph: () => setShowLangGraph((prev) => !prev),
     }),
     []
   );
-
-  const [childSpans, setChildSpans] = useState<{ [key: string]: Span[] }>({});
-  const [topLevelSpans, setTopLevelSpans] = useState<Span[]>([]);
-
-  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
-
-  const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
-  const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
-
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-
-  const handleZoomIn = useCallback(() => {
-    setZoomLevel((prev) => Math.min(prev + ZOOM_INCREMENT, MAX_ZOOM));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoomLevel((prev) => Math.max(prev - ZOOM_INCREMENT, MIN_ZOOM));
-  }, []);
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -159,7 +154,7 @@ function TraceViewInternal({
         const traceData = await response.json();
         setTrace(traceData);
         if (traceData.hasBrowserSession) {
-          setShowBrowserSession(true);
+          setBrowserSession(true);
         }
       }
     } catch (e) {
@@ -171,7 +166,7 @@ function TraceViewInternal({
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, propsTrace, toast, traceId]);
+  }, [projectId, propsTrace, setBrowserSession, setIsTraceLoading, setTrace, toast, traceId]);
 
   useEffect(() => {
     handleFetchTrace();
@@ -210,7 +205,7 @@ function TraceViewInternal({
 
   // Create wrapper function for span selection that saves path
   const handleSpanSelect = useCallback(
-    (span: Span | null) => {
+    (span?: TraceViewSpan) => {
       if (!span) return;
 
       setSelectedSpan(span);
@@ -262,7 +257,7 @@ function TraceViewInternal({
         setSpans(spans);
 
         const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
-        let spanToSelect: Span | null = null;
+        let spanToSelect: TraceViewSpan | null = null;
 
         if (spanIdFromUrl) {
           // First priority: span from URL
@@ -311,34 +306,11 @@ function TraceViewInternal({
 
     return () => {
       setSpans([]);
-      setShowBrowserSession(false);
+      setBrowserSession(false);
       setSearchSpans("");
       setSearchEnabled(false);
     };
   }, [traceId, projectId, filters]);
-
-  useEffect(() => {
-    const childSpans = {} as { [key: string]: Span[] };
-
-    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
-
-    for (const span of spans) {
-      if (span.parentSpanId) {
-        if (!childSpans[span.parentSpanId]) {
-          childSpans[span.parentSpanId] = [];
-        }
-        childSpans[span.parentSpanId].push(span);
-      }
-    }
-
-    // Sort child spans for each parent by start time
-    for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    }
-
-    setChildSpans(childSpans);
-    setTopLevelSpans(topLevelSpans);
-  }, [spans]);
 
   const handleClose = useCallback(() => {
     const params = new URLSearchParams(searchParams);
@@ -377,7 +349,7 @@ function TraceViewInternal({
       return;
     }
 
-    // Clean up existing channel first - same pattern as traces-table
+    // Clean up
     supabase.channel(`trace-updates-${traceId}`).unsubscribe();
 
     const channel = supabase
@@ -390,81 +362,14 @@ function TraceViewInternal({
           table: "spans",
           filter: `trace_id=eq.${traceId}`,
         },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            const rtEventSpan = dbSpanRowToSpan(payload.new);
-
-            if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
-              setShowBrowserSession(true);
-            }
-
-            setTrace((currentTrace: Trace | null) => {
-              if (!currentTrace) {
-                return null;
-              }
-
-              const newTrace = { ...currentTrace };
-              newTrace.endTime = new Date(
-                Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
-              ).toUTCString();
-              newTrace.totalTokenCount +=
-                (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-                (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-              newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-              newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-              newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-              newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-              newTrace.cost +=
-                (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
-                (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
-              newTrace.hasBrowserSession =
-                currentTrace.hasBrowserSession || rtEventSpan.attributes["lmnr.internal.has_browser_session"];
-
-              return newTrace;
-            });
-
-            setSpans((currentSpans) => {
-              const newSpans = [...currentSpans];
-              const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
-              if (index !== -1) {
-                // Always replace existing span, regardless of pending status
-                newSpans[index] = rtEventSpan;
-              } else {
-                newSpans.push(rtEventSpan);
-              }
-
-              return enrichSpansWithPending(newSpans);
-            });
-          }
-        }
+        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
       )
       .subscribe();
 
-    // remove the channel on unmount - same pattern as traces-table
     return () => {
       channel.unsubscribe();
     };
-  }, [supabase, traceId]);
-
-  const [treeViewWidth, setTreeViewWidth] = useState(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        return savedWidth ? Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)) : MIN_TREE_VIEW_WIDTH;
-      }
-      return MIN_TREE_VIEW_WIDTH;
-    } catch (e) {
-      return MIN_TREE_VIEW_WIDTH;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
-      }
-    } catch (e) {}
-  }, [treeViewWidth]);
+  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
 
@@ -472,11 +377,11 @@ function TraceViewInternal({
     (e: React.MouseEvent) => {
       e.preventDefault();
       const startX = e.clientX;
-      const startWidth = treeViewWidth;
+      const startWidth = treeWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
-        setTreeViewWidth(newWidth);
+        setTreeWidth(newWidth);
       };
 
       const handleMouseUp = () => {
@@ -487,7 +392,7 @@ function TraceViewInternal({
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [treeViewWidth]
+    [setTreeWidth, treeWidth]
   );
 
   if (isLoading) {
@@ -510,18 +415,8 @@ function TraceViewInternal({
       <div className="flex flex-col h-full w-full overflow-hidden">
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel className="flex size-full">
-            <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
-              <Header
-                trace={trace}
-                fullScreen={fullScreen}
-                handleClose={handleClose}
-                showBrowserSession={showBrowserSession}
-                setShowBrowserSession={setShowBrowserSession}
-                handleFetchTrace={handleFetchTrace}
-                hasLangGraph={hasLangGraph}
-                setShowLangGraph={setShowLangGraph}
-                showLangGraph={showLangGraph}
-              />
+            <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
+              <Header fullScreen={fullScreen} handleClose={handleClose} handleFetchTrace={handleFetchTrace} />
               {searchEnabled ? (
                 <SearchSpansInput
                   defaultValue={searchTerm}
@@ -539,60 +434,47 @@ function TraceViewInternal({
                         Filters
                       </Button>
                     </StatefulFilter>
-                    <Button
-                      onClick={() => {
-                        setSearchEnabled(true);
-                        setShowChat(false);
-                      }}
-                      variant="outline"
-                      className="h-6 text-xs px-1.5"
-                    >
+                    <Button variant="outline" className="h-6 text-xs px-1.5">
                       <Search size={14} className="mr-1" />
                       <span>Search</span>
                     </Button>
                     <Button
-                      onClick={() => {
-                        setShowTimeline((prev) => !prev);
-                        setShowChat(false);
-                      }}
+                      onClick={() => setTab("timeline")}
                       variant="outline"
                       className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": showTimeline,
+                        "border-primary text-primary": tab === "timeline",
                       })}
                     >
                       <ChartNoAxesGantt size={14} className="mr-1" />
                       <span>Timeline</span>
                     </Button>
                     <Button
-                      onClick={() => {
-                        setShowChat((prev) => !prev);
-                        setShowTimeline(false);
-                      }}
+                      onClick={() => setTab("chat")}
                       variant="outline"
                       className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": showChat,
+                        "border-primary text-primary": tab === "chat",
                       })}
                     >
                       <MessageCircle size={14} className="mr-1" />
                       <span>Chat</span>
                     </Button>
-                    {showTimeline && (
+                    {tab === "timeline" && (
                       <>
                         <Button
-                          disabled={zoomLevel === MAX_ZOOM}
+                          disabled={zoom === MAX_ZOOM}
                           className="h-6 w-6 ml-auto"
                           variant="outline"
                           size="icon"
-                          onClick={handleZoomIn}
+                          onClick={() => handleZoom("in")}
                         >
                           <Plus className="w-4 h-4" />
                         </Button>
                         <Button
-                          disabled={zoomLevel === MIN_ZOOM}
+                          disabled={zoom === MIN_ZOOM}
                           className="h-6 w-6"
                           variant="outline"
                           size="icon"
-                          onClick={handleZoomOut}
+                          onClick={() => handleZoom("out")}
                         >
                           <Minus className="w-4 h-4" />
                         </Button>
@@ -602,62 +484,36 @@ function TraceViewInternal({
                   <StatefulFilterList className="py-[3px] text-xs px-1" />
                 </div>
               )}
-              {showChat && !showTimeline ? (
-                <Chat
-                  trace={trace}
-                  onSetSpanId={(spanId) => {
-                    const span = spans.find((span) => span.spanId === spanId);
-                    if (span) {
-                      console.log("span", span);
-                      handleSpanSelect(span);
-                    }
-                  }}
-                />
-              ) : showTimeline ? (
-                <Timeline
-                  setSelectedSpan={handleSpanSelect}
-                  selectedSpan={selectedSpan}
-                  spans={spans}
-                  childSpans={childSpans}
-                  collapsedSpans={collapsedSpans}
-                  browserSessionTime={browserSessionTime}
-                  zoomLevel={zoomLevel}
-                />
-              ) : (
-                <div className="flex flex-1 overflow-hidden relative">
-                  <Tree
-                    topLevelSpans={topLevelSpans}
-                    childSpans={childSpans}
-                    collapsedSpans={collapsedSpans}
-                    containerWidth={treeViewWidth}
-                    selectedSpan={selectedSpan}
-                    trace={trace}
-                    isSpansLoading={isSpansLoading}
-                    onToggleCollapse={(spanId) => {
-                      setCollapsedSpans((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(spanId)) {
-                          next.delete(spanId);
-                        } else {
-                          next.add(spanId);
-                        }
-                        return next;
-                      });
-                    }}
-                    onSpanSelect={handleSpanSelect}
-                    onSelectTime={(time) => {
-                      browserSessionRef.current?.goto(time);
-                    }}
-                  />
-                  <Minimap
-                    traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()}
-                    setSelectedSpanId={(spanId) =>
-                      handleSpanSelect(spans.find((span) => span.spanId === spanId) || null)
-                    }
-                    browserSessionTime={browserSessionTime}
-                  />
-                </div>
-              )}
+              <>
+                {isSpansLoading ? (
+                  <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : (
+                  <>
+                    {tab === "chat" && (
+                      <Chat
+                        trace={trace}
+                        onSetSpanId={(spanId) => {
+                          const span = spans.find((span) => span.spanId === spanId);
+                          if (span) {
+                            handleSpanSelect(span);
+                          }
+                        }}
+                      />
+                    )}
+                    {tab === "timeline" && <Timeline />}
+                    {tab === "tree" && (
+                      <div className="flex flex-1 overflow-hidden relative">
+                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Minimap onSpanSelect={handleSpanSelect} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
               <div
                 className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                 onMouseDown={handleResizeTreeView}
@@ -680,7 +536,7 @@ function TraceViewInternal({
               )}
             </div>
           </ResizablePanel>
-          {showBrowserSession && (
+          {browserSession && (
             <>
               <ResizableHandle className="z-50" withHandle />
               <ResizablePanel>
@@ -705,8 +561,10 @@ function TraceViewInternal({
 // Main component wrapper with SearchProvider
 export default function TraceView(props: TraceViewProps) {
   return (
-    <SearchProvider>
-      <TraceViewInternal {...props} />
-    </SearchProvider>
+    <TraceViewStoreProvider>
+      <SearchProvider>
+        <TraceViewInternal {...props} />
+      </SearchProvider>
+    </TraceViewStoreProvider>
   );
 }

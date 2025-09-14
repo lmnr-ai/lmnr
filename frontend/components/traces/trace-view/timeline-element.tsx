@@ -1,24 +1,11 @@
 import { VirtualItem } from "@tanstack/react-virtual";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { Span } from "@/lib/traces/types";
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
-interface Segment {
-  left: number;
-  width: number;
-  span: Span;
-  events: SegmentEvent[];
-}
-
-interface SegmentEvent {
-  id: string;
-  name: string;
-  left: number;
-}
-
-const HEIGHT = 32;
 const TEXT_PADDING = {
   WITH_EVENTS: 8,
   WITHOUT_EVENTS: 4,
@@ -26,23 +13,20 @@ const TEXT_PADDING = {
 
 const TimelineElement = ({
   setSelectedSpan,
-  segment,
+  span,
   virtualRow,
   selectedSpan,
 }: {
-  segment: Segment;
+  span: TimelineData["spans"]["0"];
   virtualRow: VirtualItem;
-  selectedSpan: null | Span;
-  setSelectedSpan: (span: Span | null) => void;
+  selectedSpan?: TraceViewSpan;
+  setSelectedSpan: (span?: TraceViewSpan) => void;
 }) => {
   const textRef = useRef<HTMLSpanElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
   const [textPosition, setTextPosition] = useState<"inside" | "outside">("inside");
 
-  const isSelected = useMemo(
-    () => selectedSpan?.spanId === segment.span.spanId,
-    [segment.span.spanId, selectedSpan?.spanId]
-  );
+  const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
   useLayoutEffect(() => {
     if (!blockRef.current || !textRef.current) return;
@@ -51,7 +35,7 @@ const TimelineElement = ({
       if (textRef.current && blockRef.current) {
         const textWidth = textRef.current.offsetWidth;
         const blockWidth = blockRef.current.offsetWidth + 8;
-        const availableWidth = blockWidth - (segment.events.length > 0 ? 16 : 8) - 4;
+        const availableWidth = blockWidth - (span.events.length > 0 ? 16 : 8) - 4;
         setTextPosition(textWidth <= availableWidth ? "inside" : "outside");
       }
     };
@@ -64,18 +48,18 @@ const TimelineElement = ({
       observer.disconnect();
       cancelAnimationFrame(frameId);
     };
-  }, [segment.span.name, segment.events.length, segment.width]);
+  }, [span.span.name, span.events.length, span.width]);
 
   const SpanText = useMemo(() => {
     const textContent = (
       <>
-        {segment.span.name}{" "}
-        <span className="text-white/70">{getDurationString(segment.span.startTime, segment.span.endTime)}</span>
+        {span.span.name}{" "}
+        <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
       </>
     );
 
     const commonProps = {
-      title: segment.span.name,
+      title: span.span.name,
       ref: textRef,
       className: "text-xs font-medium text-white/90 truncate",
     };
@@ -86,7 +70,7 @@ const TimelineElement = ({
           {...commonProps}
           className={cn(commonProps.className, "absolute text-left")}
           style={{
-            left: segment.events.length > 0 ? `${TEXT_PADDING.WITH_EVENTS}px` : `${TEXT_PADDING.WITHOUT_EVENTS}px`,
+            left: span.events.length > 0 ? `${TEXT_PADDING.WITH_EVENTS}px` : `${TEXT_PADDING.WITHOUT_EVENTS}px`,
           }}
         >
           {textContent}
@@ -94,13 +78,13 @@ const TimelineElement = ({
       );
     }
 
-    if (segment.left > 50) {
+    if (span.left > 50) {
       return (
         <span
           {...commonProps}
           className={cn(commonProps.className, "absolute text-right")}
           style={{
-            right: `calc(100% - ${segment.left}% + 16px)`,
+            right: `calc(100% - ${span.left}% + 16px)`,
             maxWidth: "250px",
           }}
         >
@@ -114,20 +98,13 @@ const TimelineElement = ({
         {textContent}
       </span>
     );
-  }, [
-    segment.span.name,
-    segment.span.startTime,
-    segment.span.endTime,
-    segment.left,
-    segment.events.length,
-    textPosition,
-  ]);
+  }, [span.span.name, span.span.startTime, span.span.endTime, span.left, span.events.length, textPosition]);
 
   return (
     <div
       key={virtualRow.index}
       data-index={virtualRow.index}
-      onClick={() => setSelectedSpan(segment.span)}
+      onClick={() => setSelectedSpan(span.span)}
       className={cn(
         "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
       )}
@@ -136,21 +113,19 @@ const TimelineElement = ({
       }}
     >
       {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
-      {segment.left > 50 && textPosition === "outside" && (
+      {span.left > 50 && textPosition === "outside" && (
         <span
-          title={segment.span.name}
+          title={span.span.name}
           ref={textRef}
           className="text-xs font-medium text-black truncate absolute"
           style={{
-            right: `calc(100% - ${segment.left}% + 16px)`,
+            right: `calc(100% - ${span.left}% + 16px)`,
             textAlign: "right",
             maxWidth: "250px",
           }}
         >
-          {segment.span.name}{" "}
-          <span className="text-secondary-foreground">
-            {getDurationString(segment.span.startTime, segment.span.endTime)}
-          </span>
+          {span.span.name}{" "}
+          <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         </span>
       )}
       <div
@@ -158,13 +133,13 @@ const TimelineElement = ({
         className="rounded relative z-20 flex items-center"
         style={{
           backgroundColor:
-            segment.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[segment.span.spanType],
-          marginLeft: segment.left + "%",
-          width: `max(${segment.width}%, 2px)`,
+            span.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.span.spanType],
+          marginLeft: span.left + "%",
+          width: `max(${span.width}%, 2px)`,
           height: 24,
         }}
       >
-        {segment.events.map((event) => (
+        {span.events.map((event) => (
           <div
             key={event.id}
             className="absolute bg-orange-400 w-1 rounded"

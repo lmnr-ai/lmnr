@@ -2,47 +2,40 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../stats-shields";
 
 interface HeaderProps {
-  trace: Trace | null;
   fullScreen: boolean;
   handleClose: () => void;
-  showBrowserSession: boolean;
-  setShowBrowserSession: (showBrowserSession: boolean) => void;
   handleFetchTrace: () => void;
-  hasLangGraph: boolean;
-  showLangGraph: boolean;
-  setShowLangGraph: (showLangGraph: boolean) => void;
 }
 
-const Header = ({
-  trace,
-  fullScreen,
-  handleClose,
-  showBrowserSession,
-  setShowBrowserSession,
-  handleFetchTrace,
-  hasLangGraph,
-  showLangGraph,
-  setShowLangGraph,
-}: HeaderProps) => {
+const Header = ({ fullScreen, handleClose, handleFetchTrace }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { toast } = useToast();
   const { navigateDown, navigateUp } = useTraceViewNavigation();
+  const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
+    useTraceViewStoreContext((state) => ({
+      trace: state.trace,
+      browserSession: state.browserSession,
+      setBrowserSession: state.setBrowserSession,
+      langGraph: state.langGraph,
+      setLangGraph: state.setLangGraph,
+      getHasLangGraph: state.getHasLangGraph,
+    }));
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
@@ -52,7 +45,9 @@ const Header = ({
     return ps;
   }, [params.evaluationId, searchParams]);
 
-  const copyTraceId = () => {
+  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+
+  const copyTraceId = useCallback(() => {
     if (trace) {
       navigator.clipboard.writeText(trace.id);
       toast({
@@ -61,7 +56,7 @@ const Header = ({
         variant: "default",
       });
     }
-  };
+  }, [toast, trace]);
 
   if (fullScreen) {
     return null;
@@ -130,23 +125,21 @@ const Header = ({
               <Button
                 className="hover:bg-secondary px-1.5"
                 variant="ghost"
-                onClick={() => {
-                  setShowBrowserSession(!showBrowserSession);
-                }}
+                onClick={() => setBrowserSession(!browserSession)}
               >
-                {showBrowserSession ? (
-                  <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
+                {browserSession ? (
+                  <Disc2 className={cn({ "text-primary w-4 h-4": browserSession })} />
                 ) : (
                   <Disc className="w-4 h-4" />
                 )}
               </Button>
             </TooltipTrigger>
             <TooltipPortal>
-              <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+              <TooltipContent>{browserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
             </TooltipPortal>
           </Tooltip>
         )}
-        {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
+        {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
         {trace && (
           <ShareTraceButton
             refetch={handleFetchTrace}
