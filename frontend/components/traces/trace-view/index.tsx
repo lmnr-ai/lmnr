@@ -361,17 +361,8 @@ function TraceViewInternal({
   const handleTimelineChange = useCallback(
     (time: number) => {
       setBrowserSessionTime(time);
-
-      const activeSpans = spans.filter((span: Span) => {
-        const spanStartTime = new Date(span.startTime).getTime();
-        const spanEndTime = new Date(span.endTime).getTime();
-
-        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-      });
-
-      setActiveSpans(activeSpans.map((span) => span.spanId));
     },
-    [spans]
+    []
   );
 
   const { searchTerm, setSearchTerm: setSearchSpans } = useSearchContext();
