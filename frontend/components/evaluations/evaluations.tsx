@@ -167,7 +167,7 @@ export default function Evaluations() {
     }
   };
 
-  if (isFeatureEnabled(Feature.POSTHOG)) {
+  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
     posthog.identify(email);
   }
 

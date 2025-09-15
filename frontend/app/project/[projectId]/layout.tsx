@@ -109,9 +109,11 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     project.gbUsedThisMonth >= 0.8 * project.gbLimit;
 
   const posthog = PostHogClient();
-  posthog.identify({
-    distinctId: user.email ?? "",
-  });
+  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
+    posthog.identify({
+      distinctId: user.email ?? "",
+    });
+  }
 
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
@@ -124,7 +126,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       imageUrl={user.image!}
       supabaseAccessToken={session.supabaseAccessToken}
     >
-      <PostHogIdentifier email={user.email!} />
+      <PostHogIdentifier email={user.email!} isEnabled={isFeatureEnabled(Feature.POSTHOG_IDENTIFY)} />
       <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
         <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
           <SidebarProvider defaultOpen={defaultOpen}>

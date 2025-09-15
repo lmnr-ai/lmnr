@@ -28,10 +28,14 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => {
-          posthog.reset();
-          signOut({ callbackUrl: "/" });
-        }}>Sign out</DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            posthog.reset();
+            signOut({ callbackUrl: "/" });
+          }}
+        >
+          Sign out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
