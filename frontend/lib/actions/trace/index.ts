@@ -91,46 +91,44 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
   })
     .filter((p) => p.payloadIds.length > 0);
 
-  if (parseResult.length === 0) {
-    return;
-  }
-
   const payloadIds = parseResult.flatMap((p) => p.payloadIds);
 
   /**
    * 2. Update spans in ClickHouse using delete and insert pattern (outside transaction)
    */
-  const spanIds = parseResult.map((item) => item.id);
+  if (parseResult.length > 0) {
+    const spanIds = parseResult.map((item) => item.id);
 
-  await clickhouseClient.command({
-    query: `
-        DELETE FROM spans
-        WHERE span_id IN ({spanIds: Array(UUID)}) 
-          AND trace_id = {traceId: UUID}
-          AND project_id = {projectId: UUID}
-      `,
-    query_params: {
-      spanIds,
-      traceId,
-      projectId,
-    },
-  });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM spans
+          WHERE span_id IN ({spanIds: Array(UUID)}) 
+            AND trace_id = {traceId: UUID}
+            AND project_id = {projectId: UUID}
+        `,
+      query_params: {
+        spanIds,
+        traceId,
+        projectId,
+      },
+    });
 
-  const updatedSpans: ClickHouseSpan[] = parseResult.map((item) => ({
-    ...item.existingSpan,
-    input: JSON.stringify(item.input),
-    output: JSON.stringify(item.output),
-  }));
+    const updatedSpans: ClickHouseSpan[] = parseResult.map((item) => ({
+      ...item.existingSpan,
+      input: JSON.stringify(item.input),
+      output: JSON.stringify(item.output),
+    }));
 
-  await clickhouseClient.insert({
-    table: "spans",
-    values: updatedSpans,
-    format: "JSONEachRow",
-    clickhouse_settings: {
-      wait_for_async_insert: 1,
-      async_insert: 1,
-    },
-  });
+    await clickhouseClient.insert({
+      table: "spans",
+      values: updatedSpans,
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        wait_for_async_insert: 1,
+        async_insert: 1,
+      },
+    });
+  }
 
   /**
    * 3. Perform PostgreSQL transaction for traces and shared payloads
