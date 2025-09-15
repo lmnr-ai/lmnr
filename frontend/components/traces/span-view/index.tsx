@@ -25,7 +25,7 @@ export function SpanView({ spanId }: SpanViewProps) {
 
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
-  if (isLoading || !span) {
+  if (isLoading || !span || span.attributes === null) {
     return (
       <div className="flex flex-col space-y-2 p-4">
         <Skeleton className="h-8 w-full" />

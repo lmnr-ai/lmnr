@@ -22,7 +22,6 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         createdAt: true,
         parentSpanId: true,
         name: true,
-        attributes: true,
         spanType: true,
         startTime: true,
         endTime: true,
@@ -35,7 +34,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     }),
     clickhouseClient.query({
       query: `
-        SELECT input, output
+        SELECT input, output, attributes
         FROM spans
         WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
         LIMIT 1
@@ -49,13 +48,14 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     throw new Error("Span not found");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string }];
-  const { input: spanInput, output: spanOutput } = chData[0] || {};
+  const chData = (await chResult.json()) as [{ input: string; output: string; attributes: string }];
+  const { input: spanInput, output: spanOutput, attributes, } = chData[0] || {};
 
   return {
     ...dbSpan,
     input: tryParseJson(spanInput),
     output: tryParseJson(spanOutput),
+    attributes: tryParseJson(attributes) ?? {},
   };
 };
 
@@ -89,7 +89,7 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
   return rows.map((row) => ({
     ...row,
     timestamp: new Date(`${row.timestamp}Z`),
-    attributes: tryParseJson(row.attributes),
+    attributes: tryParseJson(row.attributes) ?? {},
   }));
 };
 

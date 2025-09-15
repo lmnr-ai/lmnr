@@ -83,7 +83,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     ...dbSpan,
     input: tryParseJson(spanInput),
     output: tryParseJson(spanOutput),
-    attributes: tryParseJson(spanAttributes),
+    attributes: tryParseJson(spanAttributes) ?? {},
   };
 }
 
