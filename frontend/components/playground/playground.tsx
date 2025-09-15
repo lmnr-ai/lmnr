@@ -161,7 +161,6 @@ export default function Playground({ playground }: { playground: PlaygroundType 
             }}
           >
             <TraceView
-              spanId={null}
               onClose={() => {
                 setIsSidePanelOpen(false);
                 setTraceId(null);

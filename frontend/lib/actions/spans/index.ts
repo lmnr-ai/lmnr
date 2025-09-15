@@ -4,11 +4,12 @@ import { z } from "zod/v4";
 
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { processSpanFilters, processTraceSpanFilters } from "@/lib/actions/spans/utils";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchSpans } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { events, spans, traces } from "@/lib/db/migrations/schema";
+import { spans, traces } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { getDateRangeFilters } from "@/lib/db/utils";
 
@@ -157,16 +158,17 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
     return [];
   }
 
-  // Join in memory, because json aggregation and join in PostgreSQL may be too slow
-  // depending on the number of spans and events, and there is no way for us
-  // to force PostgreSQL to use the correct indexes always.
-  const spanEvents = await db
-    .query.events.findMany({
-      where: and(
-        eq(events.projectId, projectId),
-        inArray(events.spanId, spanItems.map((span) => span.spanId))
-      ),
-    });
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT id, timestamp, span_id spanId, name
+      FROM events
+      WHERE span_id IN {spanIds: Array(UUID)} AND project_id = {projectId: UUID}
+    `,
+    format: "JSONEachRow",
+    query_params: { spanIds: spanItems.map((span) => span.spanId), projectId },
+  });
+
+  const spanEvents = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string }[];
 
   const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
 
@@ -176,7 +178,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
     ...span,
     events: (spanEventsMap[span.spanId] || []).map((event) => ({
       ...event,
-      attributes: event.attributes as Record<string, any>,
+      timestamp: new Date(`${event.timestamp}Z`),
     })),
     parentSpanId: searchSpanIds.length > 0 || urlParamFilters.length > 0 ? null : span.parentSpanId,
   }));

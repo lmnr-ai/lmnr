@@ -18,5 +18,5 @@ export default async function TracePage(props: { params: Promise<{ projectId: st
     return notFound();
   }
 
-  return <Trace projectId={projectId} trace={trace} />;
+  return <Trace trace={trace} />;
 }
