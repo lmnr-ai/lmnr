@@ -24,10 +24,9 @@ const SearchSpansInput = ({
   const searchInQuery = searchParams.getAll("searchIn");
   const [searchIn, setSearchIn] = useState<string>(searchInQuery?.length === 1 ? searchInQuery?.[0] : "all");
 
-  const { value, onChange, setSearchEnabled } = useTraceViewStoreContext((state) => ({
+  const { value, onChange } = useTraceViewStoreContext((state) => ({
     value: state.search,
     onChange: state.setSearch,
-    setSearchEnabled: state.setSearchEnabled,
   }));
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,9 +51,10 @@ const SearchSpansInput = ({
     [handleSubmit]
   );
 
-  const handleBlur = useCallback(() => {
-    handleWindow(false)();
-  }, [handleWindow]);
+  const handleClearInput = useCallback(() => {
+    onChange("");
+    submit("", ["input", "output"], []);
+  }, [onChange, submit]);
 
   return (
     <div className="flex flex-col top-0 sticky bg-background z-40 box-border">
@@ -73,12 +73,12 @@ const SearchSpansInput = ({
           value={value}
           onKeyDown={handleKeyPress}
           ref={inputRef}
-          onBlur={handleBlur}
+          onBlur={handleWindow(false)}
           onChange={(e) => onChange(e.target.value)}
           onFocus={handleWindow(true)}
         />
         {value && (
-          <Button onClick={() => onChange("")} variant="ghost" className="h-4 w-4" size="icon">
+          <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
             <X size={18} className="text-secondary-foreground min-w-[18px]" />
           </Button>
         )}

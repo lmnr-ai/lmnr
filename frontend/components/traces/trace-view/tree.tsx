@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -56,6 +57,10 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
       el.removeEventListener("scroll", handleScroll);
     };
   }, [handleScroll, scrollRef]);
+
+  if (isEmpty(spans)) {
+    return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;
+  }
 
   return (
     <ScrollArea ref={scrollRef} className="overflow-x-hidden flex-grow relative h-full w-full">

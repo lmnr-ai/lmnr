@@ -239,7 +239,7 @@ export const findSpanToSelect = (
   spanId: string | undefined,
   searchParams: URLSearchParams,
   spanPath: string[] | null
-): TraceViewSpan | null => {
+): TraceViewSpan | undefined => {
   // Priority 1: Span from URL (either prop or search params)
   const urlSpanId = spanId || searchParams.get("spanId");
   if (urlSpanId) {
@@ -257,5 +257,5 @@ export const findSpanToSelect = (
   }
 
   // Priority 3: First span as fallback
-  return spans?.[0] || null;
+  return spans?.[0];
 };

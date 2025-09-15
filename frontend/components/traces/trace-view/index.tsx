@@ -189,7 +189,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
 
         setSearch(search);
-        setSearchEnabled(!!search);
+        if (search) {
+          setSearchEnabled(true);
+        }
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
@@ -198,11 +200,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         setSpans(spans);
 
-        if (!search && spans.length > 0) {
+        if (spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
-          if (selectedSpan) {
-            setSelectedSpan(selectedSpan);
-          }
+          setSelectedSpan(selectedSpan);
+        } else {
+          setSelectedSpan(undefined);
         }
       } catch (e) {
         console.error(e);
@@ -210,18 +212,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         setIsSpansLoading(false);
       }
     },
-    [
-      setIsSpansLoading,
-      projectId,
-      traceId,
-      setSpans,
-      setSearch,
-      setSearchEnabled,
-      spanId,
-      searchParams,
-      spanPath,
-      setSelectedSpan,
-    ]
+    [setIsSpansLoading, projectId, traceId, setSpans, setSearch, spanId, searchParams, spanPath, setSelectedSpan]
   );
 
   const handleClose = useCallback(() => {
@@ -255,11 +246,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   const handleToggleSearch = useCallback(() => {
     if (searchEnabled) {
+      if (search !== "") {
+        fetchSpans("", ["input", "output"], []);
+      }
       setSearch("");
-      fetchSpans("", ["input", "output"], []);
     }
     setSearchEnabled(!searchEnabled);
-  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled]);
+  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
 
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
 
