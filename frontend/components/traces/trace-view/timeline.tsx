@@ -1,22 +1,24 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useMemo, useRef } from "react";
+import { isEmpty } from "lodash";
+import React, { memo, useMemo, useRef } from "react";
 
 import TimelineElement from "@/components/traces/trace-view/timeline-element";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 function Timeline() {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { getTimelineData, zoom, browserSessionTime, selectedSpan, setSelectedSpan } = useTraceViewStoreContext(
-    (state) => ({
+  const { getTimelineData, zoom, browserSessionTime, selectedSpan, setSelectedSpan, isSpansLoading } =
+    useTraceViewStoreContext((state) => ({
       getTimelineData: state.getTimelineData,
       zoom: state.zoom,
       browserSessionTime: state.sessionTime,
       selectedSpan: state.selectedSpan,
       setSelectedSpan: state.setSelectedSpan,
-    })
-  );
+      isSpansLoading: state.isSpansLoading,
+    }));
 
   const { spans, startTime, timeIntervals, timelineWidthInMilliseconds } = useMemo(
     () => getTimelineData(),
@@ -31,6 +33,20 @@ function Timeline() {
   });
 
   const items = virtualizer.getVirtualItems();
+
+  if (isSpansLoading) {
+    return (
+      <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  if (isEmpty(spans)) {
+    return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;
+  }
 
   return (
     <ScrollArea className="h-full w-full relative" ref={ref}>

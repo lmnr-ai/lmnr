@@ -33,7 +33,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
-import Minimap from "./minimap";
 import { ScrollContextProvider } from "./scroll-context";
 import Timeline from "./timeline";
 import Tree from "./tree";
@@ -402,34 +401,19 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 />
               )}
               <>
-                {isSpansLoading ? (
-                  <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                ) : (
-                  <>
-                    {tab === "chat" && (
-                      <Chat
-                        trace={trace}
-                        onSetSpanId={(spanId) => {
-                          const span = spans.find((span) => span.spanId === spanId);
-                          if (span) {
-                            handleSpanSelect(span);
-                          }
-                        }}
-                      />
-                    )}
-                    {tab === "timeline" && <Timeline />}
-                    {tab === "tree" && (
-                      <div className="flex flex-1 overflow-hidden relative">
-                        <Tree onSpanSelect={handleSpanSelect} />
-                        <Minimap onSpanSelect={handleSpanSelect} />
-                      </div>
-                    )}
-                  </>
+                {tab === "chat" && (
+                  <Chat
+                    trace={trace}
+                    onSetSpanId={(spanId) => {
+                      const span = spans.find((span) => span.spanId === spanId);
+                      if (span) {
+                        handleSpanSelect(span);
+                      }
+                    }}
+                  />
                 )}
+                {tab === "timeline" && <Timeline />}
+                {tab === "tree" && <Tree onSpanSelect={handleSpanSelect} />}
               </>
               <div
                 className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
