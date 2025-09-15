@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
 import TraceView from "./trace-view";
-import { TracesStoreProvider, useTraceViewActions, useTraceViewState } from "./traces-store";
+import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
 
 enum TracesTab {
@@ -41,8 +41,12 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
-  const { traceId, spanId } = useTraceViewState();
-  const { setTraceId, setSpanId } = useTraceViewActions();
+  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
+    spanId: state.spanId,
+    traceId: state.traceId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
 

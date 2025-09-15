@@ -1,4 +1,4 @@
-import { ChevronLeft, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import React, { KeyboardEventHandler, memo, PropsWithChildren, useCallback, useRef, useState } from "react";
 
@@ -52,11 +52,6 @@ const SearchSpansInput = ({
     [handleSubmit]
   );
 
-  const handleCloseSearch = useCallback(() => {
-    onChange("");
-    setSearchEnabled(false);
-  }, [onChange, setSearchEnabled]);
-
   const handleBlur = useCallback(() => {
     handleWindow(false)();
   }, [handleWindow]);
@@ -70,9 +65,6 @@ const SearchSpansInput = ({
           className
         )}
       >
-        <Button onClick={handleCloseSearch} variant="ghost" className="h-4 w-4 mr-2" size="icon">
-          <ChevronLeft className="text-secondary-foreground min-w-[18px]" size={18} />
-        </Button>
         <Search size={18} className="text-secondary-foreground min-w-[18px]" />
         <Input
           className="focus-visible:ring-0 border-none max-h-8 px-1"

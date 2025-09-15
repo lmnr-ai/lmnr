@@ -40,6 +40,7 @@ import Tree from "./tree";
 
 interface TraceViewProps {
   traceId: string;
+  // Span id here to control span selection by spans table
   spanId?: string;
   propsTrace?: Trace;
   onClose: () => void;
@@ -252,6 +253,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [setTreeWidth, treeWidth]
   );
 
+  const handleToggleSearch = useCallback(() => {
+    if (searchEnabled) {
+      setSearch("");
+      fetchSpans("", ["input", "output"], []);
+    }
+    setSearchEnabled(!searchEnabled);
+  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled]);
+
   const isLoading = !trace || (isSpansLoading && isTraceLoading);
 
   useEffect(() => {
@@ -338,12 +347,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     </Button>
                   </StatefulFilter>
                   <Button
-                    onClick={() => {
-                      if (searchEnabled) {
-                        setSearch("");
-                      }
-                      setSearchEnabled(!searchEnabled);
-                    }}
+                    onClick={handleToggleSearch}
                     variant="outline"
                     className={cn("h-6 text-xs px-1.5", {
                       "border-primary text-primary": search || searchEnabled,
