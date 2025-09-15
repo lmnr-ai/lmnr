@@ -1,6 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { isEmpty } from "lodash";
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo } from "react";
+import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,16 +7,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SpanCard } from "../span-card";
 import { useScrollContext } from "./scroll-context";
 
-export interface TreeHandle {
-  scrollTo: (position: number) => void;
-}
-
 interface TreeProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
-const Tree = forwardRef<TreeHandle, TreeProps>(({ onSpanSelect }, ref) => {
-  const { scrollRef, scrollTo, updateState } = useScrollContext();
+const Tree = ({ onSpanSelect }: TreeProps) => {
+  const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, treeWidth, spans } = useTraceViewStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
     treeWidth: state.treeWidth,
@@ -55,25 +50,12 @@ const Tree = forwardRef<TreeHandle, TreeProps>(({ onSpanSelect }, ref) => {
     if (!el) return;
 
     el.addEventListener("scroll", handleScroll);
-
     handleScroll();
 
     return () => {
       el.removeEventListener("scroll", handleScroll);
     };
   }, [handleScroll, scrollRef]);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      scrollTo: scrollTo,
-    }),
-    [scrollTo]
-  );
-
-  if (isEmpty(spans)) {
-    return <span className="text-base text-secondary-foreground mx-auto mt-4 w-full text-center">No spans found.</span>;
-  }
 
   return (
     <ScrollArea ref={scrollRef} className="overflow-x-hidden flex-grow relative h-full w-full">
@@ -118,8 +100,6 @@ const Tree = forwardRef<TreeHandle, TreeProps>(({ onSpanSelect }, ref) => {
       </div>
     </ScrollArea>
   );
-});
+};
 
-Tree.displayName = "Tree";
-
-export default Tree;
+export default memo(Tree);

@@ -1,5 +1,5 @@
 import { has } from "lodash";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, PropsWithChildren, useContext, useMemo, useRef } from "react";
 import { createStore, StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -14,10 +14,10 @@ import {
 import { SPAN_KEYS } from "@/lib/lang-graph/types.ts";
 import { Span, Trace } from "@/lib/traces/types.ts";
 
-const MAX_ZOOM = 5;
-const MIN_ZOOM = 1;
+export const MAX_ZOOM = 5;
+export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
-const MIN_TREE_VIEW_WIDTH = 450;
+export const MIN_TREE_VIEW_WIDTH = 450;
 
 export type TraceViewSpan = Span & { collapsed: boolean };
 
@@ -25,7 +25,9 @@ interface TraceViewStoreState {
   trace?: Trace;
   isTraceLoading: boolean;
   spans: TraceViewSpan[];
+  spanPath: string[] | null;
   isSpansLoading: boolean;
+  searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
@@ -42,6 +44,8 @@ interface TraceViewStoreActions {
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
+  setSpanPath: (spanPath: string[]) => void;
+  setSearchEnabled: (searchEnabled: boolean) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
@@ -73,12 +77,15 @@ const createTraceViewStore = () =>
         sessionTime: undefined,
         tab: "tree",
         search: "",
+        searchEnabled: false,
         zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
+        spanPath: null,
 
         setTrace: (trace) => set({ trace }),
         setSpans: (spans) => set({ spans: spans.map((s) => ({ ...s, collapsed: false })) }),
+        setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => transformSpansToTree(get().spans),
         getMinimapSpans: () => {
           const trace = get().trace;
@@ -120,6 +127,7 @@ const createTraceViewStore = () =>
             spans: spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span)),
           });
         },
+        setSpanPath: (spanPath) => set({ spanPath }),
         getHasLangGraph: () =>
           !!get().spans.find(
             (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
@@ -129,6 +137,7 @@ const createTraceViewStore = () =>
         name: "trace-view-state",
         partialize: (state) => ({
           treeWidth: state.treeWidth,
+          spanPath: state.spanPath,
         }),
       }
     )
@@ -153,6 +162,22 @@ export const useTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) =
   }
 
   return useStore(store, selector);
+};
+
+export const useHasTraceViewStoreContext = (): boolean => {
+  const store = useContext(TraceViewStoreContext);
+  return !!store;
+};
+
+export const useOptionalTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) => T, defaultValue: T): T => {
+  const store = useContext(TraceViewStoreContext);
+
+  return useMemo(() => {
+    if (!store) {
+      return defaultValue;
+    }
+    return selector(store.getState());
+  }, [store, selector, defaultValue]);
 };
 
 export default TraceViewStoreProvider;

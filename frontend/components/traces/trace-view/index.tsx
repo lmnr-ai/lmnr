@@ -1,27 +1,34 @@
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
-import SearchSpansInput from "@/components/traces/trace-view/search-spans-input";
+import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
 import TraceViewStoreProvider, {
+  MAX_ZOOM,
+  MIN_TREE_VIEW_WIDTH,
+  MIN_ZOOM,
   TraceViewSpan,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { enrichSpansWithPending, filterColumns, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
+import {
+  enrichSpansWithPending,
+  filterColumns,
+  findSpanToSelect,
+  onRealtimeUpdateSpans,
+} from "@/components/traces/trace-view/utils";
+import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SearchProvider, useSearchContext } from "@/contexts/search-context";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
-import { cn } from "@/lib/utils";
+import { SpanType, Trace } from "@/lib/traces/types";
+import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../../ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer, { SessionPlayerHandle } from "../session-player";
 import { SpanView } from "../span-view";
@@ -31,41 +38,21 @@ import { ScrollContextProvider } from "./scroll-context";
 import Timeline from "./timeline";
 import Tree from "./tree";
 
-export interface TraceViewHandle {
-  toggleBrowserSession: () => void;
-  toggleLangGraph: () => void;
-}
-
 interface TraceViewProps {
   traceId: string;
-  spanId: string | null;
+  spanId?: string;
   propsTrace?: Trace;
   onClose: () => void;
-  fullScreen?: boolean;
-  ref?: Ref<TraceViewHandle>;
-  onLangGraphDetected?: (detected: boolean) => void;
 }
 
-const MAX_ZOOM = 5;
-const MIN_ZOOM = 1;
-const MIN_TREE_VIEW_WIDTH = 450;
-
-// Internal component that uses SearchContext
-function TraceViewInternal({
-  traceId,
-  spanId,
-  onClose,
-  onLangGraphDetected,
-  propsTrace,
-  fullScreen = false,
-  ref,
-}: TraceViewProps) {
+const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
   const { toast } = useToast();
 
+  // Data states
   const {
     selectedSpan,
     setSelectedSpan,
@@ -86,55 +73,54 @@ function TraceViewInternal({
     setTrace: state.setTrace,
     isTraceLoading: state.isTraceLoading,
     isSpansLoading: state.isSpansLoading,
-    setIsSpansLoading: state.setIsTraceLoading,
+    setIsSpansLoading: state.setIsSpansLoading,
     setIsTraceLoading: state.setIsTraceLoading,
   }));
 
+  // UI states
   const {
     tab,
     setTab,
-    treeWidth,
-    setTreeWidth,
-    zoom,
-    handleZoom,
+    search,
+    setSearch,
+    searchEnabled,
+    setSearchEnabled,
     browserSession,
     setBrowserSession,
+    zoom,
+    handleZoom,
     setBrowserSessionTime,
+    langGraph,
     getHasLangGraph,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
-    treeWidth: state.treeWidth,
-    setTreeWidth: state.setTreeWidth,
+    search: state.search,
+    setSearch: state.setSearch,
+    searchEnabled: state.searchEnabled,
+    setSearchEnabled: state.setSearchEnabled,
     zoom: state.zoom,
     handleZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     setBrowserSessionTime: state.setSessionTime,
+    langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
   }));
 
-  const { value: filters } = useFiltersContextProvider();
+  // Local storage states
+  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStoreContext((state) => ({
+    treeWidth: state.treeWidth,
+    setTreeWidth: state.setTreeWidth,
+    spanPath: state.spanPath,
+    setSpanPath: state.setSpanPath,
+  }));
 
-  const [showLangGraph, setShowLangGraph] = useState(true);
+  const { value: filters } = useFiltersContextProvider();
+  const { supabaseClient: supabase } = useUserContext();
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
-
-  useEffect(() => {
-    if (hasLangGraph) {
-      onLangGraphDetected?.(true);
-    }
-  }, [hasLangGraph, onLangGraphDetected]);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      toggleBrowserSession: () => setBrowserSession(!browserSession),
-      toggleLangGraph: () => setShowLangGraph((prev) => !prev),
-    }),
-    []
-  );
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -151,7 +137,7 @@ function TraceViewInternal({
           });
           return;
         }
-        const traceData = await response.json();
+        const traceData = (await response.json()) as Trace;
         setTrace(traceData);
         if (traceData.hasBrowserSession) {
           setBrowserSession(true);
@@ -168,55 +154,17 @@ function TraceViewInternal({
     }
   }, [projectId, propsTrace, setBrowserSession, setIsTraceLoading, setTrace, toast, traceId]);
 
-  useEffect(() => {
-    handleFetchTrace();
-  }, [handleFetchTrace, projectId, traceId]);
-
-  // Add span path local storage functions
-  const saveSpanPathToStorage = useCallback((spanPath: string[]) => {
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trace-view:span-path", JSON.stringify(spanPath));
-      }
-    } catch (e) {
-      console.error("Failed to save span path:", e);
-    }
-  }, []);
-
-  const loadSpanPathFromStorage = useCallback((): string[] | null => {
-    try {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("trace-view:span-path");
-        return saved ? JSON.parse(saved) : null;
-      }
-      return null;
-    } catch (e) {
-      console.error("Failed to load span path:", e);
-      return null;
-    }
-  }, []);
-
-  // Helper function to compare span paths (arrays)
-  const spanPathsEqual = useCallback((path1: string[] | null, path2: string[] | null): boolean => {
-    if (!path1 || !path2) return false;
-    if (path1.length !== path2.length) return false;
-    return path1.every((item, index) => item === path2[index]);
-  }, []);
-
-  // Create wrapper function for span selection that saves path
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
       if (!span) return;
 
       setSelectedSpan(span);
 
-      // Save span path to local storage
       const spanPath = span.attributes?.["lmnr.span.path"];
       if (spanPath && Array.isArray(spanPath)) {
-        saveSpanPathToStorage(spanPath);
+        setSpanPath(spanPath);
       }
 
-      // Update URL with spanId only if it's different to prevent unnecessary navigation
       const currentSpanId = searchParams.get("spanId");
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
@@ -224,7 +172,7 @@ function TraceViewInternal({
         router.push(`${pathName}?${params.toString()}`);
       }
     },
-    [saveSpanPathToStorage, router, pathName]
+    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
   );
 
   const fetchSpans = useCallback(
@@ -235,19 +183,12 @@ function TraceViewInternal({
         const params = new URLSearchParams();
         if (search) {
           params.set("search", search);
-          setSearchSpans(search);
-          setSearchEnabled(true);
-        } else {
-          setSearchSpans("");
-          setSearchEnabled(false);
         }
-        if (searchIn && searchIn.length > 0) {
-          searchIn.forEach((val) => params.append("searchIn", val));
-        }
+        searchIn.forEach((val) => params.append("searchIn", val));
+        filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
 
-        if (filters && filters.length > 0) {
-          filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
-        }
+        setSearch(search);
+        setSearchEnabled(!!search);
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
@@ -256,31 +197,11 @@ function TraceViewInternal({
 
         setSpans(spans);
 
-        const spanIdFromUrl = spans.find((span) => span.spanId === spanId || searchParams.get("spanId")) || null;
-        let spanToSelect: TraceViewSpan | null = null;
-
-        if (spanIdFromUrl) {
-          // First priority: span from URL
-          spanToSelect = spanIdFromUrl;
-        } else {
-          // Second priority: span matching saved path
-          const savedPath = loadSpanPathFromStorage();
-          if (savedPath) {
-            spanToSelect =
-              spans.find((span: Span) => {
-                const spanPath = span.attributes?.["lmnr.span.path"];
-                return spanPath && Array.isArray(spanPath) && spanPathsEqual(spanPath, savedPath);
-              }) || null;
+        if (!search && spans.length > 0) {
+          const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
+          if (selectedSpan) {
+            setSelectedSpan(selectedSpan);
           }
-        }
-
-        // Fallback to first span
-        if (!spanToSelect && spans.length > 0) {
-          spanToSelect = spans[0];
-        }
-
-        if (spanToSelect && !search) {
-          setSelectedSpan(spanToSelect);
         }
       } catch (e) {
         console.error(e);
@@ -288,29 +209,19 @@ function TraceViewInternal({
         setIsSpansLoading(false);
       }
     },
-    [projectId, traceId, spanId, searchParams, loadSpanPathFromStorage, spanPathsEqual]
+    [
+      setIsSpansLoading,
+      projectId,
+      traceId,
+      setSpans,
+      setSearch,
+      setSearchEnabled,
+      spanId,
+      searchParams,
+      spanPath,
+      setSelectedSpan,
+    ]
   );
-
-  useEffect(() => {
-    const span = spans?.find((s) => s.spanId === spanId);
-    if (spanId && span) {
-      setSelectedSpan(span);
-    }
-  }, [spanId, spans]);
-
-  useEffect(() => {
-    const search = searchParams.get("search") || "";
-    const searchIn = searchParams.getAll("searchIn");
-
-    fetchSpans(search, searchIn, filters);
-
-    return () => {
-      setSpans([]);
-      setBrowserSession(false);
-      setSearchSpans("");
-      setSearchEnabled(false);
-    };
-  }, [traceId, projectId, filters]);
 
   const handleClose = useCallback(() => {
     const params = new URLSearchParams(searchParams);
@@ -318,60 +229,6 @@ function TraceViewInternal({
     router.push(`${pathName}?${params.toString()}`);
     onClose();
   }, [onClose, pathName, router, searchParams]);
-
-  const handleTimelineChange = useCallback((time: number) => {
-    setBrowserSessionTime(time);
-  }, []);
-
-  const { searchTerm, setSearchTerm: setSearchSpans } = useSearchContext();
-  const [searchEnabled, setSearchEnabled] = useState(!!searchParams.get("search"));
-
-  useEffect(() => {
-    const searchFromUrl = searchParams.get("search");
-
-    if (searchFromUrl) {
-      setSearchSpans(searchFromUrl);
-    }
-  }, []);
-
-  const handleSetSearchSpans = useCallback(
-    (value: string) => {
-      setSearchSpans(value);
-      setSearchEnabled(value !== "");
-    },
-    [setSearchSpans]
-  );
-
-  const { supabaseClient: supabase } = useUserContext();
-
-  useEffect(() => {
-    if (!supabase || !traceId) {
-      return;
-    }
-
-    // Clean up
-    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
-
-    const channel = supabase
-      .channel(`trace-updates-${traceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "spans",
-          filter: `trace_id=eq.${traceId}`,
-        },
-        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
-
-  const isLoading = !trace || (isSpansLoading && isTraceLoading);
 
   const handleResizeTreeView = useCallback(
     (e: React.MouseEvent) => {
@@ -395,6 +252,61 @@ function TraceViewInternal({
     [setTreeWidth, treeWidth]
   );
 
+  const isLoading = !trace || (isSpansLoading && isTraceLoading);
+
+  useEffect(() => {
+    if (!isSpansLoading) {
+      const span = spans?.find((s) => s.spanId === spanId);
+      if (spanId && span) {
+        setSelectedSpan(span);
+      }
+    }
+  }, [isSpansLoading, setSelectedSpan, spanId, spans]);
+
+  useEffect(() => {
+    handleFetchTrace();
+  }, [handleFetchTrace, projectId, traceId]);
+
+  useEffect(() => {
+    const search = searchParams.get("search") || "";
+    const searchIn = searchParams.getAll("searchIn");
+
+    fetchSpans(search, searchIn, filters);
+
+    return () => {
+      setSpans([]);
+      setBrowserSession(false);
+      setSearch("");
+      setSearchEnabled(false);
+    };
+  }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
+
+  useEffect(() => {
+    if (!supabase || !traceId) {
+      return;
+    }
+    // Clean up
+    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
+
+    const channel = supabase
+      .channel(`trace-updates-${traceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "spans",
+          filter: `trace_id=eq.${traceId}`,
+        },
+        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
@@ -416,73 +328,81 @@ function TraceViewInternal({
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel className="flex size-full">
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-              <Header fullScreen={fullScreen} handleClose={handleClose} handleFetchTrace={handleFetchTrace} />
-              {searchEnabled ? (
+              <Header handleClose={handleClose} handleFetchTrace={handleFetchTrace} />
+              <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
+                <div className="flex items-center gap-2">
+                  <StatefulFilter columns={filterColumns}>
+                    <Button variant="outline" className="h-6 text-xs">
+                      <ListFilter size={14} className="mr-1" />
+                      Filters
+                    </Button>
+                  </StatefulFilter>
+                  <Button
+                    onClick={() => {
+                      if (searchEnabled) {
+                        setSearch("");
+                      }
+                      setSearchEnabled(!searchEnabled);
+                    }}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": search || searchEnabled,
+                    })}
+                  >
+                    <Search size={14} className="mr-1" />
+                    <span>Search</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("timeline")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "timeline",
+                    })}
+                  >
+                    <ChartNoAxesGantt size={14} className="mr-1" />
+                    <span>Timeline</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("chat")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "chat",
+                    })}
+                  >
+                    <MessageCircle size={14} className="mr-1" />
+                    <span>Chat</span>
+                  </Button>
+                  {tab === "timeline" && (
+                    <>
+                      <Button
+                        disabled={zoom === MAX_ZOOM}
+                        className="h-6 w-6 ml-auto"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleZoom("in")}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        disabled={zoom === MIN_ZOOM}
+                        className="h-6 w-6"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleZoom("out")}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <StatefulFilterList className="py-[3px] text-xs px-1" />
+              </div>
+              {(search || searchEnabled) && (
                 <SearchSpansInput
-                  defaultValue={searchTerm}
-                  setSearchSpans={handleSetSearchSpans}
                   submit={fetchSpans}
                   filterBoxClassName="top-10"
-                  className="rounded-none border-0 border-b ring-0"
+                  className="rounded-none w-full border-0 border-b ring-0 bg-background"
                 />
-              ) : (
-                <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
-                  <div className="flex items-center gap-2">
-                    <StatefulFilter columns={filterColumns}>
-                      <Button variant="outline" className="h-6 text-xs">
-                        <ListFilter size={14} className="mr-1" />
-                        Filters
-                      </Button>
-                    </StatefulFilter>
-                    <Button variant="outline" className="h-6 text-xs px-1.5">
-                      <Search size={14} className="mr-1" />
-                      <span>Search</span>
-                    </Button>
-                    <Button
-                      onClick={() => setTab("timeline")}
-                      variant="outline"
-                      className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": tab === "timeline",
-                      })}
-                    >
-                      <ChartNoAxesGantt size={14} className="mr-1" />
-                      <span>Timeline</span>
-                    </Button>
-                    <Button
-                      onClick={() => setTab("chat")}
-                      variant="outline"
-                      className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": tab === "chat",
-                      })}
-                    >
-                      <MessageCircle size={14} className="mr-1" />
-                      <span>Chat</span>
-                    </Button>
-                    {tab === "timeline" && (
-                      <>
-                        <Button
-                          disabled={zoom === MAX_ZOOM}
-                          className="h-6 w-6 ml-auto"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleZoom("in")}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          disabled={zoom === MIN_ZOOM}
-                          className="h-6 w-6"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleZoom("out")}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                  <StatefulFilterList className="py-[3px] text-xs px-1" />
-                </div>
               )}
               <>
                 {isSpansLoading ? (
@@ -522,7 +442,13 @@ function TraceViewInternal({
               </div>
             </div>
             <div className="flex-grow overflow-hidden flex-wrap">
-              {selectedSpan ? (
+              {isSpansLoading ? (
+                <div className="flex flex-col space-y-2 p-4">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : selectedSpan ? (
                 selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
                   <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
                 ) : (
@@ -545,26 +471,23 @@ function TraceViewInternal({
                     ref={browserSessionRef}
                     hasBrowserSession={trace.hasBrowserSession}
                     traceId={traceId}
-                    onTimelineChange={handleTimelineChange}
+                    onTimelineChange={setBrowserSessionTime}
                   />
                 )}
               </ResizablePanel>
             </>
           )}
-          {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
+          {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
         </ResizablePanelGroup>
       </div>
     </ScrollContextProvider>
   );
-}
+};
 
-// Main component wrapper with SearchProvider
 export default function TraceView(props: TraceViewProps) {
   return (
     <TraceViewStoreProvider>
-      <SearchProvider>
-        <TraceViewInternal {...props} />
-      </SearchProvider>
+      <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );
 }

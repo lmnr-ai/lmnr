@@ -135,7 +135,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
             >
               <FiltersContextProvider columns={filterColumns}>
                 <TraceView
-                  spanId={spanId}
+                  spanId={spanId || undefined}
                   key={traceId}
                   onClose={() => {
                     const params = new URLSearchParams(searchParams);

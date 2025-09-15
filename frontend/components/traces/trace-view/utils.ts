@@ -188,42 +188,74 @@ export const onRealtimeUpdateSpans =
     setShowBrowserSession: (show: boolean) => void,
     trace?: Trace
   ) =>
-  (payload: RealtimePostgresInsertPayload<Record<string, any>>) => {
-    const rtEventSpan = dbSpanRowToSpan(payload.new);
+    (payload: RealtimePostgresInsertPayload<Record<string, any>>) => {
+      const rtEventSpan = dbSpanRowToSpan(payload.new);
 
-    if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
-      setShowBrowserSession(true);
-    }
+      if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
+        setShowBrowserSession(true);
+      }
 
-    if (trace) {
-      const newTrace = { ...trace };
-      newTrace.endTime = new Date(
-        Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
-      ).toUTCString();
-      newTrace.totalTokenCount +=
+      if (trace) {
+        const newTrace = { ...trace };
+        newTrace.endTime = new Date(
+          Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
+        ).toUTCString();
+        newTrace.totalTokenCount +=
         (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
         (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-      newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-      newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-      newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-      newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-      newTrace.cost +=
+        newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+        newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+        newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
+        newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
+        newTrace.cost +=
         (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
         (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
-      newTrace.hasBrowserSession =
+        newTrace.hasBrowserSession =
         trace.hasBrowserSession || rtEventSpan.attributes["lmnr.internal.has_browser_session"];
 
-      setTrace(newTrace);
-    }
+        setTrace(newTrace);
+      }
 
-    const newSpans = [...spans];
-    const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
-    if (index !== -1) {
+      const newSpans = [...spans];
+      const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
+      if (index !== -1) {
       // Always replace existing span, regardless of pending status
-      newSpans[index] = rtEventSpan;
-    } else {
-      newSpans.push(rtEventSpan);
-    }
+        newSpans[index] = rtEventSpan;
+      } else {
+        newSpans.push(rtEventSpan);
+      }
 
-    setSpans(enrichSpansWithPending(newSpans));
-  };
+      setSpans(enrichSpansWithPending(newSpans));
+    };
+
+export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
+  if (!path1 || !path2) return false;
+  if (path1.length !== path2.length) return false;
+  return path1.every((item, index) => item === path2[index]);
+};
+
+export const findSpanToSelect = (
+  spans: TraceViewSpan[],
+  spanId: string | undefined,
+  searchParams: URLSearchParams,
+  spanPath: string[] | null
+): TraceViewSpan | null => {
+  // Priority 1: Span from URL (either prop or search params)
+  const urlSpanId = spanId || searchParams.get("spanId");
+  if (urlSpanId) {
+    const spanFromUrl = spans.find((span) => span.spanId === urlSpanId);
+    if (spanFromUrl) return spanFromUrl;
+  }
+
+  // Priority 2: Span matching saved path from local storage
+  if (spanPath) {
+    const spanFromPath = spans.find((span) => {
+      const attributePath = span.attributes?.["lmnr.span.path"];
+      return Array.isArray(attributePath) && isSpanPathsEqual(attributePath, spanPath);
+    });
+    if (spanFromPath) return spanFromPath;
+  }
+
+  // Priority 3: First span as fallback
+  return spans?.[0] || null;
+};

@@ -68,7 +68,7 @@ export default function Minimap({ onSpanSelect }: Props) {
     if (!traceDuration || traceDuration <= 0) return [];
 
     const markers = [];
-    const totalSeconds = Math.ceil(traceDuration / 1000); // Convert ms to seconds
+    const totalSeconds = Math.ceil(traceDuration / 1000);
 
     for (let seconds = 0; seconds <= totalSeconds; seconds += timeMarkerInterval) {
       markers.push({
@@ -128,7 +128,6 @@ export default function Minimap({ onSpanSelect }: Props) {
         scrollTo(targetTreeScroll);
       }
     },
-
     [state, scrollTo]
   );
 
@@ -166,7 +165,7 @@ export default function Minimap({ onSpanSelect }: Props) {
   }
 
   return (
-    <div className="h-full flex-none max-w-16 w-fit z-50 border-l">
+    <div className="h-full flex-none max-w-16 w-fit z-30 border-l">
       <div
         ref={minimapRef}
         className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
@@ -175,7 +174,7 @@ export default function Minimap({ onSpanSelect }: Props) {
         <div>
           {browserSessionTime && (
             <div
-              className="bg-primary absolute top-0 left-0 w-full h-[1px] z-50"
+              className="bg-primary absolute top-0 left-0 w-full h-[1px] z-30"
               style={{
                 top: Math.max(0, ((browserSessionTime - minTime) / 1000) * pixelsPerSecond),
               }}
