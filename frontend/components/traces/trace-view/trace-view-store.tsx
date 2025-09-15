@@ -164,11 +164,6 @@ export const useTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) =
   return useStore(store, selector);
 };
 
-export const useHasTraceViewStoreContext = (): boolean => {
-  const store = useContext(TraceViewStoreContext);
-  return !!store;
-};
-
 export const useOptionalTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) => T, defaultValue: T): T => {
   const store = useContext(TraceViewStoreContext);
 
