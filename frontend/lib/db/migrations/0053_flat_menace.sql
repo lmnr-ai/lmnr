@@ -3,7 +3,6 @@ DROP POLICY "select_by_next_api_key" ON "agent_chats" CASCADE;--> statement-brea
 DROP TABLE "agent_chats" CASCADE;--> statement-breakpoint
 DROP TABLE "agent_messages" CASCADE;--> statement-breakpoint
 DROP TABLE "agent_sessions" CASCADE;--> statement-breakpoint
-DROP TABLE "dataset_parquets" CASCADE;--> statement-breakpoint
 DROP TABLE "machines" CASCADE;--> statement-breakpoint
 DROP POLICY "all_actions_by_next_api_key" ON "pipeline_versions" CASCADE;--> statement-breakpoint
 DROP TABLE "pipeline_versions" CASCADE;--> statement-breakpoint

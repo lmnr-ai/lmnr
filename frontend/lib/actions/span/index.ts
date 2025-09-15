@@ -50,7 +50,6 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
         createdAt: true,
         parentSpanId: true,
         name: true,
-        attributes: true,
         spanType: true,
         startTime: true,
         endTime: true,
@@ -63,7 +62,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     }),
     clickhouseClient.query({
       query: `
-        SELECT input, output
+        SELECT input, output, attributes
         FROM spans
         WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
         LIMIT 1
@@ -77,13 +76,14 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     throw new Error("Span not found");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string }];
-  const { input: spanInput, output: spanOutput } = chData[0] || {};
+  const chData = (await chResult.json()) as [{ input: string; output: string, attributes: string }];
+  const { input: spanInput, output: spanOutput, attributes: spanAttributes } = chData[0] || {};
 
   return {
     ...dbSpan,
     input: tryParseJson(spanInput),
     output: tryParseJson(spanOutput),
+    attributes: tryParseJson(spanAttributes) ?? {},
   };
 }
 
