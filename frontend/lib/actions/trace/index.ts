@@ -101,11 +101,11 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
 
     await clickhouseClient.command({
       query: `
-          DELETE FROM spans
-          WHERE span_id IN ({spanIds: Array(UUID)}) 
-            AND trace_id = {traceId: UUID}
-            AND project_id = {projectId: UUID}
-        `,
+        DELETE FROM spans
+        WHERE span_id IN ({spanIds: Array(UUID)}) 
+          AND trace_id = {traceId: UUID}
+          AND project_id = {projectId: UUID}
+      `,
       query_params: {
         spanIds,
         traceId,
