@@ -1,11 +1,13 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { groupBy } from "lodash";
 import z from "zod/v4";
 
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { events, spans } from "@/lib/db/migrations/schema";
+import { spans } from "@/lib/db/migrations/schema";
 import { Span } from "@/lib/traces/types";
+import { tryParseJson } from "@/lib/utils";
 
 export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>) => {
   const { traceId } = GetSharedTraceSchema.parse(input);
@@ -33,11 +35,17 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
   // Join in memory, because json aggregation and join in PostgreSQL may be too slow
   // depending on the number of spans and events, and there is no way for us
   // to force PostgreSQL to use the correct indexes always.
-  const spanEvents = await db.query.events.findMany({
-    where: and(
-      inArray(events.spanId, spansResult.map((span) => span.spanId))
-    ),
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT id, timestamp, span_id spanId, name, project_id projectId, attributes
+      FROM events
+      WHERE span_id IN {spanIds: Array(UUID)}
+    `,
+    format: "JSONEachRow",
+    query_params: { spanIds: spansResult.map((span) => span.spanId) },
   });
+
+  const spanEvents = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string; projectId: string; attributes: string }[];
 
   const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
 
@@ -45,7 +53,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     ...span,
     events: (spanEventsMap[span.spanId] || []).map((event) => ({
       ...event,
-      attributes: event.attributes as Record<string, any>,
+      timestamp: new Date(`${event.timestamp}Z`).toISOString(),
+      attributes: tryParseJson(event.attributes),
     })),
   }));
 };
