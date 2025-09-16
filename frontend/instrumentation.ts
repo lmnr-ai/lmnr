@@ -82,6 +82,7 @@ export async function register() {
         }
       };
       // Run Postgres migrations and data initialization
+      await db.execute("ALTER DATABASE postgres REFRESH COLLATION VERSION");
       await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();

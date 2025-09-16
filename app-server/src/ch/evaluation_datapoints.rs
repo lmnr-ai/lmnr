@@ -1,10 +1,18 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{evaluations::utils::EvaluationDatapointResult, utils::json_value_to_string};
+use crate::{
+    ch::evaluation_datapoint_outputs::{
+        CHEvaluationDatapointOutput, insert_evaluation_datapoint_outputs,
+    },
+    evaluations::utils::EvaluationDatapointResult,
+    utils::json_value_to_string,
+};
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -23,6 +31,12 @@ pub struct CHEvaluationDatapoint {
     pub data: String,
     pub target: String,
     pub metadata: String,
+}
+
+#[derive(Row, Deserialize)]
+pub struct CHEvaluationDatapointId {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
 }
 
 impl CHEvaluationDatapoint {
@@ -58,20 +72,50 @@ pub async fn insert_evaluation_datapoints(
     }
 
     // The function is called twice - on datapoint creation and on datapoint update
-    // We check if there any scores to only insert datapoints once
-    let num_scores = evaluation_datapoints
+    // We query the existing datapoints and filter them out to avoid duplicates
+    let existing_datapoints = clickhouse
+        .query("SELECT id FROM evaluation_datapoints WHERE evaluation_id = ? AND project_id = ?")
+        .bind(evaluation_id)
+        .bind(project_id)
+        .fetch_all::<CHEvaluationDatapointId>()
+        .await?;
+    let existing_datapoint_ids = existing_datapoints
         .iter()
-        .map(|point| point.scores.len())
-        .sum::<usize>();
+        .map(|dp| dp.id)
+        .collect::<HashSet<_>>();
 
-    if num_scores == 0 {
-        return Ok(());
+    let mut new_datapoints = Vec::new();
+    let mut existing_datapoints = Vec::new();
+
+    for result in evaluation_datapoints {
+        if existing_datapoint_ids.contains(&result.id) {
+            existing_datapoints.push(result);
+        } else {
+            new_datapoints.push(result);
+        }
     }
 
+    // If this datapoint already exists, we need to update the executor output
+    insert_evaluation_datapoint_outputs(
+        clickhouse.clone(),
+        existing_datapoints
+            .into_iter()
+            .map(|result| {
+                CHEvaluationDatapointOutput::from_evaluation_datapoint_result(
+                    result,
+                    evaluation_id,
+                    project_id,
+                )
+            })
+            .collect(),
+    )
+    .await?;
+
+    // For new datapoints, we need to insert them
     let ch_insert = clickhouse.insert("evaluation_datapoints");
     match ch_insert {
         Ok(mut ch_insert) => {
-            for result in evaluation_datapoints {
+            for result in new_datapoints {
                 let datapoint = CHEvaluationDatapoint::from_evaluation_datapoint_result(
                     result,
                     evaluation_id,
@@ -95,4 +139,21 @@ pub async fn insert_evaluation_datapoints(
             ));
         }
     }
+}
+
+pub async fn get_evaluation_datapoint_index(
+    clickhouse: clickhouse::Client,
+    evaluation_id: Uuid,
+    project_id: Uuid,
+    datapoint_id: Uuid,
+) -> Result<u64> {
+    let result = clickhouse
+        .query("SELECT index FROM evaluation_datapoints WHERE evaluation_id = ? AND project_id = ? AND id = ?")
+        .bind(evaluation_id)
+        .bind(project_id)
+        .bind(datapoint_id)
+        .fetch_one::<u64>()
+        .await?;
+
+    Ok(result)
 }
