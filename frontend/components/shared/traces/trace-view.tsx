@@ -1,13 +1,13 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChartNoAxesGantt, Disc, Disc2, Minus, Plus } from "lucide-react";
+import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import smallLogo from "@/assets/logo/icon.svg";
+import fullLogo from "@/assets/logo/logo.svg";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -150,38 +150,35 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
       <div className="flex flex-col h-full w-full overflow-hidden">
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
           <Link className="mr-2" href="/projects">
-            <Image alt="Laminar AI logo" src={smallLogo} width={20} height={20} />
+            <Image alt="Laminar AI logo" src={fullLogo} width={120} height={20} />
           </Link>
-          <span>Trace</span>
-          <TraceStatsShields className="bg-background z-50" trace={trace} />
-          {trace?.hasBrowserSession && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="hover:bg-secondary px-1.5"
-                    variant="ghost"
-                    onClick={() => setBrowserSession(!browserSession)}
-                  >
-                    {browserSession ? (
-                      <Disc2 className={cn({ "text-primary w-4 h-4": browserSession })} />
-                    ) : (
-                      <Disc className="w-4 h-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel className="flex size-full">
               <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
+                <div className="h-12 flex py-3 items-center border-b gap-x-2 px-3">
+                  <TraceStatsShields className="bg-background z-50" trace={trace} />
+                  <div className="flex items-center ml-auto">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            className="hover:bg-secondary px-1.5"
+                            variant="ghost"
+                            onClick={() => setBrowserSession(!browserSession)}
+                          >
+                            <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipPortal>
+                          <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
+                        </TooltipPortal>
+                      </Tooltip>
+                    </TooltipProvider>
+                    {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
+                  </div>
+                </div>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
                   <Button
                     onClick={() => setTab("timeline")}

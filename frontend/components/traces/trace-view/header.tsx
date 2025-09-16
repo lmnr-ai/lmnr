@@ -119,7 +119,7 @@ const Header = ({ handleClose }: HeaderProps) => {
               </TooltipPortal>
             </Tooltip>
           </>
-        )}{" "}
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
