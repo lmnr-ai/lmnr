@@ -146,10 +146,6 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   useEffect(() => {
     if (!events?.length || !playerContainerRef.current) return;
 
-    if (playerRef.current) {
-      playerRef.current.$destroy?.();
-    }
-
     try {
       playerRef.current = new rrwebPlayer({
         target: playerContainerRef.current,
@@ -182,6 +178,8 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     } catch (error) {
       console.error("Failed to initialize player:", error);
     }
+
+    return () => playerRef.current?.$destroy?.();
   }, [events, speed, setSessionTime]);
 
   useEffect(() => {
