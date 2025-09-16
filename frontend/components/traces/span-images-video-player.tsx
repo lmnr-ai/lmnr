@@ -3,7 +3,7 @@
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
@@ -26,28 +26,22 @@ interface SpanImagesVideoPlayerProps {
   isShared?: boolean;
 }
 
-export interface SpanImagesVideoPlayerHandle {
-  goto: (time: number) => void;
-}
-
 const speedOptions = [1, 2, 4, 8, 16];
 
 const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImagesVideoPlayerProps) => {
   const { projectId } = useParams();
-  const [images, setImages] = useState<(SpanImage | SharedSpanImage)[]>([]);
   const [preloadedImages, setPreloadedImages] = useState<Map<string, HTMLImageElement>>(new Map());
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [totalDuration, setTotalDuration] = useState(0);
   const [speed, setSpeed] = useLocalStorage("image-video-player-speed", 1);
   const [startTime, setStartTime] = useState(0);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
-  const animationRef = useRef<number | null>(null);
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { sessionTime, setSessionTime } = useTraceViewStoreContext((state) => ({
+  const { sessionTime, setSessionTime, incrementSessionTime } = useTraceViewStoreContext((state) => ({
     sessionTime: state.sessionTime || 0,
     setSessionTime: state.setSessionTime,
+    incrementSessionTime: state.incrementSessionTime,
   }));
 
   const swrKey =
@@ -78,7 +72,11 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
 
   const { data, isLoading } = useSWR<{ images: (SpanImage | SharedSpanImage)[] }>(swrKey, postFetcher);
 
-  // Preload all images when data is available
+  const images = useMemo(() => {
+    if (!data?.images) return [];
+    return [...data.images].sort((a, b) => a.timestamp - b.timestamp);
+  }, [data]);
+
   const preloadImages = useCallback(async (imageData: (SpanImage | SharedSpanImage)[]) => {
     setIsLoadingImages(true);
     const imageMap = new Map<string, HTMLImageElement>();
@@ -109,80 +107,42 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
     }
   }, []);
 
-  // Process and sort images by timestamp
-  useEffect(() => {
-    if (data?.images) {
-      const sortedImages = [...data.images].sort((a, b) => a.timestamp - b.timestamp);
-      setImages(sortedImages);
-
-      if (sortedImages.length > 0) {
-        const firstTimestamp = sortedImages[0].timestamp;
-        const lastTimestamp = sortedImages[sortedImages.length - 1].timestamp;
-        setStartTime(firstTimestamp);
-        setTotalDuration((lastTimestamp - firstTimestamp) / 1000); // Convert to seconds
-        setSessionTime(0);
-        setCurrentImageIndex(0);
-
-        // Preload all images
-        preloadImages(sortedImages);
-      }
-    }
-  }, [data, preloadImages, setSessionTime]);
-
-  // Find the appropriate image for a given timestamp
-  const findImageIndexForTime = useCallback(
-    (timeMs: number): number => {
-      if (!images.length) return -1;
-
-      const absoluteTime = startTime + timeMs;
-      let bestIndex = 0;
-
-      for (let i = 0; i < images.length; i++) {
-        if (images[i].timestamp <= absoluteTime) {
-          bestIndex = i;
-        } else {
-          break;
-        }
-      }
-
-      return bestIndex;
-    },
-    [images, startTime]
-  );
-
-  const updateCurrentImage = useCallback(
-    (timeMs: number) => {
-      const newIndex = findImageIndexForTime(timeMs);
-      if (newIndex !== -1 && newIndex !== currentImageIndex) {
-        setCurrentImageIndex(newIndex);
-      }
-    },
-    [findImageIndexForTime, currentImageIndex]
-  );
-
-  // Add back the image update effect
   useEffect(() => {
     if (images.length > 0) {
-      const currentTime = sessionTime ?? 0;
-      const newIndex = findImageIndexForTime(currentTime * 1000);
-      if (newIndex !== -1 && newIndex !== currentImageIndex) {
-        setCurrentImageIndex(newIndex);
+      const firstTimestamp = images[0].timestamp;
+      const lastTimestamp = images[images.length - 1].timestamp;
+      setStartTime(firstTimestamp);
+      setTotalDuration((lastTimestamp - firstTimestamp) / 1000);
+      setSessionTime(0);
+      preloadImages(images);
+    }
+  }, [images, preloadImages, setSessionTime]);
+
+  const currentImageIndex = useMemo(() => {
+    if (!sessionTime || images.length === 0) return 0;
+
+    const absoluteTime = startTime + sessionTime * 1000;
+    let bestIndex = 0;
+
+    for (let i = 0; i < images.length; i++) {
+      if (images[i].timestamp <= absoluteTime) {
+        bestIndex = i;
+      } else {
+        break;
       }
     }
-  }, [sessionTime, findImageIndexForTime, currentImageIndex, images.length]);
+
+    return bestIndex;
+  }, [sessionTime, images, startTime]);
 
   useEffect(() => {
     if (isPlaying && totalDuration > 0) {
       playIntervalRef.current = setInterval(() => {
-        const currentTime = sessionTime || 0;
-        const timeIncrement = (16 / 1000) * speed; // 16ms interval * speed
-        const newTime = currentTime + timeIncrement;
+        const timeIncrement = (16 / 1000) * speed;
+        const isComplete = incrementSessionTime(timeIncrement, totalDuration);
 
-        if (newTime >= totalDuration) {
+        if (isComplete) {
           setIsPlaying(false);
-          setSessionTime(totalDuration);
-        } else {
-          setSessionTime(newTime);
         }
       }, 16); // 60fps
     } else {
@@ -198,9 +158,8 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
         playIntervalRef.current = null;
       }
     };
-  }, [isPlaying, speed, totalDuration, sessionTime, setSessionTime]);
+  }, [isPlaying, speed, totalDuration, incrementSessionTime]);
 
-  // Simplified timeline change - no debouncing needed
   const handleTimelineChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
@@ -235,11 +194,8 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
     );
   }
 
-  const currentImage = images[currentImageIndex];
-
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Timeline Controls */}
       <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
         <Button onClick={handlePlayPause} variant="ghost" size="sm" className="p-1">
           {isPlaying ? <PauseIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
@@ -275,23 +231,26 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
         </span>
       </div>
 
-      {/* Image Display */}
       <div className="flex-1 flex items-center justify-center p-4 h-full">
-        {currentImage && preloadedImages.has(currentImage.imageUrl) && (
-          <div className="h-full">
+        <div className="relative h-full w-full flex items-center justify-center">
+          {images.map((image, index) => (
             <img
-              src={currentImage.imageUrl}
-              alt={`Image from ${currentImage.spanName}`}
-              className="max-w-full max-h-full object-contain"
-              style={{ display: "block" }} // Ensure it's immediately visible since it's preloaded
+              key={image.imageUrl}
+              src={image.imageUrl}
+              alt={`Image from ${image.spanName}`}
+              className={`absolute max-w-full max-h-full object-contain transition-opacity duration-100 ${
+                index === currentImageIndex ? "opacity-100" : "opacity-0"
+              }`}
+              style={{
+                display: preloadedImages.has(image.imageUrl) ? "block" : "none",
+                pointerEvents: index === currentImageIndex ? "auto" : "none",
+              }}
             />
-          </div>
-        )}
+          ))}
+        </div>
       </div>
     </div>
   );
 };
-
-SpanImagesVideoPlayer.displayName = "SpanImagesVideoPlayer";
 
 export default SpanImagesVideoPlayer;

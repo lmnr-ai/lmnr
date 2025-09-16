@@ -55,6 +55,7 @@ interface TraceViewStoreActions {
   setZoom: (type: "in" | "out") => void;
   toggleCollapse: (spanId: string) => void;
 
+  incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
   getTreeSpans: () => TreeSpan[];
   getTimelineData: () => TimelineData;
@@ -111,6 +112,12 @@ const createTraceViewStore = () =>
             set({ tab });
           }
         },
+        incrementSessionTime: (increment: number, maxTime: number) => {
+          const currentTime = get().sessionTime || 0;
+          const newTime = Math.min(currentTime + increment, maxTime);
+          set({ sessionTime: newTime });
+          return newTime >= maxTime;
+        },
         setSearch: (search) => set({ search }),
         setTreeWidth: (treeWidth) => set({ treeWidth }),
         setZoom: (type) => {
@@ -162,6 +169,14 @@ export const useTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) =
   }
 
   return useStore(store, selector);
+};
+
+export const useTraceViewStore = () => {
+  const store = useContext(TraceViewStoreContext);
+  if (!store) {
+    throw new Error("useTraceViewStore must be used within a TraceViewStoreContext");
+  }
+  return store;
 };
 
 export const useOptionalTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) => T, defaultValue: T): T => {
