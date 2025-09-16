@@ -29,7 +29,7 @@ futures-util = "0.3"
 indexmap = {version = "2.10.0", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.0.0"
-log = "0.4.27"
+log = "0.4.28"
 moka = {version = "0.12.10", features = ["sync", "future"]}
 num_cpus = "1.16.0"
 prost = "0.13"
