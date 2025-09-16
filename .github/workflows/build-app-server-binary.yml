@@ -41,7 +41,7 @@ jobs:
 
       - name: Get latest release
         id: get_latest_release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const response = await github.rest.repos.listReleases({
@@ -57,7 +57,7 @@ jobs:
             core.setOutput('release_id', latest_release.id);
 
       - name: Delete existing assets
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const release_id = '${{ steps.get_latest_release.outputs.release_id }}';
