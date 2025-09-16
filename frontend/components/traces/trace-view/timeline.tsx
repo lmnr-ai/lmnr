@@ -1,169 +1,32 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { isEmpty } from "lodash";
+import React, { memo, useMemo, useRef } from "react";
 
 import TimelineElement from "@/components/traces/trace-view/timeline-element";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Span } from "@/lib/traces/types";
-import { getDuration } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 
-interface TimelineProps {
-  spans: Span[];
-  childSpans: { [key: string]: Span[] };
-  collapsedSpans: Set<string>;
-  browserSessionTime: number | null;
-  zoomLevel: number;
-  selectedSpan: Span | null;
-  setSelectedSpan: (span: Span | null) => void;
-}
-
-interface SegmentEvent {
-  id: string;
-  name: string;
-  left: number;
-}
-
-interface Segment {
-  left: number;
-  width: number;
-  span: Span;
-  events: SegmentEvent[];
-}
-
-interface TimelineData {
-  segments: Segment[];
-  startTime: number;
-  timeIntervals: string[];
-  timelineWidthInMilliseconds: number;
-}
-
-function Timeline({
-  spans,
-  selectedSpan,
-  childSpans,
-  collapsedSpans,
-  browserSessionTime,
-  zoomLevel,
-  setSelectedSpan,
-}: TimelineProps) {
+function Timeline() {
   const ref = useRef<HTMLDivElement>(null);
 
-  const [timelineData, setTimelineData] = useState<TimelineData>({
-    segments: [],
-    startTime: 0,
-    timeIntervals: [],
-    timelineWidthInMilliseconds: 0,
-  });
+  const { getTimelineData, zoom, browserSessionTime, selectedSpan, setSelectedSpan, isSpansLoading } =
+    useTraceViewStoreContext((state) => ({
+      getTimelineData: state.getTimelineData,
+      zoom: state.zoom,
+      browserSessionTime: state.sessionTime,
+      selectedSpan: state.selectedSpan,
+      setSelectedSpan: state.setSelectedSpan,
+      isSpansLoading: state.isSpansLoading,
+    }));
 
-  const { segments, startTime, timeIntervals, timelineWidthInMilliseconds } = timelineData;
-
-  const traverse = useCallback(
-    (span: Span, childSpans: { [key: string]: Span[] }, orderedSpans: Span[]) => {
-      if (!span) {
-        return;
-      }
-      orderedSpans.push(span);
-
-      if (collapsedSpans.has(span.spanId)) {
-        return;
-      }
-
-      if (childSpans[span.spanId]) {
-        for (const child of childSpans[span.spanId]) {
-          traverse(child, childSpans, orderedSpans);
-        }
-      }
-    },
-    [collapsedSpans]
+  const { spans, startTime, timeIntervals, timelineWidthInMilliseconds } = useMemo(
+    () => getTimelineData(),
+    [getTimelineData]
   );
 
-  // Use useEffect instead of useMemo for DOM measurements and state updates
-  useEffect(() => {
-    if (!ref.current || childSpans === null || spans.length === 0) {
-      return;
-    }
-
-    const componentWidth = ref.current.getBoundingClientRect().width;
-
-    if (componentWidth === 0) {
-      return;
-    }
-
-    const orderedSpans: Span[] = [];
-    const topLevelSpans = spans
-      .filter((span) => span.parentSpanId === null)
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-    for (const span of topLevelSpans) {
-      traverse(span, childSpans, orderedSpans);
-    }
-
-    orderedSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-    if (orderedSpans.length === 0) {
-      return;
-    }
-
-    let startTime = Infinity;
-    let endTime = -Infinity;
-
-    for (const span of orderedSpans) {
-      startTime = Math.min(startTime, new Date(span.startTime).getTime());
-      endTime = Math.max(endTime, new Date(span.endTime).getTime());
-    }
-
-    const totalDuration = endTime - startTime;
-
-    const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
-    const unit = upperIntervalInSeconds / 10;
-
-    const timeIntervals = [];
-    for (let i = 0; i < 10; i++) {
-      timeIntervals.push((i * unit).toFixed(2) + "s");
-    }
-
-    const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
-
-    const segments: Segment[] = [];
-
-    for (const span of orderedSpans) {
-      const spanDuration = getDuration(span.startTime, span.endTime);
-
-      const width = (spanDuration / upperIntervalInMilliseconds) * 100;
-
-      const left = ((new Date(span.startTime).getTime() - startTime) / upperIntervalInMilliseconds) * 100;
-
-      const segmentEvents = [] as SegmentEvent[];
-
-      for (const event of span.events) {
-        const eventLeft =
-          ((new Date(event.timestamp).getTime() - new Date(span.startTime).getTime()) / upperIntervalInMilliseconds) *
-          100;
-
-        segmentEvents.push({
-          id: event.id,
-          name: event.name,
-          left: eventLeft,
-        });
-      }
-
-      segments.push({
-        left,
-        width,
-        span,
-        events: segmentEvents,
-      });
-    }
-
-    setTimelineData({
-      segments,
-      startTime,
-      timeIntervals,
-      timelineWidthInMilliseconds: upperIntervalInMilliseconds,
-    });
-  }, [spans, childSpans, collapsedSpans, traverse]);
-
   const virtualizer = useVirtualizer({
-    count: segments.length,
+    count: spans.length,
     getScrollElement: () => ref.current,
     estimateSize: () => 32, // HEIGHT + margin
     overscan: 100,
@@ -171,10 +34,24 @@ function Timeline({
 
   const items = virtualizer.getVirtualItems();
 
+  if (isSpansLoading) {
+    return (
+      <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  if (isEmpty(spans)) {
+    return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;
+  }
+
   return (
     <ScrollArea className="h-full w-full relative" ref={ref}>
       <div
-        style={{ width: `${100 * zoomLevel}%` }}
+        style={{ width: `${100 * zoom}%` }}
         className="sticky top-0 z-20 bg-background flex flex-1 text-xs border-b h-8 px-4"
       >
         {browserSessionTime && (
@@ -198,7 +75,7 @@ function Timeline({
           </div>
         </div>
       </div>
-      <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoomLevel}%` }}>
+      <div style={{ height: virtualizer.getTotalSize(), width: `${100 * zoom}%` }}>
         <div
           className="overflow-hidden"
           style={{
@@ -211,7 +88,7 @@ function Timeline({
               key={virtualRow.key}
               selectedSpan={selectedSpan}
               setSelectedSpan={setSelectedSpan}
-              segment={segments[virtualRow.index]}
+              span={spans[virtualRow.index]}
               virtualRow={virtualRow}
             />
           ))}

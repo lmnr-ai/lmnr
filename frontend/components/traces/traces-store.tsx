@@ -9,13 +9,11 @@ export type TracesState = {
 export type TracesActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  reset: () => void;
 };
 
 export interface TracesProps {
   traceId: string | null;
   spanId: string | null;
-  defaultTraceViewWidth?: number;
 }
 
 export type TracesStore = TracesState & TracesActions;
@@ -38,8 +36,6 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
       }),
 
     setSpanId: (spanId: string | null) => set({ spanId }),
-
-    reset: () => set(DEFAULT_PROPS),
   }));
 };
 
@@ -50,19 +46,6 @@ export const useTracesStoreContext = <T,>(selector: (state: TracesStore) => T): 
   if (!store) throw new Error("Missing TracesContext.Provider in the tree");
   return useStore(store, selector);
 };
-
-export const useTraceViewState = () =>
-  useTracesStoreContext((state) => ({
-    traceId: state.traceId,
-    spanId: state.spanId,
-  }));
-
-export const useTraceViewActions = () =>
-  useTracesStoreContext((state) => ({
-    setSpanId: state.setSpanId,
-    setTraceId: state.setTraceId,
-    reset: state.reset,
-  }));
 
 export const TracesStoreProvider = ({ children, ...props }: PropsWithChildren<TracesProps>) => {
   const storeRef = useRef<TracesStoreApi | undefined>(undefined);

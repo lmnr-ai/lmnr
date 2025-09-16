@@ -1,12 +1,11 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { has } from "lodash";
 import { ChartNoAxesGantt, Disc, Disc2, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import smallLogo from "@/assets/logo/icon.svg";
 import SessionPlayer, { SessionPlayerHandle } from "@/components/shared/traces/session-player";
@@ -14,14 +13,20 @@ import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import Minimap from "@/components/traces/trace-view/minimap";
+import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import Timeline from "@/components/traces/trace-view/timeline";
+import TraceViewStoreProvider, {
+  MAX_ZOOM,
+  MIN_TREE_VIEW_WIDTH,
+  MIN_ZOOM,
+  TraceViewSpan,
+  useTraceViewStoreContext,
+} from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { Span, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -30,109 +35,78 @@ interface TraceViewProps {
   spans: Span[];
 }
 
-const MAX_ZOOM = 3;
-const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
-const MIN_TREE_VIEW_WIDTH = 500;
-
-export default function TraceView({ trace, spans }: TraceViewProps) {
+const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   const searchParams = useSearchParams();
-
   const router = useRouter();
   const pathName = usePathname();
-
-  const [showBrowserSession, setShowBrowserSession] = useState(false);
-  const [showTimeline, setShowTimeline] = useState(false);
   const browserSessionRef = useRef<SessionPlayerHandle>(null);
-  const [showLangGraph, setShowLangGraph] = useState(true);
 
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const handleZoomIn = useCallback(() => {
-    setZoomLevel((prev) => Math.min(prev + ZOOM_INCREMENT, MAX_ZOOM));
-  }, []);
+  const {
+    tab,
+    setTab,
+    setSpans,
+    setTrace,
+    selectedSpan,
+    setSelectedSpan,
+    browserSession,
+    setBrowserSession,
+    zoom,
+    handleZoom,
+    setBrowserSessionTime,
+    setLangGraph,
+    langGraph,
+    getHasLangGraph,
+  } = useTraceViewStoreContext((state) => ({
+    tab: state.tab,
+    setTab: state.setTab,
+    setSpans: state.setSpans,
+    setTrace: state.setTrace,
+    selectedSpan: state.selectedSpan,
+    setSelectedSpan: state.setSelectedSpan,
+    search: state.search,
+    setSearch: state.setSearch,
+    searchEnabled: state.searchEnabled,
+    setSearchEnabled: state.setSearchEnabled,
+    zoom: state.zoom,
+    handleZoom: state.setZoom,
+    browserSession: state.browserSession,
+    setBrowserSession: state.setBrowserSession,
+    setBrowserSessionTime: state.setSessionTime,
+    setLangGraph: state.setLangGraph,
+    langGraph: state.langGraph,
+    getHasLangGraph: state.getHasLangGraph,
+  }));
 
-  const handleZoomOut = useCallback(() => {
-    setZoomLevel((prev) => Math.max(prev - ZOOM_INCREMENT, MIN_ZOOM));
-  }, []);
+  const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
+    treeWidth: state.treeWidth,
+    setTreeWidth: state.setTreeWidth,
+    spanPath: state.spanPath,
+    setSpanPath: state.setSpanPath,
+  }));
 
-  const hasLangGraph = useMemo(
-    () => !!spans.find((s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)),
-    [spans]
+  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+
+  const handleSpanSelect = useCallback(
+    (span?: TraceViewSpan) => {
+      if (span) {
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", span.spanId);
+        router.push(`${pathName}?${params.toString()}`);
+      }
+      setSelectedSpan(span);
+    },
+    [pathName, router, searchParams, setSelectedSpan]
   );
-
-  const [selectedSpan, setSelectedSpan] = useState<Span | null>(
-    searchParams.get("spanId")
-      ? spans.find((span: Span) => span.spanId === searchParams.get("spanId")) || null
-      : spans?.[0] || null
-  );
-
-  const [activeSpans, setActiveSpans] = useState<string[]>([]);
-
-  // Add new state for collapsed spans
-  const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
-  const [browserSessionTime, setBrowserSessionTime] = useState<number | null>(null);
-
-  const { childSpans, topLevelSpans } = useMemo(() => {
-    const childSpans = {} as { [key: string]: Span[] };
-
-    const topLevelSpans = spans.filter((span: Span) => !span.parentSpanId);
-
-    for (const span of spans) {
-      if (span.parentSpanId) {
-        if (!childSpans[span.parentSpanId]) {
-          childSpans[span.parentSpanId] = [];
-        }
-        childSpans[span.parentSpanId].push(span);
-      }
-    }
-
-    // Sort child spans for each parent by start time
-    for (const parentId in childSpans) {
-      childSpans[parentId].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    }
-
-    return {
-      childSpans,
-      topLevelSpans,
-    };
-  }, [spans]);
-
-  const [treeViewWidth, setTreeViewWidth] = useState(MIN_TREE_VIEW_WIDTH);
-
-  useEffect(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const savedWidth = localStorage.getItem("trace-view:tree-view-width");
-        if (savedWidth) {
-          setTreeViewWidth(Math.max(MIN_TREE_VIEW_WIDTH, parseInt(savedWidth, 10)));
-        }
-      }
-    } catch (e) { }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trace-view:tree-view-width", treeViewWidth.toString());
-      }
-    } catch (e) { }
-  }, [treeViewWidth]);
-
-  useEffect(() => {
-    if (trace.hasBrowserSession) {
-      setShowBrowserSession(true);
-    }
-  }, []);
 
   const handleResizeTreeView = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       const startX = e.clientX;
-      const startWidth = treeViewWidth;
+      const startWidth = treeWidth;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
-        setTreeViewWidth(newWidth);
+        setTreeWidth(newWidth);
       };
 
       const handleMouseUp = () => {
@@ -143,12 +117,30 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [treeViewWidth]
+    [treeWidth, setTreeWidth]
   );
+
+  useEffect(() => {
+    if (trace.hasBrowserSession) {
+      setBrowserSession(true);
+    }
+  }, [setBrowserSession, trace.hasBrowserSession]);
+
+  useEffect(() => {
+    setSpans(spans);
+    setTrace(trace);
+
+    const spanId = searchParams.get("spanId");
+    const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];
+
+    if (span) {
+      setSelectedSpan({ ...span, collapsed: false });
+    }
+  }, []);
 
   return (
     <ScrollContextProvider>
-      <div className="flex flex-col h-full w-full overflow-clip">
+      <div className="flex flex-col h-full w-full overflow-hidden">
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
           <Link className="mr-2" href="/projects">
             <Image alt="Laminar AI logo" src={smallLogo} width={20} height={20} />
@@ -162,112 +154,66 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                   <Button
                     className="hover:bg-secondary px-1.5"
                     variant="ghost"
-                    onClick={() => {
-                      setShowBrowserSession(!showBrowserSession);
-                    }}
+                    onClick={() => setBrowserSession(!browserSession)}
                   >
-                    {showBrowserSession ? (
-                      <Disc2 className={cn({ "text-primary w-4 h-4": showBrowserSession })} />
+                    {browserSession ? (
+                      <Disc2 className={cn({ "text-primary w-4 h-4": browserSession })} />
                     ) : (
                       <Disc className="w-4 h-4" />
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipPortal>
-                  <TooltipContent>{showBrowserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
+                  <TooltipContent>{browserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
                 </TooltipPortal>
               </Tooltip>
             </TooltipProvider>
           )}
-          {hasLangGraph && <LangGraphViewTrigger setOpen={setShowLangGraph} open={showLangGraph} />}
+          {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel className="flex size-full">
-              <div className="flex h-full flex-col flex-none relative" style={{ width: treeViewWidth }}>
+              <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
                   <Button
-                    onClick={() => setShowTimeline((prev) => !prev)}
+                    onClick={() => setTab("timeline")}
                     variant="outline"
-                    className={cn("h-6", {
-                      "border-primary text-primary": showTimeline,
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "timeline",
                     })}
                   >
-                    <ChartNoAxesGantt className="w-4 h-4 mr-2" />
+                    <ChartNoAxesGantt size={14} className="mr-1" />
                     <span>Timeline</span>
                   </Button>
-                  {showTimeline && (
+                  {tab === "timeline" && (
                     <>
                       <Button
-                        disabled={zoomLevel === MAX_ZOOM}
+                        disabled={zoom === MAX_ZOOM}
                         className="h-6 w-6 ml-auto"
                         variant="outline"
                         size="icon"
-                        onClick={handleZoomIn}
+                        onClick={() => handleZoom("in")}
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
                       <Button
-                        disabled={zoomLevel === MIN_ZOOM}
+                        disabled={zoom === MIN_ZOOM}
                         className="h-6 w-6"
                         variant="outline"
                         size="icon"
-                        onClick={handleZoomOut}
+                        onClick={() => handleZoom("out")}
                       >
                         <Minus className="w-4 h-4" />
                       </Button>
                     </>
                   )}
                 </div>
-                {showTimeline ? (
-                  <Timeline
-                    setSelectedSpan={setSelectedSpan}
-                    selectedSpan={selectedSpan}
-                    spans={spans}
-                    childSpans={childSpans}
-                    collapsedSpans={collapsedSpans}
-                    browserSessionTime={browserSessionTime}
-                    zoomLevel={zoomLevel}
-                  />
-                ) : (
+                {tab === "timeline" && <Timeline />}
+                {tab === "tree" && (
                   <div className="flex flex-1 overflow-hidden relative">
-                    <Tree
-                      topLevelSpans={topLevelSpans}
-                      childSpans={childSpans}
-                      activeSpans={activeSpans}
-                      collapsedSpans={collapsedSpans}
-                      containerWidth={treeViewWidth}
-                      selectedSpan={selectedSpan}
-                      trace={trace}
-                      isSpansLoading={false}
-                      onToggleCollapse={(spanId) => {
-                        setCollapsedSpans((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(spanId)) {
-                            next.delete(spanId);
-                          } else {
-                            next.add(spanId);
-                          }
-                          return next;
-                        });
-                      }}
-                      onSpanSelect={(span) => {
-                        const params = new URLSearchParams(searchParams);
-                        setSelectedSpan(span);
-                        params.set("spanId", span.spanId);
-                        router.push(`${pathName}?${params.toString()}`);
-                      }}
-                      onSelectTime={(time) => {
-                        browserSessionRef.current?.goto(time);
-                      }}
-                    />
-                    <Minimap
-                      traceDuration={new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime()}
-                      setSelectedSpanId={(spanId) =>
-                        setSelectedSpan(spans.find((span) => span.spanId === spanId) || null)
-                      }
-                      browserSessionTime={browserSessionTime}
-                    />
+                    <Tree onSpanSelect={handleSpanSelect} />
+                    <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
                 <div
@@ -283,38 +229,35 @@ export default function TraceView({ trace, spans }: TraceViewProps) {
                 </div>
               )}
             </ResizablePanel>
-            {showBrowserSession && (
+            {browserSession && (
               <>
                 <ResizableHandle className="z-50" withHandle />
                 <ResizablePanel
                   style={{
-                    display: showBrowserSession ? "block" : "none",
+                    display: browserSession ? "block" : "none",
                   }}
                 >
                   <SessionPlayer
                     ref={browserSessionRef}
                     hasBrowserSession={trace.hasBrowserSession}
                     traceId={trace.id}
-                    onTimelineChange={(time) => {
-                      setBrowserSessionTime(time);
-
-                      const activeSpans = spans.filter((span: Span) => {
-                        const spanStartTime = new Date(span.startTime).getTime();
-                        const spanEndTime = new Date(span.endTime).getTime();
-
-                        return spanStartTime <= time && spanEndTime >= time && span.parentSpanId !== null;
-                      });
-
-                      setActiveSpans(activeSpans.map((span) => span.spanId));
-                    }}
+                    onTimelineChange={setBrowserSessionTime}
                   />
                 </ResizablePanel>
               </>
             )}
-            {showLangGraph && hasLangGraph && <LangGraphView spans={spans} />}
+            {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
           </ResizablePanelGroup>
         </div>
       </div>
     </ScrollContextProvider>
+  );
+};
+
+export default function TraceView(props: TraceViewProps) {
+  return (
+    <TraceViewStoreProvider>
+      <PureTraceView {...props} />
+    </TraceViewStoreProvider>
   );
 }
