@@ -13,7 +13,7 @@ import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import Minimap from "@/components/traces/trace-view/minimap";
+import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import Timeline from "@/components/traces/trace-view/timeline";
 import TraceViewStoreProvider, {
@@ -147,7 +147,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
 
   return (
     <ScrollContextProvider>
-      <div className="flex flex-col h-full w-full overflow-clip">
+      <div className="flex flex-col h-full w-full overflow-hidden">
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
           <Link className="mr-2" href="/projects">
             <Image alt="Laminar AI logo" src={smallLogo} width={20} height={20} />

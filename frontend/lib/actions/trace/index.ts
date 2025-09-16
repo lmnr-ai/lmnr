@@ -88,7 +88,8 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
       payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
       existingSpan: span,
     };
-  });
+  })
+    .filter((p) => p.payloadIds.length > 0);
 
   const payloadIds = parseResult.flatMap((p) => p.payloadIds);
 

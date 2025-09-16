@@ -17,10 +17,9 @@ import { TraceStatsShields } from "../stats-shields";
 
 interface HeaderProps {
   handleClose: () => void;
-  handleFetchTrace: () => void;
 }
 
-const Header = ({ handleClose, handleFetchTrace }: HeaderProps) => {
+const Header = ({ handleClose }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
@@ -136,13 +135,7 @@ const Header = ({ handleClose, handleFetchTrace }: HeaderProps) => {
           </TooltipPortal>
         </Tooltip>
         {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-        {trace && (
-          <ShareTraceButton
-            refetch={handleFetchTrace}
-            trace={{ id: trace.id, visibility: trace?.visibility }}
-            projectId={projectId}
-          />
-        )}
+        {trace && <ShareTraceButton projectId={projectId} />}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
+import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
@@ -33,7 +34,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
-import Minimap from "./minimap";
 import { ScrollContextProvider } from "./scroll-context";
 import Timeline from "./timeline";
 import Tree from "./tree";
@@ -336,7 +336,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel className="flex size-full">
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-              <Header handleClose={handleClose} handleFetchTrace={handleFetchTrace} />
+              <Header handleClose={handleClose} />
               <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
                 <div className="flex items-center gap-2">
                   <StatefulFilter columns={filterColumns}>
@@ -408,34 +408,33 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 />
               )}
               <>
-                {isSpansLoading ? (
-                  <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                ) : (
-                  <>
-                    {tab === "chat" && (
-                      <Chat
-                        trace={trace}
-                        onSetSpanId={(spanId) => {
-                          const span = spans.find((span) => span.spanId === spanId);
-                          if (span) {
-                            handleSpanSelect(span);
-                          }
-                        }}
-                      />
-                    )}
-                    {tab === "timeline" && <Timeline />}
-                    {tab === "tree" && (
+                {tab === "chat" && (
+                  <Chat
+                    trace={trace}
+                    onSetSpanId={(spanId) => {
+                      const span = spans.find((span) => span.spanId === spanId);
+                      if (span) {
+                        handleSpanSelect(span);
+                      }
+                    }}
+                  />
+                )}
+                <>
+                  {tab === "timeline" && <Timeline />}
+                  {tab === "tree" &&
+                    (isSpansLoading ? (
+                      <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                      </div>
+                    ) : (
                       <div className="flex flex-1 overflow-hidden relative">
                         <Tree onSpanSelect={handleSpanSelect} />
                         <Minimap onSpanSelect={handleSpanSelect} />
                       </div>
-                    )}
-                  </>
-                )}
+                    ))}
+                </>
               </>
               <div
                 className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
