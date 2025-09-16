@@ -103,7 +103,7 @@
     "posthog-node": "^5.7.0",
     "re-resizable": "^6.11.2",
     "react": "^19.1.1",
-    "react-day-picker": "^8.10.1",
+    "react-day-picker": "^9.10.0",
     "react-dom": "^19.1.1",
     "react-github-btn": "^1.4.0",
     "react-grid-layout": "^1.5.2",
