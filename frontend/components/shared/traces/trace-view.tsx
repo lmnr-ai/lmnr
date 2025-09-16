@@ -157,7 +157,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel className="flex size-full">
               <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-                <div className="h-12 flex py-3 items-center border-b gap-x-2 px-3">
+                <div className="h-10 flex py-3 items-center border-b gap-x-2 px-2">
                   <TraceStatsShields className="bg-background z-50" trace={trace} />
                   <div className="flex items-center ml-auto">
                     <TooltipProvider>
