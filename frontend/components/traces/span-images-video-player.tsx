@@ -154,28 +154,28 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
     [images, startTime]
   );
 
-  useEffect(
-    () =>
-      store.subscribe((state, prevState) => {
-        if (state.sessionTime !== prevState.sessionTime) {
-          const sessionTime = state.sessionTime || 0;
+  useEffect(() => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.sessionTime !== prevState.sessionTime) {
+        const sessionTime = state.sessionTime || 0;
 
-          if (sliderRef.current) {
-            sliderRef.current.value = sessionTime.toString();
-          }
-
-          if (timeDisplayRef.current) {
-            timeDisplayRef.current.textContent = `${formatSecondsToMinutesAndSeconds(sessionTime)}/${formatSecondsToMinutesAndSeconds(totalDuration)}`;
-          }
-
-          const newIndex = findImageIndexForTime(sessionTime);
-          if (newIndex !== currentImageIndex) {
-            setCurrentImageIndex(newIndex);
-          }
+        if (sliderRef.current) {
+          sliderRef.current.value = sessionTime.toString();
         }
-      }),
-    [store, totalDuration, findImageIndexForTime, currentImageIndex]
-  );
+
+        if (timeDisplayRef.current) {
+          timeDisplayRef.current.textContent = `${formatSecondsToMinutesAndSeconds(sessionTime)}/${formatSecondsToMinutesAndSeconds(totalDuration)}`;
+        }
+
+        const newIndex = findImageIndexForTime(sessionTime);
+        if (newIndex !== currentImageIndex) {
+          setCurrentImageIndex(newIndex);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [store, totalDuration, findImageIndexForTime, currentImageIndex]);
 
   useEffect(() => {
     const interval = setInterval(() => {

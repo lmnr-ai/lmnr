@@ -32,20 +32,20 @@ function Timeline() {
     overscan: 100,
   });
 
-  useEffect(
-    () =>
-      store.subscribe((state, prevState) => {
-        if (state.sessionTime !== prevState.sessionTime) {
-          const sessionTime = state.sessionTime || 0;
-          if (sessionTimeNeedleRef.current && timelineWidthInMilliseconds > 0) {
-            const leftPosition = ((sessionTime * 1000) / timelineWidthInMilliseconds) * 100;
-            sessionTimeNeedleRef.current.style.left = `${Math.max(0, Math.min(100, leftPosition))}%`;
-            sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
-          }
+  useEffect(() => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.sessionTime !== prevState.sessionTime) {
+        const sessionTime = state.sessionTime || 0;
+        if (sessionTimeNeedleRef.current && timelineWidthInMilliseconds > 0) {
+          const leftPosition = ((sessionTime * 1000) / timelineWidthInMilliseconds) * 100;
+          sessionTimeNeedleRef.current.style.left = `${Math.max(0, Math.min(100, leftPosition))}%`;
+          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
         }
-      }),
-    [store, timelineWidthInMilliseconds]
-  );
+      }
+    });
+
+    return unsubscribe;
+  }, [store, timelineWidthInMilliseconds]);
 
   const items = virtualizer.getVirtualItems();
 

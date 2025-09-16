@@ -78,20 +78,20 @@ function Minimap({ onSpanSelect }: Props) {
     return markers;
   }, [traceDuration, timeMarkerInterval]);
 
-  useEffect(
-    () =>
-      store.subscribe((state, prevState) => {
-        if (state.sessionTime !== prevState.sessionTime) {
-          const sessionTime = state.sessionTime || 0;
-          if (sessionTimeNeedleRef.current) {
-            const topPosition = Math.max(0, (sessionTime * 1000 * pixelsPerSecond) / 1000);
-            sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
-            sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
-          }
+  useEffect(() => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.sessionTime !== prevState.sessionTime) {
+        const sessionTime = state.sessionTime || 0;
+        if (sessionTimeNeedleRef.current) {
+          const topPosition = Math.max(0, (sessionTime * 1000 * pixelsPerSecond) / 1000);
+          sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
+          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
         }
-      }),
-    [store, pixelsPerSecond]
-  );
+      }
+    });
+
+    return unsubscribe;
+  }, [store, pixelsPerSecond, trace?.startTime]);
 
   const minimapRef = useRef<HTMLDivElement>(null);
 
