@@ -13,7 +13,6 @@ import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import Minimap from "@/components/traces/trace-view/minimap";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import Timeline from "@/components/traces/trace-view/timeline";
 import TraceViewStoreProvider, {
@@ -210,12 +209,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                   )}
                 </div>
                 {tab === "timeline" && <Timeline />}
-                {tab === "tree" && (
-                  <div className="flex flex-1 overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
+                {tab === "tree" && <Tree onSpanSelect={handleSpanSelect} />}
                 <div
                   className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                   onMouseDown={handleResizeTreeView}
