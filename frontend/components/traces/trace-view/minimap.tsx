@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import {
+  TraceViewSpan,
+  useTraceViewStore,
+  useTraceViewStoreContext,
+} from "@/components/traces/trace-view/trace-view-store.tsx";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
@@ -11,15 +15,16 @@ import { useScrollContext } from "./scroll-context";
 interface Props {
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
-
-export default function Minimap({ onSpanSelect }: Props) {
+function Minimap({ onSpanSelect }: Props) {
   const { state, scrollTo, createScrollHandler } = useScrollContext();
-  const { getMinimapSpans, trace, browserSessionTime, spans } = useTraceViewStoreContext((state) => ({
+  const { getMinimapSpans, trace, spans } = useTraceViewStoreContext((state) => ({
     getMinimapSpans: state.getMinimapSpans,
     trace: state.trace,
-    browserSessionTime: state.sessionTime,
     spans: state.spans,
   }));
+
+  const store = useTraceViewStore();
+  const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
 
   const traceDuration = useMemo(
     () => new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime(),
@@ -57,13 +62,6 @@ export default function Minimap({ onSpanSelect }: Props) {
     }
   }, [pixelsPerSecond]);
 
-  const minTime = useMemo(
-    () => Math.min(...minimapSpans.map((s) => new Date(s.span.startTime).getTime())),
-    [minimapSpans]
-  );
-
-  const minimapRef = useRef<HTMLDivElement>(null);
-
   const timeMarkers = useMemo(() => {
     if (!traceDuration || traceDuration <= 0) return [];
 
@@ -79,6 +77,23 @@ export default function Minimap({ onSpanSelect }: Props) {
 
     return markers;
   }, [traceDuration, timeMarkerInterval]);
+
+  useEffect(() => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.sessionTime !== prevState.sessionTime) {
+        const sessionTime = state.sessionTime || 0;
+        if (sessionTimeNeedleRef.current) {
+          const topPosition = Math.max(0, (sessionTime * 1000 * pixelsPerSecond) / 1000);
+          sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
+          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [store, pixelsPerSecond, trace?.startTime]);
+
+  const minimapRef = useRef<HTMLDivElement>(null);
 
   const syncTreeToMinimap = useCallback(
     ({
@@ -171,16 +186,11 @@ export default function Minimap({ onSpanSelect }: Props) {
         className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
       >
-        <div>
-          {browserSessionTime && (
-            <div
-              className="bg-primary absolute top-0 left-0 w-full h-[1px] z-30"
-              style={{
-                top: Math.max(0, ((browserSessionTime - minTime) / 1000) * pixelsPerSecond),
-              }}
-            />
-          )}
-        </div>
+        <div
+          ref={sessionTimeNeedleRef}
+          className="bg-primary absolute left-0 w-full h-[1px] z-30"
+          style={{ display: "none" }}
+        />
         <div className="relative w-2 flex-none">
           {minimapSpans.map((span, index) => (
             <div
@@ -223,3 +233,5 @@ export default function Minimap({ onSpanSelect }: Props) {
     </div>
   );
 }
+
+export default memo(Minimap);

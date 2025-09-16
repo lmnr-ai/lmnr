@@ -1,6 +1,6 @@
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -31,7 +31,7 @@ import { SpanType, Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
-import SessionPlayer, { SessionPlayerHandle } from "../session-player";
+import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
 import { ScrollContextProvider } from "./scroll-context";
@@ -119,9 +119,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   const { value: filters } = useFiltersContextProvider();
   const { supabaseClient: supabase } = useUserContext();
-  const browserSessionRef = useRef<SessionPlayerHandle>(null);
-
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const llmSpanIds = useMemo(
+    () =>
+      spans
+        .filter((span) => span.spanType === SpanType.LLM)
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .map((span) => span.spanId),
+    [spans]
+  );
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -464,10 +470,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <ResizablePanel>
                 {!isLoading && (
                   <SessionPlayer
-                    ref={browserSessionRef}
+                    onClose={() => setBrowserSession(false)}
                     hasBrowserSession={trace.hasBrowserSession}
                     traceId={traceId}
-                    onTimelineChange={setBrowserSessionTime}
+                    llmSpanIds={llmSpanIds}
                   />
                 )}
               </ResizablePanel>

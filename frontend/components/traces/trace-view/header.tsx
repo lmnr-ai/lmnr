@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, Disc, Disc2, Expand } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo } from "react";
@@ -57,7 +57,7 @@ const Header = ({ handleClose }: HeaderProps) => {
   }, [toast, trace]);
 
   return (
-    <div className="h-12 flex py-3 items-center border-b gap-x-2 px-3">
+    <div className="h-10 flex py-3 items-center border-b gap-x-2 px-2">
       {!params?.traceId && (
         <>
           <Button variant={"ghost"} className="px-0" onClick={handleClose}>
@@ -119,27 +119,21 @@ const Header = ({ handleClose }: HeaderProps) => {
               </TooltipPortal>
             </Tooltip>
           </>
-        )}{" "}
-        {trace?.hasBrowserSession && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="hover:bg-secondary px-1.5"
-                variant="ghost"
-                onClick={() => setBrowserSession(!browserSession)}
-              >
-                {browserSession ? (
-                  <Disc2 className={cn({ "text-primary w-4 h-4": browserSession })} />
-                ) : (
-                  <Disc className="w-4 h-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent>{browserSession ? "Hide Browser Session" : "Show Browser Session"}</TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="hover:bg-secondary px-1.5"
+              variant="ghost"
+              onClick={() => setBrowserSession(!browserSession)}
+            >
+              <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
         {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
