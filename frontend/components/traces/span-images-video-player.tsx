@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import {
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { SharedSpanImage } from "@/lib/actions/shared/spans/images";
 import { SpanImage } from "@/lib/actions/span/images";
-import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
+import { cn, formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SpanImagesVideoPlayerProps {
   traceId: string;
@@ -27,7 +27,7 @@ interface SpanImagesVideoPlayerProps {
 }
 
 const speedOptions = [1, 2, 4, 8, 16];
-
+const frameInterval = 41.67; // 24fps;
 const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImagesVideoPlayerProps) => {
   const { projectId } = useParams();
   const [preloadedImages, setPreloadedImages] = useState<Map<string, HTMLImageElement>>(new Map());
@@ -36,13 +36,16 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const [speed, setSpeed] = useLocalStorage("image-video-player-speed", 1);
   const [startTime, setStartTime] = useState(0);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
-  const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { sessionTime, setSessionTime, incrementSessionTime } = useTraceViewStoreContext((state) => ({
-    sessionTime: state.sessionTime || 0,
+  const sliderRef = useRef<HTMLInputElement>(null);
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
+
+  const { setSessionTime, incrementSessionTime } = useTraceViewStoreContext((state) => ({
     setSessionTime: state.setSessionTime,
     incrementSessionTime: state.incrementSessionTime,
   }));
+
+  const store = useTraceViewStore();
 
   const swrKey =
     spanIds.length > 0
@@ -91,7 +94,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
           };
           htmlImg.onerror = () => {
             console.warn(`Failed to load image: ${img.imageUrl}`);
-            resolve(); // Don't reject, just skip this image
+            resolve();
           };
           htmlImg.src = img.imageUrl;
         })
@@ -111,61 +114,100 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
     if (images.length > 0) {
       const firstTimestamp = images[0].timestamp;
       const lastTimestamp = images[images.length - 1].timestamp;
+      const duration = (lastTimestamp - firstTimestamp) / 1000;
+
       setStartTime(firstTimestamp);
-      setTotalDuration((lastTimestamp - firstTimestamp) / 1000);
+      setTotalDuration(duration);
       setSessionTime(0);
+
+      if (sliderRef.current) {
+        sliderRef.current.value = "0";
+        sliderRef.current.max = duration.toString();
+      }
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = `${formatSecondsToMinutesAndSeconds(0)}/${formatSecondsToMinutesAndSeconds(duration)}`;
+      }
+
       preloadImages(images);
     }
   }, [images, preloadImages, setSessionTime]);
 
-  const currentImageIndex = useMemo(() => {
-    if (!sessionTime || images.length === 0) return 0;
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    const absoluteTime = startTime + sessionTime * 1000;
-    let bestIndex = 0;
+  const findImageIndexForTime = useCallback(
+    (sessionTime: number): number => {
+      if (!sessionTime || images.length === 0) return 0;
 
-    for (let i = 0; i < images.length; i++) {
-      if (images[i].timestamp <= absoluteTime) {
-        bestIndex = i;
-      } else {
-        break;
+      const absoluteTime = startTime + sessionTime * 1000;
+      let bestIndex = 0;
+
+      for (let i = 0; i < images.length; i++) {
+        if (images[i].timestamp <= absoluteTime) {
+          bestIndex = i;
+        } else {
+          break;
+        }
       }
-    }
 
-    return bestIndex;
-  }, [sessionTime, images, startTime]);
+      return bestIndex;
+    },
+    [images, startTime]
+  );
+
+  useEffect(
+    () =>
+      store.subscribe((state, prevState) => {
+        if (state.sessionTime !== prevState.sessionTime) {
+          const sessionTime = state.sessionTime || 0;
+
+          if (sliderRef.current) {
+            sliderRef.current.value = sessionTime.toString();
+          }
+
+          if (timeDisplayRef.current) {
+            timeDisplayRef.current.textContent = `${formatSecondsToMinutesAndSeconds(sessionTime)}/${formatSecondsToMinutesAndSeconds(totalDuration)}`;
+          }
+
+          const newIndex = findImageIndexForTime(sessionTime);
+          if (newIndex !== currentImageIndex) {
+            setCurrentImageIndex(newIndex);
+          }
+        }
+      }),
+    [store, totalDuration, findImageIndexForTime, currentImageIndex]
+  );
 
   useEffect(() => {
-    if (isPlaying && totalDuration > 0) {
-      playIntervalRef.current = setInterval(() => {
-        const timeIncrement = (16 / 1000) * speed;
+    const interval = setInterval(() => {
+      if (isPlaying && totalDuration > 0) {
+        const timeIncrement = (frameInterval / 1000) * speed;
         const isComplete = incrementSessionTime(timeIncrement, totalDuration);
 
         if (isComplete) {
           setIsPlaying(false);
         }
-      }, 16); // 60fps
-    } else {
-      if (playIntervalRef.current) {
-        clearInterval(playIntervalRef.current);
-        playIntervalRef.current = null;
       }
-    }
+    }, frameInterval);
 
-    return () => {
-      if (playIntervalRef.current) {
-        clearInterval(playIntervalRef.current);
-        playIntervalRef.current = null;
-      }
-    };
+    return () => clearInterval(interval);
   }, [isPlaying, speed, totalDuration, incrementSessionTime]);
 
   const handleTimelineChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
+
       setSessionTime(time);
+
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = `${formatSecondsToMinutesAndSeconds(time)}/${formatSecondsToMinutesAndSeconds(totalDuration)}`;
+      }
+
+      const newIndex = findImageIndexForTime(time);
+      if (newIndex !== currentImageIndex) {
+        setCurrentImageIndex(newIndex);
+      }
     },
-    [setSessionTime]
+    [setSessionTime, findImageIndexForTime, currentImageIndex, totalDuration]
   );
 
   const handlePlayPause = useCallback(() => {
@@ -217,17 +259,18 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
         </DropdownMenu>
 
         <input
+          ref={sliderRef}
           type="range"
           className="flex-grow cursor-pointer"
           min={0}
           step={0.01}
           max={totalDuration || 0}
-          value={sessionTime ?? 0} // Handle undefined case
+          defaultValue={0}
           onChange={handleTimelineChange}
         />
 
-        <span className="font-mono text-sm">
-          {formatSecondsToMinutesAndSeconds(sessionTime ?? 0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+        <span ref={timeDisplayRef} className="font-mono text-sm">
+          {formatSecondsToMinutesAndSeconds(0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
         </span>
       </div>
 
@@ -238,12 +281,11 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
               key={image.imageUrl}
               src={image.imageUrl}
               alt={`Image from ${image.spanName}`}
-              className={`absolute max-w-full max-h-full object-contain transition-opacity duration-100 ${
-                index === currentImageIndex ? "opacity-100" : "opacity-0"
-              }`}
+              className={cn(`absolute max-w-full max-h-full object-contain opacity-0`, {
+                "opacity-100": index === currentImageIndex,
+              })}
               style={{
                 display: preloadedImages.has(image.imageUrl) ? "block" : "none",
-                pointerEvents: index === currentImageIndex ? "auto" : "none",
               }}
             />
           ))}
