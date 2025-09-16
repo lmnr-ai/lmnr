@@ -56,7 +56,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
     return () => {
       el.removeEventListener("scroll", handleScroll);
     };
-  }, [handleScroll, scrollRef]);
+  }, [handleScroll, scrollRef?.current]);
 
   if (isEmpty(treeSpans)) {
     return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;
