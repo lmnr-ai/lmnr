@@ -54,6 +54,7 @@ interface TraceViewStoreActions {
   setTreeWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
   toggleCollapse: (spanId: string) => void;
+  updateTraceVisibility: (visibility: "private" | "public") => void;
 
   // Selectors
   getTreeSpans: () => TreeSpan[];
@@ -84,6 +85,12 @@ const createTraceViewStore = () =>
         spanPath: null,
 
         setTrace: (trace) => set({ trace }),
+        updateTraceVisibility: (visibility) => {
+          const trace = get().trace;
+          if (trace) {
+            set({ trace: { ...trace, visibility } });
+          }
+        },
         setSpans: (spans) => set({ spans: spans.map((s) => ({ ...s, collapsed: false })) }),
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => transformSpansToTree(get().spans),

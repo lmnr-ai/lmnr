@@ -330,7 +330,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel className="flex size-full">
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-              <Header handleClose={handleClose} handleFetchTrace={handleFetchTrace} />
+              <Header handleClose={handleClose} />
               <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
                 <div className="flex items-center gap-2">
                   <StatefulFilter columns={filterColumns}>
