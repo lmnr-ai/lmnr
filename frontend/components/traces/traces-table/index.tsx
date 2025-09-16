@@ -19,7 +19,6 @@ import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
 
-const LIVE_UPDATES_STORAGE_KEY = "traces-live-updates";
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -45,14 +44,9 @@ export default function TracesTable() {
   const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
   const { setNavigationRefList } = useTraceViewNavigation();
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
-  const [enableLiveUpdates, setEnableLiveUpdates] = useState<boolean>(true);
 
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
-  useEffect(() => {
-    const stored = globalThis?.localStorage?.getItem(LIVE_UPDATES_STORAGE_KEY);
-    setEnableLiveUpdates(stored == null ? true : stored === "true");
-  }, []);
 
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
@@ -146,7 +140,6 @@ export default function TracesTable() {
     hasBrowserSession: row.has_browser_session,
     topSpanId: row.top_span_id,
     traceType: row.trace_type,
-    agentSessionId: row.agent_session_id,
     topSpanInputPreview: null,
     topSpanOutputPreview: null,
     topSpanName: null,
@@ -253,16 +246,16 @@ export default function TracesTable() {
       return;
     }
 
-    if (!enableLiveUpdates || filter.length > 0 || textSearchFilter) {
+    if (filter.length > 0 || !!textSearchFilter) {
       supabase.removeAllChannels();
       return;
     }
 
     // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase.channel("table-db-changes").unsubscribe();
+    supabase.channel("traces-table").unsubscribe();
 
     const channel = supabase
-      .channel("table-db-changes")
+      .channel("traces-table")
       .on(
         "postgres_changes",
         {
@@ -301,7 +294,7 @@ export default function TracesTable() {
     return () => {
       channel.unsubscribe();
     };
-  }, [enableLiveUpdates, projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter]);
+  }, [projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter]);
 
   useEffect(() => {
     if (pastHours || startDate || endDate) {

@@ -59,7 +59,7 @@ mod db;
 mod evaluations;
 mod evaluators;
 mod features;
-mod labels;
+mod tags;
 mod language_model;
 mod mq;
 mod names;
@@ -544,7 +544,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     App::new()
-                    .wrap( ErrorHandlers::new()
+                        .wrap( ErrorHandlers::new()
                             .handler(StatusCode::BAD_REQUEST, |res: dev::ServiceResponse| {
                                 log::error!("Bad request: {:?}", res.response().body());
                                 Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))

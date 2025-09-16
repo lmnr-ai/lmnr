@@ -5,6 +5,7 @@ use lapin::{
 };
 pub mod rabbit;
 pub mod tokio_mpsc;
+pub mod utils;
 
 use rabbit::{RabbitMQ, RabbitMQDelivery, RabbitMQReceiver};
 use tokio_mpsc::{TokioMpscDelivery, TokioMpscQueue, TokioMpscReceiver};

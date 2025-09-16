@@ -8,7 +8,7 @@ use crate::{
     browser_events::QueueBrowserEventMessage,
     db::{DB, project_api_keys::ProjectApiKey},
     features::{Feature, is_feature_enabled},
-    mq::{MessageQueue, MessageQueueTrait},
+    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     routes::types::ResponseResult,
     traces::limits::get_workspace_limit_exceeded_by_project_id,
 };
@@ -100,18 +100,32 @@ async fn create_session_event(
         }
     }
 
+    let events_count = filtered_batch.events.len();
+
     let message = QueueBrowserEventMessage {
         batch: filtered_batch,
         project_id: project_api_key.project_id,
     };
 
-    queue
-        .publish(
-            &serde_json::to_vec(&message).unwrap(),
-            BROWSER_SESSIONS_EXCHANGE,
-            BROWSER_SESSIONS_ROUTING_KEY,
-        )
-        .await?;
+    let mq_message = serde_json::to_vec(&message).unwrap();
+
+    if mq_message.len() >= mq_max_payload() {
+        log::warn!(
+            "[BROWSER SESSIONS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]. Event count: [{}]",
+            project_api_key.project_id,
+            mq_message.len(),
+            events_count
+        );
+        // Don't return error for now, skip publishing
+    } else {
+        queue
+            .publish(
+                &mq_message,
+                BROWSER_SESSIONS_EXCHANGE,
+                BROWSER_SESSIONS_ROUTING_KEY,
+            )
+            .await?;
+    }
 
     Ok(HttpResponse::Ok().finish())
 }

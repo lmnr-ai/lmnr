@@ -1,8 +1,6 @@
-use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
@@ -55,36 +53,4 @@ impl Event {
             trace_id,
         }
     }
-}
-
-pub async fn insert_events(pool: &PgPool, events: &Vec<Event>) -> Result<()> {
-    let span_ids = events.iter().map(|e| e.span_id).collect::<Vec<Uuid>>();
-    let project_ids = events.iter().map(|e| e.project_id).collect::<Vec<Uuid>>();
-    let timestamps = events
-        .iter()
-        .map(|e| e.timestamp)
-        .collect::<Vec<DateTime<Utc>>>();
-    let names = events
-        .iter()
-        .map(|e| e.name.clone())
-        .collect::<Vec<String>>();
-    let attributes = events
-        .iter()
-        .map(|e| e.attributes.clone())
-        .collect::<Vec<Value>>();
-
-    sqlx::query(
-        "INSERT INTO events (span_id, project_id, timestamp, name, attributes)
-        VALUES (UNNEST($1), UNNEST($2), UNNEST($3), UNNEST($4), UNNEST($5))
-        ",
-    )
-    .bind(span_ids)
-    .bind(project_ids)
-    .bind(timestamps)
-    .bind(names)
-    .bind(attributes)
-    .execute(pool)
-    .await?;
-
-    Ok(())
 }

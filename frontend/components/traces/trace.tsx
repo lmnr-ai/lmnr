@@ -4,7 +4,6 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Disc2 } from "lucide-react";
 import React, { useRef, useState } from "react";
 
-import { AgentSessionButton } from "@/components/traces/agent-session-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceView, { TraceViewHandle } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
@@ -67,7 +66,6 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
             </Tooltip>
           )}
 
-          {trace?.agentSessionId && <AgentSessionButton sessionId={trace.agentSessionId} />}
           <ShareTraceButton trace={{ id: trace.id, visibility: trace.visibility }} projectId={projectId} />
         </div>
       </Header>
@@ -78,7 +76,7 @@ const Trace = ({ trace, projectId }: { trace: TraceType; projectId: string }) =>
           ref={traceViewRef}
           propsTrace={trace}
           fullScreen
-          onClose={() => {}}
+          onClose={() => { }}
           traceId={trace.id}
         />
       </FiltersContextProvider>

@@ -17,7 +17,7 @@ import {
  * This function essentially prepares span for export
  * downloading necessary image parts
  */
-export const downloadSpanImages = async (messages: any): Promise<any> => {
+export const downloadSpanImages = async (messages: any): Promise<unknown> => {
   const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
   const openAIMessagesResult = OpenAIMessagesSchema.safeParse(messages);
   const langChainMessageResult = LangChainMessageSchema.safeParse(messages);

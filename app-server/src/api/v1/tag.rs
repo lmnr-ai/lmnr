@@ -1,7 +1,7 @@
 use crate::{
-    db::{self, DB, labels::LabelSource, project_api_keys::ProjectApiKey},
-    labels::insert_or_update_label,
+    db::{self, DB, project_api_keys::ProjectApiKey, tags::TagSource},
     routes::types::ResponseResult,
+    tags::insert_or_update_tag,
 };
 use actix_web::{
     HttpResponse, post,
@@ -73,7 +73,7 @@ pub async fn tag_trace(
     let futures = names
         .iter()
         .map(|name| {
-            insert_or_update_label(
+            insert_or_update_tag(
                 &db.pool,
                 clickhouse.clone(),
                 project_api_key.project_id,
@@ -82,21 +82,21 @@ pub async fn tag_trace(
                 None,
                 None,
                 name.clone(),
-                LabelSource::CODE,
+                TagSource::CODE,
             )
         })
         .collect::<Vec<_>>();
 
-    let labels = futures_util::future::try_join_all(futures).await?;
+    let tags = futures_util::future::try_join_all(futures).await?;
 
-    let response = labels
+    let response = tags
         .iter()
-        .map(|label| {
+        .map(|tag| {
             serde_json::json!({
-                "id": label.id,
-                "spanId": label.span_id,
-                "createdAt": label.created_at,
-                "updatedAt": label.updated_at,
+                "id": tag.id,
+                "spanId": tag.span_id,
+                "createdAt": tag.created_at,
+                "updatedAt": tag.updated_at,
             })
         })
         .collect::<Vec<_>>();

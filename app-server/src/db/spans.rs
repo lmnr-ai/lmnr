@@ -5,11 +5,22 @@ use chrono::{DateTime, Utc};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::utils::get_string_preview;
 use crate::{traces::spans::SpanAttributes, utils::sanitize_string};
+
+const ATTRIBUTE_KEYS_TO_KEEP: &[&str] = &[
+    "lmnr.span.path",
+    "lmnr.span.ids_path",
+    "gen_ai.usage.input_tokens",
+    "gen_ai.usage.output_tokens",
+    "gen_ai.usage.cost",
+    "gen_ai.usage.input_cost",
+    "gen_ai.usage.output_cost",
+    "lmnr.internal.has_browser_session",
+];
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -44,7 +55,7 @@ impl FromStr for SpanType {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, Default, FromRow)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub span_id: Uuid,
@@ -60,9 +71,27 @@ pub struct Span {
     pub end_time: DateTime<Utc>,
     pub events: Option<Value>,
     pub status: Option<String>,
-    pub labels: Option<Value>,
+    pub tags: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
+}
+
+impl Span {
+    fn get_attributes_for_db(&self) -> Value {
+        Value::Object(
+            self.attributes
+                .raw_attributes
+                .iter()
+                .filter_map(|(k, v)| {
+                    if ATTRIBUTE_KEYS_TO_KEEP.contains(&k.as_str()) {
+                        Some((k.clone(), v.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        )
+    }
 }
 
 pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
@@ -77,7 +106,10 @@ pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
     let start_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.start_time).collect();
     let end_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.end_time).collect();
     let names: Vec<String> = spans.par_iter().map(|s| s.name.clone()).collect();
-    let attributes: Vec<Value> = spans.par_iter().map(|s| s.attributes.to_value()).collect();
+    let attributes: Vec<Value> = spans
+        .par_iter()
+        .map(|s| s.get_attributes_for_db())
+        .collect();
     let span_types: Vec<SpanType> = spans.par_iter().map(|s| s.span_type.clone()).collect();
     let input_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.input_url.clone()).collect();
     let output_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.output_url.clone()).collect();
@@ -264,7 +296,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -486,7 +518,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };
@@ -741,7 +773,7 @@ mod tests {
             output: Some(json!("test output")),
             events: None,
             status: None,
-            labels: None,
+            tags: None,
             input_url: None,
             output_url: None,
         };

@@ -28,8 +28,8 @@ use crate::{
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         utils::{
-            get_llm_usage_for_span, prepare_span_for_recording, record_labels_to_db_and_ch,
-            record_spans,
+            get_llm_usage_for_span, prepare_span_for_recording, record_spans,
+            record_tags_to_db_and_ch,
         },
     },
 };
@@ -209,7 +209,7 @@ async fn process_spans_and_events_batch(
 struct StrippedSpan {
     span_id: Uuid,
     project_id: Uuid,
-    labels: Vec<String>,
+    tags: Vec<String>,
     path: Vec<String>,
     output: Option<Value>,
 }
@@ -314,7 +314,7 @@ async fn process_batch(
         .map(|span| StrippedSpan {
             span_id: span.span_id,
             project_id: span.project_id,
-            labels: span.attributes.labels(),
+            tags: span.attributes.tags(),
             path: span.attributes.path().unwrap_or_default(),
             output: span.output,
         })
@@ -351,17 +351,17 @@ async fn process_batch(
     }
 
     for span in &stripped_spans {
-        if let Err(e) = record_labels_to_db_and_ch(
+        if let Err(e) = record_tags_to_db_and_ch(
             db.clone(),
             clickhouse.clone(),
-            &span.labels,
+            &span.tags,
             &span.span_id,
             &span.project_id,
         )
         .await
         {
             log::error!(
-                "Failed to record labels to DB. span_id [{}], project_id [{}]: {:?}",
+                "Failed to record tags to DB. span_id [{}], project_id [{}]: {:?}",
                 span.span_id,
                 span.project_id,
                 e

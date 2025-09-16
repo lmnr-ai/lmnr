@@ -1,4 +1,4 @@
-import { CoreMessage } from "ai";
+import { ModelMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod/v4";
 
@@ -50,6 +50,12 @@ export const OpenAIUserMessageSchema = z.object({
   name: z.string().optional(),
 });
 
+// Temporary. TODO: update, once the instrumentations and backend fully support OpenAI responses API types.
+export const OpenAIComputerCallOutputMessageSchema = z.object({
+  role: z.literal("computer_call_output"),
+  content: z.array(z.union([OpenAIImagePartSchema, OpenAIFilePartSchema])),
+});
+
 export const OpenAIAssistantMessageSchema = z.object({
   role: z.literal("assistant"),
   audio: z
@@ -84,11 +90,12 @@ export const OpenAIMessageSchema = z.union([
   OpenAIUserMessageSchema,
   OpenAIAssistantMessageSchema,
   OpenAIToolMessageSchema,
+  OpenAIComputerCallOutputMessageSchema,
 ]);
 
 export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
 
-const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): CoreMessage[] => {
+const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): ModelMessage[] => {
   const store = new Map();
 
   return map(messages, (message) => {
@@ -127,6 +134,7 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
               type: "file" as const,
               data: String(part.file.file_data),
               mimeType: String(part.file.file_id),
+              mediaType: String(part.file.file_id),
             };
           }),
         };
@@ -151,7 +159,7 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
                 type: "tool-call" as const,
                 toolCallId: part.id,
                 toolName: part.function.name,
-                args: part.function.arguments,
+                input: { type: "json", value: part.function.arguments },
               };
             }),
           ],
@@ -166,9 +174,31 @@ const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSche
               // FIXME: temporary patch
               toolCallId: String(message?.tool_call_id || "-"),
               toolName: store.get(message.tool_call_id) || message.tool_call_id,
-              result: message.content,
+              output:
+                typeof message.content === "string"
+                  ? { type: "text", value: message.content }
+                  : { type: "content", value: message.content },
             },
           ],
+        };
+
+      case "computer_call_output":
+        return {
+          role: "user",
+          content: message.content.map((part) => {
+            if (part.type === "image_url") {
+              return {
+                type: "image" as const,
+                image: part.image_url.url,
+              };
+            }
+
+            return {
+              type: "file" as const,
+              data: String(part.file.file_data),
+              mediaType: String(part.file.file_id),
+            };
+          }),
         };
     }
   });

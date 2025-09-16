@@ -13,6 +13,7 @@ import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
+import { transformFromLegacy } from "@/lib/playground/utils.ts";
 import { ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -58,7 +59,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
     if (playground) {
       reset({
         model: playground.modelId as PlaygroundForm["model"],
-        messages: isEmpty(playground.promptMessages) ? defaultMessages : playground.promptMessages,
+        messages: isEmpty(playground.promptMessages) ? defaultMessages : transformFromLegacy(playground.promptMessages),
         maxTokens: playground.maxTokens ?? undefined,
         temperature: playground.temperature ?? undefined,
         providerOptions:

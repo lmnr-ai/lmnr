@@ -8,6 +8,7 @@ const nextConfig = {
       fullUrl: true,
     },
   },
+  serverExternalPackages: ["@lmnr-ai/lmnr"],
   output: "standalone",
   async headers() {
     return [
@@ -21,7 +22,7 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh https://p.lmnr.ai https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.lmnr.ai https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com; media-src 'self' https://image.mux.com blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh https://p.laminar.sh https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.laminar.sh https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com; media-src 'self' https://image.mux.com blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'none';",
           },
           {
             key: "X-Content-Type-Options",

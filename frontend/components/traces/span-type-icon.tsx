@@ -4,8 +4,9 @@ import {
   Bolt,
   Braces,
   CircleAlert,
+  FlagTriangleRight,
   Gauge,
-  MessageCircleMore,
+  MessageCircle,
   PersonStanding,
 } from "lucide-react";
 import { ReactNode } from "react";
@@ -34,7 +35,7 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
     case SpanType.DEFAULT:
       return <Braces {...iconProps} />;
     case SpanType.LLM:
-      return <MessageCircleMore {...iconProps} />;
+      return <MessageCircle {...iconProps} />;
     case SpanType.EXECUTOR:
       return <Activity {...iconProps} />;
     case SpanType.EVALUATOR:
@@ -43,6 +44,8 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
       return <Gauge {...iconProps} />;
     case SpanType.TOOL:
       return <Bolt {...iconProps} />;
+    case SpanType.EVENT:
+      return <FlagTriangleRight {...iconProps} />;
     case SpanType.HUMAN_EVALUATOR:
       return <PersonStanding {...iconProps} />;
     default:

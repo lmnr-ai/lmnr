@@ -1,9 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { events, spans } from "@/lib/db/migrations/schema";
+import { spans } from "@/lib/db/migrations/schema";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
@@ -21,7 +22,6 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         createdAt: true,
         parentSpanId: true,
         name: true,
-        attributes: true,
         spanType: true,
         startTime: true,
         endTime: true,
@@ -34,7 +34,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     }),
     clickhouseClient.query({
       query: `
-        SELECT input, output
+        SELECT input, output, attributes
         FROM spans
         WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
         LIMIT 1
@@ -48,13 +48,14 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     throw new Error("Span not found");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string }];
-  const { input: spanInput, output: spanOutput } = chData[0] || {};
+  const chData = (await chResult.json()) as [{ input: string; output: string; attributes: string }];
+  const { input: spanInput, output: spanOutput, attributes, } = chData[0] || {};
 
   return {
     ...dbSpan,
     input: tryParseJson(spanInput),
     output: tryParseJson(spanOutput),
+    attributes: tryParseJson(attributes) ?? {},
   };
 };
 
@@ -73,26 +74,22 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
     throw new Error("Span not found or does not belong to the given trace");
   }
 
-  const rows = await db.query.events.findMany({
-    where: and(eq(events.spanId, spanId)),
-    orderBy: asc(events.timestamp),
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT id, timestamp, span_id spanId, name, attributes
+      FROM events
+      WHERE span_id = {spanId: UUID}
+    `,
+    format: "JSONEachRow",
+    query_params: { spanId },
   });
 
-  return rows;
+  const rows = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string; attributes: string }[];
+
+  return rows.map((row) => ({
+    ...row,
+    timestamp: new Date(`${row.timestamp}Z`),
+    attributes: tryParseJson(row.attributes) ?? {},
+  }));
 };
 
-const tryParseJson = (value: string) => {
-  if (value === "" || value === undefined) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch (e) {
-    // Parse with brackets because we stringify array using comma separator on server.
-    try {
-      return JSON.parse(`[${value}]`);
-    } catch (e2) {
-      console.log("Failed to parse JSON with brackets:", e2);
-      return value;
-    }
-  }
-};
