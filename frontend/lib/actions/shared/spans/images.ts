@@ -75,7 +75,9 @@ function extractImagesFromMessages(messages: any): string[] {
         .filter((part: any) => part.type === "image_url")
         .map((part: any) => part.image_url?.url || part.url)
         .filter(Boolean)
-    );
+    )
+    .reverse()
+    .slice(0, 1);
 }
 
 const tryParseJson = (value: string) => {
@@ -84,7 +86,8 @@ const tryParseJson = (value: string) => {
   try {
     return JSON.parse(value);
   } catch (e) {
-    // Parse with brackets because we stringify array using comma separator on server.
+    // Parse with brackets because we used to stringify array using comma separator on server.
+    // This is no longer the case, but we'll keep this for backwards compatibility.
     try {
       return JSON.parse(`[${value}]`);
     } catch (e2) {

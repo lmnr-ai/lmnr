@@ -85,6 +85,13 @@ const tryParseJson = (value: string) => {
   try {
     return JSON.parse(value);
   } catch {
-    return null;
+    // Parse with brackets because we used to stringify array using comma separator on server.
+    // This is no longer the case, but we'll keep this for backwards compatibility.
+    try {
+      return JSON.parse(`[${value}]`);
+    } catch (e2) {
+      console.log("Failed to parse JSON with brackets:", e2);
+      return value;
+    }
   }
 };
