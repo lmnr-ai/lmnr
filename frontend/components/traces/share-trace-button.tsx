@@ -74,7 +74,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
         </Tooltip>
         <PopoverContent className="flex flex-col gap-4 w-96" align="end">
           <div>
-            <h2 className="text-lg">Share Trace</h2>
+            <h2 className="text-md font-medium">Share trace</h2>
             <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this trace.</span>
           </div>
           <div className="flex items-center space-x-2">

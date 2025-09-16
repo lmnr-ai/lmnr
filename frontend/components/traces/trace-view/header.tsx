@@ -57,7 +57,7 @@ const Header = ({ handleClose }: HeaderProps) => {
   }, [toast, trace]);
 
   return (
-    <div className="h-12 flex py-3 items-center border-b gap-x-2 px-3">
+    <div className="h-10 flex py-3 items-center border-b gap-x-2 px-3">
       {!params?.traceId && (
         <>
           <Button variant={"ghost"} className="px-0" onClick={handleClose}>
