@@ -106,6 +106,8 @@ export const setSpanTagNames = async (input: z.infer<typeof SetSpanTagNamesSchem
   }
   const { spanId, projectId, tags } = parseResult.data;
 
+  // No await here because we don't want to block the request,
+  // ALTER TABLE may be slow.
   clickhouseClient.command({
     query: `
       ALTER TABLE spans

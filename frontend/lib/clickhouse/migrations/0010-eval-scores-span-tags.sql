@@ -1,4 +1,4 @@
-ALTER TABLE default.evaluation_scores ADD COLUMN IF NOT EXISTS "span_tags" Array(String);
+ALTER TABLE default.spans ADD COLUMN IF NOT EXISTS "tags" String;
 
 CREATE TABLE IF NOT EXISTS default.evaluation_datapoint_executor_outputs
 (
@@ -13,7 +13,7 @@ ENGINE = MergeTree()
 ORDER BY (project_id, evaluation_id, `index`)
 SETTINGS index_granularity = 8192;
 
-ALTER TABLE evaluation_scores ADD PROJECTION evaluation_scores_by_eval_projection(
+ALTER TABLE evaluation_scores ADD PROJECTION IF NOT EXISTS evaluation_scores_by_eval_projection(
     SELECT * ORDER BY project_id, evaluation_id, evaluation_datapoint_id
 );
 

@@ -73,13 +73,13 @@ pub async fn insert_evaluation_datapoints(
 
     // The function is called twice - on datapoint creation and on datapoint update
     // We query the existing datapoints and filter them out to avoid duplicates
-    let existing_datapoints = clickhouse
+    let existing_ch_datapoints = clickhouse
         .query("SELECT id FROM evaluation_datapoints WHERE evaluation_id = ? AND project_id = ?")
         .bind(evaluation_id)
         .bind(project_id)
         .fetch_all::<CHEvaluationDatapointId>()
         .await?;
-    let existing_datapoint_ids = existing_datapoints
+    let existing_datapoint_ids = existing_ch_datapoints
         .iter()
         .map(|dp| dp.id)
         .collect::<HashSet<_>>();

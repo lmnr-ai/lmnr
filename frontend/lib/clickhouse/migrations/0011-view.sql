@@ -1,4 +1,4 @@
-CREATE VIEW traces_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
     SELECT
         MIN(spans.start_time) AS start_time,
         MAX(spans.end_time) AS end_time,
@@ -21,7 +21,7 @@ CREATE VIEW traces_v0 SQL SECURITY INVOKER AS
     WHERE project_id={project_id:UUID} AND spans.start_time>={start_time:DateTime64} AND spans.start_time<={end_time:DateTime64}
     GROUP BY id, project_id;
 
-CREATE VIEW spans_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
         span_id,
         name,
@@ -60,7 +60,7 @@ CREATE VIEW spans_v0 SQL SECURITY INVOKER AS
     FROM spans
     WHERE project_id={project_id:UUID};
 
-CREATE VIEW dataset_datapoints_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
         dataset_id,
@@ -70,7 +70,7 @@ CREATE VIEW dataset_datapoints_v0 SQL SECURITY INVOKER AS
     FROM dataset_datapoints
     WHERE project_id={project_id:UUID};
 
-CREATE VIEW dataset_datapoints_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
         dataset_id,
@@ -80,7 +80,7 @@ CREATE VIEW dataset_datapoints_v0 SQL SECURITY INVOKER AS
     FROM dataset_datapoints
     WHERE project_id={project_id:UUID};
 
-CREATE VIEW map_aggregate_evaluation_scores_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS map_aggregate_evaluation_scores_v0 SQL SECURITY INVOKER AS
     SELECT
         project_id,
         evaluation_id,
@@ -91,7 +91,7 @@ CREATE VIEW map_aggregate_evaluation_scores_v0 SQL SECURITY INVOKER AS
     WHERE project_id={project_id:UUID}
     GROUP BY project_id, evaluation_id, evaluation_datapoint_id;
 
-CREATE VIEW evaluation_datapoints_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0 SQL SECURITY INVOKER AS
     SELECT
         ed.id id,
         ed.evaluation_id evaluation_id,
@@ -117,7 +117,7 @@ CREATE VIEW evaluation_datapoints_v0 SQL SECURITY INVOKER AS
         AND ed.index = edo.index
     WHERE ed.project_id={project_id:UUID};
 
-CREATE VIEW events_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS events_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
         span_id,
@@ -130,7 +130,7 @@ CREATE VIEW events_v0 SQL SECURITY INVOKER AS
     FROM events
     WHERE project_id={project_id:UUID};
 
-CREATE VIEW tags_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS tags_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
         span_id,
