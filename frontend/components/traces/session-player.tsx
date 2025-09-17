@@ -180,7 +180,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     }
 
     return () => playerRef.current?.$destroy?.();
-  }, [events, speed, setSessionTime]);
+  }, [events, setSessionTime]);
 
   useEffect(() => {
     if (playerRef.current) {
@@ -191,12 +191,6 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
       playerRef.current.triggerResize();
     }
   }, [dimensions.width, dimensions.height]);
-
-  useEffect(() => {
-    if (playerRef.current) {
-      playerRef.current.setSpeed(speed);
-    }
-  }, [speed]);
 
   const handlePlayPause = useCallback(() => {
     if (!playerRef.current) return;
@@ -224,6 +218,14 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
       }
     },
     [isPlaying, setSessionTime]
+  );
+
+  const handleChangeSpeed = useCallback(
+    (speed: number) => {
+      playerRef.current.setSpeed(speed);
+      setSpeed(speed);
+    },
+    [setSpeed]
   );
 
   useHotkeys("space", handlePlayPause, { enabled: activeTab === "browser-session" });
@@ -288,7 +290,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
                     {speedOptions.map((speedOption) => (
-                      <DropdownMenuItem key={speedOption} onClick={() => setSpeed(speedOption)}>
+                      <DropdownMenuItem key={speedOption} onClick={() => handleChangeSpeed(speedOption)}>
                         {speedOption}x
                       </DropdownMenuItem>
                     ))}
