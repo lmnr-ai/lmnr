@@ -66,12 +66,58 @@ export type Trace = {
   topSpanOutputPreview: any | null;
   topSpanName: string | null;
   topSpanType: SpanType | null;
-  topSpanPath: string | null;
   hasBrowserSession: boolean | null;
   traceType: (typeof traces.$inferSelect)["traceType"] | null;
   visibility?: string;
   status: string | null;
   userId: string | null;
+};
+
+export type TraceRow = {
+  id: string;
+  startTime: string;
+  endTime: string;
+
+  topSpanName?: string;
+  topSpanId?: string;
+  topSpanType?: SpanType;
+
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+
+  traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
+  sessionId?: string;
+  metadata: Record<string, string>;
+  userId?: string;
+  status: string;
+};
+
+export type RealtimeTracePayload = {
+  id: string;
+  session_id: string | null;
+  metadata: Record<string, any> | null;
+  project_id: string;
+  end_time: string | null;
+  start_time: string | null;
+  total_token_count: number;
+  cost: number;
+  created_at: string;
+  trace_type: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
+  input_token_count: number;
+  output_token_count: number;
+  input_cost: number;
+  output_cost: number;
+  has_browser_session: boolean | null;
+  top_span_id: string | null;
+  agent_session_id: string | null;
+  visibility: string | null;
+  status: string | null;
+  user_id: string | null;
 };
 
 export type TracePreview = {
