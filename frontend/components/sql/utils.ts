@@ -78,7 +78,6 @@ const tableSchemas = {
     { name: "index", type: "integer", description: "Index of the evaluation datapoint within the evaluation" },
     { name: "group_id", type: "text", description: "Group identifier of the evaluation run" },
     { name: "scores", type: "text", description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value" },
-    { name: "scores_map", type: "map", description: "Scores for the evaluation datapoint as a clickhouse map" },
   ],
   events: [
     { name: "id", type: "uuid", description: "Unique identifier for the event" },
