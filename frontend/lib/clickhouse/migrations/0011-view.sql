@@ -15,6 +15,7 @@ CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
         anyIf(status, status != '<null>' AND status != '') AS status,
         anyIf(span_id, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_id,
         anyIf(name, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_name,
+        anyIf(status, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_status,
         CASE WHEN countIf(span_type IN (3, 4, 5)) > 0 THEN 'EVALUATION' ELSE 'DEFAULT' END AS trace_type,
         trace_id id
     FROM spans
@@ -63,6 +64,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
 CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
+        created_at,
         dataset_id,
         data,
         target,
