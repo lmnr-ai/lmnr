@@ -1,4 +1,5 @@
 use crate::{
+    ch::spans::append_tags_to_span,
     db::{self, DB, project_api_keys::ProjectApiKey, tags::TagSource},
     routes::types::ResponseResult,
     tags::insert_or_update_tag,
@@ -88,6 +89,14 @@ pub async fn tag_trace(
         .collect::<Vec<_>>();
 
     let tags = futures_util::future::try_join_all(futures).await?;
+
+    append_tags_to_span(
+        clickhouse.clone(),
+        span_id,
+        project_api_key.project_id,
+        names.clone(),
+    )
+    .await?;
 
     let response = tags
         .iter()

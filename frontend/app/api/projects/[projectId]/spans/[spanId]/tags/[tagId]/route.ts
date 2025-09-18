@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
+import { getSpanTagNames, setSpanTagNames } from "@/lib/actions/tags";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { tags } from "@/lib/db/migrations/schema";
+import { tagClasses, tags } from "@/lib/db/migrations/schema";
 
 export async function DELETE(
   _req: NextRequest,
@@ -14,9 +15,18 @@ export async function DELETE(
   const spanId = params.spanId;
   const tagId = params.tagId;
 
-  await db
+  const [res] = await db
     .delete(tags)
-    .where(and(eq(tags.id, tagId), eq(tags.spanId, spanId), eq(tags.projectId, projectId)));
+    .where(and(eq(tags.id, tagId), eq(tags.spanId, spanId), eq(tags.projectId, projectId)))
+    .returning();
+
+  const tagClass = await db.query.tagClasses.findFirst({
+    columns: {
+      name: true,
+    },
+    where: and(eq(tagClasses.id, res?.classId), eq(tagClasses.projectId, projectId)),
+  });
+  const deletedTagName = tagClass?.name;
 
   await clickhouseClient.exec({
     query: `
@@ -29,6 +39,11 @@ export async function DELETE(
       project_id: projectId,
     },
   });
+
+  const tagNames = await getSpanTagNames({ spanId, projectId });
+  if (tagNames.length > 0 && deletedTagName && tagNames.includes(deletedTagName)) {
+    await setSpanTagNames({ spanId, projectId, tags: tagNames.filter((name) => name !== deletedTagName) });
+  }
 
   return new Response("Span label deleted successfully", { status: 200 });
 }

@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, TRACE_CHATS_CACHE_KEY } from "@/lib/cache";
-import { SpanType } from "@/lib/clickhouse/types";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
 import { GetTraceStructureSchema } from ".";
@@ -14,18 +13,16 @@ const ClickHouseToCacheSpanSchema = z.object({
   start_time: z.string(),
   end_time: z.string(),
   name: z.string(),
-  span_type: z.uint32(),
+  span_type: z.string(),
   input_cost: z.number(),
   output_cost: z.number(),
   total_cost: z.number(),
   model: z.string(),
-  session_id: z.string(),
   trace_id: z.string(),
   provider: z.string(),
   input_tokens: z.number(),
   output_tokens: z.number(),
   total_tokens: z.number(),
-  user_id: z.string(),
   path: z.string(),
   input: z.string(),
   output: z.string(),
@@ -50,7 +47,7 @@ const ClickHouseToCacheSpanSchema = z.object({
   } catch { };
   return {
     spanId: span.span_id,
-    type: Object.entries(SpanType).find(([_, value]) => value === span.span_type)?.[0],
+    type: span.span_type,
     start: convertToLocalTimeWithMillis(span.start_time),
     end: convertToLocalTimeWithMillis(span.end_time),
     parent: span.parent_span_id,
@@ -68,10 +65,8 @@ const ClickHouseToCacheSpanSchema = z.object({
     outputTokens: span.output_tokens,
     totalTokens: span.total_tokens,
     model: span.model,
-    sessionId: span.session_id,
     traceId: span.trace_id,
     provider: span.provider,
-    userId: span.user_id,
     path: span.path,
     events: span.events.map((event) => ({
       timestamp: convertToLocalTimeWithMillis(event.timestamp),
@@ -109,10 +104,8 @@ export interface CacheSpan {
   outputTokens: number,
   totalTokens: number,
   model: string,
-  sessionId: string,
   traceId: string,
   provider: string,
-  userId: string,
   path: string,
   events: SpanEvent[],
 };
@@ -142,13 +135,11 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
         output_cost,
         total_cost,
         model,
-        session_id,
         trace_id,
         provider,
         input_tokens,
         output_tokens,
         total_tokens,
-        user_id,
         path,
         input,
         output,
@@ -158,7 +149,7 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
         response_model,
         parent_span_id
       FROM spans
-      WHERE trace_id = '${traceId}'
+      WHERE trace_id = {trace_id: UUID}
       AND start_time >= {start_time:DateTime(3)} - interval '1 second'
       AND start_time <= {end_time:DateTime(3)} + interval '1 second'
       ORDER BY start_time ASC
@@ -166,6 +157,7 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
     parameters: {
       start_time: startTime.replace("Z", ""),
       end_time: endTime.replace("Z", ""),
+      trace_id: traceId,
     },
   });
 
@@ -198,7 +190,6 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
 
   const cacheKey = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
 
-  // 'EX' sets expiration time in seconds
   await cache.set(cacheKey, spansWithEventsParsed, 'EX', 60 * 60 * 24);
 
   return spansWithEventsParsed as CacheSpan[];
@@ -248,7 +239,6 @@ export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStruct
     allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
   }
 
-  // Replace base64 images before returning
   const processedData = replaceBase64ImagesInSpans(allData);
 
   return processedData.map((span, index) => ({
