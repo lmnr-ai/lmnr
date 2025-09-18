@@ -68,8 +68,6 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-      agent-manager:
-        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001
