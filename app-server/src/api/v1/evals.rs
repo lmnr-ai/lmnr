@@ -1,6 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    ch::evaluation_datapoint_outputs::{
+        CHEvaluationDatapointOutput, insert_evaluation_datapoint_outputs,
+    },
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{save_evaluation_scores, utils::EvaluationDatapointResult},
     names::NameGenerator,
@@ -101,6 +104,7 @@ pub async fn update_eval_datapoint(
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
     let scores_clone = req.scores.clone();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
 
     // Get evaluation info for ClickHouse
     let group_id =
@@ -112,14 +116,34 @@ pub async fn update_eval_datapoint(
         &db.pool,
         eval_id,
         datapoint_id,
-        req.executor_output,
+        &req.executor_output,
         req.scores,
+    )
+    .await?;
+
+    let index = crate::ch::evaluation_datapoints::get_evaluation_datapoint_index(
+        clickhouse.clone(),
+        eval_id,
+        project_api_key.project_id,
+        datapoint_id,
+    )
+    .await?;
+
+    insert_evaluation_datapoint_outputs(
+        clickhouse.clone(),
+        vec![CHEvaluationDatapointOutput::create(
+            datapoint_id,
+            eval_id,
+            project_api_key.project_id,
+            index,
+            &req.executor_output,
+        )],
     )
     .await?;
 
     // Update ClickHouse analytics
     crate::ch::evaluation_scores::insert_updated_evaluation_scores(
-        clickhouse.into_inner().as_ref().clone(),
+        clickhouse.clone(),
         project_api_key.project_id,
         group_id,
         eval_id,

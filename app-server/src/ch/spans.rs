@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
@@ -84,6 +86,8 @@ pub struct CHSpan {
     pub attributes: String,
     pub trace_metadata: String,
     pub trace_type: u8,
+    #[serde(default)]
+    pub tags: String,
 }
 
 impl CHSpan {
@@ -149,6 +153,7 @@ impl CHSpan {
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
+            tags: serde_json::to_string(&span.attributes.tags()).unwrap_or_default(),
         }
     }
 }
@@ -185,4 +190,46 @@ pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]
             ));
         }
     }
+}
+
+pub async fn append_tags_to_span(
+    clickhouse: clickhouse::Client,
+    span_id: Uuid,
+    project_id: Uuid,
+    tags: Vec<String>,
+) -> Result<()> {
+    if tags.is_empty() {
+        return Ok(());
+    }
+
+    let query_result = clickhouse
+        .query("SELECT tags FROM spans WHERE span_id = ? AND project_id = ?")
+        .bind(span_id)
+        .bind(project_id)
+        .fetch_one::<String>()
+        .await?;
+
+    let existing_tags = serde_json::from_str::<HashSet<String>>(&query_result)?;
+
+    let all_tags = existing_tags
+        .union(&HashSet::from_iter(tags))
+        .cloned()
+        .collect::<Vec<String>>();
+
+    let stringified_tags = serde_json::to_string(&all_tags)?;
+
+    tokio::spawn(async move {
+        let _ = clickhouse
+            .query("ALTER TABLE spans UPDATE tags = ? WHERE span_id = ? AND project_id = ?")
+            .bind(stringified_tags)
+            .bind(span_id)
+            .bind(project_id)
+            .execute()
+            .await
+            .map_err(|e| {
+                log::error!("Failed to update tags for span on ch table spans {span_id}: {e:?}")
+            });
+    });
+
+    Ok(())
 }
