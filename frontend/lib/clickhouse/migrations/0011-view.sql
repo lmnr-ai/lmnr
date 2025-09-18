@@ -104,8 +104,7 @@ CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0 SQL SECURITY INVOKER AS
         ed.index index,
         ed.trace_id trace_id,
         es.group_id group_id,
-        toJSONString(es.scores) scores,
-        es.scores scores_map,
+        es.scores scores,
         ed.created_at created_at
     FROM evaluation_datapoints ed
     LEFT JOIN map_aggregate_evaluation_scores_v0(project_id={project_id:UUID}) es
