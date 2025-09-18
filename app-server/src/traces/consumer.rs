@@ -9,7 +9,10 @@ use rayon::prelude::*;
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    summary::push_to_trace_summary_queue,
+};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -37,7 +40,8 @@ use crate::{
 pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
+    trace_summary_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
@@ -45,7 +49,8 @@ pub async fn process_queue_spans(
         inner_process_queue_spans(
             db.clone(),
             cache.clone(),
-            queue.clone(),
+            evaluators_queue.clone(),
+            trace_summary_queue.clone(),
             clickhouse.clone(),
             storage.clone(),
         )
@@ -57,13 +62,14 @@ pub async fn process_queue_spans(
 async fn inner_process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
+    trace_summary_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
-        queue
+        evaluators_queue
             .get_receiver(
                 OBSERVATIONS_QUEUE,
                 OBSERVATIONS_EXCHANGE,
@@ -120,7 +126,8 @@ async fn inner_process_queue_spans(
             cache.clone(),
             storage.clone(),
             acker,
-            queue.clone(),
+            evaluators_queue.clone(),
+            trace_summary_queue.clone(),
         )
         .await;
     }
@@ -135,7 +142,8 @@ async fn process_spans_and_events_batch(
     cache: Arc<Cache>,
     storage: Arc<Storage>,
     acker: MessageQueueAcker,
-    queue: Arc<MessageQueue>,
+    evaluators_queue: Arc<MessageQueue>,
+    trace_summary_queue: Arc<MessageQueue>,
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -201,7 +209,8 @@ async fn process_spans_and_events_batch(
         clickhouse,
         cache,
         acker,
-        queue,
+        evaluators_queue,
+        trace_summary_queue,
     )
     .await;
 }
@@ -224,6 +233,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
     evaluators_queue: Arc<MessageQueue>,
+    trace_summary_queue: Arc<MessageQueue>,
 ) {
     let mut trace_attributes_vec = Vec::new();
     let mut span_usage_vec = Vec::new();
@@ -269,15 +279,19 @@ async fn process_batch(
     }
 
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
-        log::error!("Failed to record spans batch: {:?}", e);
-        let _ = acker.reject(false).await.map_err(|e| {
-            log::error!(
-                "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
-                e
-            );
-        });
-    }
+    let db_success = match record_spans(db.clone(), &spans, &trace_attributes_vec).await {
+        Ok(_) => true,
+        Err(e) => {
+            log::error!("Failed to record spans batch: {:?}", e);
+            let _ = acker.reject(false).await.map_err(|e| {
+                log::error!(
+                    "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
+                    e
+                );
+            });
+            false
+        }
+    };
 
     // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
@@ -294,18 +308,62 @@ async fn process_batch(
         })
         .collect();
 
-    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
-        log::error!(
-            "Failed to record {} spans to clickhouse: {:?}",
-            ch_spans.len(),
-            e
-        );
-        let _ = acker.reject(false).await.map_err(|e| {
+    let ch_success = match ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+        Ok(_) => true,
+        Err(e) => {
             log::error!(
-                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
+                "Failed to record {} spans to clickhouse: {:?}",
+                ch_spans.len(),
                 e
             );
-        });
+            let _ = acker.reject(false).await.map_err(|e| {
+                log::error!(
+                    "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
+                    e
+                );
+            });
+            false
+        }
+    };
+
+    // Only proceed if both database and clickhouse writes were successful
+    if !db_success || !ch_success {
+        return;
+    }
+
+    // Check for completed traces (top-level spans) and push to trace summary queue
+    for span in &spans {
+        if span.parent_span_id.is_none() {
+            // This is a top-level span, meaning the trace is completed
+            let trace_start_time = trace_attributes_vec
+                .iter()
+                .find(|attrs| attrs.id == span.trace_id)
+                .and_then(|attrs| attrs.start_time)
+                .unwrap_or(span.start_time);
+
+            let trace_end_time = trace_attributes_vec
+                .iter()
+                .find(|attrs| attrs.id == span.trace_id)
+                .and_then(|attrs| attrs.end_time)
+                .unwrap_or(span.end_time);
+
+            if let Err(e) = push_to_trace_summary_queue(
+                span.trace_id,
+                span.project_id,
+                trace_start_time,
+                trace_end_time,
+                trace_summary_queue.clone(),
+            )
+            .await
+            {
+                log::error!(
+                    "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
+                    span.trace_id,
+                    span.project_id,
+                    e
+                );
+            }
+        }
     }
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
@@ -324,7 +382,7 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(db.clone(), clickhouse.clone(), &all_events).await {
+    match record_events(clickhouse.clone(), &all_events).await {
         Ok(_) => {}
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
