@@ -55,6 +55,8 @@ const tableSchemas = {
     { name: "user_id", type: "text", description: "User ID sent with the trace" },
     { name: "session_id", type: "text", description: "Session identifier" },
     { name: "top_span_id", type: "uuid", description: "ID of the top-level span" },
+    { name: "top_span_name", type: "text", description: "Name of the top-level span" },
+    { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
   ],
   dataset_datapoints: [
     { name: "id", type: "uuid", description: "Unique identifier for the dataset datapoint" },
