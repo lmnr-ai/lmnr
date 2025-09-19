@@ -162,7 +162,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
       if (tags?.length > 0) {
         return (
           <>
-            {(row.getValue() as string[]).map((tag) => (
+            {tags.map((tag) => (
               <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
                 <span>{tag}</span>
               </Badge>
