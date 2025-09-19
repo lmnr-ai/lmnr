@@ -54,11 +54,11 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const traceIds = search
     ? await searchSpans({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
 
   if (search && traceIds?.length === 0) {

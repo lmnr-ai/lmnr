@@ -57,12 +57,16 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanIds = search
     ? await searchSpanIds({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
+
+  if (search && spanIds?.length === 0) {
+    return { items: [], count: 0 };
+  }
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
     projectId,
