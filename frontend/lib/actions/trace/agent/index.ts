@@ -71,4 +71,4 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
 };
 
 // Re-export summary functionality
-export { generateTraceSummary, TraceSummarySchema } from './summary';
+export { generateOrGetTraceSummary as generateTraceSummary, TraceSummarySchema } from './summary';

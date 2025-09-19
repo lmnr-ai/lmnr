@@ -1,7 +1,9 @@
 import { observe } from '@lmnr-ai/lmnr';
 import { prettifyError } from 'zod/v4';
 
-import { generateTraceSummary, TraceSummarySchema } from '@/lib/actions/trace/agent/summary';
+import { executeQuery } from '@/lib/actions/sql';
+import { generateOrGetTraceSummary, TraceSummarySchema } from '@/lib/actions/trace/agent/summary';
+import { generateTraceSummary } from '@/lib/actions/trace/agent';
 
 /**
  * Internal endpoint for trace summary generation.
@@ -17,8 +19,41 @@ export async function POST(req: Request) {
     return Response.json({ error: prettifyError(traceSummaryResult.error) }, { status: 400 });
   }
 
+  // sleep for 0.5 seconds to account for time it takes to save spans to ClickHouse
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const { projectId, traceId } = traceSummaryResult.data;
+
   try {
-    await observe({ name: "generateTraceSummary" }, async () => await generateTraceSummary(traceSummaryResult.data));
+    // First, check if the trace contains at least one LLM span
+    const llmSpanCheckQuery = `
+      SELECT COUNT(*) as llm_span_count
+      FROM spans 
+      WHERE trace_id = {traceId: UUID} 
+      AND span_type = 'LLM'
+      LIMIT 1
+    `;
+
+    const llmSpanResult = await executeQuery<{ llm_span_count: number }>({
+      projectId,
+      query: llmSpanCheckQuery,
+      parameters: {
+        traceId,
+      }
+    });
+
+    const hasLlmSpans = llmSpanResult.length > 0 && llmSpanResult[0].llm_span_count > 0;
+
+    if (!hasLlmSpans) {
+      console.log(`Skipping trace summary generation for trace ${traceId} - no LLM spans found`);
+      return Response.json({
+        success: true,
+        message: "Skipped - trace contains no LLM spans"
+      });
+    }
+
+    // Generate the trace summary since it contains LLM spans
+    await observe({ name: "generateTraceSummaryIfNeeded" }, async () => await generateTraceSummary(traceSummaryResult.data));
 
     return Response.json({ success: true });
   } catch (error) {

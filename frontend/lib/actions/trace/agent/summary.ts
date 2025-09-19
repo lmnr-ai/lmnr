@@ -17,8 +17,9 @@ export const TraceSummarySchema = z.object({
   projectId: z.string().describe('The project ID'),
 });
 
-export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
-  const { traceId, traceStartTime, traceEndTime, projectId } = input;
+export async function getTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> } | undefined> {
+
+  const { traceId, projectId } = input;
 
   // Check database for existing summary
   const existingSummary = await db
@@ -35,6 +36,11 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
       spanIdsMap: (existingSummary.spanIdsMap || {}) as Record<string, string>,
     };
   }
+
+}
+
+export async function generateTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
+  const { traceId, traceStartTime, traceEndTime, projectId } = input;
 
   // Get the full trace data for summary
   const { stringifiedSpans, spanIdsMap } = await observe({ name: "getFullTraceForSummary" }, async () => await getFullTraceForSummary({
@@ -71,4 +77,16 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummarySch
     summary,
     spanIdsMap,
   };
+
+}
+
+export async function generateOrGetTraceSummary(input: z.infer<typeof TraceSummarySchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
+
+  const existingSummary = await getTraceSummary(input);
+  if (existingSummary) {
+    return existingSummary;
+  }
+
+  return await generateTraceSummary(input);
+
 }
