@@ -87,7 +87,7 @@ pub struct CHSpan {
     pub trace_metadata: String,
     pub trace_type: u8,
     #[serde(default)]
-    pub tags: String,
+    pub tags_array: Vec<String>,
 }
 
 impl CHSpan {
@@ -153,7 +153,7 @@ impl CHSpan {
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
-            tags: serde_json::to_string(&span.attributes.tags()).unwrap_or_default(),
+            tags_array: span.attributes.tags(),
         }
     }
 }
