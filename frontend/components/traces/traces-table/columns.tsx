@@ -3,15 +3,16 @@ import { capitalize } from "lodash";
 import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SpanType, Trace } from "@/lib/traces/types";
-import { isStringDateOld } from "@/lib/traces/utils";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { SpanType, TraceRow } from "@/lib/traces/types";
+import { isStringDateOld } from "@/lib/traces/utils.ts";
+import { normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const renderCost = (val: any) => {
   if (val == null) {
@@ -21,7 +22,7 @@ const renderCost = (val: any) => {
   return isNaN(parsed) ? "-" : `$${parsed.toFixed(5)}`;
 };
 
-export const columns: ColumnDef<Trace, any>[] = [
+export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
@@ -52,7 +53,7 @@ export const columns: ColumnDef<Trace, any>[] = [
         <div className="flex items-center gap-2">
           {row.row.original.topSpanName ? (
             <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-          ) : isStringDateOld(row.row.original.endTime) ? (
+          ) : isStringDateOld(normalizeClickHouseTimestamp(row.row.original.endTime)) ? (
             <NoSpanTooltip>
               <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
                 <X className="w-4 h-4" />
@@ -64,7 +65,7 @@ export const columns: ColumnDef<Trace, any>[] = [
         </div>
         {row.row.original.topSpanName ? (
           <div className="text-sm truncate">{row.row.original.topSpanName}</div>
-        ) : isStringDateOld(row.row.original.endTime) ? (
+        ) : isStringDateOld(normalizeClickHouseTimestamp(row.row.original.endTime)) ? (
           <NoSpanTooltip>
             <div className="flex text-muted-foreground">None</div>
           </NoSpanTooltip>
@@ -75,25 +76,15 @@ export const columns: ColumnDef<Trace, any>[] = [
     ),
     size: 150,
   },
-
-  {
-    cell: (row) => row.getValue(),
-    accessorKey: "topSpanInputPreview",
-    header: "Input",
-    id: "input",
-    size: 150,
-  },
-  {
-    cell: (row) => row.getValue(),
-    accessorKey: "topSpanOutputPreview",
-    header: "Output",
-    id: "output",
-    size: 150,
-  },
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => (
+      <ClientTimestampFormatter
+        timestamp={String(normalizeClickHouseTimestamp(row.getValue()))}
+        format={TIME_SECONDS_FORMAT}
+      />
+    ),
     id: "start_time",
     size: 150,
   },
@@ -107,12 +98,12 @@ export const columns: ColumnDef<Trace, any>[] = [
       const duration = end.getTime() - start.getTime();
       return `${(duration / 1000).toFixed(2)}s`;
     },
-    header: "Latency",
-    id: "latency",
+    header: "Duration",
+    id: "duration",
     size: 80,
   },
   {
-    accessorFn: (row) => row.cost,
+    accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
     cell: (row) => (
@@ -150,18 +141,40 @@ export const columns: ColumnDef<Trace, any>[] = [
     size: 100,
   },
   {
-    accessorFn: (row) => row.totalTokenCount ?? "-",
+    accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
-    id: "total_token_count",
+    id: "totalTokens",
     cell: (row) => (
       <div className="truncate">
-        {`${row.row.original.inputTokenCount ?? "-"}`}
+        {`${row.row.original.inputTokens ?? "-"}`}
         {" → "}
-        {`${row.row.original.outputTokenCount ?? "-"}`}
-        {` (${row.row.original.totalTokenCount ?? "-"})`}
+        {`${row.row.original.outputTokens ?? "-"}`}
+        {` (${row.row.original.totalTokens ?? "-"})`}
       </div>
     ),
     size: 150,
+  },
+  {
+    accessorFn: (row) => row.tags,
+    cell: (row) => {
+      const tags = row.getValue() as string[];
+
+      if (tags?.length > 0) {
+        return (
+          <>
+            {tags.map((tag) => (
+              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                <span>{tag}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
+    header: "Tags",
+    accessorKey: "tags",
+    id: "tags",
   },
   {
     accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
@@ -200,6 +213,12 @@ export const columns: ColumnDef<Trace, any>[] = [
   },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    header: "Session ID",
+    accessorKey: "sessionId",
+    id: "session_id",
+  },
+  {
+    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "User ID",
     accessorKey: "userId",
     id: "user_id",
@@ -213,13 +232,18 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: "Latency",
-    key: "latency",
+    name: "Session ID",
+    key: "session_id",
+    dataType: "string",
+  },
+  {
+    name: "Duration",
+    key: "duration",
     dataType: "number",
   },
   {
     name: "Top level span",
-    key: "span_type",
+    key: "top_span_type",
     dataType: "enum",
     options: Object.values(SpanType).map((v) => ({
       label: v,
@@ -229,7 +253,7 @@ export const filters: ColumnFilter[] = [
   },
   {
     name: "Top span name",
-    key: "name",
+    key: "top_span_name",
     dataType: "string",
   },
   {
@@ -244,22 +268,22 @@ export const filters: ColumnFilter[] = [
   },
   {
     name: "Total cost",
-    key: "cost",
+    key: "total_cost",
     dataType: "number",
   },
   {
     name: "Input tokens",
-    key: "input_token_count",
+    key: "input_tokens",
     dataType: "number",
   },
   {
     name: "Output tokens",
-    key: "output_token_count",
+    key: "output_tokens",
     dataType: "number",
   },
   {
     name: "Total tokens",
-    key: "total_token_count",
+    key: "total_tokens",
     dataType: "number",
   },
   {
@@ -272,14 +296,14 @@ export const filters: ColumnFilter[] = [
     })),
   },
   {
+    name: "Tags",
+    dataType: "string",
+    key: "tags",
+  },
+  {
     name: "Metadata",
     key: "metadata",
     dataType: "json",
-  },
-  {
-    name: "Tags",
-    key: "tags",
-    dataType: "string",
   },
   {
     name: "User ID",

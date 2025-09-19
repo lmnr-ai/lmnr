@@ -82,10 +82,8 @@ export default async function InvitationsPage(props: {
     return notFound();
   }
 
-  console.log("passed token");
   const decoded = verifyToken(token);
 
-  console.log("workspace here", decoded);
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, decoded.workspaceId),
   });

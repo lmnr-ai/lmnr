@@ -9,16 +9,15 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
+import { mapPendingTraceFromRealTime } from "@/components/traces/traces-table/utils.ts";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanType, Trace } from "@/lib/traces/types";
-import { PaginatedResponse } from "@/lib/types";
+import { RealtimeTracePayload, SpanType, TraceRow } from "@/lib/traces/types";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -41,16 +40,15 @@ export default function TracesTable() {
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
 
-  const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
+  const [traces, setTraces] = useState<TraceRow[] | undefined>(undefined);
   const { setNavigationRefList } = useTraceViewNavigation();
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
 
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
-
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const tracesRef = useRef<Trace[] | undefined>(traces);
+  const tracesRef = useRef<TraceRow[] | undefined>(traces);
 
   useEffect(() => {
     setNavigationRefList(map(traces, "id"));
@@ -95,18 +93,18 @@ export default function TracesTable() {
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        const text = (await res.json()) as { error: string };
+        throw new Error(text.error);
       }
 
-      const data = (await res.json()) as PaginatedResponse<Trace>;
+      const data = (await res.json()) as { items: TraceRow[]; count: number };
       setTraces(data.items);
-      setTotalCount(data.totalCount);
+      setTotalCount(data.count);
     } catch (error) {
       toast({
-        title: "Failed to load traces. Please try again.",
+        title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
         variant: "destructive",
       });
-      // Set empty traces to show error state
       setTraces([]);
       setTotalCount(0);
     }
@@ -125,38 +123,14 @@ export default function TracesTable() {
     toast,
   ]);
 
-  const mapPendingTraceFromRealTime = (row: Record<string, any>): Trace => ({
-    startTime: row.start_time,
-    endTime: row.end_time,
-    id: row.id,
-    sessionId: row.session_id,
-    inputTokenCount: row.input_token_count,
-    outputTokenCount: row.output_token_count,
-    totalTokenCount: row.total_token_count,
-    inputCost: row.input_cost,
-    outputCost: row.output_cost,
-    cost: row.cost,
-    metadata: row.metadata,
-    hasBrowserSession: row.has_browser_session,
-    topSpanId: row.top_span_id,
-    traceType: row.trace_type,
-    topSpanInputPreview: null,
-    topSpanOutputPreview: null,
-    topSpanName: null,
-    topSpanType: null,
-    topSpanPath: null,
-    status: row.status,
-    userId: row.user_id,
-  });
-
   const getTraceTopSpanInfo = useCallback(
     async (
       spanId: string
     ): Promise<{
-      topSpanName: string | null;
-      topSpanType: SpanType | null;
-      topSpanInputPreview: any | null;
-      topSpanOutputPreview: any | null;
+      topSpanName?: string;
+      topSpanType?: SpanType;
+      topSpanInputPreview?: any;
+      topSpanOutputPreview?: any;
     }> => {
       try {
         const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
@@ -167,77 +141,96 @@ export default function TracesTable() {
 
         const span = await response.json();
         return {
-          topSpanName: span?.name ?? null,
-          topSpanType: span?.spanType ?? null,
-          topSpanInputPreview: span?.inputPreview ?? null,
-          topSpanOutputPreview: span?.outputPreview ?? null,
+          topSpanName: span?.name,
+          topSpanType: span?.spanType,
+          topSpanInputPreview: span?.inputPreview,
+          topSpanOutputPreview: span?.outputPreview,
         };
       } catch (error) {
-        console.warn(error);
-        return {
-          topSpanName: null,
-          topSpanType: null,
-          topSpanInputPreview: null,
-          topSpanOutputPreview: null,
-        };
+        console.warn("Failed to fetch span info:", error);
+        return {};
       }
     },
-    [projectId, toast]
+    [projectId]
   );
 
   const updateRealtimeTraces = useCallback(
-    async (eventType: "INSERT" | "UPDATE", old: Record<string, any>, newObj: Record<string, any>) => {
+    async (eventType: "INSERT" | "UPDATE", old: Partial<RealtimeTracePayload>, newObj: RealtimeTracePayload) => {
       const currentTraces = tracesRef.current;
+
       if (eventType === "INSERT") {
-        const insertIndex = currentTraces?.findIndex((trace) => trace.startTime <= newObj.start_time);
-        const newTraces = currentTraces ? [...currentTraces] : [];
+        if (!currentTraces) return;
+
         const rtEventTrace = mapPendingTraceFromRealTime(newObj);
-        // Ignore eval traces
+
+        // Ignore non-default traces (eval traces, etc.)
         if (rtEventTrace.traceType !== "DEFAULT") {
           return;
         }
-        const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-        const newTrace =
-          rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null
-            ? {
-              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-              ...rest,
-            }
-            : rtEventTrace;
-        newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
-        if (newTraces.length > pageSize) {
-          newTraces.splice(pageSize, newTraces.length - pageSize);
+
+        // Create a new trace object with span info if available
+        let newTrace: TraceRow = { ...rtEventTrace };
+
+        // If we have a topSpanId but no span info yet, fetch it
+        if (rtEventTrace.topSpanId && !rtEventTrace.topSpanName) {
+          try {
+            const spanInfo = await getTraceTopSpanInfo(rtEventTrace.topSpanId);
+            newTrace = { ...rtEventTrace, ...spanInfo };
+          } catch (error) {
+            console.warn("Failed to fetch span info for realtime trace:", error);
+          }
         }
+
+        // Find the correct insertion position (maintain chronological order)
+        const insertIndex = newObj.start_time
+          ? currentTraces.findIndex((trace) => trace.startTime <= newObj.start_time!)
+          : 0;
+        const newTraces = [...currentTraces];
+
+        newTraces.splice(Math.max(insertIndex === -1 ? 0 : insertIndex, 0), 0, newTrace);
+
+        // Keep only the page size limit
+        if (newTraces.length > pageSize) {
+          newTraces.splice(pageSize);
+        }
+
         setTraces(newTraces);
-        setTotalCount((prev) => parseInt(`${prev}`) + 1);
+        setTotalCount((prev) => prev + 1);
       } else if (eventType === "UPDATE") {
-        if (currentTraces === undefined || currentTraces.length === 0) {
+        if (!currentTraces || currentTraces.length === 0) {
           return;
         }
-        const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old.id);
-        if (updateIndex !== -1) {
-          const newTraces = [...currentTraces];
-          const rtEventTrace = mapPendingTraceFromRealTime(newObj);
-          // Ignore eval traces
-          if (rtEventTrace.traceType !== "DEFAULT") {
-            return;
-          }
-          const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-          if (rtEventTrace.topSpanId != null) {
-            const newTrace = {
-              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-              ...rest,
-            };
-            newTraces[updateIndex] = newTrace;
-          } else {
-            newTraces[updateIndex] = mapPendingTraceFromRealTime(newObj);
-          }
-          setTraces(newTraces);
+
+        const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old?.id);
+
+        if (updateIndex === -1) return;
+
+        const rtEventTrace = mapPendingTraceFromRealTime(newObj);
+
+        // Ignore non-default traces
+        if (rtEventTrace.traceType !== "DEFAULT") {
+          return;
         }
+
+        const newTraces = [...currentTraces];
+        let updatedTrace: TraceRow = { ...rtEventTrace };
+
+        // If we have a topSpanId but no span info yet, fetch it
+        if (rtEventTrace.topSpanId && !rtEventTrace.topSpanName) {
+          try {
+            const spanInfo = await getTraceTopSpanInfo(rtEventTrace.topSpanId);
+            updatedTrace = { ...rtEventTrace, ...spanInfo };
+          } catch (error) {
+            console.warn("Failed to fetch span info for updated trace:", error);
+          }
+        }
+
+        newTraces[updateIndex] = updatedTrace;
+        setTraces(newTraces);
       }
     },
     [getTraceTopSpanInfo, pageSize]
-  ); // only depends on pageSize now
+  );
 
   const { supabaseClient: supabase } = useUserContext();
 
@@ -256,7 +249,7 @@ export default function TracesTable() {
 
     const channel = supabase
       .channel("traces-table")
-      .on(
+      .on<RealtimeTracePayload>(
         "postgres_changes",
         {
           event: "INSERT",
@@ -265,14 +258,12 @@ export default function TracesTable() {
           filter: `project_id=eq.${projectId}`,
         },
         async (payload) => {
-          if (payload.eventType === "INSERT") {
-            if (isCurrentTimestampIncluded) {
-              await updateRealtimeTraces("INSERT", payload.old, payload.new);
-            }
+          if (payload.eventType === "INSERT" && isCurrentTimestampIncluded) {
+            await updateRealtimeTraces("INSERT", payload.old, payload.new);
           }
         }
       )
-      .on(
+      .on<RealtimeTracePayload>(
         "postgres_changes",
         {
           event: "UPDATE",
@@ -281,10 +272,8 @@ export default function TracesTable() {
           filter: `project_id=eq.${projectId}`,
         },
         async (payload) => {
-          if (payload.eventType === "UPDATE") {
-            if (isCurrentTimestampIncluded) {
-              await updateRealtimeTraces("UPDATE", payload.old, payload.new);
-            }
+          if (payload.eventType === "UPDATE" && isCurrentTimestampIncluded) {
+            await updateRealtimeTraces("UPDATE", payload.old, payload.new);
           }
         }
       )
@@ -294,7 +283,7 @@ export default function TracesTable() {
     return () => {
       channel.unsubscribe();
     };
-  }, [projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter]);
+  }, [projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter, updateRealtimeTraces]);
 
   useEffect(() => {
     if (pastHours || startDate || endDate) {
@@ -333,7 +322,14 @@ export default function TracesTable() {
           title: "Traces deleted",
           description: `Successfully deleted ${traceIds.length} trace(s).`,
         });
-        await getTraces();
+
+        setTraces((prev) => {
+          if (prev) {
+            return prev.filter((t) => !traceIds.includes(t.id));
+          }
+          return prev;
+        });
+        setTotalCount((prev) => Math.max(prev - traceIds.length, 0));
       }
     } catch (e) {
       toast({
@@ -345,7 +341,7 @@ export default function TracesTable() {
   };
 
   const handleRowClick = useCallback(
-    (row: Row<Trace>) => {
+    (row: Row<TraceRow>) => {
       onRowClick?.(row.id);
       const params = new URLSearchParams(searchParams);
       params.set("traceId", row.id);

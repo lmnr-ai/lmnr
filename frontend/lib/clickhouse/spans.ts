@@ -31,7 +31,7 @@ export const searchSpans = async ({
   searchType,
   traceId,
 }: {
-  projectId?: string;
+  projectId: string;
   searchQuery: string;
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
@@ -41,20 +41,16 @@ export const searchSpans = async ({
   traceIds: Set<string>;
 }> => {
   const baseQuery = `
-    SELECT span_id spanId, trace_id traceId FROM spans
-    WHERE
-      1 = 1
-      ${projectId ? `AND project_id = {projectId: UUID}` : ""}
-      AND (
-      ${searchTypeToQueryFilter(searchType, "query")}
-      )
-      ${traceId ? `AND trace_id = {traceId: String}` : ""}
+      SELECT span_id spanId, trace_id traceId FROM spans
+      WHERE project_id = {projectId: UUID}
   `;
 
-  const query = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const finalQuery = `${queryWithTime} ${traceId ? `AND trace_id = {traceId: String}` : ""} AND (${searchTypeToQueryFilter(searchType, "query")})`;
 
   const response = await clickhouseClient.query({
-    query: `${query}
+    query: `${finalQuery}
      ORDER BY spans.start_time DESC
      LIMIT ${DEFAULT_LIMIT}`,
     format: "JSONEachRow",
@@ -75,7 +71,7 @@ export const searchSpans = async ({
   return { traceIds, spanIds };
 };
 
-const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
+export const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
   const uniqueSearchTypes = Array.from(new Set(searchType));
   const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`;
   if (uniqueSearchTypes.length === 0) {

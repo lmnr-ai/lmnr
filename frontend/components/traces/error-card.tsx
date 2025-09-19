@@ -1,7 +1,9 @@
 import { ChevronRight, CircleAlert } from "lucide-react";
 import React, { memo, useState } from "react";
 
+import { Button } from "@/components/ui/button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ErrorEventAttributes } from "@/lib/types";
 
@@ -24,7 +26,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
         <div className="text-destructive max-h-48">
           <CollapsibleTrigger className="flex items-start gap-2 w-full p-2 text-left rounded-md">
             <CircleAlert className="w-4 h-4" />
-            <div className="flex flex-1 items-center justify-between">
+            <div className="flex flex-1 items-start justify-between">
               <div>
                 <h3 className="font-medium text-xs">{errorType || "Exception occurred"}</h3>
                 {errorMessage && (
@@ -33,7 +35,18 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
                   </p>
                 )}
               </div>
-              <ChevronRight className="w-3 h-3 text-muted-foreground group-data-[state=open]:rotate-90 transition-transform duration-200" />
+              <div className="flex h-full">
+                <CopyButton
+                  className="w-8 h-8"
+                  iconClassName="h-3 w-3 text-muted-foreground"
+                  size="icon"
+                  variant="ghost"
+                  text={JSON.stringify(attributes)}
+                />
+                <Button className="w-8 h-8" size="icon" variant="ghost">
+                  <ChevronRight className="w-3 h-3 text-muted-foreground group-data-[state=open]:rotate-90 transition-transform duration-200" />
+                </Button>
+              </div>
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent className="px-2 pb-2 ml-6">
