@@ -1,3 +1,4 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -8,6 +9,8 @@ import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { spans, traces } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
@@ -140,6 +143,11 @@ const searchSpans = async ({
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   const { projectId, traceIds } = input;
+
+  await db.transaction(async (tx) => {
+    await tx.delete(spans).where(and(inArray(spans.traceId, traceIds), eq(spans.projectId, projectId)));
+    await tx.delete(traces).where(and(inArray(traces.id, traceIds), eq(traces.projectId, projectId)));
+  });
 
   await clickhouseClient.command({
     query: `
