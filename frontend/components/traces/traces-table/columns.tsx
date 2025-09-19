@@ -277,12 +277,6 @@ export const filters: ColumnFilter[] = [
     key: "metadata",
     dataType: "json",
   },
-  // TODO: commented for now, need attention
-  // {
-  //   name: "Tags",
-  //   key: "tags",
-  //   dataType: "string",
-  // },
   {
     name: "User ID",
     key: "user_id",
