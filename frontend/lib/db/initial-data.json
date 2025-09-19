@@ -4682,17 +4682,6 @@
         "additional_prices": {}
       },
       {
-        "id": "1479d7ca-3c3b-4b6c-941b-99693453fdb0",
-        "created_at": "2025-08-07 20:21:28.755002+00",
-        "updated_at": "2025-08-07 20:21:28.755002+00",
-        "provider": "openai",
-        "model": "gpt-5-2025-08-07",
-        "input_price_per_million": 1.25,
-        "output_price_per_million": 10.0,
-        "input_cached_price_per_million": 0.125,
-        "additional_prices": {}
-      },
-      {
         "id": "0fbf1ca3-ac2c-41f7-bbfe-5cefcfc0be20",
         "created_at": "2024-10-16 00:21:15.924666+00",
         "updated_at": "2024-10-16 00:21:15.924666+00",
