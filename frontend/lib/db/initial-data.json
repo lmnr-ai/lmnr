@@ -4444,7 +4444,7 @@
         "created_at": "2025-09-19 00:36:05.621995+00",
         "updated_at": "2025-09-19 00:36:05.621995+00",
         "provider": "mistral",
-        "model": "devstrall-small-25-07",
+        "model": "devstral-small-25-07",
         "input_price_per_million": 0.1,
         "output_price_per_million": 0.3,
         "input_cached_price_per_million": null,
