@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 
 use crate::{
     ch::{self, events::CHEvent},
-    db::{self, DB, events::Event},
+    db::events::Event,
 };
 
 pub async fn record_events(
-    db: Arc<DB>,
     clickhouse: clickhouse::Client,
     event_payloads: &Vec<Event>,
 ) -> Result<()> {

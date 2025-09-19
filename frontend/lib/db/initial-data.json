@@ -39,35 +39,41 @@
       {
         "id": "e9cfc547-dfc9-4c5e-bca8-2b1be33bf90f",
         "created_at": "2024-11-07 23:10:03.41329+00",
-        "updated_at": "2024-11-07 23:10:03.41329+00",
+        "updated_at": "2025-09-18 23:51:31+00",
         "provider": "anthropic",
         "model": "claude-3-5-haiku-20241022",
-        "input_price_per_million": 1.0,
-        "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": 0.08,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 1
+        }
       },
       {
         "id": "64ac4ea2-e503-4775-ae64-c536cc28aa0d",
         "created_at": "2024-12-03 22:51:39.444574+00",
-        "updated_at": "2024-12-03 22:51:39.444574+00",
+        "updated_at": "2025-09-18 23:51:22+00",
         "provider": "anthropic",
         "model": "claude-3-5-haiku-20241022-v1:0",
-        "input_price_per_million": 1.0,
-        "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": 0.08,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 1
+        }
       },
       {
         "id": "a4d8e406-5c4a-415e-a092-fba2fe859377",
         "created_at": "2024-11-07 23:10:50.192319+00",
-        "updated_at": "2024-11-07 23:10:50.192319+00",
+        "updated_at": "2025-09-18 23:50:23+00",
         "provider": "anthropic",
         "model": "claude-3-5-haiku-latest",
-        "input_price_per_million": 1.0,
-        "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": 0.08,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 1
+        }
       },
       {
         "id": "d1f31e4c-e47d-43d5-b332-9425310168ce",
@@ -346,6 +352,19 @@
         "additional_prices": {}
       },
       {
+        "id": "d8bd0927-f814-4b18-a4b8-76e7424aea4e",
+        "created_at": "2025-09-18 23:48:20.377881+00",
+        "updated_at": "2025-09-18 23:48:20.377881+00",
+        "provider": "anthropic",
+        "model": "claude-opus-4-1-20250805",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
         "id": "57caaf0f-5701-4d46-b989-45dfe2ffdfb7",
         "created_at": "2025-05-22 20:56:16.63397+00",
         "updated_at": "2025-05-22 20:56:16.63397+00",
@@ -369,6 +388,19 @@
         "input_cached_price_per_million": 0.3,
         "additional_prices": {
           "input_cache_write_price_per_million": 3.75
+        }
+      },
+      {
+        "id": "f0a99893-da46-41fb-af06-9c81286c158d",
+        "created_at": "2025-09-18 23:53:19.614137+00",
+        "updated_at": "2025-09-18 23:53:19.614137+00",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514--long-context",
+        "input_price_per_million": 6.0,
+        "output_price_per_million": 22.5,
+        "input_cached_price_per_million": 0.6,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 7.5
         }
       },
       {
@@ -671,12 +703,12 @@
       {
         "id": "c9615067-b100-4c37-826d-71c61c7acc15",
         "created_at": "2025-07-21 15:09:06.191445+00",
-        "updated_at": "2025-07-21 15:09:06.191445+00",
+        "updated_at": "2025-09-19 00:12:56+00",
         "provider": "azure",
         "model": "gpt-4o",
         "input_price_per_million": 2.5,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 1.25,
         "additional_prices": {}
       },
       {
@@ -693,34 +725,45 @@
       {
         "id": "94b0af05-a0f7-4d3b-b4e9-6f52b6cc5ad7",
         "created_at": "2025-07-21 15:09:06.191445+00",
-        "updated_at": "2025-07-21 15:09:06.191445+00",
+        "updated_at": "2025-09-19 00:14:23+00",
         "provider": "azure",
         "model": "gpt-4o-2024-08-06",
         "input_price_per_million": 2.5,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 1.25,
+        "additional_prices": {}
+      },
+      {
+        "id": "3445483b-85b5-48d8-a6be-4b79b2c50e3f",
+        "created_at": "2025-09-19 00:14:05.441781+00",
+        "updated_at": "2025-09-19 00:14:05.441781+00",
+        "provider": "azure",
+        "model": "gpt-4o-2024-11-20",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 1.25,
         "additional_prices": {}
       },
       {
         "id": "d7b5f935-cca7-4a47-82a2-e8501559fe1b",
         "created_at": "2025-07-21 15:09:06.191445+00",
-        "updated_at": "2025-07-21 15:09:06.191445+00",
+        "updated_at": "2025-09-19 00:14:46+00",
         "provider": "azure",
         "model": "gpt-4o-mini",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.075,
         "additional_prices": {}
       },
       {
         "id": "78297f9f-37d5-45f2-a59b-329b0de06829",
         "created_at": "2025-07-21 15:09:06.191445+00",
-        "updated_at": "2025-07-21 15:09:06.191445+00",
+        "updated_at": "2025-09-19 00:14:50+00",
         "provider": "azure",
         "model": "gpt-4o-mini-2024-07-18",
         "input_price_per_million": 0.15,
         "output_price_per_million": 0.6,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 0.075,
         "additional_prices": {}
       },
       {
@@ -743,6 +786,50 @@
         "input_price_per_million": 5.0,
         "output_price_per_million": 20.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "3fd9c522-9541-427d-84f3-4f46a733e8ed",
+        "created_at": "2025-09-19 00:11:22.024297+00",
+        "updated_at": "2025-09-19 00:11:22.024297+00",
+        "provider": "azure",
+        "model": "gpt-5",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.13,
+        "additional_prices": {}
+      },
+      {
+        "id": "66d11972-db01-4610-8271-eee8d78b6956",
+        "created_at": "2025-09-19 00:11:52.965068+00",
+        "updated_at": "2025-09-19 00:11:52.965068+00",
+        "provider": "azure",
+        "model": "gpt-5-2025-08-07",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.13,
+        "additional_prices": {}
+      },
+      {
+        "id": "09b05efc-8ae4-489e-a6c0-b449733920eb",
+        "created_at": "2025-09-19 00:10:34.519804+00",
+        "updated_at": "2025-09-19 00:10:34.519804+00",
+        "provider": "azure",
+        "model": "gpt-5-mini",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {}
+      },
+      {
+        "id": "54ee6444-7dcf-4964-9e82-091a1121f00c",
+        "created_at": "2025-09-19 00:09:48.462953+00",
+        "updated_at": "2025-09-19 00:09:48.462953+00",
+        "provider": "azure",
+        "model": "gpt-5-nano",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.01,
         "additional_prices": {}
       },
       {
@@ -879,17 +966,6 @@
       },
       {
         "id": "7cdf819a-2da9-4eaf-9227-68b047fe656f",
-        "created_at": "2025-07-21 15:09:06.191445+00",
-        "updated_at": "2025-07-21 15:09:06.191445+00",
-        "provider": "azure",
-        "model": "text-embedding-3-large",
-        "input_price_per_million": 0.13,
-        "output_price_per_million": 0.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
-      },
-      {
-        "id": "f5b2ece7-f6df-49d9-9e1b-4938df45443e",
         "created_at": "2025-07-21 15:09:06.191445+00",
         "updated_at": "2025-07-21 15:09:06.191445+00",
         "provider": "azure",
@@ -1210,12 +1286,12 @@
       {
         "id": "b055a7af-53bd-4fc6-8e47-9ac696c56e51",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-09-19 00:16:15+00",
         "provider": "azure-openai",
         "model": "gpt-4o",
         "input_price_per_million": 2.5,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 1.25,
         "additional_prices": {}
       },
       {
@@ -1232,12 +1308,23 @@
       {
         "id": "d9246eaa-3a01-454d-8578-3d93a94b10fc",
         "created_at": "2024-10-16 18:13:22.875838+00",
-        "updated_at": "2024-10-16 18:13:22.875838+00",
+        "updated_at": "2025-09-19 00:16:06+00",
         "provider": "azure-openai",
         "model": "gpt-4o-2024-08-06",
         "input_price_per_million": 2.5,
         "output_price_per_million": 10.0,
-        "input_cached_price_per_million": null,
+        "input_cached_price_per_million": 1.25,
+        "additional_prices": {}
+      },
+      {
+        "id": "6cfea0d1-d56b-4cbc-add4-3514bc1be510",
+        "created_at": "2025-09-19 00:15:45.195303+00",
+        "updated_at": "2025-09-19 00:15:45.195303+00",
+        "provider": "azure-openai",
+        "model": "gpt-4o-2024-11-20",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 1.25,
         "additional_prices": {}
       },
       {
@@ -1282,6 +1369,50 @@
         "input_price_per_million": 5.0,
         "output_price_per_million": 20.0,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "138d82ae-de50-4360-ba0d-0209d058d175",
+        "created_at": "2025-09-19 00:15:45.195303+00",
+        "updated_at": "2025-09-19 00:15:45.195303+00",
+        "provider": "azure-openai",
+        "model": "gpt-5",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.13,
+        "additional_prices": {}
+      },
+      {
+        "id": "76337fd9-c619-4445-80a4-21aa53e70c90",
+        "created_at": "2025-09-19 00:15:45.195303+00",
+        "updated_at": "2025-09-19 00:15:45.195303+00",
+        "provider": "azure-openai",
+        "model": "gpt-5-2025-08-07",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.13,
+        "additional_prices": {}
+      },
+      {
+        "id": "d21fc436-d522-4f7f-93d4-0813f5d0a05f",
+        "created_at": "2025-09-19 00:15:45.195303+00",
+        "updated_at": "2025-09-19 00:15:45.195303+00",
+        "provider": "azure-openai",
+        "model": "gpt-5-mini",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": 0.03,
+        "additional_prices": {}
+      },
+      {
+        "id": "2f6137d7-75b6-4c37-b723-a014ae7f9034",
+        "created_at": "2025-09-19 00:15:45.195303+00",
+        "updated_at": "2025-09-19 00:15:45.195303+00",
+        "provider": "azure-openai",
+        "model": "gpt-5-nano",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.01,
         "additional_prices": {}
       },
       {
@@ -1417,17 +1548,6 @@
         "additional_prices": {}
       },
       {
-        "id": "2ffda02a-7eed-4dea-a43e-5d11c65f121b",
-        "created_at": "2024-10-16 18:18:37.490753+00",
-        "updated_at": "2024-10-16 18:18:37.490753+00",
-        "provider": "azure-openai",
-        "model": "text-embedding-3-large",
-        "input_price_per_million": 0.13,
-        "output_price_per_million": 0.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
-      },
-      {
         "id": "f4a0effb-29c0-4b42-adf1-d216d61a5241",
         "created_at": "2024-10-16 18:13:22.875838+00",
         "updated_at": "2024-10-16 18:13:22.875838+00",
@@ -1474,13 +1594,15 @@
       {
         "id": "189c918c-be74-457a-a020-dec5a215995b",
         "created_at": "2024-11-07 23:15:54.583619+00",
-        "updated_at": "2024-11-07 23:15:54.583619+00",
+        "updated_at": "2025-09-19 00:00:20+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-5-haiku",
-        "input_price_per_million": 1.0,
-        "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
+        "input_price_per_million": 0.8,
+        "output_price_per_million": 4.0,
+        "input_cached_price_per_million": 0.08,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 1
+        }
       },
       {
         "id": "30c83d8f-392e-49c4-8a0a-1904a54aae7d",
@@ -1488,10 +1610,12 @@
         "updated_at": "2024-11-07 23:12:16.680925+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-5-haiku-20241022-v1:0",
-        "input_price_per_million": 1.0,
+        "input_price_per_million": 0.8,
         "output_price_per_million": 5.0,
-        "input_cached_price_per_million": null,
-        "additional_prices": {}
+        "input_cached_price_per_million": 0.08,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 1
+        }
       },
       {
         "id": "f4bbe24d-c832-4ce0-9fe8-0796d4aa82df",
@@ -1548,54 +1672,46 @@
       {
         "id": "d6ee7f18-121d-4b30-9349-a92857433de4",
         "created_at": "2024-10-16 17:40:47.013058+00",
-        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2025-09-18 23:58:12+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-haiku",
         "input_price_per_million": 0.25,
         "output_price_per_million": 1.25,
-        "input_cached_price_per_million": 0.03,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 0.3
-        }
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "a2d9092e-96d7-45b6-9504-9f26a8e665b3",
         "created_at": "2024-10-16 17:40:47.013058+00",
-        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2025-09-18 23:58:14+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-haiku-20240307-v1:0",
         "input_price_per_million": 0.25,
         "output_price_per_million": 1.25,
-        "input_cached_price_per_million": 0.03,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 0.3
-        }
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "aff7004e-9241-4b7d-80b7-98ead53148a7",
         "created_at": "2024-10-16 17:40:47.013058+00",
-        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2025-09-18 23:58:49+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-opus",
         "input_price_per_million": 15.0,
         "output_price_per_million": 75.0,
-        "input_cached_price_per_million": 1.5,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 18.75
-        }
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "a18c3c64-2a8b-4298-965b-2c93e4a1cf1a",
         "created_at": "2024-10-16 17:40:47.013058+00",
-        "updated_at": "2024-10-16 17:40:47.013058+00",
+        "updated_at": "2025-09-18 23:58:47+00",
         "provider": "bedrock-anthropic",
         "model": "claude-3-opus-20240229-v1:0",
         "input_price_per_million": 15.0,
         "output_price_per_million": 75.0,
-        "input_cached_price_per_million": 1.5,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 18.75
-        }
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "a38df2e9-40e2-4b6f-bcb9-4b43e4deca67",
@@ -1655,6 +1771,32 @@
         }
       },
       {
+        "id": "5215197e-1f46-4882-8b5c-cd783d5c6c69",
+        "created_at": "2025-09-19 00:07:03.376808+00",
+        "updated_at": "2025-09-19 00:07:03.376808+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-opus-4-1-20250805",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
+        "id": "2bdc7c52-039d-4338-9383-a0a67a160041",
+        "created_at": "2025-09-19 00:07:07.864896+00",
+        "updated_at": "2025-09-19 00:07:07.864896+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-opus-4-1-20250805-v1:0",
+        "input_price_per_million": 15.0,
+        "output_price_per_million": 75.0,
+        "input_cached_price_per_million": 1.5,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 18.75
+        }
+      },
+      {
         "id": "cef567e2-e85d-471a-a0a1-b69c69df30d3",
         "created_at": "2025-06-11 20:59:04.824836+00",
         "updated_at": "2025-06-11 20:59:04.824836+00",
@@ -1681,6 +1823,19 @@
         }
       },
       {
+        "id": "09d347a3-f289-420e-a85b-00bbe1ceaa63",
+        "created_at": "2025-09-19 00:04:17.162658+00",
+        "updated_at": "2025-09-19 00:04:17.162658+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-sonnet-4-20250514--long-context",
+        "input_price_per_million": 6.0,
+        "output_price_per_million": 22.5,
+        "input_cached_price_per_million": 0.6,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 7.5
+        }
+      },
+      {
         "id": "3dbeee1b-2236-497d-9838-e76756ccf2f4",
         "created_at": "2025-06-11 20:59:04.824836+00",
         "updated_at": "2025-06-11 20:59:04.824836+00",
@@ -1692,6 +1847,52 @@
         "additional_prices": {
           "input_cache_write_price_per_million": 3.75
         }
+      },
+      {
+        "id": "92b45f02-0125-4eb0-a620-bedaf405975e",
+        "created_at": "2025-09-19 00:04:22.649908+00",
+        "updated_at": "2025-09-19 00:04:22.649908+00",
+        "provider": "bedrock-anthropic",
+        "model": "claude-sonnet-4-20250514-v1:0--long-context",
+        "input_price_per_million": 6.0,
+        "output_price_per_million": 22.5,
+        "input_cached_price_per_million": 0.6,
+        "additional_prices": {
+          "input_cache_write_price_per_million": 7.5
+        }
+      },
+      {
+        "id": "15cb4573-65de-4bdb-a6ff-4464d0abe1da",
+        "created_at": "2025-09-19 00:41:41.741394+00",
+        "updated_at": "2025-09-19 00:41:41.741394+00",
+        "provider": "cohere",
+        "model": "command-a-03-2025",
+        "input_price_per_million": 2.5,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "178632de-901e-40de-b155-62a0782aaa29",
+        "created_at": "2025-09-19 00:42:28.418879+00",
+        "updated_at": "2025-09-19 00:42:28.418879+00",
+        "provider": "cohere",
+        "model": "command-r-08-2024",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.6,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "b639f308-85aa-4d73-8894-acbc4ef3fddc",
+        "created_at": "2025-09-19 00:43:11.476281+00",
+        "updated_at": "2025-09-19 00:43:11.476281+00",
+        "provider": "cohere",
+        "model": "command-r7b-12-2024",
+        "input_price_per_million": 0.0375,
+        "output_price_per_million": 0.15,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
       },
       {
         "id": "66d906bd-2ab1-4089-9c6a-45ce0b1929d6",
@@ -1891,6 +2092,17 @@
         "input_price_per_million": 0.3,
         "output_price_per_million": 2.5,
         "input_cached_price_per_million": 0.075,
+        "additional_prices": {}
+      },
+      {
+        "id": "bc8ed95e-58eb-40a1-91ec-021e91c6f350",
+        "created_at": "2025-08-12 20:41:05.311372+00",
+        "updated_at": "2025-08-12 20:41:05.311372+00",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash-lite",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.025,
         "additional_prices": {}
       },
       {
@@ -4074,6 +4286,28 @@
         "additional_prices": {}
       },
       {
+        "id": "a2041b32-badf-44b8-bb47-c7df165d22ff",
+        "created_at": "2025-09-19 00:26:52.909768+00",
+        "updated_at": "2025-09-19 00:26:52.909768+00",
+        "provider": "groq",
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "input_price_per_million": 0.11,
+        "output_price_per_million": 0.34,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "10e074d7-471d-465b-a7d5-187640b4cf62",
+        "created_at": "2025-09-19 00:24:06.481757+00",
+        "updated_at": "2025-09-19 00:24:06.481757+00",
+        "provider": "groq",
+        "model": "meta-llama/llama-guard-4-12b",
+        "input_price_per_million": 0.2,
+        "output_price_per_million": 0.2,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "e63b09dd-c19f-407e-be00-8fa9d67876ff",
         "created_at": "2025-04-21 13:59:49.171394+00",
         "updated_at": "2025-04-21 13:59:49.171394+00",
@@ -4098,11 +4332,33 @@
       {
         "id": "f45a2b51-f604-4b6a-a6b0-0737484f530a",
         "created_at": "2025-07-16 10:07:01.749616+00",
-        "updated_at": "2025-07-16 10:07:01.749616+00",
+        "updated_at": "2025-09-19 00:29:25+00",
         "provider": "groq",
         "model": "moonshotai/kimi-k2-instruct",
         "input_price_per_million": 1.0,
         "output_price_per_million": 3.0,
+        "input_cached_price_per_million": 0.5,
+        "additional_prices": {}
+      },
+      {
+        "id": "304c5213-43ae-4272-864a-dd595b7c2251",
+        "created_at": "2025-09-10 13:25:23.335147+00",
+        "updated_at": "2025-09-10 13:25:23.335147+00",
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.75,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d989842f-fde4-4c2e-9b2f-ff6e5d6741bd",
+        "created_at": "2025-09-19 00:28:57.447861+00",
+        "updated_at": "2025-09-19 00:28:57.447861+00",
+        "provider": "groq",
+        "model": "openai/gpt-oss-20b",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.5,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -4114,6 +4370,17 @@
         "model": "qwen-qwq-32b",
         "input_price_per_million": 0.29,
         "output_price_per_million": 0.39,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6fecc5a0-35b4-4cd0-9281-b374a8bcb36f",
+        "created_at": "2025-09-19 00:23:02.834887+00",
+        "updated_at": "2025-09-19 00:23:02.834887+00",
+        "provider": "groq",
+        "model": "qwen/qwen-3-32b",
+        "input_price_per_million": 0.29,
+        "output_price_per_million": 0.59,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -4136,6 +4403,94 @@
         "model": "codestral-latest",
         "input_price_per_million": 0.3,
         "output_price_per_million": 0.9,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "599f5d2a-5586-40e2-b9d8-cb49ea5105f8",
+        "created_at": "2025-09-19 00:33:13.639936+00",
+        "updated_at": "2025-09-19 00:33:13.639936+00",
+        "provider": "mistral",
+        "model": "devstral-medium",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "68225f9c-32a7-4758-91e5-d5a670a815bc",
+        "created_at": "2025-09-19 00:33:43.70766+00",
+        "updated_at": "2025-09-19 00:33:43.70766+00",
+        "provider": "mistral",
+        "model": "devstral-medium-2507",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "89555c19-4857-4e13-b40d-9acc46cb4db5",
+        "created_at": "2025-09-19 00:35:50.06569+00",
+        "updated_at": "2025-09-19 00:35:50.06569+00",
+        "provider": "mistral",
+        "model": "devstral-small",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "12f5b2e5-6c1c-4114-94ef-a34eea2554a3",
+        "created_at": "2025-09-19 00:36:05.621995+00",
+        "updated_at": "2025-09-19 00:36:05.621995+00",
+        "provider": "mistral",
+        "model": "devstral-small-25-07",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e6e9d492-ac84-4bca-af5a-9cb7d248fb46",
+        "created_at": "2025-09-19 00:32:24.198193+00",
+        "updated_at": "2025-09-19 00:32:24.198193+00",
+        "provider": "mistral",
+        "model": "magistral-medium",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "9b8adc8d-5a50-41a4-9f9b-3a84693f1f78",
+        "created_at": "2025-09-19 00:32:44.168208+00",
+        "updated_at": "2025-09-19 00:32:44.168208+00",
+        "provider": "mistral",
+        "model": "magistral-medium-latest",
+        "input_price_per_million": 2.0,
+        "output_price_per_million": 5.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "6706a83c-5fcb-40af-905f-c7028c54e847",
+        "created_at": "2025-09-19 00:35:04.297645+00",
+        "updated_at": "2025-09-19 00:35:04.297645+00",
+        "provider": "mistral",
+        "model": "magistral-small",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "4d733c62-ce89-46c2-985b-4bbb8e2dfb10",
+        "created_at": "2025-09-19 00:35:22.080939+00",
+        "updated_at": "2025-09-19 00:35:22.080939+00",
+        "provider": "mistral",
+        "model": "magistral-small-latest",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 1.5,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -4195,6 +4550,28 @@
         "additional_prices": {}
       },
       {
+        "id": "dce52df4-eb3e-49e4-8c4a-12d610d32492",
+        "created_at": "2025-09-19 00:31:15.305475+00",
+        "updated_at": "2025-09-19 00:31:15.305475+00",
+        "provider": "mistral",
+        "model": "mistral-medium",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "c15b7bb7-5bdd-4f5d-9eb3-f8a4d3352f53",
+        "created_at": "2025-09-19 00:31:28.797926+00",
+        "updated_at": "2025-09-19 00:31:28.797926+00",
+        "provider": "mistral",
+        "model": "mistral-medium-latest",
+        "input_price_per_million": 0.4,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "b8e1c733-daee-48ea-844e-e934e123bba0",
         "created_at": "2024-10-16 19:13:15.189109+00",
         "updated_at": "2024-10-16 19:13:15.189109+00",
@@ -4228,6 +4605,17 @@
         "additional_prices": {}
       },
       {
+        "id": "8d66cd1a-9fcb-4aba-b183-2dcc3f31cb61",
+        "created_at": "2025-09-19 00:34:38.017452+00",
+        "updated_at": "2025-09-19 00:34:38.017452+00",
+        "provider": "mistral",
+        "model": "mistral-small-latest",
+        "input_price_per_million": 0.1,
+        "output_price_per_million": 0.3,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
         "id": "2f6e53c1-bb33-4382-9810-91bc8ddad889",
         "created_at": "2024-10-16 19:13:45.163809+00",
         "updated_at": "2024-10-16 19:13:45.163809+00",
@@ -4235,6 +4623,17 @@
         "model": "open-mistral-7b",
         "input_price_per_million": 0.25,
         "output_price_per_million": 0.25,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "d460a763-338c-4aeb-9a45-e3121e4596f7",
+        "created_at": "2025-09-19 00:37:14.439506+00",
+        "updated_at": "2025-09-19 00:37:14.439506+00",
+        "provider": "mistral",
+        "model": "open-mistral-nemo",
+        "input_price_per_million": 0.15,
+        "output_price_per_million": 0.15,
         "input_cached_price_per_million": null,
         "additional_prices": {}
       },
@@ -4845,6 +5244,72 @@
         "additional_prices": {}
       },
       {
+        "id": "4db150b2-886f-406f-9f9d-3dd896b62f35",
+        "created_at": "2025-09-19 00:38:53.986568+00",
+        "updated_at": "2025-09-19 00:38:53.986568+00",
+        "provider": "openai",
+        "model": "gpt-5",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.125,
+        "additional_prices": {}
+      },
+      {
+        "id": "4ddceee8-a29a-4edf-8616-977158796c4a",
+        "created_at": "2025-08-14 14:36:16.050501+00",
+        "updated_at": "2025-08-14 14:36:16.050501+00",
+        "provider": "openai",
+        "model": "gpt-5-2025-08-07",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.125,
+        "additional_prices": {}
+      },
+      {
+        "id": "d25e4057-a7c1-43fb-a3c0-8c821d8f3f06",
+        "created_at": "2025-08-07 20:22:34.873438+00",
+        "updated_at": "2025-08-07 20:22:34.873438+00",
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {}
+      },
+      {
+        "id": "05d85fc9-ac85-49a2-bdfb-90abf34afe5a",
+        "created_at": "2025-08-07 20:29:10.376377+00",
+        "updated_at": "2025-08-07 20:29:10.376377+00",
+        "provider": "openai",
+        "model": "gpt-5-mini-2025-08-07",
+        "input_price_per_million": 0.25,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": 0.025,
+        "additional_prices": {}
+      },
+      {
+        "id": "d77f376e-3bbf-4bf7-a95e-e3b2000af62b",
+        "created_at": "2025-09-19 00:39:41.75182+00",
+        "updated_at": "2025-09-19 00:39:41.75182+00",
+        "provider": "openai",
+        "model": "gpt-5-nano",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.005,
+        "additional_prices": {}
+      },
+      {
+        "id": "5fe947ee-823b-4f43-8e8e-e2ecf5615c55",
+        "created_at": "2025-08-07 20:31:07.256094+00",
+        "updated_at": "2025-08-07 20:31:07.256094+00",
+        "provider": "openai",
+        "model": "gpt-5-nano-2025-08-07",
+        "input_price_per_million": 0.05,
+        "output_price_per_million": 0.4,
+        "input_cached_price_per_million": 0.005,
+        "additional_prices": {}
+      },
+      {
         "id": "586ad871-2c9f-4e09-bba0-4e6c3ec19688",
         "created_at": "2025-07-17 13:18:42.880869+00",
         "updated_at": "2025-07-17 13:18:42.880869+00",
@@ -5128,6 +5593,28 @@
         "input_price_per_million": 0.3,
         "output_price_per_million": 2.5,
         "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "e78c2ed5-a867-480c-8223-911808bd5d3b",
+        "created_at": "2025-07-28 22:08:58.641153+00",
+        "updated_at": "2025-07-28 22:08:58.641153+00",
+        "provider": "vertex_ai",
+        "model": "gemini-2.5-flash",
+        "input_price_per_million": 0.5,
+        "output_price_per_million": 2.0,
+        "input_cached_price_per_million": null,
+        "additional_prices": {}
+      },
+      {
+        "id": "74e80f76-7809-4e20-a63e-d5a79d0f0357",
+        "created_at": "2025-09-09 10:05:39.452275+00",
+        "updated_at": "2025-09-09 10:05:39.452275+00",
+        "provider": "vertex_ai",
+        "model": "gemini-2.5-pro",
+        "input_price_per_million": 1.25,
+        "output_price_per_million": 10.0,
+        "input_cached_price_per_million": 0.31,
         "additional_prices": {}
       }
     ]

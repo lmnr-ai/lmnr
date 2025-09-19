@@ -191,7 +191,7 @@ pub async fn update_evaluation_datapoint_and_get_trace_id(
     pool: &PgPool,
     evaluation_id: Uuid,
     datapoint_id: Uuid,
-    executor_output: Option<Value>,
+    executor_output: &Option<Value>,
     scores: HashMap<String, Option<f64>>,
 ) -> Result<Uuid> {
     // Update the executor output in the evaluation_results table
@@ -201,7 +201,7 @@ pub async fn update_evaluation_datapoint_and_get_trace_id(
         WHERE id = $2 AND evaluation_id = $3
         RETURNING trace_id",
     )
-    .bind(&executor_output)
+    .bind(executor_output)
     .bind(datapoint_id)
     .bind(evaluation_id)
     .fetch_one(pool)

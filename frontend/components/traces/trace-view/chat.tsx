@@ -6,9 +6,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useOptionalSearchContext } from "@/contexts/search-context.tsx";
 import { Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,10 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
   const [spanIdsMap, setSpanIdsMap] = useState<Record<string, string> | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [newChatLoading, setNewChatLoading] = useState(false);
-  const searchContext = useOptionalSearchContext();
+  const { setSearch } = useTraceViewStoreContext((state) => ({
+    setSearch: state.setSearch,
+  }));
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const components = useMemo(
@@ -32,21 +35,23 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         const text = String(children);
 
         const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s*\/>/);
-        console.log(text, xmlSpanMatch);
         if (xmlSpanMatch) {
           const [, spanId, spanName] = xmlSpanMatch;
           const spanUuid = spanIdsMap?.[spanId];
           return (
-            <button onClick={() => {
-              onSetSpanId(spanUuid || "");
-            }}>
+            <button
+              onClick={() => {
+                onSetSpanId(spanUuid || "");
+              }}
+            >
               <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs">{spanName}</span> span
             </button>
           );
         }
 
-        const xmlSpanWithReferenceTextMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/);
-
+        const xmlSpanWithReferenceTextMatch = text.match(
+          /<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/
+        );
 
         if (xmlSpanWithReferenceTextMatch) {
           const [, spanId, spanName, referenceText] = xmlSpanWithReferenceTextMatch;
@@ -55,25 +60,29 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           const spanUuid = spanIdsMap?.[spanId];
 
           const previewLength = 24;
-          const textPreview = unescapedReferenceText.length > previewLength ? unescapedReferenceText.slice(0, previewLength) + "..." : unescapedReferenceText;
+          const textPreview =
+            unescapedReferenceText.length > previewLength
+              ? unescapedReferenceText.slice(0, previewLength) + "..."
+              : unescapedReferenceText;
 
           return (
-            <button onClick={() => {
-              searchContext?.setSearchTerm(unescapedReferenceText);
-              onSetSpanId(spanUuid || "");
-
-            }}>
+            <button
+              onClick={() => {
+                setSearch(unescapedReferenceText);
+                onSetSpanId(spanUuid || "");
+              }}
+            >
               <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs mr-1">{spanName}</span>
               span
               <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-            </button >
+            </button>
           );
         }
 
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [spanIdsMap, searchContext]
+    [spanIdsMap, onSetSpanId, setSearch]
   );
   const projectId = useParams().projectId;
 
@@ -172,7 +181,6 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Summary", data);
           setSummary(data.summary);
           setSpanIdsMap(data.spanIdsMap);
         } else {
@@ -240,11 +248,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                       case "text":
                         return (
                           <div key={`${message.id}-${i}`}>
-                            <Response
-                              components={components}
-                            >
-                              {part.text}
-                            </Response>
+                            <Response components={components}>{part.text}</Response>
                           </div>
                         );
                       case "tool-getSpansData":
@@ -261,14 +265,12 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
               </div>
             </div>
           ))}
-          {
-            status === "submitted" && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Thinking...</span>
-              </div>
-            )
-          }
+          {status === "submitted" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Thinking...</span>
+            </div>
+          )}
         </ConversationContent>
       </Conversation>
 

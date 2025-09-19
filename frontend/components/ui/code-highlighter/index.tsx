@@ -162,7 +162,6 @@ const PureCodeHighlighter = ({
         const hasMatch = docText.toLowerCase().includes(processedSearchTerm.toLowerCase());
 
         if (hasMatch) {
-          console.log("hasMatch");
           openSearchPanel(view);
 
           const searchQuery = new SearchQuery({
@@ -185,7 +184,6 @@ const PureCodeHighlighter = ({
             });
             findNext(view);
           }, 100);
-
         } else {
           clearSearch(view);
         }

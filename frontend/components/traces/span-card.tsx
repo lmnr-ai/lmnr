@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { Span } from "@/lib/traces/types";
+import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -14,36 +14,28 @@ const SQUARE_SIZE = 22;
 const SQUARE_ICON_SIZE = 16;
 
 interface SpanCardProps {
-  span: Span;
+  span: TraceViewSpan;
   parentY: number;
-  childSpans: { [key: string]: Span[] };
   containerWidth: number;
   depth: number;
   yOffset: number;
-  selectedSpan?: Span | null;
-  collapsedSpans: Set<string>;
-  onSpanSelect?: (span: Span) => void;
-  onToggleCollapse?: (spanId: string) => void;
+  onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({
-  span,
-  childSpans,
-  yOffset,
-  parentY,
-  onSpanSelect,
-  containerWidth,
-  depth,
-  selectedSpan,
-  collapsedSpans,
-  onToggleCollapse,
-}: SpanCardProps) {
+export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const childrenSpans = childSpans[span.spanId];
+  const { selectedSpan, spans, toggleCollapse } = useTraceViewStoreContext((state) => ({
+    selectedSpan: state.selectedSpan,
+    spans: state.spans,
+    toggleCollapse: state.toggleCollapse,
+  }));
 
-  const hasChildren = childrenSpans && childrenSpans.length > 0;
+  // Get child spans from the store
+  const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
+
+  const hasChildren = childSpans && childSpans.length > 0;
 
   useEffect(() => {
     if (ref.current) {
@@ -96,7 +88,6 @@ export function SpanCard({
           </div>
           {span.pending ? (
             isStringDateOld(span.startTime) ? (
-              // TODO: Fix this tooltip.
               <NoSpanTooltip>
                 <div className="flex rounded bg-secondary p-1">
                   <X className="w-4 h-4 text-secondary-foreground" />
@@ -138,14 +129,10 @@ export function SpanCard({
               className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleCollapse?.(span.spanId);
+                toggleCollapse(span.spanId);
               }}
             >
-              {collapsedSpans.has(span.spanId) ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
+              {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
           <div className="flex-grow" />

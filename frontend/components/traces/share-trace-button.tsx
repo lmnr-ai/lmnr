@@ -1,38 +1,30 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Trace } from "@/lib/traces/types";
 
-const ShareTraceButton = ({
-  trace,
-  projectId,
-  refetch,
-}: {
-  trace: Pick<Trace, "id" | "visibility">;
-  projectId: string;
-  refetch?: () => void;
-}) => {
-  const traceId = trace.id;
-  const router = useRouter();
+const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
+  const { trace, updateTraceVisibility } = useTraceViewStoreContext((state) => ({
+    trace: state.trace,
+    updateTraceVisibility: state.updateTraceVisibility,
+  }));
 
-  const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${traceId}` : "";
-
+  const url = typeof window !== "undefined" ? `${window.location.origin}/shared/traces/${trace?.id}` : "";
   const [isLoading, setIsLoading] = useState(false);
 
   const { toast } = useToast();
   const handleChangeVisibility = async (value: "private" | "public") => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${projectId}/traces/${traceId}`, {
+      const res = await fetch(`/api/projects/${projectId}/traces/${trace?.id}`, {
         method: "PUT",
         body: JSON.stringify({
           visibility: value,
@@ -43,11 +35,7 @@ const ShareTraceButton = ({
         toast({
           title: "Trace privacy updated.",
         });
-        if (refetch) {
-          refetch();
-        } else {
-          router.refresh();
-        }
+        updateTraceVisibility(value);
       } else {
         const text = await res.json();
         if ("error" in text) {
@@ -64,6 +52,10 @@ const ShareTraceButton = ({
       setIsLoading(false);
     }
   };
+
+  if (!trace) {
+    return null;
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -82,7 +74,7 @@ const ShareTraceButton = ({
         </Tooltip>
         <PopoverContent className="flex flex-col gap-4 w-96" align="end">
           <div>
-            <h2 className="text-lg">Share Trace</h2>
+            <h2 className="text-md font-medium">Share trace</h2>
             <span className="text-sm text-secondary-foreground mt-2">Configure who has access to this trace.</span>
           </div>
           <div className="flex items-center space-x-2">

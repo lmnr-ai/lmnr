@@ -1,23 +1,37 @@
 "use client";
 
-import { isEmpty } from "lodash";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
+import {
+  TraceViewSpan,
+  useTraceViewStore,
+  useTraceViewStoreContext,
+} from "@/components/traces/trace-view/trace-view-store.tsx";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
 import { useScrollContext } from "./scroll-context";
 
 interface Props {
-  traceDuration: number;
-  browserSessionTime: number | null;
-  setSelectedSpanId: (spanId: string) => void;
+  onSpanSelect: (span?: TraceViewSpan) => void;
 }
+function Minimap({ onSpanSelect }: Props) {
+  const { state, scrollTo, createScrollHandler } = useScrollContext();
+  const { getMinimapSpans, trace, spans } = useTraceViewStoreContext((state) => ({
+    getMinimapSpans: state.getMinimapSpans,
+    trace: state.trace,
+    spans: state.spans,
+  }));
 
-const MIN_H = 1;
+  const store = useTraceViewStore();
+  const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
 
-export default function Minimap({ traceDuration, setSelectedSpanId, browserSessionTime }: Props) {
-  const { state, scrollTo, spanItems, createScrollHandler } = useScrollContext();
+  const traceDuration = useMemo(
+    () => new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime(),
+    [trace?.endTime, trace?.startTime]
+  );
+
+  const minimapSpans = useMemo(() => getMinimapSpans(), [getMinimapSpans, spans]);
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
@@ -48,33 +62,11 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
     }
   }, [pixelsPerSecond]);
 
-  const minTime = useMemo(() => Math.min(...spanItems.map((s) => new Date(s.span.startTime).getTime())), [spanItems]);
-
-  const minimapRef = useRef<HTMLDivElement>(null);
-
-  const spansWithPosition = useMemo(() => {
-    if (isEmpty(spanItems)) return [];
-
-    return spanItems.map((s) => {
-      const startTime = new Date(s.span.startTime).getTime();
-      const endTime = new Date(s.span.endTime).getTime();
-      const spanDuration = (endTime - startTime) / 1000; // Convert to seconds
-      const relativeStart = (startTime - minTime) / 1000; // Convert to seconds
-
-      return {
-        ...s,
-        ...s.span,
-        y: relativeStart * pixelsPerSecond,
-        height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
-      };
-    });
-  }, [spanItems, traceDuration, minTime, pixelsPerSecond]);
-
   const timeMarkers = useMemo(() => {
     if (!traceDuration || traceDuration <= 0) return [];
 
     const markers = [];
-    const totalSeconds = Math.ceil(traceDuration / 1000); // Convert ms to seconds
+    const totalSeconds = Math.ceil(traceDuration / 1000);
 
     for (let seconds = 0; seconds <= totalSeconds; seconds += timeMarkerInterval) {
       markers.push({
@@ -85,6 +77,23 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
 
     return markers;
   }, [traceDuration, timeMarkerInterval]);
+
+  useEffect(() => {
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.sessionTime !== prevState.sessionTime) {
+        const sessionTime = state.sessionTime || 0;
+        if (sessionTimeNeedleRef.current) {
+          const topPosition = Math.max(0, (sessionTime * 1000 * pixelsPerSecond) / 1000);
+          sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
+          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [store, pixelsPerSecond, trace?.startTime]);
+
+  const minimapRef = useRef<HTMLDivElement>(null);
 
   const syncTreeToMinimap = useCallback(
     ({
@@ -134,7 +143,6 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
         scrollTo(targetTreeScroll);
       }
     },
-
     [state, scrollTo]
   );
 
@@ -157,39 +165,34 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
   const handleSpanClick = useCallback(
     (spanIndex: number, e: React.MouseEvent) => {
       e.stopPropagation();
-      const span = spansWithPosition[spanIndex];
+      const span = minimapSpans[spanIndex];
 
       if (span) {
         scrollTo(span.yOffset - 48);
-        setSelectedSpanId(span.span.spanId);
+        onSpanSelect(span.span);
       }
     },
-    [scrollTo, spansWithPosition]
+    [minimapSpans, scrollTo, onSpanSelect]
   );
 
-  if (!spanItems.length) {
-    return <div className="h-full w-full p-2 relative" />;
+  if (!minimapSpans.length) {
+    return null;
   }
 
   return (
-    <div className="h-full flex-none max-w-16 w-fit z-50 border-l">
+    <div className="h-full flex-none max-w-16 w-fit z-30 border-l">
       <div
         ref={minimapRef}
         className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
       >
-        <div>
-          {browserSessionTime && (
-            <div
-              className="bg-primary absolute top-0 left-0 w-full h-[1px] z-50"
-              style={{
-                top: Math.max(0, ((browserSessionTime - minTime) / 1000) * pixelsPerSecond),
-              }}
-            />
-          )}
-        </div>
+        <div
+          ref={sessionTimeNeedleRef}
+          className="bg-primary absolute left-0 w-full h-[1px] z-30"
+          style={{ display: "none" }}
+        />
         <div className="relative w-2 flex-none">
-          {spansWithPosition.map((span, index) => (
+          {minimapSpans.map((span, index) => (
             <div
               style={{
                 top: span.y,
@@ -230,3 +233,5 @@ export default function Minimap({ traceDuration, setSelectedSpanId, browserSessi
     </div>
   );
 }
+
+export default memo(Minimap);

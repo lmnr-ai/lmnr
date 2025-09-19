@@ -6,6 +6,7 @@ name: lmnr
 services:
   rabbitmq:
     image: rabbitmq
+    pull_policy: always
     ports:
       - "5672:5672"
     environment:
@@ -19,6 +20,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    pull_policy: always
     container_name: clickhouse
     ports:
       - "8123:8123"
@@ -46,6 +48,7 @@ services:
 
   postgres:
     image: postgres:16
+    pull_policy: always
     ports:
       - "5433:5432"
     volumes:
