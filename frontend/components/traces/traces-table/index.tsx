@@ -93,7 +93,8 @@ export default function TracesTable() {
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        const text = (await res.json()) as { error: string };
+        throw new Error(text.error);
       }
 
       const data = (await res.json()) as { items: TraceRow[]; count: number };
@@ -101,10 +102,9 @@ export default function TracesTable() {
       setTotalCount(data.count);
     } catch (error) {
       toast({
-        title: "Failed to load traces. Please try again.",
+        title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
         variant: "destructive",
       });
-      // Set empty traces to show error state
       setTraces([]);
       setTotalCount(0);
     }

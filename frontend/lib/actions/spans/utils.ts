@@ -45,15 +45,13 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
       "tags",
       createCustomFilter(
         (filter, paramKey) => {
-          const { operator } = filter;
-
-          if (operator === Operator.Eq) {
-            return `tags LIKE ({${paramKey}:String})`;
+          if (filter.operator === Operator.Eq) {
+            return `has(tags, {${paramKey}:String})`;
           } else {
-            return `tags NOT LIKE ({${paramKey}:String})`;
+            return `NOT has(tags, {${paramKey}:String})`;
           }
         },
-        (filter, paramKey) => ({ [paramKey]: `%${filter.value}%` })
+        (filter, paramKey) => ({ [paramKey]: filter.value })
       ),
     ],
     ["path", createStringFilter],
@@ -111,11 +109,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
   }> =
     spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : [];
 
   const queryOptions: SelectQueryOptions = {
@@ -156,11 +154,11 @@ export const buildSpansCountQueryWithParams = (
   }> =
     spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : [];
 
   const queryOptions: SelectQueryOptions = {

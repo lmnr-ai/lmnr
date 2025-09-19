@@ -15,11 +15,8 @@ const AddSpanTagSchema = z.object({
 });
 
 export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promise<typeof tags.$inferSelect> => {
-  const parseResult = AddSpanTagSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId, name, classId, userId } = parseResult.data;
+  const parseResult = AddSpanTagSchema.parse(input);
+  const { spanId, projectId, name, classId, userId } = parseResult;
 
   const [res] = await db
     .insert(tags)
@@ -48,79 +45,70 @@ export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promi
       ],
     });
 
-    const tags = await getSpanTagNames({ spanId, projectId });
-
-    if (!tags.includes(name)) {
-      tags.push(name);
-      await setSpanTagNames({ spanId, projectId, tags });
-    }
+    await addTagToCHSpan({ spanId, projectId, tag: name });
   }
 
   return res;
 };
 
-const GetSpanTagNamesSchema = z.object({
+const AddTagToSpanSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
+  tag: z.string(),
 });
 
-export type GetSpanTagNamesSchema = z.infer<typeof GetSpanTagNamesSchema>;
+export type AddTagToSpanSchema = z.infer<typeof AddTagToSpanSchema>;
 
-export const getSpanTagNames = async (input: z.infer<typeof GetSpanTagNamesSchema>): Promise<string[]> => {
-  const parseResult = GetSpanTagNamesSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId } = parseResult.data;
-
-  const chRes = await clickhouseClient.query({
-    query: `
-      SELECT tags FROM spans WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
-      LIMIT 1
-    `,
-    format: "JSONEachRow",
-    query_params: {
-      spanId,
-      projectId,
-    },
-  });
-  const chTags = await chRes.json() as { tags: string }[];
-  if (chTags.length === 0) {
-    throw new Error("Span not found");
-  }
-  return JSON.parse(chTags[0].tags) as string[];
-};
-
-const SetSpanTagNamesSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
-  tags: z.array(z.string()),
-});
-
-export type SetSpanTagNamesSchema = z.infer<typeof SetSpanTagNamesSchema>;
-
-export const setSpanTagNames = async (input: z.infer<typeof SetSpanTagNamesSchema>): Promise<void> => {
-  const parseResult = SetSpanTagNamesSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId, tags } = parseResult.data;
+export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>): Promise<void> => {
+  const parseResult = AddTagToSpanSchema.parse(input);
+  const { spanId, projectId, tag } = parseResult;
 
   // No await here because we don't want to block the request,
   // ALTER TABLE may be slow.
   clickhouseClient.command({
     query: `
       ALTER TABLE spans
-      UPDATE tags = {tags: String}
+      UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, [{tag: String}]))
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
     `,
     query_params: {
-      tags: JSON.stringify(tags),
+      tag,
       spanId,
       projectId,
     },
   })
     .catch((error) => {
       console.error("Error updating tags in ClickHouse", error);
+    });
+};
+
+const RemoveTagFromSpanSchema = z.object({
+  spanId: z.string(),
+  projectId: z.string(),
+  tag: z.string(),
+});
+
+export type RemoveTagFromSpanSchema = z.infer<typeof RemoveTagFromSpanSchema>;
+
+export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpanSchema>): Promise<void> => {
+  const parseResult = RemoveTagFromSpanSchema.parse(input);
+  const { spanId, projectId, tag } = parseResult;
+
+  // No await here because we don't want to block the request,
+  // ALTER TABLE may be slow.
+  clickhouseClient.command({
+    query: `
+      ALTER TABLE spans
+      UPDATE tags_array = arrayFilter(x -> x != {tag: String}, tags_array)
+      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
+    `,
+    query_params: {
+      tag,
+      spanId,
+      projectId,
+    },
+  })
+    .catch((error) => {
+      console.error("Error removing tag from ClickHouse", error);
     });
 };

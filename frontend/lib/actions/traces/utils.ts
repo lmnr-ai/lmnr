@@ -1,4 +1,4 @@
-import { OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -35,6 +35,19 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
       ),
     ],
     ["trace_type", createStringFilter],
+    [
+      "tags",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(tags, {${paramKey}:String})`;
+          } else {
+            return `NOT has(tags, {${paramKey}:String})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
     ["total_cost", createNumberFilter("Float64")],
     ["input_cost", createNumberFilter("Float64")],
     ["output_cost", createNumberFilter("Float64")],
@@ -76,6 +89,7 @@ const tracesSelectColumns = [
   "end_time as endTime",
   "session_id as sessionId",
   "metadata",
+  "tags",
   "input_tokens as inputTokens",
   "output_tokens as outputTokens",
   "top_span_id as topSpanId",

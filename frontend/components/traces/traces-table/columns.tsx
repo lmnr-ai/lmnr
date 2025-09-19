@@ -5,6 +5,7 @@ import { Check, X } from "lucide-react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -165,6 +166,28 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
+    accessorFn: (row) => row.tags,
+    cell: (row) => {
+      const tags = row.getValue() as string[];
+
+      if (tags?.length > 0) {
+        return (
+          <>
+            {(row.getValue() as string[]).map((tag) => (
+              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                <span>{tag}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
+    header: "Tags",
+    accessorKey: "tags",
+    id: "tags",
+  },
+  {
     accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
     header: "Metadata",
     id: "metadata",
@@ -282,6 +305,11 @@ export const filters: ColumnFilter[] = [
       label: capitalize(v),
       value: v,
     })),
+  },
+  {
+    name: "Tags",
+    dataType: "string",
+    key: "tags",
   },
   {
     name: "Metadata",

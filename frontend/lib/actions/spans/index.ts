@@ -10,9 +10,9 @@ import {
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchSpans } from "@/lib/clickhouse/spans";
+import { searchSpans, searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
+import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { spans } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
@@ -56,12 +56,12 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const offset = Math.max(0, pageNumber * pageSize);
 
   const spanIds = search
-    ? await searchSpansForIds({
-      projectId,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+    ? await searchSpanIds({
+        projectId,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
@@ -95,7 +95,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   };
 }
 
-const searchSpansForIds = async ({
+const searchSpanIds = async ({
   projectId,
   searchQuery,
   timeRange,
@@ -106,13 +106,29 @@ const searchSpansForIds = async ({
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
 }): Promise<string[]> => {
-  const searchResult = await searchSpans({
-    projectId,
-    searchQuery,
-    timeRange,
-    searchType,
+  const baseQuery = `
+      SELECT DISTINCT(span_id) spanId FROM spans
+      WHERE project_id = {projectId: UUID}
+  `;
+
+  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+
+  const response = await clickhouseClient.query({
+    query: `${finalQuery}
+     ORDER BY start_time DESC
+     LIMIT 1000`,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      query: `%${searchQuery.toLowerCase()}%`,
+    },
   });
-  return Array.from(searchResult.spanIds);
+
+  const result = (await response.json()) as { spanId: string }[];
+
+  return result.map((i) => i.spanId);
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) {

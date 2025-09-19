@@ -4,6 +4,7 @@ import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -243,21 +244,25 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     id: "model",
   },
   {
+    accessorFn: (row) => row.tags,
+    cell: (row) => {
+      const tags = row.getValue() as string[];
+
+      if (tags?.length > 0) {
+        return (
+          <>
+            {(row.getValue() as string[]).map((tag) => (
+              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                <span>{tag}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
     header: "Tags",
     accessorKey: "tags",
     id: "tags",
-    cell: (row) => {
-      try {
-        const value = JSON.parse(row.getValue()) as string[];
-
-        if (value?.length > 0) {
-          return value.join(", ");
-        }
-
-        return "-";
-      } catch (_) {
-        return "-";
-      }
-    },
   },
 ];
