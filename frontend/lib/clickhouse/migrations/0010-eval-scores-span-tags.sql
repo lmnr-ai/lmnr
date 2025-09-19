@@ -1,4 +1,4 @@
-ALTER TABLE default.spans ADD COLUMN IF NOT EXISTS "tags" String;
+ALTER TABLE spans ADD COLUMN tags_array Array(String) DEFAULT [];
 
 CREATE TABLE IF NOT EXISTS default.evaluation_datapoint_executor_outputs
 (

@@ -40,9 +40,9 @@ export async function GET(
     {
       projectId,
       query: `
-        SELECT id, index, executor_output executorOutput, data, target metadata, scores, timestamp createdAt
+        SELECT id, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
         FROM evaluation_datapoints
-        WHERE project_id = {projectId: UUID} AND evaluation_id = {evaluationId: UUID}
+        WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
       parameters: {

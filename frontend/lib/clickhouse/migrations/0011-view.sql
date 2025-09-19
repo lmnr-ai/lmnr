@@ -27,6 +27,7 @@ CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
             ELSE 'UNKNOWN'
          END, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_type,
         CASE WHEN countIf(span_type IN (3, 4, 5)) > 0 THEN 'EVALUATION' ELSE 'DEFAULT' END AS trace_type,
+        arrayDistinct(arrayFlatten(arrayConcat(groupArray(tags_array)))) AS tags,
         trace_id id
     FROM spans
     WHERE project_id={project_id:UUID} AND spans.start_time>={start_time:DateTime64} AND spans.start_time<={end_time:DateTime64}
@@ -67,7 +68,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
          status,
          parent_span_id,
          attributes,
-         tags
+         tags_array as tags
     FROM spans
     WHERE project_id={project_id:UUID};
 
@@ -104,8 +105,7 @@ CREATE VIEW IF NOT EXISTS evaluation_datapoints_v0 SQL SECURITY INVOKER AS
         ed.index index,
         ed.trace_id trace_id,
         es.group_id group_id,
-        toJSONString(es.scores) scores,
-        es.scores scores_map,
+        es.scores scores,
         ed.created_at created_at
     FROM evaluation_datapoints ed
     LEFT JOIN map_aggregate_evaluation_scores_v0(project_id={project_id:UUID}) es

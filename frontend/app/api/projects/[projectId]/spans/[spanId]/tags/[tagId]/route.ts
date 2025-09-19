@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
-import { getSpanTagNames, setSpanTagNames } from "@/lib/actions/tags";
+import { removeTagFromCHSpan } from "@/lib/actions/tags";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses, tags } from "@/lib/db/migrations/schema";
@@ -40,9 +40,15 @@ export async function DELETE(
     },
   });
 
-  const tagNames = await getSpanTagNames({ spanId, projectId });
-  if (tagNames.length > 0 && deletedTagName && tagNames.includes(deletedTagName)) {
-    await setSpanTagNames({ spanId, projectId, tags: tagNames.filter((name) => name !== deletedTagName) });
+
+
+  // Remove the tag from the span's tags_array in ClickHouse
+  if (deletedTagName) {
+    await removeTagFromCHSpan({
+      spanId,
+      projectId,
+      tag: deletedTagName
+    });
   }
 
   return new Response("Span label deleted successfully", { status: 200 });
