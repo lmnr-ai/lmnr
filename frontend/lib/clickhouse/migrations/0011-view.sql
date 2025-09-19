@@ -1,6 +1,3 @@
-ALTER TABLE spans ADD COLUMN tags_array Array(String) DEFAULT [];
-ALTER TABLE spans DROP COLUMN tags;
-
 CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
     SELECT
         MIN(spans.start_time) AS start_time,
