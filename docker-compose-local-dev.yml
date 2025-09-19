@@ -8,6 +8,7 @@ name: lmnr
 services:
   postgres:
     image: postgres:16
+    pull_policy: always
     ports:
       - "5433:5432"
     volumes:
@@ -25,6 +26,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    pull_policy: always
     container_name: clickhouse
     ports:
       - "8123:8123"

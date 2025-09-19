@@ -8,6 +8,7 @@ name: lmnr
 services:
   postgres:
     image: postgres:16
+    pull_policy: always
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -24,6 +25,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: clickhouse
+    pull_policy: always
     volumes:
       - type: volume
         source: clickhouse-data
