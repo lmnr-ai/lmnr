@@ -4686,7 +4686,7 @@
         "created_at": "2025-08-07 20:21:28.755002+00",
         "updated_at": "2025-08-07 20:21:28.755002+00",
         "provider": "openai",
-        "model": " gpt-5-2025-08-07",
+        "model": "gpt-5-2025-08-07",
         "input_price_per_million": 1.25,
         "output_price_per_million": 10.0,
         "input_cached_price_per_million": 0.125,
