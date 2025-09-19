@@ -58,8 +58,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
-        pageNumber,
-        pageSize,
       })
     : [];
 
@@ -101,15 +99,11 @@ const searchSpans = async ({
   searchQuery,
   timeRange,
   searchType,
-  pageNumber,
-  pageSize,
 }: {
   projectId: string;
   searchQuery: string;
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
-  pageNumber: number;
-  pageSize: number;
 }): Promise<string[]> => {
   const baseQuery = `
       SELECT DISTINCT(trace_id) traceId FROM spans
@@ -128,8 +122,6 @@ const searchSpans = async ({
     query_params: {
       projectId,
       query: `%${searchQuery.toLowerCase()}%`,
-      limit: pageSize,
-      offset: pageNumber * pageSize,
     },
   });
 
