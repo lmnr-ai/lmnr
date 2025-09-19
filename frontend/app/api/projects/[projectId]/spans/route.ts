@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { deleteSpans, DeleteSpansSchema, getSpans, GetSpansSchema } from "@/lib/actions/spans";
+import { deleteSpans, getSpans, GetSpansSchema } from "@/lib/actions/spans";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -28,20 +28,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const spanIds = req.nextUrl.searchParams.get("spanId")?.split(",");
-
-  if (!spanIds) {
-    return Response.json({ error: "At least one Span ID is required" }, { status: 400 });
-  }
-
-  const parseResult = DeleteSpansSchema.safeParse({ projectId, spanIds });
-
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
+  const spanIds = req.nextUrl.searchParams.getAll("id");
 
   try {
-    await deleteSpans(parseResult.data);
+    await deleteSpans({ spanIds, projectId });
     return new Response("Spans deleted successfully", { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {

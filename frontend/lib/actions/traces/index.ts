@@ -30,7 +30,7 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
 
 export const DeleteTracesSchema = z.object({
   projectId: z.string(),
-  traceIds: z.array(z.string()),
+  traceIds: z.array(z.string()).min(1),
 });
 
 export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[]; count: number }> {
@@ -56,13 +56,13 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const traceIds = search
     ? await searchSpans({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-        pageNumber,
-        pageSize,
-      })
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+      pageNumber,
+      pageSize,
+    })
     : [];
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({

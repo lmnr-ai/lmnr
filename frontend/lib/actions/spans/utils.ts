@@ -111,11 +111,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
   }> =
     spanIds?.length > 0
       ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
+        {
+          condition: `span_id IN ({spanIds:Array(UUID)})`,
+          params: { spanIds },
+        },
+      ]
       : [];
 
   const queryOptions: SelectQueryOptions = {
@@ -156,11 +156,11 @@ export const buildSpansCountQueryWithParams = (
   }> =
     spanIds?.length > 0
       ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
+        {
+          condition: `span_id IN ({spanIds:Array(UUID)})`,
+          params: { spanIds },
+        },
+      ]
       : [];
 
   const queryOptions: SelectQueryOptions = {

@@ -34,7 +34,7 @@ export const GetTraceSpansSchema = FiltersSchema.extend({
 
 export const DeleteSpansSchema = z.object({
   projectId: z.string(),
-  spanIds: z.array(z.string()),
+  spanIds: z.array(z.string()).min(1),
 });
 
 export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[]; count: number }> {
@@ -57,11 +57,11 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanIds = search
     ? await searchSpansForIds({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
@@ -193,6 +193,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
   const { projectId, spanIds } = input;
 
+  await db.delete(spans).where(and(inArray(spans.spanId, spanIds), eq(spans.projectId, projectId)));
   await clickhouseClient.command({
     query: `
         DELETE FROM spans
