@@ -15,11 +15,8 @@ const AddSpanTagSchema = z.object({
 });
 
 export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promise<typeof tags.$inferSelect> => {
-  const parseResult = AddSpanTagSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId, name, classId, userId } = parseResult.data;
+  const parseResult = AddSpanTagSchema.parse(input);
+  const { spanId, projectId, name, classId, userId } = parseResult;
 
   const [res] = await db
     .insert(tags)
@@ -54,38 +51,6 @@ export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promi
   return res;
 };
 
-const GetSpanTagNamesSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
-});
-
-export type GetSpanTagNamesSchema = z.infer<typeof GetSpanTagNamesSchema>;
-
-export const getSpanTagNames = async (input: z.infer<typeof GetSpanTagNamesSchema>): Promise<string[]> => {
-  const parseResult = GetSpanTagNamesSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId } = parseResult.data;
-
-  const chRes = await clickhouseClient.query({
-    query: `
-      SELECT tags_array FROM spans WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
-      LIMIT 1
-    `,
-    format: "JSONEachRow",
-    query_params: {
-      spanId,
-      projectId,
-    },
-  });
-  const chTags = await chRes.json() as { tags_array: string[] }[];
-  if (chTags.length === 0) {
-    throw new Error("Span not found");
-  }
-  return chTags[0].tags_array;
-};
-
 const AddTagToSpanSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
@@ -95,11 +60,8 @@ const AddTagToSpanSchema = z.object({
 export type AddTagToSpanSchema = z.infer<typeof AddTagToSpanSchema>;
 
 export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>): Promise<void> => {
-  const parseResult = AddTagToSpanSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId, tag } = parseResult.data;
+  const parseResult = AddTagToSpanSchema.parse(input);
+  const { spanId, projectId, tag } = parseResult;
 
   // No await here because we don't want to block the request,
   // ALTER TABLE may be slow.
@@ -129,11 +91,8 @@ const RemoveTagFromSpanSchema = z.object({
 export type RemoveTagFromSpanSchema = z.infer<typeof RemoveTagFromSpanSchema>;
 
 export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpanSchema>): Promise<void> => {
-  const parseResult = RemoveTagFromSpanSchema.safeParse(input);
-  if (!parseResult.success) {
-    throw new Error(parseResult.error.message);
-  }
-  const { spanId, projectId, tag } = parseResult.data;
+  const parseResult = RemoveTagFromSpanSchema.parse(input);
+  const { spanId, projectId, tag } = parseResult;
 
   // No await here because we don't want to block the request,
   // ALTER TABLE may be slow.
