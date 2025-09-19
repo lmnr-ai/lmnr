@@ -61,6 +61,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       })
     : [];
 
+  if (search && traceIds?.length === 0) {
+    return { items: [], count: 0 };
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
