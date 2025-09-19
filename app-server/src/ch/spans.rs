@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
@@ -202,26 +200,10 @@ pub async fn append_tags_to_span(
         return Ok(());
     }
 
-    let query_result = clickhouse
-        .query("SELECT tags FROM spans WHERE span_id = ? AND project_id = ?")
-        .bind(span_id)
-        .bind(project_id)
-        .fetch_one::<String>()
-        .await?;
-
-    let existing_tags = serde_json::from_str::<HashSet<String>>(&query_result)?;
-
-    let all_tags = existing_tags
-        .union(&HashSet::from_iter(tags))
-        .cloned()
-        .collect::<Vec<String>>();
-
-    let stringified_tags = serde_json::to_string(&all_tags)?;
-
     tokio::spawn(async move {
         let _ = clickhouse
-            .query("ALTER TABLE spans UPDATE tags = ? WHERE span_id = ? AND project_id = ?")
-            .bind(stringified_tags)
+            .query("ALTER TABLE spans UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, ?)) WHERE span_id = ? AND project_id = ?")
+            .bind(tags)
             .bind(span_id)
             .bind(project_id)
             .execute()
