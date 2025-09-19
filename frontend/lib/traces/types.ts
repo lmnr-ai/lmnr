@@ -95,6 +95,7 @@ export type TraceRow = {
   metadata: Record<string, string>;
   userId?: string;
   status: string;
+  tags: string[];
 };
 
 export type RealtimeTracePayload = {
@@ -133,11 +134,6 @@ export type TracePreview = {
   approximateCost: number | null;
   metadata: Record<string, string> | null;
   outputMessageIds: string[];
-};
-
-export type TraceMetricDatapoint = {
-  time: string;
-  value: number | string;
 };
 
 export type SessionPreview = {

@@ -47,9 +47,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     filter: inputFilters,
   } = input;
 
-  const urlParamFilters: FilterDef[] = compact(inputFilters);
-
-  const filters = urlParamFilters.filter((filter) => filter.column !== "tags");
+  const filters: FilterDef[] = compact(inputFilters);
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
@@ -125,8 +123,7 @@ const searchSpans = async ({
   const response = await clickhouseClient.query({
     query: `${finalQuery}
      ORDER BY start_time DESC
-     LIMIT {limit:UInt32}
-     OFFSET {offset:UInt32}`,
+     LIMIT 1000`,
     format: "JSONEachRow",
     query_params: {
       projectId,

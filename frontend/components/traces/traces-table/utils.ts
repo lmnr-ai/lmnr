@@ -13,6 +13,7 @@ export const mapPendingTraceFromRealTime = (row: RealtimeTracePayload): TraceRow
   status: row.status || "",
   startTime: row.start_time || "",
   endTime: row.end_time || "",
+  tags: [],
   ...(row.session_id && { sessionId: row.session_id }),
   ...(row.top_span_id && { topSpanId: row.top_span_id }),
   ...(row.user_id && { userId: row.user_id }),
