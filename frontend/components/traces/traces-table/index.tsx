@@ -201,9 +201,7 @@ export default function TracesTable() {
           return;
         }
 
-        const updateIndex = currentTraces.findIndex(
-          (trace) => trace.id === newObj.id || trace.id === newObj.id || trace.id === old?.id || trace.id === old?.id
-        );
+        const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old?.id);
 
         if (updateIndex === -1) return;
 
