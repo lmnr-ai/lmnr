@@ -6,6 +6,7 @@ services:
 
   rabbitmq:
     image: rabbitmq
+    pull_policy: always
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -17,6 +18,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    pull_policy: always
     container_name: clickhouse
     volumes:
       - type: volume
@@ -38,6 +40,7 @@ services:
 
   postgres:
     image: postgres:16
+    pull_policy: always
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -65,8 +68,6 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-      agent-manager:
-        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001

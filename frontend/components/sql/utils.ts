@@ -8,108 +8,107 @@ import { baseExtensions, defaultThemeSettings, githubDarkStyle } from "@/compone
 
 const tableSchemas = {
   spans: [
-    // Core columns
     { name: "span_id", type: "uuid", description: "Unique identifier for the span" },
-    { name: "created_at", type: "timestamp", description: "When the span was created" },
-    { name: "parent_span_id", type: "uuid", description: "ID of the parent span" },
+    { name: "status", type: "text", description: "Status of the span" },
     { name: "name", type: "text", description: "Name of the span" },
-    { name: "attributes", type: "jsonb", description: "Span attributes as JSON" },
-    { name: "input", type: "jsonb", description: "Input data for the span" },
-    { name: "output", type: "jsonb", description: "Output data from the span" },
+    { name: "path", type: "text", description: "Hierarchical path of the span (e.g., 'outer.inner')" },
+    { name: "parent_span_id", type: "uuid", description: "ID of the parent span" },
     {
       name: "span_type",
       type: "span_type",
-      description: "Type of span (DEFAULT, LLM, EXECUTOR, EVALUATOR, EVALUATION, TOOL)",
+      description: "Stringified enum value of the span type (DEFAULT, LLM, EXECUTOR, EVALUATOR, EVALUATION, TOOL)",
     },
     { name: "start_time", type: "timestamp", description: "When the span started" },
     { name: "end_time", type: "timestamp", description: "When the span ended" },
-    { name: "trace_id", type: "uuid", description: "ID of the parent trace" },
-    { name: "status", type: "text", description: "Status of the span" },
-
-    // Virtual columns from Laminar docs
-    { name: "path", type: "virtual", description: "Hierarchical path of the span (e.g., 'outer.inner')" },
-    { name: "duration", type: "virtual", description: "Duration in seconds (end_time - start_time)" },
-    { name: "tag", type: "virtual", description: "Individual tag for filtering (use WHERE tag = 'my_tag')" },
-    { name: "tags", type: "text[]", description: "Array of all tags associated with the span" },
-    { name: "evaluation_name", type: "virtual", description: "Name of the evaluation (joined from evaluation)" },
-    { name: "evaluation_id", type: "virtual", description: "ID of the evaluation (joined from evaluation)" },
+    { name: "duration", type: "double precision", description: "Duration in seconds (end_time - start_time)" },
+    { name: "input", type: "jsonb", description: "Input data for the span" },
+    { name: "output", type: "jsonb", description: "Output data from the span" },
+    { name: "request_model", type: "text", description: "LLM model specified in the request" },
+    { name: "response_model", type: "text", description: "LLM model returned in the response" },
+    { name: "model", type: "text", description: "LLM model used. Is a coalesce of request_model and response_model" },
+    { name: "provider", type: "text", description: "LLM provider, e.g. openai, anthropic, etc." },
+    { name: "input_tokens", type: "bigint", description: "Number of input tokens" },
+    { name: "output_tokens", type: "bigint", description: "Number of output tokens" },
+    { name: "total_tokens", type: "bigint", description: "Total tokens used" },
+    { name: "input_cost", type: "double precision", description: "Cost for input tokens" },
+    { name: "output_cost", type: "double precision", description: "Cost for output tokens" },
+    { name: "total_cost", type: "double precision", description: "Total cost of the span" },
+    { name: "attributes", type: "text", description: "Span attributes as stringified JSON" },
+    { name: "trace_id", type: "uuid", description: "ID of the trace" },
+    { name: "tags", type: "text", description: "Tags associated with the span as a stringified JSON array of strings" },
   ],
   traces: [
     // Core columns
     { name: "id", type: "uuid", description: "Unique identifier for the trace" },
-    { name: "session_id", type: "text", description: "Session identifier" },
-    { name: "metadata", type: "jsonb", description: "Trace metadata as JSON" },
-    { name: "end_time", type: "timestamp", description: "When the trace ended" },
+    { name: "trace_type", type: "trace_type", description: "Stringified enum value of the trace type (DEFAULT, EVALUATION)" },
+    { name: "metadata", type: "text", description: "Trace metadata as stringified JSON" },
     { name: "start_time", type: "timestamp", description: "When the trace started" },
-    { name: "total_token_count", type: "bigint", description: "Total tokens used" },
-    { name: "cost", type: "double precision", description: "Total cost of the trace" },
-    { name: "created_at", type: "timestamp", description: "When the trace was created" },
-    { name: "trace_type", type: "trace_type", description: "Type of trace (DEFAULT, EVALUATION)" },
-    { name: "input_token_count", type: "bigint", description: "Number of input tokens" },
-    { name: "output_token_count", type: "bigint", description: "Number of output tokens" },
+    { name: "end_time", type: "timestamp", description: "When the trace ended" },
+    { name: "duration", type: "double precision", description: "Duration in seconds (end_time - start_time)" },
+    { name: "input_tokens", type: "bigint", description: "Number of input tokens" },
+    { name: "output_tokens", type: "bigint", description: "Number of output tokens" },
+    { name: "total_tokens", type: "bigint", description: "Total tokens used" },
     { name: "input_cost", type: "double precision", description: "Cost for input tokens" },
     { name: "output_cost", type: "double precision", description: "Cost for output tokens" },
-    { name: "top_span_id", type: "uuid", description: "ID of the top-level span" },
+    { name: "total_cost", type: "double precision", description: "Total LLM cost of the trace" },
     { name: "status", type: "text", description: "Status of the trace" },
     { name: "user_id", type: "text", description: "User ID sent with the trace" },
-
-    // Virtual columns
-    { name: "duration", type: "virtual", description: "Duration in seconds (end_time - start_time)" },
-    { name: "evaluation_name", type: "virtual", description: "Name of the evaluation (joined from evaluation)" },
-    { name: "evaluation_id", type: "virtual", description: "ID of the evaluation (joined from evaluation)" },
+    { name: "session_id", type: "text", description: "Session identifier" },
+    { name: "top_span_id", type: "uuid", description: "ID of the top-level span" },
+    { name: "top_span_name", type: "text", description: "Name of the top-level span" },
+    { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
   ],
-  datasets: [
-    { name: "id", type: "uuid", description: "Unique identifier for the dataset" },
-    { name: "created_at", type: "timestamp", description: "When the dataset was created" },
-    { name: "name", type: "text", description: "Name of the dataset" },
-  ],
-  evaluations: [
-    { name: "id", type: "uuid", description: "Unique identifier for the evaluation" },
-    { name: "created_at", type: "timestamp", description: "When the evaluation was created" },
-    { name: "name", type: "text", description: "Name of the evaluation" },
-    { name: "group_id", type: "text", description: "Group identifier for the evaluation" },
-  ],
-  evaluation_results: [
-    { name: "id", type: "uuid", description: "Unique identifier for the evaluation result" },
-    { name: "created_at", type: "timestamp", description: "When the result was created" },
-    { name: "evaluation_id", type: "uuid", description: "ID of the parent evaluation" },
-    { name: "data", type: "jsonb", description: "Input data for the evaluation" },
+  dataset_datapoints: [
+    { name: "id", type: "uuid", description: "Unique identifier for the dataset datapoint" },
+    { name: "created_at", type: "timestamp", description: "When the dataset datapoint was created" },
+    { name: "dataset_id", type: "uuid", description: "Unique identifier for the dataset" },
+    { name: "data", type: "jsonb", description: "Input data for the dataset datapoint" },
     { name: "target", type: "jsonb", description: "Target/expected output" },
     { name: "metadata", type: "jsonb", description: "Additional metadata" },
-    { name: "executor_output", type: "jsonb", description: "Output from the executor" },
-    { name: "trace_id", type: "uuid", description: "ID of the associated trace" },
-    { name: "index", type: "integer", description: "Index of the result in the batch" },
-
-    // Virtual trace details available in evaluation_results
-    { name: "cost", type: "virtual", description: "Cost from associated trace" },
-    { name: "total_token_count", type: "virtual", description: "Token count from associated trace" },
-    { name: "start_time", type: "virtual", description: "Start time from associated trace" },
-    { name: "end_time", type: "virtual", description: "End time from associated trace" },
-    { name: "duration", type: "virtual", description: "Duration in seconds from associated trace" },
   ],
-
-  evaluator_scores: [
-    {
-      name: "*",
-      type: "dynamic",
-      description: 'Use evaluator names as columns (e.g., evaluator_scores."Task alignment")',
-    },
+  evaluation_datapoints: [
+    { name: "id", type: "uuid", description: "Unique identifier for the evaluation datapoint" },
+    { name: "evaluation_id", type: "uuid", description: "Unique identifier for the evaluation" },
+    { name: "trace_id", type: "uuid", description: "Unique identifier for the trace" },
+    { name: "created_at", type: "timestamp", description: "When the evaluation datapoint was created" },
+    { name: "data", type: "string", description: "Input data for the evaluation datapoint" },
+    { name: "target", type: "string", description: "Target/expected output" },
+    { name: "metadata", type: "string", description: "Additional metadata as stringified JSON" },
+    { name: "executor_output", type: "string", description: "Output from the executor as" },
+    { name: "index", type: "integer", description: "Index of the evaluation datapoint within the evaluation" },
+    { name: "group_id", type: "text", description: "Group identifier of the evaluation run" },
+    { name: "scores", type: "text", description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value" },
   ],
-  evaluation_scores: [
-    { name: "*", type: "dynamic", description: 'Use score names as columns (e.g., evaluation_scores."My Score")' },
+  events: [
+    { name: "id", type: "uuid", description: "Unique identifier for the event" },
+    { name: "span_id", type: "uuid", description: "Identifier of the span that the event belongs to" },
+    { name: "name", type: "text", description: "Name of the event" },
+    { name: "timestamp", type: "timestamp", description: "When the event occurred" },
+    { name: "attributes", type: "jsonb", description: "Attributes of the event as stringified JSON" },
+    { name: "trace_id", type: "uuid", description: "Identifier of the trace that the span with this event belongs to" },
+    { name: "user_id", type: "text", description: "User ID associated with the event" },
+    { name: "session_id", type: "text", description: "Session ID associated with the event" },
+  ],
+  tags: [
+    { name: "id", type: "uuid", description: "Unique identifier for the tag" },
+    { name: "span_id", type: "uuid", description: "Identifier of the span that the tag belongs to" },
+    { name: "name", type: "text", description: "Name of the tag" },
+    { name: "created_at", type: "timestamp", description: "When the tag was created" },
+    { name: "source", type: "tag_source", description: "Source of the tag as a stringified enum value" },
   ],
 };
 
 const enumValues = {
   trace_type: ["DEFAULT", "EVALUATION"],
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL"],
+  tag_source: ["HUMAN", "CODE"],
 };
 
 const TABLE_NAMES = Object.keys(tableSchemas);
 const VIRTUAL_TABLES = new Set(["evaluator_scores", "evaluation_scores"]);
 
 const TABLE_COLUMN_PATTERN =
-  /\b(spans|traces|evaluations|evaluation_results|datasets|evaluator_scores|evaluation_scores)\.(\w*)$/;
+  /\b(spans|traces|dataset_datapoints|evaluation_datapoints|events|tags)\.(\w*)$/;
 
 const matchesSearch = (text: string, search: string): boolean => text.toLowerCase().includes(search);
 const startsWithSearch = (text: string, search: string): boolean => text.toLowerCase().startsWith(search.toLowerCase());
@@ -119,20 +118,19 @@ const createOption = (label: string, type: string, info: string, apply?: string)
   info,
   apply: apply || label,
 });
-const isInEnumContext = (textBefore: string): boolean => /\b(span_type|trace_type)\s*=\s*[^=\n]*$/.test(textBefore);
+const isInEnumContext = (textBefore: string): boolean => /\b(span_type|trace_type|tag_source)\s*=\s*[^=\n]*$/.test(textBefore);
 const getEnumType = (textBefore: string): string | null => {
-  const match = textBefore.match(/\b(span_type|trace_type)(?=\s*=)/);
+  const match = textBefore.match(/\b(span_type|trace_type|tag_source)(?=\s*=)/);
   return match ? match[1] : null;
 };
 
 const createColumnOption = (column: any, tableName?: string) => {
-  const isVirtual = column.type === "virtual";
   const prefix = tableName ? `${tableName}.` : "";
   const info = tableName
     ? `${prefix}${column.name} - ${column.type} - ${column.description}`
     : `${column.type} - ${column.description}`;
 
-  return createOption(column.name, isVirtual ? "method" : "property", info);
+  return createOption(column.name, "property", info);
 };
 
 // Completion generators

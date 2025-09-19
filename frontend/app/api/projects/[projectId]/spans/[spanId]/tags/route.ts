@@ -1,9 +1,8 @@
 import { desc, eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 
+import { addSpanTag } from "@/lib/actions/tags";
 import { authOptions } from "@/lib/auth";
-import { clickhouseClient } from "@/lib/clickhouse/client";
-import { dateToNanoseconds } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses, tags, users } from "@/lib/db/migrations/schema";
 
@@ -44,33 +43,12 @@ export async function POST(
 
   const body = (await req.json()) as { classId: string; name: string };
 
-  const [res] = await db
-    .insert(tags)
-    .values({
-      projectId,
-      classId: body.classId,
-      spanId: spanId,
-      userId: user.id,
-    })
-    .returning();
-
-  if (res?.id) {
-    await clickhouseClient.insert({
-      table: "default.tags",
-      format: "JSONEachRow",
-      values: [
-        {
-          class_id: body.classId,
-          span_id: spanId,
-          id: res.id,
-          name: body.name,
-          project_id: projectId,
-          source: 0,
-          created_at: dateToNanoseconds(new Date()),
-        },
-      ],
-    });
-  }
-
+  const res = await addSpanTag({
+    spanId,
+    projectId,
+    name: body.name,
+    classId: body.classId,
+    userId: user.id,
+  });
   return new Response(JSON.stringify(res), { status: 200 });
 }
