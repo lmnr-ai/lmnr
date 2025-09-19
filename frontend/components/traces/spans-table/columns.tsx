@@ -7,16 +7,21 @@ import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Span, SpanType } from "@/lib/traces/types";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { SpanRow, SpanType } from "@/lib/traces/types";
+import { normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
-const renderCost = (val: any) => {
-  if (val === null || val === undefined) {
-    return "-";
-  }
-  const parsed = parseFloat(val);
-  return `$${Number.isNaN(parsed) ? val : parsed.toFixed(5)}`;
-};
+const format = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 5,
+  minimumFractionDigits: 1,
+});
+
+const detailedFormat = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 8,
+});
 
 export const filters: ColumnFilter[] = [
   {
@@ -50,17 +55,17 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    key: "latency",
-    name: "Latency",
+    key: "duration",
+    name: "Duration",
     dataType: "number",
   },
   {
-    key: "tokens",
+    key: "total_tokens",
     name: "Tokens",
     dataType: "number",
   },
   {
-    key: "cost",
+    key: "total_cost",
     name: "Cost",
     dataType: "number",
   },
@@ -85,11 +90,11 @@ export const filters: ColumnFilter[] = [
   },
 ];
 
-export const columns: ColumnDef<Span, any>[] = [
+export const columns: ColumnDef<SpanRow, any>[] = [
   {
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() ? (
+        {row.getValue() === "error" ? (
           <X className="self-center text-destructive" size={18} />
         ) : (
           <Check className="text-success" size={18} />
@@ -148,7 +153,12 @@ export const columns: ColumnDef<Span, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => (
+      <ClientTimestampFormatter
+        timestamp={String(normalizeClickHouseTimestamp(row.getValue()))}
+        format={TIME_SECONDS_FORMAT}
+      />
+    ),
     id: "start_time",
     size: 150,
   },
@@ -160,21 +170,21 @@ export const columns: ColumnDef<Span, any>[] = [
 
       return `${(duration / 1000).toFixed(2)}s`;
     },
-    header: "Latency",
-    id: "latency",
+    header: "Duration",
+    id: "duration",
     size: 80,
   },
   {
-    accessorFn: (row) => (row.attributes as Record<string, any>)["llm.usage.total_tokens"],
+    accessorFn: (row) => row.totalTokens,
     header: "Tokens",
     id: "tokens",
     cell: (row) => {
       if (row.getValue()) {
         return (
           <div className="truncate">
-            {`${row.row.original.attributes["gen_ai.usage.input_tokens"] ?? "-"}`}
+            {`${row.row.original.inputTokens ?? "-"}`}
             {" → "}
-            {`${row.row.original.attributes["gen_ai.usage.output_tokens"] ?? "-"}`}
+            {`${row.row.original.outputTokens ?? "-"}`}
             {` (${row.getValue() ?? "-"})`}
           </div>
         );
@@ -184,46 +194,70 @@ export const columns: ColumnDef<Span, any>[] = [
     size: 150,
   },
   {
-    accessorFn: (row) => (row.attributes as Record<string, any>)["gen_ai.usage.cost"],
+    accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
-    cell: (row) => (
-      <TooltipProvider delayDuration={100}>
-        <Tooltip>
-          <TooltipTrigger className="relative p-0">
-            <div
-              style={{
-                width: row.column.getSize() - 32,
-              }}
-              className="relative"
-            >
-              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{renderCost(row.getValue())}</div>
-              </div>
-            </div>
-          </TooltipTrigger>
-          {row.getValue() !== undefined && (
-            <TooltipContent side="bottom" className="p-2 border">
-              <div>
-                <div className="flex justify-between space-x-2">
-                  <span>Input cost</span>
-                  <span>{renderCost(row.row.original.attributes["gen_ai.usage.input_cost"])}</span>
+    cell: (row) => {
+      if (row.getValue() > 0) {
+        return (
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger className="relative p-0">
+                <div
+                  style={{
+                    width: row.column.getSize() - 32,
+                  }}
+                  className="relative"
+                >
+                  <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                    <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+                      {format.format(row.getValue())}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between space-x-2">
-                  <span>Output cost</span>
-                  <span>{renderCost(row.row.original.attributes["gen_ai.usage.output_cost"])}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div className="flex justify-between space-x-2">
+                    <span>Input cost</span>
+                    <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+                  </div>
+                  <div className="flex justify-between space-x-2">
+                    <span>Output cost</span>
+                    <span>{detailedFormat.format(row.row.original.outputCost)}</span>
+                  </div>
                 </div>
-              </div>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
-    ),
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+
+      return "-";
+    },
     size: 100,
   },
   {
     header: "Model",
     accessorKey: "model",
     id: "model",
+  },
+  {
+    header: "Tags",
+    accessorKey: "tags",
+    id: "tags",
+    cell: (row) => {
+      try {
+        const value = JSON.parse(row.getValue()) as string[];
+
+        if (value?.length > 0) {
+          return value.join(", ");
+        }
+
+        return "-";
+      } catch (_) {
+        return "-";
+      }
+    },
   },
 ];

@@ -13,13 +13,7 @@ import { FilterDef } from "@/lib/db/modifiers";
 
 const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
-    [
-      "id",
-      createCustomFilter(
-        (filter, paramKey) => `trace_id ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["id", createStringFilter],
     ["session_id", createStringFilter],
     ["user_id", createStringFilter],
     [
@@ -40,13 +34,7 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
         }
       ),
     ],
-    [
-      "trace_type",
-      createCustomFilter(
-        (filter, paramKey) => `trace_type ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
-        (filter, paramKey) => ({ [paramKey]: filter.value.toUpperCase() })
-      ),
-    ],
+    ["trace_type", createStringFilter],
     ["total_cost", createNumberFilter("Float64")],
     ["input_cost", createNumberFilter("Float64")],
     ["output_cost", createNumberFilter("Float64")],

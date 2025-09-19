@@ -49,6 +49,32 @@ export type Span = {
   status?: string;
 };
 
+export type SpanRow = {
+  spanId: string;
+  traceId: string;
+  parentSpanId?: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  inputPreview?: string;
+  outputPreview?: string;
+  spanType: SpanType;
+
+  totalCost: number;
+  inputCost: number;
+  outputCost: number;
+
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+
+  path: string;
+  duration: number;
+  model?: string;
+  status?: string;
+  tags: string;
+};
+
 export type Trace = {
   startTime: string;
   endTime: string;
