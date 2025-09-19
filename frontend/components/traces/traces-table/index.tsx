@@ -322,7 +322,14 @@ export default function TracesTable() {
           title: "Traces deleted",
           description: `Successfully deleted ${traceIds.length} trace(s).`,
         });
-        await getTraces();
+
+        setTraces((prev) => {
+          if (prev) {
+            return prev.filter((t) => !traceIds.includes(t.id));
+          }
+          return prev;
+        });
+        setTotalCount((prev) => Math.max(prev - traceIds.length, 0));
       }
     } catch (e) {
       toast({
