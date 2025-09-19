@@ -27,7 +27,7 @@ CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
             ELSE 'UNKNOWN'
          END, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_type,
         CASE WHEN countIf(span_type IN (3, 4, 5)) > 0 THEN 'EVALUATION' ELSE 'DEFAULT' END AS trace_type,
-        arrayFlatten(arrayConcat(groupArray(tags_array))) AS tags,
+        arrayDistinct(arrayFlatten(arrayConcat(groupArray(tags_array)))) AS tags,
         trace_id id
     FROM spans
     WHERE project_id={project_id:UUID} AND spans.start_time>={start_time:DateTime64} AND spans.start_time<={end_time:DateTime64}
