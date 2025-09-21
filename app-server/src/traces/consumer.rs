@@ -21,16 +21,14 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait,
     },
+    realtime::{SseConnectionMap, SseMessage, send_to_project_connections},
     storage::Storage,
     traces::{
         IngestedBytes,
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
-        utils::{
-            get_llm_usage_for_span, prepare_span_for_recording, record_spans,
-            record_tags_to_db_and_ch,
-        },
+        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags_to_db_and_ch},
     },
 };
 
@@ -40,6 +38,7 @@ pub async fn process_queue_spans(
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
+    sse_connections: SseConnectionMap,
 ) {
     loop {
         inner_process_queue_spans(
@@ -48,6 +47,7 @@ pub async fn process_queue_spans(
             queue.clone(),
             clickhouse.clone(),
             storage.clone(),
+            sse_connections.clone(),
         )
         .await;
         log::warn!("Span listener exited. Rebinding queue conneciton...");
@@ -60,6 +60,7 @@ async fn inner_process_queue_spans(
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
+    sse_connections: SseConnectionMap,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
@@ -121,6 +122,7 @@ async fn inner_process_queue_spans(
             storage.clone(),
             acker,
             queue.clone(),
+            sse_connections.clone(),
         )
         .await;
     }
@@ -136,6 +138,7 @@ async fn process_spans_and_events_batch(
     storage: Arc<Storage>,
     acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
+    sse_connections: SseConnectionMap,
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -202,6 +205,7 @@ async fn process_spans_and_events_batch(
         cache,
         acker,
         queue,
+        sse_connections,
     )
     .await;
 }
@@ -224,6 +228,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
     evaluators_queue: Arc<MessageQueue>,
+    sse_connections: SseConnectionMap,
 ) {
     let mut trace_attributes_vec = Vec::new();
     let mut span_usage_vec = Vec::new();
@@ -268,16 +273,17 @@ async fn process_batch(
         all_events.extend(filtered_events);
     }
 
+    // TODO: Remove PostgreSQL writes - now using ClickHouse only
     // Record spans and traces to database (batch write)
-    if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
-        log::error!("Failed to record spans batch: {:?}", e);
-        let _ = acker.reject(false).await.map_err(|e| {
-            log::error!(
-                "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
-                e
-            );
-        });
-    }
+    // if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
+    //     log::error!("Failed to record spans batch: {:?}", e);
+    //     let _ = acker.reject(false).await.map_err(|e| {
+    //         log::error!(
+    //             "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
+    //             e
+    //         );
+    //     });
+    // }
 
     // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
@@ -307,6 +313,9 @@ async fn process_batch(
             );
         });
     }
+
+    // Send realtime messages directly to SSE connections after successful ClickHouse writes
+    send_realtime_messages_to_sse(&spans, &sse_connections).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
@@ -406,4 +415,68 @@ async fn process_batch(
             }
         }
     }
+}
+
+/// Send realtime span messages directly to SSE connections
+async fn send_realtime_messages_to_sse(spans: &[Span], sse_connections: &SseConnectionMap) {
+    // Group spans by project_id
+    let mut projects_with_spans: std::collections::HashMap<Uuid, Vec<&Span>> =
+        std::collections::HashMap::new();
+
+    for span in spans {
+        projects_with_spans
+            .entry(span.project_id)
+            .or_insert_with(Vec::new)
+            .push(span);
+    }
+
+    // Only send messages for projects that have active SSE connections
+    for (project_id, project_spans) in projects_with_spans {
+        if !sse_connections.contains_key(&project_id) {
+            continue; // Skip if no active connections for this project
+        }
+
+        log::info!(
+            "Sending {} span realtime messages for project {}",
+            project_spans.len(),
+            project_id
+        );
+
+        // Send span realtime messages (frontend will derive trace updates from these)
+        for span in &project_spans {
+            let span_message = SseMessage {
+                event_type: "postgres_changes".to_string(),
+                data: serde_json::json!({
+                    "eventType": "INSERT",
+                    "old": null,
+                    "new": span_to_lightweight_db_row(span)
+                }),
+            };
+
+            send_to_project_connections(sse_connections, &project_id, span_message);
+        }
+    }
+}
+
+/// Convert span to lightweight database row format for realtime updates
+/// Includes all span data except heavy input/output fields
+fn span_to_lightweight_db_row(span: &Span) -> Value {
+    serde_json::json!({
+        "span_id": span.span_id,
+        "parent_span_id": span.parent_span_id,
+        "trace_id": span.trace_id,
+        "span_type": span.span_type,
+        "name": span.name,
+        "start_time": span.start_time,
+        "end_time": span.end_time,
+        "attributes": span.attributes.to_value(),
+        "input_preview": null, // TODO: Generate previews if needed
+        "output_preview": null, // TODO: Generate previews if needed
+        "input_url": span.input_url,
+        "output_url": span.output_url,
+        "status": span.status,
+        "project_id": span.project_id,
+        "created_at": span.start_time, // Use start_time as created_at for compatibility
+        // Note: input and output fields are intentionally excluded for performance
+    })
 }

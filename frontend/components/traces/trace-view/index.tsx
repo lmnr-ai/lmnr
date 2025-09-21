@@ -290,30 +290,41 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
 
   useEffect(() => {
-    if (!supabase || !traceId) {
+    if (!traceId || !projectId) {
       return;
     }
-    // Clean up
-    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
 
-    const channel = supabase
-      .channel(`trace-updates-${traceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "spans",
-          filter: `trace_id=eq.${traceId}`,
-        },
-        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
-      )
-      .subscribe();
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+
+    eventSource.addEventListener("postgres_changes", (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.eventType === "INSERT" && payload.new?.trace_id === traceId) {
+          // Create a mock payload that matches the Supabase RealtimePostgresInsertPayload format
+          const mockPayload = {
+            eventType: "INSERT",
+            old: payload.old,
+            new: payload.new,
+            schema: "public",
+            table: "spans",
+            commit_timestamp: new Date().toISOString(),
+            errors: [],
+          } as any;
+          onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)(mockPayload);
+        }
+      } catch (error) {
+        console.error("Error processing SSE message:", error);
+      }
+    });
+
+    eventSource.addEventListener("error", (error) => {
+      console.error("SSE connection error:", error);
+    });
 
     return () => {
-      channel.unsubscribe();
+      eventSource.close();
     };
-  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
+  }, [setBrowserSession, setSpans, setTrace, spans, trace, traceId, projectId]);
 
   if (isLoading) {
     return (

@@ -185,116 +185,121 @@ export default function TracesTable() {
     [projectId, toast]
   );
 
-  const updateRealtimeTraces = useCallback(
-    async (eventType: "INSERT" | "UPDATE", old: Record<string, any>, newObj: Record<string, any>) => {
+  const updateRealtimeTracesFromSpan = useCallback(
+    async (spanData: Record<string, any>) => {
       const currentTraces = tracesRef.current;
-      if (eventType === "INSERT") {
-        const insertIndex = currentTraces?.findIndex((trace) => trace.startTime <= newObj.start_time);
+      if (!currentTraces) return;
+
+      const traceId = spanData.trace_id;
+      if (!traceId) return;
+
+      // Check if this is a root span (no parent_span_id)
+      const isRootSpan = !spanData.parent_span_id;
+
+      // Find existing trace
+      const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceId);
+
+      if (existingTraceIndex !== -1) {
+        // Update existing trace
+        const newTraces = [...currentTraces];
+        const existingTrace = newTraces[existingTraceIndex];
+
+        // Update trace metrics from span data
+        const spanInputTokens = spanData.attributes?.["gen_ai.usage.input_tokens"] || 0;
+        const spanOutputTokens = spanData.attributes?.["gen_ai.usage.output_tokens"] || 0;
+        const spanInputCost = spanData.attributes?.["gen_ai.usage.input_cost"] || 0;
+        const spanOutputCost = spanData.attributes?.["gen_ai.usage.output_cost"] || 0;
+
+        newTraces[existingTraceIndex] = {
+          ...existingTrace,
+          endTime: new Date(Math.max(
+            new Date(existingTrace.endTime).getTime(),
+            new Date(spanData.end_time).getTime()
+          )).toUTCString(),
+          totalTokenCount: existingTrace.totalTokenCount + spanInputTokens + spanOutputTokens,
+          inputTokenCount: existingTrace.inputTokenCount + spanInputTokens,
+          outputTokenCount: existingTrace.outputTokenCount + spanOutputTokens,
+          inputCost: existingTrace.inputCost + spanInputCost,
+          outputCost: existingTrace.outputCost + spanOutputCost,
+          cost: existingTrace.cost + spanInputCost + spanOutputCost,
+          hasBrowserSession: existingTrace.hasBrowserSession || spanData.attributes?.["lmnr.internal.has_browser_session"] || false,
+        };
+
+        setTraces(newTraces);
+      } else if (isRootSpan) {
+        // Create new trace from root span
+        const newTrace: Trace = {
+          id: traceId,
+          startTime: spanData.start_time,
+          endTime: spanData.end_time,
+          sessionId: spanData.attributes?.["session.id"] || null,
+          inputTokenCount: spanData.attributes?.["gen_ai.usage.input_tokens"] || 0,
+          outputTokenCount: spanData.attributes?.["gen_ai.usage.output_tokens"] || 0,
+          totalTokenCount: (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) + (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
+          inputCost: spanData.attributes?.["gen_ai.usage.input_cost"] || 0,
+          outputCost: spanData.attributes?.["gen_ai.usage.output_cost"] || 0,
+          cost: (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) + (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
+          metadata: spanData.attributes?.["metadata"] || null,
+          hasBrowserSession: spanData.attributes?.["lmnr.internal.has_browser_session"] || false,
+          topSpanId: spanData.span_id,
+          traceType: "DEFAULT",
+          topSpanInputPreview: null,
+          topSpanOutputPreview: null,
+          topSpanName: spanData.name,
+          topSpanType: spanData.span_type,
+          topSpanPath: spanData.attributes?.["lmnr.span.path"] || null,
+          status: spanData.status,
+          userId: spanData.attributes?.["user.id"] || null,
+        };
+
         const newTraces = currentTraces ? [...currentTraces] : [];
-        const rtEventTrace = mapPendingTraceFromRealTime(newObj);
-        // Ignore eval traces
-        if (rtEventTrace.traceType !== "DEFAULT") {
-          return;
-        }
-        const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-        const newTrace =
-          rtEventTrace.topSpanType === null && rtEventTrace.topSpanId != null
-            ? {
-              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-              ...rest,
-            }
-            : rtEventTrace;
+        const insertIndex = newTraces.findIndex((trace) => trace.startTime <= newTrace.startTime);
         newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
+
         if (newTraces.length > pageSize) {
           newTraces.splice(pageSize, newTraces.length - pageSize);
         }
+
         setTraces(newTraces);
-        setTotalCount((prev) => parseInt(`${prev}`) + 1);
-      } else if (eventType === "UPDATE") {
-        if (currentTraces === undefined || currentTraces.length === 0) {
-          return;
-        }
-        const updateIndex = currentTraces.findIndex((trace) => trace.id === newObj.id || trace.id === old.id);
-        if (updateIndex !== -1) {
-          const newTraces = [...currentTraces];
-          const rtEventTrace = mapPendingTraceFromRealTime(newObj);
-          // Ignore eval traces
-          if (rtEventTrace.traceType !== "DEFAULT") {
-            return;
-          }
-          const { topSpanType, topSpanName, topSpanInputPreview, topSpanOutputPreview, ...rest } = rtEventTrace;
-          if (rtEventTrace.topSpanId != null) {
-            const newTrace = {
-              ...(await getTraceTopSpanInfo(rtEventTrace.topSpanId)),
-              ...rest,
-            };
-            newTraces[updateIndex] = newTrace;
-          } else {
-            newTraces[updateIndex] = mapPendingTraceFromRealTime(newObj);
-          }
-          setTraces(newTraces);
-        }
+        setTotalCount((prev) => prev + 1);
       }
     },
-    [getTraceTopSpanInfo, pageSize]
-  ); // only depends on pageSize now
+    [pageSize]
+  );
 
-  const { supabaseClient: supabase } = useUserContext();
-
+  // SSE connection for realtime updates
   useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
     if (filter.length > 0 || !!textSearchFilter) {
-      supabase.removeAllChannels();
       return;
     }
 
-    // When enableStreaming changes, need to remove all channels and, if enabled, re-subscribe
-    supabase.channel("traces-table").unsubscribe();
+    if (!isCurrentTimestampIncluded) {
+      return;
+    }
 
-    const channel = supabase
-      .channel("traces-table")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "traces",
-          filter: `project_id=eq.${projectId}`,
-        },
-        async (payload) => {
-          if (payload.eventType === "INSERT") {
-            if (isCurrentTimestampIncluded) {
-              await updateRealtimeTraces("INSERT", payload.old, payload.new);
-            }
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "traces",
-          filter: `project_id=eq.${projectId}`,
-        },
-        async (payload) => {
-          if (payload.eventType === "UPDATE") {
-            if (isCurrentTimestampIncluded) {
-              await updateRealtimeTraces("UPDATE", payload.old, payload.new);
-            }
-          }
-        }
-      )
-      .subscribe();
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
 
-    // remove the channel on unmount
+    eventSource.addEventListener("postgres_changes", async (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.eventType === "INSERT" && payload.new?.trace_id) {
+          // Convert span message to trace update
+          await updateRealtimeTracesFromSpan(payload.new);
+        }
+      } catch (error) {
+        console.error("Error processing SSE message:", error);
+      }
+    });
+
+    eventSource.addEventListener("error", (error) => {
+      console.error("SSE connection error:", error);
+    });
+
+    // Clean up on unmount
     return () => {
-      channel.unsubscribe();
+      eventSource.close();
     };
-  }, [projectId, isCurrentTimestampIncluded, supabase, filter.length, textSearchFilter]);
+  }, [projectId, isCurrentTimestampIncluded, filter.length, textSearchFilter, updateRealtimeTracesFromSpan]);
 
   useEffect(() => {
     if (pastHours || startDate || endDate) {
