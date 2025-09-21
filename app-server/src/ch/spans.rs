@@ -135,18 +135,15 @@ impl CHSpan {
                 .unwrap_or(String::from("")),
             request_model: usage.request_model.clone().unwrap_or(String::from("")),
             response_model: usage.response_model.clone().unwrap_or(String::from("")),
-            session_id: session_id.unwrap_or(String::from("<null>")),
+            session_id: session_id.unwrap_or(String::from("")),
             project_id: project_id,
             trace_id: span.trace_id,
-            provider: usage
-                .provider_name
-                .clone()
-                .unwrap_or(String::from("<null>")),
-            user_id: user_id.unwrap_or(String::from("<null>")),
-            path: path.unwrap_or(String::from("<null>")),
+            provider: usage.provider_name.clone().unwrap_or(String::from("")),
+            user_id: user_id.unwrap_or(String::from("")),
+            path: path.unwrap_or(String::from("")),
             input: span_input_string,
             output: span_output_string,
-            status: span.status.clone().unwrap_or(String::from("<null>")),
+            status: span.status.clone().unwrap_or(String::from("")),
             size_bytes: size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,

@@ -134,7 +134,6 @@ export default function TracesTable() {
 
       const isTopSpan = spanData.parentSpanId === null;
 
-      console.log(spanData.status);
 
       if (existingTraceIndex !== -1) {
         // Update existing trace
