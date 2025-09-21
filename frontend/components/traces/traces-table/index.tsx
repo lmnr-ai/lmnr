@@ -9,16 +9,15 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
+import { mapPendingTraceFromRealTime } from "@/components/traces/traces-table/utils.ts";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanType, Trace } from "@/lib/traces/types";
-import { PaginatedResponse } from "@/lib/types";
+import { RealtimeTracePayload, SpanType, TraceRow } from "@/lib/traces/types";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -41,16 +40,15 @@ export default function TracesTable() {
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
 
-  const [traces, setTraces] = useState<Trace[] | undefined>(undefined);
+  const [traces, setTraces] = useState<TraceRow[] | undefined>(undefined);
   const { setNavigationRefList } = useTraceViewNavigation();
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
 
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
-
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const tracesRef = useRef<Trace[] | undefined>(traces);
+  const tracesRef = useRef<TraceRow[] | undefined>(traces);
 
   useEffect(() => {
     setNavigationRefList(map(traces, "id"));
@@ -95,18 +93,18 @@ export default function TracesTable() {
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        const text = (await res.json()) as { error: string };
+        throw new Error(text.error);
       }
 
-      const data = (await res.json()) as PaginatedResponse<Trace>;
+      const data = (await res.json()) as { items: TraceRow[]; count: number };
       setTraces(data.items);
-      setTotalCount(data.totalCount);
+      setTotalCount(data.count);
     } catch (error) {
       toast({
-        title: "Failed to load traces. Please try again.",
+        title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
         variant: "destructive",
       });
-      // Set empty traces to show error state
       setTraces([]);
       setTotalCount(0);
     }
@@ -125,38 +123,14 @@ export default function TracesTable() {
     toast,
   ]);
 
-  const mapPendingTraceFromRealTime = (row: Record<string, any>): Trace => ({
-    startTime: row.start_time,
-    endTime: row.end_time,
-    id: row.id,
-    sessionId: row.session_id,
-    inputTokenCount: row.input_token_count,
-    outputTokenCount: row.output_token_count,
-    totalTokenCount: row.total_token_count,
-    inputCost: row.input_cost,
-    outputCost: row.output_cost,
-    cost: row.cost,
-    metadata: row.metadata,
-    hasBrowserSession: row.has_browser_session,
-    topSpanId: row.top_span_id,
-    traceType: row.trace_type,
-    topSpanInputPreview: null,
-    topSpanOutputPreview: null,
-    topSpanName: null,
-    topSpanType: null,
-    topSpanPath: null,
-    status: row.status,
-    userId: row.user_id,
-  });
-
   const getTraceTopSpanInfo = useCallback(
     async (
       spanId: string
     ): Promise<{
-      topSpanName: string | null;
-      topSpanType: SpanType | null;
-      topSpanInputPreview: any | null;
-      topSpanOutputPreview: any | null;
+      topSpanName?: string;
+      topSpanType?: SpanType;
+      topSpanInputPreview?: any;
+      topSpanOutputPreview?: any;
     }> => {
       try {
         const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
@@ -167,22 +141,17 @@ export default function TracesTable() {
 
         const span = await response.json();
         return {
-          topSpanName: span?.name ?? null,
-          topSpanType: span?.spanType ?? null,
-          topSpanInputPreview: span?.inputPreview ?? null,
-          topSpanOutputPreview: span?.outputPreview ?? null,
+          topSpanName: span?.name,
+          topSpanType: span?.spanType,
+          topSpanInputPreview: span?.inputPreview,
+          topSpanOutputPreview: span?.outputPreview,
         };
       } catch (error) {
-        console.warn(error);
-        return {
-          topSpanName: null,
-          topSpanType: null,
-          topSpanInputPreview: null,
-          topSpanOutputPreview: null,
-        };
+        console.warn("Failed to fetch span info:", error);
+        return {};
       }
     },
-    [projectId, toast]
+    [projectId]
   );
 
   const updateRealtimeTracesFromSpan = useCallback(
@@ -257,7 +226,7 @@ export default function TracesTable() {
         newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
 
         if (newTraces.length > pageSize) {
-          newTraces.splice(pageSize, newTraces.length - pageSize);
+          newTraces.splice(pageSize);
         }
 
         setTraces(newTraces);
@@ -338,7 +307,14 @@ export default function TracesTable() {
           title: "Traces deleted",
           description: `Successfully deleted ${traceIds.length} trace(s).`,
         });
-        await getTraces();
+
+        setTraces((prev) => {
+          if (prev) {
+            return prev.filter((t) => !traceIds.includes(t.id));
+          }
+          return prev;
+        });
+        setTotalCount((prev) => Math.max(prev - traceIds.length, 0));
       }
     } catch (e) {
       toast({
@@ -350,7 +326,7 @@ export default function TracesTable() {
   };
 
   const handleRowClick = useCallback(
-    (row: Row<Trace>) => {
+    (row: Row<TraceRow>) => {
       onRowClick?.(row.id);
       const params = new URLSearchParams(searchParams);
       params.set("traceId", row.id);
