@@ -1,7 +1,7 @@
 import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { RealtimeSpan, Span, SpanType, Trace } from "@/lib/traces/types";
 
@@ -162,10 +162,10 @@ export const getDefaultTraceViewWidth = () => {
 export const onRealtimeUpdateSpans =
   (
     spans: TraceViewSpan[],
-    setSpans: (spans: Span[]) => void,
-    setTrace: (trace?: Trace) => void,
+    setSpans: (spans: TraceViewSpan[]) => void,
+    setTrace: (trace?: TraceViewTrace) => void,
     setShowBrowserSession: (show: boolean) => void,
-    trace?: Trace
+    trace?: TraceViewTrace
   ) =>
     (newSpan: RealtimeSpan) => {
 

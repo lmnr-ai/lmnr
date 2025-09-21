@@ -7,10 +7,17 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { spans } from "@/lib/db/migrations/schema";
+import { Event } from "@/lib/events/types";
 import { downloadSpanImages } from "@/lib/spans/utils";
 
 export const GetSpanSchema = z.object({
   spanId: z.string(),
+  projectId: z.string(),
+});
+
+export const GetSpanWithTraceIdSchema = z.object({
+  spanId: z.string(),
+  traceId: z.string(),
   projectId: z.string(),
 });
 
@@ -76,7 +83,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     throw new Error("Span not found");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string, attributes: string }];
+  const chData = (await chResult.json()) as [{ input: string; output: string; attributes: string }];
   const { input: spanInput, output: spanOutput, attributes: spanAttributes } = chData[0] || {};
 
   return {
@@ -85,6 +92,101 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     output: tryParseJson(spanOutput),
     attributes: tryParseJson(spanAttributes) ?? {},
   };
+}
+
+export async function getSpanWithTraceId(input: z.infer<typeof GetSpanWithTraceIdSchema>) {
+  const { spanId, traceId, projectId } = GetSpanWithTraceIdSchema.parse(input);
+
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT 
+        span_id as spanId,
+        parent_span_id as parentSpanId,
+        name,
+        span_type as spanType,
+        input_tokens as inputTokens,
+        output_tokens as outputTokens,
+        total_tokens as totalTokens,
+        input_cost as inputCost,
+        output_cost as outputCost,
+        total_cost as totalCost,
+        start_time as startTime,
+        end_time as endTime,
+        trace_id as traceId,
+        status,
+        input,
+        output,
+        path,
+        attributes
+      FROM spans_v0(project_id={projectId: UUID})
+      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
+      LIMIT 1
+    `,
+    format: "JSONEachRow",
+    query_params: { spanId, traceId, projectId },
+  });
+
+  const chData = (await chResult.json()) as [
+    {
+      spanId: string;
+      parentSpanId: string;
+      name: string;
+      spanType: string;
+      startTime: string;
+      endTime: string;
+      traceId: string;
+      projectId: string;
+      status: string;
+      input: string;
+      output: string;
+      path: string;
+      attributes: string;
+    },
+  ];
+
+  if (!chData[0]) {
+    throw new Error("Span not found");
+  }
+
+  const span = chData[0];
+
+  return {
+    ...span,
+    inputUrl: null,
+    outputUrl: null,
+    input: tryParseJson(span.input),
+    output: tryParseJson(span.output),
+    attributes: tryParseJson(span.attributes) ?? {},
+  };
+}
+
+export async function getSpanEventsWithTraceId(input: z.infer<typeof GetSpanWithTraceIdSchema>): Promise<Event[]> {
+  const { spanId, traceId, projectId } = GetSpanWithTraceIdSchema.parse(input);
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT id, timestamp, name, attributes, span_id spanId, project_id projectId
+      FROM events
+      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID} AND project_id = {projectId: UUID}
+      ORDER BY timestamp ASC
+    `,
+    format: "JSONEachRow",
+    query_params: { spanId, traceId, projectId },
+  });
+
+  const chEvents = (await chResult.json()) as Array<{
+    id: string;
+    timestamp: string;
+    name: string;
+    attributes: string;
+    spanId: string;
+    projectId: string;
+  }>;
+
+  return chEvents.map((event) => ({
+    ...event,
+    timestamp: new Date(`${event.timestamp}Z`).toISOString(),
+    attributes: tryParseJson(event.attributes),
+  }));
 }
 
 export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
@@ -145,4 +247,3 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
-

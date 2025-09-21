@@ -11,18 +11,51 @@ import {
   transformSpansToTree,
   TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { SPAN_KEYS } from "@/lib/lang-graph/types.ts";
-import { Span, Trace } from "@/lib/traces/types.ts";
+import { Event } from "@/lib/events/types";
+import { SPAN_KEYS } from "@/lib/lang-graph/types";
+import { SpanType } from "@/lib/traces/types";
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 export const MIN_TREE_VIEW_WIDTH = 450;
 
-export type TraceViewSpan = Span & { collapsed: boolean };
+export type TraceViewSpan = {
+  spanId: string;
+  parentSpanId?: string;
+  traceId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  attributes: Record<string, any>;
+  spanType: SpanType;
+  path: string;
+  events: Event[];
+  status?: string;
+  model?: string;
+  pending?: boolean;
+  collapsed: boolean;
+};
+
+export type TraceViewTrace = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+  metadata: string;
+  status: string;
+  trace_type: string;
+  visibility: "public" | "private";
+  hasBrowserSession?: boolean;
+};
 
 interface TraceViewStoreState {
-  trace?: Trace;
+  trace?: TraceViewTrace;
   isTraceLoading: boolean;
   spans: TraceViewSpan[];
   spanPath: string[] | null;
@@ -39,8 +72,8 @@ interface TraceViewStoreState {
 }
 
 interface TraceViewStoreActions {
-  setTrace: (trace?: Trace) => void;
-  setSpans: (spans: Span[]) => void;
+  setTrace: (trace?: TraceViewTrace) => void;
+  setSpans: (spans: TraceViewSpan[]) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;

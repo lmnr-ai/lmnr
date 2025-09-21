@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import TraceView from "@/components/shared/traces/trace-view";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
-import { getSharedTrace } from "@/lib/actions/shared/trace";
+import { getSharedTrace } from "@/lib/actions/trace";
 
 export default async function SharedTracePage(props: {
   params: Promise<{ traceId: string }>;

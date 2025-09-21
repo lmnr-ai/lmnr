@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { uniq } from "lodash";
 import { z } from "zod/v4";
 
+import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -12,6 +13,15 @@ export const UpdateTraceVisibilitySchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
   visibility: z.enum(["public", "private"]),
+});
+
+export const GetTraceSchema = z.object({
+  traceId: z.string(),
+  projectId: z.string(),
+});
+
+export const GetSharedTraceSchema = z.object({
+  traceId: z.string(),
 });
 
 interface ClickHouseSpan {
@@ -74,21 +84,22 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
    * 1. Parse span image url's, and extract payload id's
    */
 
-  const parseResult = traceSpans.map((span) => {
-    const inputData = tryParseJson(span.input);
-    const outputData = tryParseJson(span.output);
+  const parseResult = traceSpans
+    .map((span) => {
+      const inputData = tryParseJson(span.input);
+      const outputData = tryParseJson(span.output);
 
-    const input = transformMessages(inputData, projectId, visibility);
-    const output = transformMessages(outputData, projectId, visibility);
+      const input = transformMessages(inputData, projectId, visibility);
+      const output = transformMessages(outputData, projectId, visibility);
 
-    return {
-      id: span.span_id,
-      input: input.messages,
-      output: output.messages,
-      payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
-      existingSpan: span,
-    };
-  })
+      return {
+        id: span.span_id,
+        input: input.messages,
+        output: output.messages,
+        payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
+        existingSpan: span,
+      };
+    })
     .filter((p) => p.payloadIds.length > 0);
 
   const payloadIds = parseResult.flatMap((p) => p.payloadIds);
@@ -152,4 +163,118 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
       }
     }
   });
+}
+
+export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<TraceViewTrace> {
+  const { traceId, projectId } = GetTraceSchema.parse(input);
+
+  const chResult = await clickhouseClient.query({
+    query: `
+      SELECT
+        id,
+        start_time as startTime,
+        end_time as endTime,
+        input_tokens as inputTokens,
+        output_tokens as outputTokens,
+        total_tokens as totalTokens,
+        input_cost as inputCost,
+        output_cost as outputCost,
+        total_cost as totalCost,
+        metadata,
+        status,
+        trace_type as traceType
+      FROM traces_v0(project_id={projectId: UUID}, start_time='2023-01-01 00:00:00', end_time=now())
+      WHERE id = {traceId: UUID}
+      LIMIT 1
+    `,
+    format: "JSONEachRow",
+    query_params: {
+      traceId,
+      projectId,
+    },
+  });
+
+  const [trace] = (await chResult.json()) as Omit<TraceViewTrace, "hasBrowserSession" | "visibility">[];
+
+  if (!trace) {
+    throw new Error("Trace not found.");
+  }
+
+  const pgTrace = await db.query.traces.findFirst({
+    where: and(eq(traces.id, traceId), eq(traces.projectId, projectId)),
+    columns: {
+      visibility: true,
+      hasBrowserSession: true,
+    },
+  });
+
+  // TODO: need to decide on trace visibility and has browser session fields.
+  // if (!pgTrace) {
+  //   throw new Error("Trace not found.");
+  // }
+
+  return {
+    ...trace,
+    // hasBrowserSession: pgTrace.hasBrowserSession || false,
+    // visibility: pgTrace.visibility as TraceViewTrace["visibility"],
+    hasBrowserSession: false,
+    visibility: "private",
+  };
+}
+
+export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace> {
+  const { traceId } = GetSharedTraceSchema.parse(input);
+
+  const pgTrace = await db.query.traces.findFirst({
+    where: eq(traces.id, traceId),
+    columns: {
+      visibility: true,
+      hasBrowserSession: true,
+      projectId: true,
+    },
+  });
+
+  if (!pgTrace || pgTrace.visibility !== "public") {
+    throw new Error("Trace not found.");
+  }
+
+  const projectId = pgTrace.projectId;
+
+  const chResult = await clickhouseClient.query({
+    query: `
+        SELECT
+            id,
+            start_time as startTime,
+            end_time as endTime,
+            input_tokens as inputTokens,
+            output_tokens as outputTokens,
+            total_tokens as totalTokens,
+            input_cost as inputCost,
+            output_cost as outputCost,
+            total_cost as totalCost,
+            metadata,
+            status,
+            trace_type as traceType
+        FROM traces_v0(project_id={projectId: UUID}, start_time='2023-01-01 00:00:00', end_time=now())
+        WHERE id = {traceId: UUID}
+            LIMIT 1
+    `,
+    format: "JSONEachRow",
+    query_params: {
+      traceId,
+      projectId,
+    },
+  });
+
+  const [trace] = (await chResult.json()) as Omit<TraceViewTrace, "hasBrowserSession" | "visibility">[];
+
+  if (!trace) {
+    throw new Error("Trace not found.");
+  }
+
+  return {
+    ...trace,
+    hasBrowserSession: pgTrace.hasBrowserSession || false,
+    visibility: pgTrace.visibility as TraceViewTrace["visibility"],
+  };
 }

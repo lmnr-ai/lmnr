@@ -1,4 +1,4 @@
-import { omit } from "lodash";
+import { get, omit } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useMemo } from "react";
 import useSWR from "swr";
@@ -16,12 +16,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
 interface SpanViewProps {
   spanId: string;
+  traceId: string;
 }
 
-export function SpanView({ spanId }: SpanViewProps) {
+export function SpanView({ spanId, traceId }: SpanViewProps) {
   const { projectId } = useParams();
-  const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
-  const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
+  const { data: span, isLoading } = useSWR<Span>(
+    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`,
+    swrFetcher
+  );
+  const { data: events } = useSWR<Event[]>(
+    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
+    swrFetcher
+  );
 
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
@@ -35,10 +42,10 @@ export function SpanView({ spanId }: SpanViewProps) {
     );
   }
 
-  if (span.attributes["gen_ai.prompt.user"]) {
+  if (get(span.attributes, "gen_ai.prompt.user")) {
     return (
       <div className="whitespace-pre-wrap p-4 border rounded-md bg-muted/50">
-        {span.attributes["gen_ai.prompt.user"]}
+        {get(span.attributes, "gen_ai.prompt.user")}
       </div>
     );
   }
