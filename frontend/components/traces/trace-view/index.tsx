@@ -319,7 +319,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     return () => {
       eventSource.close();
     };
-  }, [setBrowserSession, setSpans, setTrace, spans, trace, traceId, projectId]);
+  }, [setBrowserSession, setSpans, setTrace, traceId, projectId]);
 
   if (isLoading) {
     return (

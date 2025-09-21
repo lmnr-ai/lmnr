@@ -351,6 +351,32 @@ impl SpanAttributes {
         })
     }
 
+    pub fn set_usage(&mut self, usage: &SpanUsage) {
+        self.raw_attributes
+            .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
+        self.raw_attributes
+            .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
+        self.raw_attributes
+            .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
+        self.raw_attributes
+            .insert(GEN_AI_INPUT_COST.to_string(), json!(usage.input_cost));
+        self.raw_attributes
+            .insert(GEN_AI_OUTPUT_COST.to_string(), json!(usage.output_cost));
+
+        if let Some(request_model) = &usage.request_model {
+            self.raw_attributes
+                .insert(GEN_AI_REQUEST_MODEL.to_string(), json!(request_model));
+        }
+        if let Some(response_model) = &usage.response_model {
+            self.raw_attributes
+                .insert(GEN_AI_RESPONSE_MODEL.to_string(), json!(response_model));
+        }
+        if let Some(provider_name) = &usage.provider_name {
+            self.raw_attributes
+                .insert(GEN_AI_SYSTEM.to_string(), json!(provider_name));
+        }
+    }
+
     /// Extend the span path.
     ///
     /// This is a hack which helps not to change traceloop auto-instrumentation code. It will

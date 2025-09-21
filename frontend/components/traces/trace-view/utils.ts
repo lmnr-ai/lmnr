@@ -173,11 +173,15 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
+      console.log(newSpan);
+
       if (trace) {
         const newTrace = { ...trace };
+
+        console.log(trace);
         newTrace.endTime = new Date(
           Math.max(new Date(newTrace.endTime).getTime(), new Date(newSpan.endTime).getTime())
-        ).toUTCString();
+        ).toISOString();
         newTrace.totalTokens +=
           (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
@@ -191,6 +195,7 @@ export const onRealtimeUpdateSpans =
         newTrace.hasBrowserSession =
           trace.hasBrowserSession || newSpan.attributes["lmnr.internal.has_browser_session"];
 
+        console.log(newTrace);
         setTrace(newTrace);
       }
 

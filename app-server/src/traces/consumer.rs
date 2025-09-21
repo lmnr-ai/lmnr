@@ -264,7 +264,7 @@ async fn process_batch(
             })
             .collect();
 
-        prepare_span_for_recording(span, &filtered_events);
+        prepare_span_for_recording(span, &span_usage, &filtered_events);
         convert_span_to_provider_format(span);
 
         span_usage_vec.push(span_usage);

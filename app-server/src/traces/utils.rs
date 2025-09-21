@@ -8,7 +8,10 @@ use regex::Regex;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{db::events::Event, opentelemetry::opentelemetry_proto_common_v1};
+use crate::{
+    db::{events::Event, spans::SpanType},
+    opentelemetry::opentelemetry_proto_common_v1,
+};
 
 use crate::{
     cache::Cache,
@@ -159,13 +162,17 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     first_in_ids && first_in_path
 }
 
-pub fn prepare_span_for_recording(span: &mut Span, events: &[Event]) -> () {
+pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, events: &[Event]) -> () {
     events.iter().for_each(|event| {
         // Check if it's an exception event
         if event.name == "exception" {
             span.status = Some("error".to_string());
         }
     });
+
+    if span.span_type == SpanType::LLM {
+        span.attributes.set_usage(&span_usage);
+    }
 
     span.attributes.extend_span_path(&span.name);
     span.attributes.ids_path().map(|path| {
