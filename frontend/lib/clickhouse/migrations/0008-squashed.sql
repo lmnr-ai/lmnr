@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS default.evaluation_scores (
 ORDER BY (project_id, group_id, timestamp, evaluation_id, name)
 SETTINGS index_granularity = 8192;
 
+ALTER TABLE evaluation_scores ADD COLUMN IF NOT EXISTS evaluation_datapoint_id UUID default '00000000-0000-0000-0000-000000000000';
+
 CREATE TABLE IF NOT EXISTS default.labels
 (
     `project_id` UUID,
