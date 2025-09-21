@@ -1,138 +1,216 @@
-import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
-import { keyBy, partition } from "lodash";
+import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import {
+  buildSelectQuery,
+  ColumnFilterConfig,
+  createCustomFilter,
+  createNumberFilter,
+  createStringFilter,
+  QueryParams,
+  QueryResult,
+  SelectQueryOptions,
+} from "@/lib/actions/common/query-builder";
+import { FilterDef } from "@/lib/db/modifiers";
 
-import { Operator } from "@/components/ui/datatable-filter/utils";
-import { processFilters, processors } from "@/lib/actions/common/utils";
-import { db } from "@/lib/db/drizzle";
-import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+const tracesColumnFilterConfig: ColumnFilterConfig = {
+  processors: new Map([
+    [
+      "id",
+      createCustomFilter(
+        (filter, paramKey) => `id ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
+    ["session_id", createStringFilter],
+    ["user_id", createStringFilter],
+    [
+      "status",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          if (value === "success") {
+            return operator === "eq" ? `status != 'error'` : `status = 'error'`;
+          } else if (value === "error") {
+            return operator === "eq" ? `status = 'error'` : `status != 'error'`;
+          }
+          return `status ${OperatorLabelMap[operator]} {${paramKey}:String}`;
+        },
+        (filter, paramKey) => {
+          const { value } = filter;
+          return value === "success" || value === "error" ? {} : { [paramKey]: value };
+        }
+      ),
+    ],
+    [
+      "trace_type",
+      createCustomFilter(
+        (filter, paramKey) => `trace_type ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
+        (filter, paramKey) => ({ [paramKey]: filter.value.toUpperCase() })
+      ),
+    ],
+    [
+      "tags",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(tags, {${paramKey}:String})`;
+          } else {
+            return `NOT has(tags, {${paramKey}:String})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
+    ["total_cost", createNumberFilter("Float64")],
+    ["input_cost", createNumberFilter("Float64")],
+    ["output_cost", createNumberFilter("Float64")],
+    ["total_tokens", createNumberFilter("Int64")],
+    ["input_tokens", createNumberFilter("Int64")],
+    ["output_tokens", createNumberFilter("Int64")],
+    ["duration", createNumberFilter("Float64")],
+    [
+      "metadata",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const [key, val] = filter.value.split("=", 2);
+          if (key && val) {
+            return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+          }
+          return "";
+        },
+        (filter, paramKey) => {
+          const [key, val] = filter.value.split("=", 2);
+          if (key && val) {
+            return {
+              [`${paramKey}_key`]: key,
+              [`${paramKey}_val`]: `"${val}"`,
+            };
+          }
+          return {};
+        }
+      ),
+    ],
+    ["top_span_type", createStringFilter],
+    ["top_span_name", createStringFilter],
+  ]),
+};
 
-export type TraceQueryResult = Pick<
-  Trace,
-  "id" | "inputTokenCount" | "outputTokenCount" | "totalTokenCount" | "inputCost" | "outputCost" | "cost" | "traceType"
-> & {
-  startTime: string | null;
-  endTime: string | null;
-  sessionId: string | null;
-  status: string | null;
-  userId: string | null;
-  hasBrowserSession: boolean | null;
-  metadata: unknown;
+// Traces table column mapping
+const tracesSelectColumns = [
+  "id",
+  "start_time as startTime",
+  "end_time as endTime",
+  "session_id as sessionId",
+  "metadata",
+  "tags",
+  "input_tokens as inputTokens",
+  "output_tokens as outputTokens",
+  "top_span_id as topSpanId",
+  "top_span_name as topSpanName",
+  "top_span_type as topSpanType",
+  "total_tokens as totalTokens",
+  "input_cost as inputCost",
+  "output_cost as outputCost",
+  "total_cost as totalCost",
+  "trace_type as traceType",
+  "status",
+  "user_id as userId",
+];
+
+export interface BuildTracesQueryOptions {
   projectId: string;
-  latency?: number;
-};
-
-export type SpanQueryResult = Pick<Span, "traceId" | "inputPreview" | "outputPreview" | "name" | "path"> & {
-  spanType: SpanType;
-};
-
-export type MergedTraceResult = Omit<TraceQueryResult, "metadata" | "startTime" | "endTime" | "sessionId"> & {
-  startTime: string;
-  endTime: string;
-  sessionId: string;
-  metadata: Record<string, string> | null;
-  topSpanInputPreview: string | null;
-  topSpanOutputPreview: string | null;
-  topSpanPath: string | null;
-  topSpanName: string | null;
-  topSpanType: SpanType | null;
-};
-
-enum AllowedCastType {
-  TraceType = "trace_type",
-  SpanType = "span_type",
+  traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
+  traceIds: string[];
+  filters: FilterDef[];
+  limit: number;
+  offset: number;
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
 }
 
-export const processTraceFilters = (filters: FilterDef[]) =>
-  processFilters<FilterDef, SQL>(filters, {
-    processors: processors<FilterDef, SQL>([
-      {
-        column: "tags",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          const tagName = filter.value;
-          const inArrayFilter = inArray(
-            sql`id`,
-            db
-              .select({ id: spans.traceId })
-              .from(spans)
-              .innerJoin(tags, eq(spans.spanId, tags.spanId))
-              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
-              .where(and(eq(tagClasses.name, tagName)))
-          );
-          return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
-        },
-      },
-      {
-        column: "metadata",
-        operators: [Operator.Eq],
-        process: (filter) => {
-          const [key, value] = filter.value.split(/=(.*)/);
-          return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
-        },
-      },
-      {
-        column: "traceType",
-        process: (filter) => filtersToSql([{ ...filter, castType: AllowedCastType.TraceType }], [], {})[0],
-      },
-      {
-        column: "spanType",
-        process: (filter) => {
-          const uppercased = filter.value.toUpperCase().trim();
-          const value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
-          return filtersToSql([{ ...filter, value, castType: AllowedCastType.SpanType }], [], {})[0];
-        },
-      },
-      {
-        column: "status",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          if (filter.value === "success") {
-            return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
-          } else if (filter.value === "error") {
-            return filter.operator === "eq" ? sql`status = 'error'` : sql`status IS NULL`;
-          }
-          return sql`1=1`;
-        },
-      },
-    ]),
-    defaultProcessor: (filter) =>
-      filtersToSql([filter], [], {
-        latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
-      })[0] || null,
-  });
+export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
+  const { traceType, traceIds, filters, limit, offset, startTime, endTime, pastHours } = options;
 
-export const separateFilters = (filters: FilterDef[]) => {
-  const [spansFilters, tracesFilters] = partition(
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType },
+    },
+  ];
+
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: tracesSelectColumns,
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
     filters,
-    (filter) => filter.column === "span_type" || filter.column === "name"
-  );
+    columnFilterConfig: tracesColumnFilterConfig,
+    customConditions,
+    orderBy: {
+      column: "start_time",
+      direction: "DESC",
+    },
+    pagination: {
+      limit,
+      offset,
+    },
+  };
 
-  return { spansFilters, tracesFilters };
+  return buildSelectQuery(queryOptions);
 };
 
-export const mergeTracesWithSpans = (
-  tracesResult: { items: TraceQueryResult[]; totalCount: number },
-  spansResult: SpanQueryResult[]
-) => {
-  const spansMap = keyBy(spansResult, "traceId");
+export const buildTracesCountQueryWithParams = (
+  options: Omit<BuildTracesQueryOptions, "limit" | "offset">
+): QueryResult => {
+  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType },
+    },
+  ];
 
-  const mergedItems: MergedTraceResult[] = tracesResult.items.map((trace) => {
-    const span = spansMap[trace.id];
-    return {
-      ...trace,
-      startTime: trace.startTime || "",
-      endTime: trace.endTime || "",
-      sessionId: trace.sessionId || "",
-      metadata: trace.metadata as Record<string, string> | null,
-      topSpanInputPreview: span?.inputPreview ?? null,
-      topSpanOutputPreview: span?.outputPreview ?? null,
-      topSpanPath: span?.path ?? null,
-      topSpanName: span?.name ?? null,
-      topSpanType: span?.spanType ?? null,
-    };
-  });
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
 
-  return { items: mergedItems, totalCount: tracesResult.totalCount };
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["COUNT(*) as count"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: tracesColumnFilterConfig,
+    customConditions,
+  };
+
+  return buildSelectQuery(queryOptions);
 };

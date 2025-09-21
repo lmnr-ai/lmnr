@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, CopyIcon } from "lucide-react";
-import { PropsWithChildren, ReactNode, useState } from "react";
+import { MouseEvent, PropsWithChildren, ReactNode, useState } from "react";
 
 import { Button, ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,9 @@ export function CopyButton({
 }: PropsWithChildren<CopyLinkButtonProps>) {
   const [copied, setCopied] = useState(false);
 
-  const copyToClipboard = async () => {
+  const copyToClipboard = async (e: MouseEvent<HTMLButtonElement>) => {
     try {
+      e.preventDefault();
       await navigator.clipboard.writeText(text);
       setCopied(true);
 
