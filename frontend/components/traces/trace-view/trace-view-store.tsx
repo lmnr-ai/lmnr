@@ -22,7 +22,7 @@ export const MIN_TREE_VIEW_WIDTH = 450;
 
 export type TraceViewSpan = {
   spanId: string;
-  parentSpanId?: string;
+  parentSpanId?: string | null;
   traceId: string;
   name: string;
   startTime: string;

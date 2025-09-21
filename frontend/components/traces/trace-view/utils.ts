@@ -3,7 +3,7 @@ import { capitalize } from "lodash";
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import { RealtimeSpan, Span, SpanType, Trace } from "@/lib/traces/types";
+import { RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -178,14 +178,14 @@ export const onRealtimeUpdateSpans =
         newTrace.endTime = new Date(
           Math.max(new Date(newTrace.endTime).getTime(), new Date(newSpan.endTime).getTime())
         ).toUTCString();
-        newTrace.totalTokenCount +=
+        newTrace.totalTokens +=
           (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-        newTrace.inputTokenCount += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-        newTrace.outputTokenCount += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+        newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+        newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
         newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
         newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-        newTrace.cost +=
+        newTrace.totalCost +=
           (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
         newTrace.hasBrowserSession =
@@ -206,14 +206,8 @@ export const onRealtimeUpdateSpans =
         newSpans.push({
           ...newSpan,
           collapsed: false,
-          input: null,
-          output: null,
-          inputPreview: null,
-          outputPreview: null,
           events: [],
           path: "",
-          inputUrl: null,
-          outputUrl: null,
         });
       }
 
