@@ -2,7 +2,7 @@ import { fetcher } from "@/lib/utils";
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params;
 

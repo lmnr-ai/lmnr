@@ -617,7 +617,7 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
                                 .service(routes::sql::execute_sql_query)
-
+                                .service(routes::sql::validate_sql_query)
                                 .service(routes::realtime::sse_endpoint),
                         )
                         .service(routes::probes::check_health)

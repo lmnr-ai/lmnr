@@ -134,6 +134,8 @@ export default function TracesTable() {
 
       const isTopSpan = spanData.parentSpanId === null;
 
+      console.log(spanData.status);
+
       if (existingTraceIndex !== -1) {
         // Update existing trace
         const newTraces = [...currentTraces];
@@ -157,9 +159,13 @@ export default function TracesTable() {
           inputCost: existingTrace.inputCost + spanInputCost,
           outputCost: existingTrace.outputCost + spanOutputCost,
           totalCost: existingTrace.totalCost + spanInputCost + spanOutputCost,
-          topSpanName: isTopSpan ? spanData.name : null,
-          topSpanId: isTopSpan ? spanData.spanId : null,
-          topSpanType: isTopSpan ? spanData.spanType : null,
+          topSpanName: isTopSpan ? spanData.name : existingTrace.topSpanName,
+          topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
+          topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
+          userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
+          tags: Array.from(new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])),
+          status: existingTrace.status !== "error" ? spanData.status : existingTrace.status,
+          sessionId: spanData.attributes?.["lmnr.association.properties.session_id"] || existingTrace.sessionId,
         };
 
         setTraces(newTraces);
@@ -181,8 +187,8 @@ export default function TracesTable() {
           topSpanName: isTopSpan ? spanData.name : null,
           topSpanType: isTopSpan ? spanData.spanType : null,
           status: spanData.status,
-          userId: spanData.attributes?.["user.id"] || null,
-          tags: spanData.attributes?.["tags"] || [],
+          userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,
+          tags: spanData.attributes?.["lmnr.association.properties.tags"] || [],
         };
 
         const newTraces = currentTraces ? [...currentTraces] : [];
