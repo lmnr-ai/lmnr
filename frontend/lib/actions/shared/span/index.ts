@@ -34,8 +34,8 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
             trace_id as traceId,
             input, 
             output,
-            attributes
-            status,
+            attributes,
+            status
         FROM spans
         WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
         LIMIT 1
@@ -74,9 +74,10 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
 
   const chSpan = await clickhouseClient.query({
     query: `
-      SELECT span_id as spanId,
+      SELECT span_id as spanId
       FROM spans
-      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
+      WHERE span_id = {spanId: UUID} AND spans.trace_id = {traceId: UUID}
+      LIMIT 1
     `,
     format: "JSONEachRow",
     query_params: { spanId, traceId },
