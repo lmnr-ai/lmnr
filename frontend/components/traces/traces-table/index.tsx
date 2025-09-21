@@ -123,50 +123,18 @@ export default function TracesTable() {
     toast,
   ]);
 
-  const getTraceTopSpanInfo = useCallback(
-    async (
-      spanId: string
-    ): Promise<{
-      topSpanName?: string;
-      topSpanType?: SpanType;
-      topSpanInputPreview?: any;
-      topSpanOutputPreview?: any;
-    }> => {
-      try {
-        const response = await fetch(`/api/projects/${projectId}/spans/${spanId}/basic-info`);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch span info: ${response.status} ${response.statusText}`);
-        }
-
-        const span = await response.json();
-        return {
-          topSpanName: span?.name,
-          topSpanType: span?.spanType,
-          topSpanInputPreview: span?.inputPreview,
-          topSpanOutputPreview: span?.outputPreview,
-        };
-      } catch (error) {
-        console.warn("Failed to fetch span info:", error);
-        return {};
-      }
-    },
-    [projectId]
-  );
-
   const updateRealtimeTracesFromSpan = useCallback(
     async (spanData: Record<string, any>) => {
       const currentTraces = tracesRef.current;
       if (!currentTraces) return;
 
-      const traceId = spanData.trace_id;
+      const traceId = spanData.traceId;
       if (!traceId) return;
-
-      // Check if this is a root span (no parent_span_id)
-      const isRootSpan = !spanData.parent_span_id;
 
       // Find existing trace
       const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceId);
+
+      const isTopSpan = spanData.parentSpanId === null;
 
       if (existingTraceIndex !== -1) {
         // Update existing trace
@@ -183,42 +151,40 @@ export default function TracesTable() {
           ...existingTrace,
           endTime: new Date(Math.max(
             new Date(existingTrace.endTime).getTime(),
-            new Date(spanData.end_time).getTime()
+            new Date(spanData.endTime).getTime()
           )).toUTCString(),
-          totalTokenCount: existingTrace.totalTokenCount + spanInputTokens + spanOutputTokens,
-          inputTokenCount: existingTrace.inputTokenCount + spanInputTokens,
-          outputTokenCount: existingTrace.outputTokenCount + spanOutputTokens,
+          totalTokens: existingTrace.totalTokens + spanInputTokens + spanOutputTokens,
+          inputTokens: existingTrace.inputTokens + spanInputTokens,
+          outputTokens: existingTrace.outputTokens + spanOutputTokens,
           inputCost: existingTrace.inputCost + spanInputCost,
           outputCost: existingTrace.outputCost + spanOutputCost,
-          cost: existingTrace.cost + spanInputCost + spanOutputCost,
-          hasBrowserSession: existingTrace.hasBrowserSession || spanData.attributes?.["lmnr.internal.has_browser_session"] || false,
+          totalCost: existingTrace.totalCost + spanInputCost + spanOutputCost,
+          topSpanName: isTopSpan ? spanData.name : null,
+          topSpanId: isTopSpan ? spanData.spanId : null,
+          topSpanType: isTopSpan ? spanData.spanType : null,
         };
 
         setTraces(newTraces);
-      } else if (isRootSpan) {
-        // Create new trace from root span
-        const newTrace: Trace = {
+      } else {
+        const newTrace: TraceRow = {
           id: traceId,
-          startTime: spanData.start_time,
-          endTime: spanData.end_time,
+          startTime: spanData.startTime,
+          endTime: spanData.endTime,
           sessionId: spanData.attributes?.["session.id"] || null,
-          inputTokenCount: spanData.attributes?.["gen_ai.usage.input_tokens"] || 0,
-          outputTokenCount: spanData.attributes?.["gen_ai.usage.output_tokens"] || 0,
-          totalTokenCount: (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) + (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
+          inputTokens: spanData.attributes?.["gen_ai.usage.input_tokens"] || 0,
+          outputTokens: spanData.attributes?.["gen_ai.usage.output_tokens"] || 0,
+          totalTokens: (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) + (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
           inputCost: spanData.attributes?.["gen_ai.usage.input_cost"] || 0,
           outputCost: spanData.attributes?.["gen_ai.usage.output_cost"] || 0,
-          cost: (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) + (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
+          totalCost: (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) + (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
           metadata: spanData.attributes?.["metadata"] || null,
-          hasBrowserSession: spanData.attributes?.["lmnr.internal.has_browser_session"] || false,
-          topSpanId: spanData.span_id,
+          topSpanId: isTopSpan ? spanData.spanId : null,
           traceType: "DEFAULT",
-          topSpanInputPreview: null,
-          topSpanOutputPreview: null,
-          topSpanName: spanData.name,
-          topSpanType: spanData.span_type,
-          topSpanPath: spanData.attributes?.["lmnr.span.path"] || null,
+          topSpanName: isTopSpan ? spanData.name : null,
+          topSpanType: isTopSpan ? spanData.spanType : null,
           status: spanData.status,
           userId: spanData.attributes?.["user.id"] || null,
+          tags: spanData.attributes?.["tags"] || [],
         };
 
         const newTraces = currentTraces ? [...currentTraces] : [];
@@ -248,12 +214,15 @@ export default function TracesTable() {
 
     const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
 
-    eventSource.addEventListener("postgres_changes", async (event) => {
+    eventSource.addEventListener("new_spans", async (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.eventType === "INSERT" && payload.new?.trace_id) {
-          // Convert span message to trace update
-          await updateRealtimeTracesFromSpan(payload.new);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            if (span.traceId) {
+              await updateRealtimeTracesFromSpan(span);
+            }
+          }
         }
       } catch (error) {
         console.error("Error processing SSE message:", error);

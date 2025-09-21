@@ -1,3 +1,5 @@
+import { fetcher } from "@/lib/utils";
+
 export async function GET(
   request: Request,
   { params }: { params: { projectId: string } }
@@ -5,24 +7,71 @@ export async function GET(
   const { projectId } = await params;
 
   try {
+    // Use the request's signal to detect client disconnection
+    const abortController = new AbortController();
+
+    // Forward the client's abort signal to our controller
+    if (request.signal) {
+      request.signal.addEventListener('abort', () => {
+        abortController.abort();
+      });
+    }
+
     // Forward the request to the app-server SSE endpoint
-    const appServerUrl = process.env.APP_SERVER_URL || "http://localhost:8000";
-    const response = await fetch(`${appServerUrl}/api/v1/projects/${projectId}/realtime`, {
+    const response = await fetcher(`/projects/${projectId}/realtime`, {
       method: "GET",
       headers: {
         "Accept": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
       },
+      signal: abortController.signal,
     });
 
     if (!response.ok) {
-      console.error("Failed to connect to realtime service", response);
+      console.error("Failed to connect to realtime service", response.status);
       return new Response("Failed to connect to realtime service", { status: 500 });
     }
 
-    // Return the SSE stream
-    return new Response(response.body, {
+    // Create a ReadableStream that properly handles client disconnection
+    const stream = new ReadableStream({
+      start(controller) {
+        if (!response.body) {
+          controller.close();
+          return;
+        }
+
+        const reader = response.body.getReader();
+
+        const pump = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+
+              if (done) {
+                console.log(`Stream ended for project ${projectId}`);
+                controller.close();
+                break;
+              }
+
+              controller.enqueue(value);
+            }
+          } catch (error) {
+            controller.error(error);
+          } finally {
+            // Ensure reader is released
+            reader.releaseLock();
+          }
+        };
+
+        pump();
+      },
+      cancel() {
+        abortController.abort();
+      }
+    });
+
+    return new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream",

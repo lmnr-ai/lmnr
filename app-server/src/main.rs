@@ -335,6 +335,8 @@ fn main() -> anyhow::Result<()> {
     // ==== 3.6 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
+    runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
+
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
@@ -549,9 +551,6 @@ fn main() -> anyhow::Result<()> {
                             mq_for_http.clone(),
                         ));
                     }
-
-                    // Start SSE connection cleanup task
-                    tokio::spawn(cleanup_closed_connections(sse_connections.clone()));
 
                     App::new()
                         .wrap( ErrorHandlers::new()

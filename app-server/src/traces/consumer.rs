@@ -436,47 +436,38 @@ async fn send_realtime_messages_to_sse(spans: &[Span], sse_connections: &SseConn
             continue; // Skip if no active connections for this project
         }
 
-        log::info!(
-            "Sending {} span realtime messages for project {}",
-            project_spans.len(),
-            project_id
-        );
+        // Send all spans for this project in a single message
+        let spans_data: Vec<Value> = project_spans
+            .iter()
+            .map(|span| span_to_realtime_span(span))
+            .collect();
 
-        // Send span realtime messages (frontend will derive trace updates from these)
-        for span in &project_spans {
-            let span_message = SseMessage {
-                event_type: "postgres_changes".to_string(),
-                data: serde_json::json!({
-                    "eventType": "INSERT",
-                    "old": null,
-                    "new": span_to_lightweight_db_row(span)
-                }),
-            };
+        let spans_message = SseMessage {
+            event_type: "new_spans".to_string(),
+            data: serde_json::json!({
+                "spans": spans_data
+            }),
+        };
 
-            send_to_project_connections(sse_connections, &project_id, span_message);
-        }
+        send_to_project_connections(sse_connections, &project_id, spans_message);
     }
 }
 
 /// Convert span to lightweight database row format for realtime updates
 /// Includes all span data except heavy input/output fields
-fn span_to_lightweight_db_row(span: &Span) -> Value {
+fn span_to_realtime_span(span: &Span) -> Value {
     serde_json::json!({
-        "span_id": span.span_id,
-        "parent_span_id": span.parent_span_id,
-        "trace_id": span.trace_id,
-        "span_type": span.span_type,
+        "spanId": span.span_id,
+        "parentSpanId": span.parent_span_id,
+        "traceId": span.trace_id,
+        "spanType": span.span_type,
         "name": span.name,
-        "start_time": span.start_time,
-        "end_time": span.end_time,
+        "startTime": span.start_time,
+        "endTime": span.end_time,
         "attributes": span.attributes.to_value(),
-        "input_preview": null, // TODO: Generate previews if needed
-        "output_preview": null, // TODO: Generate previews if needed
-        "input_url": span.input_url,
-        "output_url": span.output_url,
         "status": span.status,
-        "project_id": span.project_id,
-        "created_at": span.start_time, // Use start_time as created_at for compatibility
+        "projectId": span.project_id,
+        "createdAt": span.start_time, // Use start_time as created_at for compatibility
         // Note: input and output fields are intentionally excluded for performance
     })
 }

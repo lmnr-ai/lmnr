@@ -296,21 +296,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
     const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
 
-    eventSource.addEventListener("postgres_changes", (event) => {
+    eventSource.addEventListener("new_spans", (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.eventType === "INSERT" && payload.new?.trace_id === traceId) {
-          // Create a mock payload that matches the Supabase RealtimePostgresInsertPayload format
-          const mockPayload = {
-            eventType: "INSERT",
-            old: payload.old,
-            new: payload.new,
-            schema: "public",
-            table: "spans",
-            commit_timestamp: new Date().toISOString(),
-            errors: [],
-          } as any;
-          onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)(mockPayload);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            if (span.traceId === traceId) {
+              onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)(span);
+            }
+          }
         }
       } catch (error) {
         console.error("Error processing SSE message:", error);
