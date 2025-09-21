@@ -16,7 +16,7 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
     [
       "id",
       createCustomFilter(
-        (filter, paramKey) => `trace_id ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
+        (filter, paramKey) => `id ${OperatorLabelMap[filter.operator]} {${paramKey}:String}`,
         (filter, paramKey) => ({ [paramKey]: filter.value })
       ),
     ],
