@@ -12,6 +12,7 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
   TraceViewSpan,
+  TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -27,7 +28,7 @@ import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
@@ -42,7 +43,7 @@ interface TraceViewProps {
   traceId: string;
   // Span id here to control span selection by spans table
   spanId?: string;
-  propsTrace?: Trace;
+  propsTrace?: TraceViewTrace;
   onClose: () => void;
 }
 
@@ -90,7 +91,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSession,
     zoom,
     handleZoom,
-    setBrowserSessionTime,
     langGraph,
     getHasLangGraph,
   } = useTraceViewStoreContext((state) => ({
@@ -144,7 +144,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           });
           return;
         }
-        const traceData = (await response.json()) as Trace;
+        const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
         if (traceData.hasBrowserSession) {
           setBrowserSession(true);
@@ -201,7 +201,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
-        const results = await response.json();
+        const results = (await response.json()) as TraceViewSpan[];
+
         const spans = enrichSpansWithPending(results);
 
         setSpans(spans);
@@ -452,9 +453,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
               ) : selectedSpan ? (
                 selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+                  <HumanEvaluatorSpanView
+                    traceId={selectedSpan.traceId}
+                    spanId={selectedSpan.spanId}
+                    key={selectedSpan.spanId}
+                  />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
                 )
               ) : (
                 <div className="flex flex-col items-center justify-center size-full text-muted-foreground">

@@ -2,9 +2,9 @@ import { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -169,13 +169,7 @@ const dbSpanRowToSpan = (row: Record<string, any>): TraceViewSpan => ({
   startTime: row.start_time,
   endTime: row.end_time,
   attributes: row.attributes,
-  input: null,
-  output: null,
-  inputPreview: row.input_preview,
-  outputPreview: row.output_preview,
   events: [],
-  inputUrl: row.input_url,
-  outputUrl: row.output_url,
   model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
   collapsed: false,
 });
@@ -183,10 +177,10 @@ const dbSpanRowToSpan = (row: Record<string, any>): TraceViewSpan => ({
 export const onRealtimeUpdateSpans =
   (
     spans: TraceViewSpan[],
-    setSpans: (spans: Span[]) => void,
-    setTrace: (trace?: Trace) => void,
+    setSpans: (spans: TraceViewSpan[]) => void,
+    setTrace: (trace?: TraceViewTrace) => void,
     setShowBrowserSession: (show: boolean) => void,
-    trace?: Trace
+    trace?: TraceViewTrace
   ) =>
     (payload: RealtimePostgresInsertPayload<Record<string, any>>) => {
       const rtEventSpan = dbSpanRowToSpan(payload.new);
@@ -200,14 +194,14 @@ export const onRealtimeUpdateSpans =
         newTrace.endTime = new Date(
           Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
         ).toUTCString();
-        newTrace.totalTokenCount +=
+        newTrace.totalTokens +=
         (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
         (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-        newTrace.inputTokenCount += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-        newTrace.outputTokenCount += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+        newTrace.inputTokens += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+        newTrace.outputTokens += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
         newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
         newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-        newTrace.cost +=
+        newTrace.totalCost +=
         (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
         (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
         newTrace.hasBrowserSession =

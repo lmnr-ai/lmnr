@@ -21,18 +21,19 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
   TraceViewSpan,
+  TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
-  trace: Trace;
-  spans: Span[];
+  trace: TraceViewTrace;
+  spans: TraceViewSpan[];
 }
 
 const PureTraceView = ({ trace, spans }: TraceViewProps) => {

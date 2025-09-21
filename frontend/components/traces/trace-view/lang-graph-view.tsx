@@ -2,13 +2,13 @@ import { has, isEmpty } from "lodash";
 import React, { memo, useMemo } from "react";
 
 import LangGraphViewer from "@/components/lang-graph";
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { getLangGraphFromSpan } from "@/lib/lang-graph/utils";
-import { Span } from "@/lib/traces/types";
 
 interface LangGraphViewerProps {
-  spans: Span[];
+  spans: TraceViewSpan[];
 }
 const LangGraphView = ({ spans }: LangGraphViewerProps) => {
   const { langGraphData } = useMemo(() => {

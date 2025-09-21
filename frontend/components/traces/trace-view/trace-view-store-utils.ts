@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Span, SpanType } from "@/lib/traces/types.ts";
+import { SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
 export interface TreeSpan {
@@ -39,12 +39,12 @@ export interface MinimapSpan extends TreeSpan {
   spanId: string;
 }
 
-export const getTopLevelSpans = <T extends Span>(spans: T[]): T[] =>
+export const getTopLevelSpans = <T extends TraceViewSpan>(spans: T[]): T[] =>
   spans
     .filter((span) => !span.parentSpanId)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-export const getChildSpansMap = <T extends Span>(spans: T[]): { [key: string]: T[] } => {
+export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: string]: T[] } => {
   const childSpans = {} as { [key: string]: T[] };
 
   for (const span of spans) {

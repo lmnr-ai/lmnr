@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { getTraceSpans, GetTraceSpansSchema } from "@/lib/actions/spans";
+import { getTraceSpansFromClickHouse, GetTraceSpansSchema } from "@/lib/actions/spans";
 
 export async function GET(
   req: NextRequest,
@@ -22,7 +22,7 @@ export async function GET(
   }
 
   try {
-    const result = await getTraceSpans({ ...parseResult.data, projectId, traceId });
+    const result = await getTraceSpansFromClickHouse({ ...parseResult.data, projectId, traceId });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
