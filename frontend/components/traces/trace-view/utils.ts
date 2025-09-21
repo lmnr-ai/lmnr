@@ -1,4 +1,3 @@
-import { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
@@ -202,7 +201,7 @@ export const onRealtimeUpdateSpans =
         newSpans[index] = {
           ...newSpans[index],
           ...newSpan,
-        }
+        };
       } else {
         newSpans.push({
           ...newSpan,

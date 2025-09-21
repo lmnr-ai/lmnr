@@ -9,11 +9,9 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
-import { mapPendingTraceFromRealTime } from "@/components/traces/traces-table/utils.ts";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
-import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { RealtimeTracePayload, SpanType, TraceRow } from "@/lib/traces/types";
+import { TraceRow } from "@/lib/traces/types";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
