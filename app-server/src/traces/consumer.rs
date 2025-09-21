@@ -230,7 +230,6 @@ async fn process_batch(
     evaluators_queue: Arc<MessageQueue>,
     sse_connections: SseConnectionMap,
 ) {
-    let mut trace_attributes_vec = Vec::new();
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
@@ -248,7 +247,7 @@ async fn process_batch(
 
         // Apply event filtering logic
         let mut has_seen_first_token = false;
-        let filtered_events = span_events
+        let filtered_events: Vec<Event> = span_events
             .into_iter()
             .sorted_by(|a, b| a.timestamp.cmp(&b.timestamp))
             .filter(|event| {
@@ -265,25 +264,12 @@ async fn process_batch(
             })
             .collect();
 
-        let trace_attrs = prepare_span_for_recording(span, &span_usage, &filtered_events);
+        prepare_span_for_recording(span);
         convert_span_to_provider_format(span);
 
-        trace_attributes_vec.push(trace_attrs);
         span_usage_vec.push(span_usage);
         all_events.extend(filtered_events);
     }
-
-    // TODO: Remove PostgreSQL writes - now using ClickHouse only
-    // Record spans and traces to database (batch write)
-    // if let Err(e) = record_spans(db.clone(), &spans, &trace_attributes_vec).await {
-    //     log::error!("Failed to record spans batch: {:?}", e);
-    //     let _ = acker.reject(false).await.map_err(|e| {
-    //         log::error!(
-    //             "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
-    //             e
-    //         );
-    //     });
-    // }
 
     // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
