@@ -1,21 +1,23 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { compact, groupBy } from "lodash";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { compact, groupBy, isNil } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { tryParseJson } from "@/lib/actions/common/utils";
-import { buildTraceSpansQueryWithParams } from "@/lib/actions/spans/clickhouse-utils";
-import { processSpanFilters } from "@/lib/actions/spans/utils";
+import {
+  buildSpansCountQueryWithParams,
+  buildSpansQueryWithParams,
+  processTraceSpanFilters,
+} from "@/lib/actions/spans/utils";
+import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchSpans } from "@/lib/clickhouse/spans";
+import { searchSpans, searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
+import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { spans, traces } from "@/lib/db/migrations/schema";
+import { spans } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
-import { getDateRangeFilters } from "@/lib/db/utils";
-import { SpanType } from "@/lib/traces/types.ts";
+import { Span } from "@/lib/traces/types";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -33,10 +35,10 @@ export const GetTraceSpansSchema = FiltersSchema.extend({
 
 export const DeleteSpansSchema = z.object({
   projectId: z.string(),
-  spanIds: z.array(z.string()),
+  spanIds: z.array(z.string()).min(1),
 });
 
-export async function getSpans(input: z.infer<typeof GetSpansSchema>) {
+export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[]; count: number }> {
   const {
     projectId,
     pastHours,
@@ -49,69 +51,90 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>) {
     filter: inputFilters,
   } = input;
 
-  const urlParamFilters: FilterDef[] = compact(inputFilters);
+  const filters: FilterDef[] = compact(inputFilters);
 
-  let searchSpanIds = null;
-  if (search) {
-    const timeRange = getTimeRange(pastHours, startTime, endTime);
-    const searchResult = await searchSpans({
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const spanIds = search
+    ? await searchSpanIds({
       projectId,
       searchQuery: search,
-      timeRange,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
-    });
-    searchSpanIds = Array.from(searchResult.spanIds);
+    })
+    : [];
+
+  if (search && spanIds?.length === 0) {
+    return { items: [], count: 0 };
   }
 
-  const baseFilters = [
-    inArray(
-      sql`trace_id`,
-      db
-        .select({ id: traces.id })
-        .from(traces)
-        .where(and(eq(traces.traceType, "DEFAULT"), eq(traces.projectId, projectId)))
-    ),
-    sql`project_id = ${projectId}`,
-  ];
+  const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
+    projectId,
+    spanIds,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+  });
 
-  const textSearchFilters = searchSpanIds ? [inArray(sql`span_id`, searchSpanIds)] : [];
+  const { query: countQuery, parameters: countParams } = buildSpansCountQueryWithParams({
+    projectId,
+    spanIds,
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+  });
 
-  const processedFilters = processSpanFilters(urlParamFilters);
+  const [items, [count]] = await Promise.all([
+    executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId }),
+    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
+  ]);
 
-  const allSqlFilters = [
-    ...getDateRangeFilters(startTime || null, endTime || null, pastHours || null),
-    ...processedFilters,
-    ...textSearchFilters,
-  ];
-
-  const { input: spanInput, output, ...columns } = getTableColumns(spans);
-
-  const baseQuery = db
-    .select({
-      ...columns,
-      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
-      path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
-      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as(
-        "model"
-      ),
-    })
-    .from(spans)
-    .where(and(...baseFilters.concat(allSqlFilters)))
-    .orderBy(desc(spans.startTime))
-    .limit(pageSize)
-    .offset(pageNumber * pageSize);
-
-  const countQuery = db
-    .select({
-      totalCount: sql<number>`COUNT(*)`.as("total_count"),
-    })
-    .from(spans)
-    .where(and(...baseFilters.concat(allSqlFilters)));
-
-  const [items, totalCount] = await Promise.all([baseQuery, countQuery]);
-
-  return { items, totalCount: totalCount[0].totalCount };
+  return {
+    items: items,
+    count: count?.count || 0,
+  };
 }
+
+const searchSpanIds = async ({
+  projectId,
+  searchQuery,
+  timeRange,
+  searchType,
+}: {
+  projectId: string;
+  searchQuery: string;
+  timeRange: TimeRange;
+  searchType?: SpanSearchType[];
+}): Promise<string[]> => {
+  const baseQuery = `
+      SELECT DISTINCT(span_id) spanId FROM spans
+      WHERE project_id = {projectId: UUID}
+  `;
+
+  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+
+  const response = await clickhouseClient.query({
+    query: `${finalQuery}
+     ORDER BY start_time DESC
+     LIMIT 1000`,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      query: `%${searchQuery.toLowerCase()}%`,
+    },
+  });
+
+  const result = (await response.json()) as { spanId: string }[];
+
+  return result.map((i) => i.spanId);
+};
 
 export async function getTraceSpansFromClickHouse(
   input: z.infer<typeof GetTraceSpansSchema>
@@ -178,13 +201,8 @@ export async function getTraceSpansFromClickHouse(
     query_params: { traceId, projectId },
   });
 
-  const spanEvents = (await eventsResult.json()) as {
-    id: string;
-    timestamp: string;
-    spanId: string;
-    name: string;
-    attributes: string;
-  }[];
+  const spanEvents = (await chResult.json()) as { id: string; timestamp: string; spanId: string; name: string }[];
+
   const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
   const shouldFlattenTree = searchSpanIds.length > 0 || urlParamFilters.length > 0;
 
@@ -209,7 +227,17 @@ export async function getTraceSpansFromClickHouse(
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
-  const { projectId, spanIds } = input;
+  const { projectId, spanIds } = DeleteSpansSchema.parse(input);
 
-  await db.delete(spans).where(and(inArray(spans.spanId, spanIds), eq(spans.projectId, projectId)));
+  await clickhouseClient.command({
+    query: `
+        DELETE FROM spans
+        WHERE project_id = {projectId: UUID} 
+            AND span_id in ({spanIds: Array(UUID)})
+      `,
+    query_params: {
+      spanIds,
+      projectId,
+    },
+  });
 }
