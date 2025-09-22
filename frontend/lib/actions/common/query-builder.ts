@@ -183,18 +183,23 @@ const buildWhereClause = (options: WhereClauseOptions): QueryResult => {
 
 export interface SelectQueryOptions extends WhereClauseOptions {
   select: SelectOptions;
+  groupBy?: string[];
   orderBy?: OrderByOptions;
   pagination?: PaginationOptions;
 }
 
 const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
-  const { select, orderBy, pagination } = options;
+  const { select, groupBy, orderBy, pagination } = options;
   const whereResult = buildWhereClause(options);
 
   let query = `SELECT ${select.columns.join(", ")} FROM ${select.table}`;
 
   if (whereResult.query) {
     query += ` ${whereResult.query}`;
+  }
+
+  if (groupBy && groupBy.length > 0) {
+    query += ` GROUP BY ${groupBy.join(", ")}`;
   }
 
   if (orderBy) {

@@ -160,16 +160,21 @@ export type TracePreview = {
   outputMessageIds: string[];
 };
 
-export type SessionPreview = {
+export type SessionRow = {
   id: string;
+  type: "session" | "trace";
   traceCount: number;
-  inputCost: number;
-  outputCost: number;
-  cost: number;
   startTime: string;
   endTime: string;
   duration: number;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
+
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+
+  userId?: string;
 };

@@ -1,108 +1,160 @@
-import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
+import { isNil } from "lodash";
 
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
-import { processFilters, processors } from "@/lib/actions/common/utils";
-import { db } from "@/lib/db/drizzle";
-import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { Operator } from "@/components/ui/datatable-filter/utils.ts";
+import {
+  buildSelectQuery,
+  ColumnFilterConfig,
+  createCustomFilter,
+  createNumberFilter,
+  createStringFilter,
+  QueryParams,
+  QueryResult,
+  SelectQueryOptions,
+} from "@/lib/actions/common/query-builder";
+import { FilterDef } from "@/lib/db/modifiers";
 
-enum AllowedCastType {
-  TraceType = "trace_type",
-  SpanType = "span_type",
+const sessionsColumnFilterConfig: ColumnFilterConfig = {
+  processors: new Map([
+    ["id", createStringFilter],
+    ["user_id", createStringFilter],
+    [
+      "tags",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(tags, {${paramKey}:String})`;
+          } else {
+            return `NOT has(tags, {${paramKey}:String})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
+    ["trace_count", createNumberFilter("Float64")],
+    ["input_tokens", createNumberFilter("Float64")],
+    ["output_tokens", createNumberFilter("Float64")],
+    ["total_tokens", createNumberFilter("Float64")],
+    ["input_cost", createNumberFilter("Float64")],
+    ["output_cost", createNumberFilter("Float64")],
+    ["total_cost", createNumberFilter("Float64")],
+    ["duration", createNumberFilter("Float64")],
+  ]),
+};
+
+const sessionsSelectColumns = [
+  "session_id as id",
+  "COUNT(*) as traceCount",
+  "SUM(input_tokens) as inputTokens",
+  "SUM(output_tokens) as outputTokens",
+  "SUM(total_tokens) as totalTokens",
+  "MIN(start_time) as startTime",
+  "MAX(end_time) as endTime",
+  "SUM(duration) as duration",
+  "SUM(input_cost) as inputCost",
+  "SUM(output_cost) as outputCost",
+  "SUM(total_cost) as totalCost",
+  "any(user_id) as userId",
+];
+
+export interface BuildSessionsQueryOptions {
+  columns?: string[];
+  sessionIds?: string[];
+  filters: FilterDef[];
+  limit?: number;
+  offset?: number;
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
 }
 
-const AGGREGATE_COLUMNS = new Set([
-  "trace_count",
-  "input_token_count",
-  "output_token_count",
-  "total_token_count",
-  "cost",
-  "input_cost",
-  "output_cost",
-  "duration",
-]);
+export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
+  const { sessionIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
 
-export const processSessionFilters = (filters: FilterDef[]) => {
-  const whereFilters = filters.filter((f) => !AGGREGATE_COLUMNS.has(f.column));
-  const havingFilters = filters.filter((f) => AGGREGATE_COLUMNS.has(f.column));
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [];
 
-  const whereFiltersResult = processFilters<FilterDef, SQL>(whereFilters, {
-    processors: processors<FilterDef, SQL>([
-      {
-        column: "tags",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          const tagName = filter.value;
-          const inArrayFilter = inArray(
-            sql`id`,
-            db
-              .select({ id: spans.traceId })
-              .from(spans)
-              .innerJoin(tags, eq(spans.spanId, tags.spanId))
-              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
-              .where(and(eq(tagClasses.name, tagName)))
-          );
-          return filter.operator === Operator.Eq ? inArrayFilter : not(inArrayFilter);
-        },
-      },
-      {
-        column: "metadata",
-        operators: [Operator.Eq],
-        process: (filter) => {
-          const [key, value] = filter.value.split(/=(.*)/);
-          return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
-        },
-      },
-      {
-        column: "trace_id",
-        process: (filter) =>
-          // Map trace_id to the actual column name 'id' in the traces table
-          filtersToSql([{ ...filter, column: "id" }], [], {})[0],
-      },
-      {
-        column: "traceType",
-        process: (filter) => filtersToSql([{ ...filter, castType: AllowedCastType.TraceType }], [], {})[0],
-      },
-      {
-        column: "spanType",
-        process: (filter) => {
-          const uppercased = filter.value.toUpperCase().trim();
-          const value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
-          return filtersToSql([{ ...filter, value, castType: AllowedCastType.SpanType }], [], {})[0];
-        },
-      },
-    ]),
-    defaultProcessor: (filter) =>
-      filtersToSql([filter], [], {
-        duration: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))::float8`,
-      })[0] || null,
+  if (sessionIds?.length > 0) {
+    customConditions.push({
+      condition: `session_id IN ({sessionIds:Array(String)})`,
+      params: { sessionIds },
+    });
+  }
+
+  customConditions.push({
+    condition: `session_id != '<null>' AND session_id != ''`,
+    params: {},
   });
 
-  const havingFiltersResult = processFilters<FilterDef, SQL>(havingFilters, {
-    defaultProcessor: (filter) => {
-      const aggregateColumnMap: Record<string, SQL> = {
-        trace_count: sql`COUNT(id)`,
-        input_token_count: sql`SUM(input_token_count)`,
-        output_token_count: sql`SUM(output_token_count)`,
-        total_token_count: sql`SUM(total_token_count)`,
-        cost: sql`SUM(cost)`,
-        input_cost: sql`SUM(input_cost)`,
-        output_cost: sql`SUM(output_cost)`,
-        duration: sql`SUM(EXTRACT(EPOCH FROM (end_time - start_time)))`,
-      };
-
-      const aggregateColumn = aggregateColumnMap[filter.column];
-      if (!aggregateColumn) return null;
-
-      const sqlOperator = OperatorLabelMap[filter.operator];
-      if (!sqlOperator) return null;
-
-      return sql`${aggregateColumn} ${sql.raw(sqlOperator)} ${filter.value}`;
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: columns || sessionsSelectColumns,
+      table: "traces",
     },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: sessionsColumnFilterConfig,
+    customConditions,
+    groupBy: ["id"],
+    orderBy: {
+      column: "MIN(start_time)",
+      direction: "DESC",
+    },
+    ...(!isNil(limit) &&
+      !isNil(offset) && {
+        pagination: {
+          limit,
+          offset,
+        },
+      }),
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
+export const buildSessionsCountQueryWithParams = (
+  options: Omit<BuildSessionsQueryOptions, "limit" | "offset">
+): QueryResult => {
+  const { sessionIds = [], filters, startTime, endTime, pastHours } = options;
+
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [];
+
+  if (sessionIds?.length > 0) {
+    customConditions.push({
+      condition: `session_id IN ({sessionIds:Array(String)})`,
+      params: { sessionIds },
+    });
+  }
+
+  customConditions.push({
+    condition: `session_id != '<null>' AND session_id != ''`,
+    params: {},
   });
 
-  return {
-    whereFilters: whereFiltersResult,
-    havingFilters: havingFiltersResult,
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["COUNT(DISTINCT session_id) as count"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: sessionsColumnFilterConfig,
+    customConditions,
   };
+
+  return buildSelectQuery(queryOptions);
 };
