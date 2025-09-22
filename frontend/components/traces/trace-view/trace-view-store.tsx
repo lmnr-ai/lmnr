@@ -73,7 +73,9 @@ interface TraceViewStoreState {
 
 interface TraceViewStoreActions {
   setTrace: (trace?: TraceViewTrace) => void;
+  updateTrace: (updater: (trace: TraceViewTrace) => TraceViewTrace) => void;
   setSpans: (spans: TraceViewSpan[]) => void;
+  updateSpans: (updater: (spans: TraceViewSpan[]) => TraceViewSpan[]) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
@@ -119,6 +121,12 @@ const createTraceViewStore = () =>
         spanPath: null,
 
         setTrace: (trace) => set({ trace }),
+        updateTrace: (updater) => {
+          const trace = get().trace;
+          if (trace) {
+            set({ trace: updater(trace) });
+          }
+        },
         updateTraceVisibility: (visibility) => {
           const trace = get().trace;
           if (trace) {
@@ -126,6 +134,10 @@ const createTraceViewStore = () =>
           }
         },
         setSpans: (spans) => set({ spans: spans.map((s) => ({ ...s, collapsed: false })) }),
+        updateSpans: (updater) => {
+          const spans = get().spans;
+          set({ spans: updater(spans) });
+        },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => transformSpansToTree(get().spans),
         getMinimapSpans: () => {

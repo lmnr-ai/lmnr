@@ -161,11 +161,9 @@ export const getDefaultTraceViewWidth = () => {
 
 export const onRealtimeUpdateSpans =
   (
-    spans: TraceViewSpan[],
-    setSpans: (spans: TraceViewSpan[]) => void,
-    setTrace: (trace?: TraceViewTrace) => void,
+    updateSpans: (updater: (spans: TraceViewSpan[]) => TraceViewSpan[]) => void,
+    updateTrace: (updater: (trace: TraceViewTrace) => TraceViewTrace) => void,
     setShowBrowserSession: (show: boolean) => void,
-    trace?: TraceViewTrace
   ) =>
     (newSpan: RealtimeSpan) => {
 
@@ -173,15 +171,15 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
-      console.log(newSpan);
+      updateTrace((trace) => {
 
-      if (trace) {
         const newTrace = { ...trace };
 
-        console.log(trace);
+        console.log("curr trace", trace);
+        newTrace.startTime = new Date(newTrace.startTime).toUTCString();
         newTrace.endTime = new Date(
           Math.max(new Date(newTrace.endTime).getTime(), new Date(newSpan.endTime).getTime())
-        ).toISOString();
+        ).toUTCString();
         newTrace.totalTokens +=
           (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
@@ -195,28 +193,29 @@ export const onRealtimeUpdateSpans =
         newTrace.hasBrowserSession =
           trace.hasBrowserSession || newSpan.attributes["lmnr.internal.has_browser_session"];
 
-        console.log(newTrace);
-        setTrace(newTrace);
-      }
+        console.log("new trace", newTrace);
+        return newTrace;
+      });
 
-      const newSpans = [...spans];
-      const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
-      if (index !== -1) {
-        // Always replace existing span, regardless of pending status
-        newSpans[index] = {
-          ...newSpans[index],
-          ...newSpan,
-        };
-      } else {
-        newSpans.push({
-          ...newSpan,
-          collapsed: false,
-          events: [],
-          path: "",
-        });
-      }
-
-      setSpans(enrichSpansWithPending(newSpans));
+      updateSpans((spans) => {
+        const newSpans = [...spans];
+        const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
+        if (index !== -1) {
+          // Always replace existing span, regardless of pending status
+          newSpans[index] = {
+            ...newSpans[index],
+            ...newSpan,
+          };
+        } else {
+          newSpans.push({
+            ...newSpan,
+            collapsed: false,
+            events: [],
+            path: "",
+          });
+        }
+        return enrichSpansWithPending(newSpans);
+      });
     };
 
 export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
