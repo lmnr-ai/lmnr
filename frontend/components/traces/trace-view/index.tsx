@@ -306,7 +306,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         if (payload.spans && Array.isArray(payload.spans)) {
           for (const span of payload.spans) {
             if (span.traceId === traceId) {
-              console.log("realtime update spans", span);
               onRealtimeUpdateSpans(updateSpans, updateTrace, setBrowserSession)(span);
             }
           }

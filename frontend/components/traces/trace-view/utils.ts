@@ -4,6 +4,7 @@ import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { RealtimeSpan, SpanType } from "@/lib/traces/types";
+import { normalizeClickHouseTimestamp } from "@/lib/utils";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -175,11 +176,8 @@ export const onRealtimeUpdateSpans =
 
         const newTrace = { ...trace };
 
-        console.log("curr trace", trace);
-        newTrace.startTime = new Date(newTrace.startTime).toUTCString();
-        newTrace.endTime = new Date(
-          Math.max(new Date(newTrace.endTime).getTime(), new Date(newSpan.endTime).getTime())
-        ).toUTCString();
+        newTrace.startTime = normalizeClickHouseTimestamp(newTrace.startTime);
+        newTrace.endTime = new Date(normalizeClickHouseTimestamp(newTrace.endTime)).getTime() > new Date(newSpan.endTime).getTime() ? normalizeClickHouseTimestamp(newTrace.endTime) : newSpan.endTime;
         newTrace.totalTokens +=
           (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
@@ -193,7 +191,6 @@ export const onRealtimeUpdateSpans =
         newTrace.hasBrowserSession =
           trace.hasBrowserSession || newSpan.attributes["lmnr.internal.has_browser_session"];
 
-        console.log("new trace", newTrace);
         return newTrace;
       });
 

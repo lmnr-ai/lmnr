@@ -16,6 +16,7 @@ import { TraceRow } from "@/lib/traces/types";
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
+import { normalizeClickHouseTimestamp } from "@/lib/utils";
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -148,10 +149,8 @@ export default function TracesTable() {
 
         newTraces[existingTraceIndex] = {
           ...existingTrace,
-          endTime: new Date(Math.max(
-            new Date(existingTrace.endTime).getTime(),
-            new Date(spanData.endTime).getTime()
-          )).toUTCString(),
+          startTime: normalizeClickHouseTimestamp(existingTrace.startTime),
+          endTime: new Date(normalizeClickHouseTimestamp(existingTrace.endTime)).getTime() > new Date(spanData.endTime).getTime() ? normalizeClickHouseTimestamp(existingTrace.endTime) : spanData.endTime,
           totalTokens: existingTrace.totalTokens + spanInputTokens + spanOutputTokens,
           inputTokens: existingTrace.inputTokens + spanInputTokens,
           outputTokens: existingTrace.outputTokens + spanOutputTokens,
@@ -166,6 +165,8 @@ export default function TracesTable() {
           status: existingTrace.status !== "error" ? spanData.status : existingTrace.status,
           sessionId: spanData.attributes?.["lmnr.association.properties.session_id"] || existingTrace.sessionId,
         };
+
+        console.log("new trace", newTraces[existingTraceIndex]);
 
         setTraces(newTraces);
       } else {
