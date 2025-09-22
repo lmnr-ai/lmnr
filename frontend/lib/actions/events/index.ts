@@ -29,7 +29,7 @@ export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise
     spanId: string;
   }>({
     query: `
-      SELECT id, timestamp, name, attributes, span_id spanId
+      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ'), name, attributes, span_id spanId
       FROM events
       WHERE ${whereConditions.join(" AND ")}
       ORDER BY timestamp ASC
@@ -41,7 +41,6 @@ export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise
   return events.map((event) => ({
     ...event,
     projectId,
-    timestamp: new Date(`${event.timestamp}Z`).toISOString(),
     attributes: tryParseJson(event.attributes),
   }));
 }

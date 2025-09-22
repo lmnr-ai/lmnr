@@ -176,8 +176,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     query: `
       SELECT
         id,
-        start_time as startTime,
-        end_time as endTime,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,
@@ -224,8 +224,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
     query: `
       SELECT
         id,
-        start_time as startTime,
-        end_time as endTime,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,
