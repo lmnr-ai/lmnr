@@ -1,3 +1,4 @@
+import { get } from "lodash";
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
@@ -146,9 +147,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
         const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
-        if (traceData.hasBrowserSession) {
-          setBrowserSession(true);
-        }
       }
     } catch (e) {
       toast({
@@ -316,6 +314,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     };
   }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
 
+  console.log(
+    spans.some((s) => !!get(s.attributes, "lmnr.internal.has_browser_session")),
+    spans
+  );
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
@@ -476,7 +478,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {!isLoading && (
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={spans.some((s) => !!get(s.attributes, "lmnr.internal.has_browser_session"))}
                     traceId={traceId}
                     llmSpanIds={llmSpanIds}
                   />

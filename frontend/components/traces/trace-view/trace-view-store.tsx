@@ -51,7 +51,6 @@ export type TraceViewTrace = {
   status: string;
   trace_type: string;
   visibility: "public" | "private";
-  hasBrowserSession?: boolean;
 };
 
 interface TraceViewStoreState {
