@@ -26,7 +26,6 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";

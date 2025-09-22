@@ -12,11 +12,11 @@ import { columns, filters } from "@/components/traces/traces-table/columns";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
+import { normalizeClickHouseTimestamp } from "@/lib/utils";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-import { normalizeClickHouseTimestamp } from "@/lib/utils";
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -166,8 +166,6 @@ export default function TracesTable() {
           sessionId: spanData.attributes?.["lmnr.association.properties.session_id"] || existingTrace.sessionId,
         };
 
-        console.log("new trace", newTraces[existingTraceIndex]);
-
         setTraces(newTraces);
       } else {
         const newTrace: TraceRow = {
@@ -208,6 +206,8 @@ export default function TracesTable() {
 
   // SSE connection for realtime updates
   useEffect(() => {
+
+    // Disable realtime updates if there are filters or search
     if (filter.length > 0 || !!textSearchFilter) {
       return;
     }
