@@ -4,7 +4,6 @@ import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import { RealtimeSpan, SpanType } from "@/lib/traces/types";
-import { normalizeClickHouseTimestamp } from "@/lib/utils";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
