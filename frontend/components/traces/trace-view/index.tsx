@@ -1,3 +1,4 @@
+import { get } from "lodash";
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
@@ -96,6 +97,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     handleZoom,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -110,6 +113,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   // Local storage states
@@ -148,9 +153,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
         const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
-        if (traceData.hasBrowserSession) {
-          setBrowserSession(true);
-        }
       }
     } catch (e) {
       toast({
@@ -208,6 +210,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         const spans = enrichSpansWithPending(results);
 
         setSpans(spans);
+
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+          setHasBrowserSession(true);
+          setBrowserSession(true);
+        }
 
         if (spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
@@ -483,7 +490,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {!isLoading && (
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={traceId}
                     llmSpanIds={llmSpanIds}
                   />

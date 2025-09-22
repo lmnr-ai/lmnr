@@ -116,8 +116,6 @@ const traverse = (
 };
 
 export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData => {
-  const childSpans = getChildSpansMap(spans);
-
   if (spans.length === 0) {
     return {
       spans: [],
@@ -126,6 +124,8 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
       timelineWidthInMilliseconds: 0,
     };
   }
+
+  const childSpans = getChildSpansMap(spans);
 
   // Traverse function to get ordered spans respecting collapsed state
   const traverse = (
@@ -147,7 +147,7 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
 
   const orderedSpans: TraceViewSpan[] = [];
   const topLevelSpans = spans
-    .filter((span) => span.parentSpanId === null)
+    .filter((span) => !span.parentSpanId)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   for (const span of topLevelSpans) {

@@ -110,7 +110,7 @@ export const columns: ColumnDef<SpanRow, any>[] = [
   {
     cell: (row) => <Mono>{row.getValue()}</Mono>,
     header: "ID",
-    accessorFn: (row) => row.spanId.replace(/^00000000-0000-0000-/g, ""),
+    accessorFn: (row) => row.spanId,
     id: "span_id",
   },
   {

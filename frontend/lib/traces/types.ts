@@ -43,22 +43,20 @@ export type RealtimeSpan = {
 
 export type Span = {
   spanId: string;
-  parentSpanId?: string | null;
+  parentSpanId?: string;
   traceId: string;
   name: string;
   startTime: string;
   endTime: string;
   attributes: Record<string, any>;
-  input: any | null;
-  output: any | null;
-  inputPreview: string | null;
-  outputPreview: string | null;
+  input: any;
+  output: any;
+  inputPreview: string;
+  outputPreview: string;
   spanType: SpanType;
   events: Event[];
   path: string;
   model?: string;
-  inputUrl: string | null;
-  outputUrl: string | null;
   pending?: boolean;
   status?: string;
 };

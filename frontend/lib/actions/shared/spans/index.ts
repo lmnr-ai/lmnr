@@ -1,16 +1,26 @@
+import { eq } from "drizzle-orm";
 import { groupBy } from "lodash";
 import z from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import { clickhouseClient } from "@/lib/clickhouse/client";
-import { SpanType } from "@/lib/traces/types.ts";
+import { executeQuery } from "@/lib/actions/sql";
+import { db } from "@/lib/db/drizzle.ts";
+import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { tryParseJson } from "@/lib/utils";
 
 export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewSpan[]> => {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
-  const chResult = await clickhouseClient.query({
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
+
+  if (!sharedTrace) {
+    throw new Error("No shared trace found.");
+  }
+
+  const spans = await executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
     query: `
       SELECT 
         span_id as spanId,
@@ -37,55 +47,39 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         end_time as endTime,
         trace_id as traceId,
         status,
-        attributes
+        attributes,
         path
       FROM spans
       WHERE trace_id = {traceId: UUID}
     `,
-    format: "JSONEachRow",
-    query_params: { traceId },
+    parameters: {
+      traceId,
+    },
+    projectId: sharedTrace.projectId,
   });
 
-  const spans = (await chResult.json()) as {
-    spanId: string;
-    startTime: string;
-    endTime: string;
-    traceId: string;
-    parentSpanId: string;
-    name: string;
-    attributes: string;
-    spanType: SpanType;
-    status: string;
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    input_cost: number;
-    output_cost: number;
-    total_cost: number;
-    path: string;
-  }[];
+  if (spans.length === 0) {
+    return [];
+  }
 
-  // Join in memory, because json aggregation and join in PostgreSQL may be too slow
-  // depending on the number of spans and events, and there is no way for us
-  // to force PostgreSQL to use the correct indexes always.
-  const chEvents = await clickhouseClient.query({
-    query: `
-      SELECT id, timestamp, span_id spanId, name, project_id projectId, attributes
-      FROM events
-      WHERE span_id IN {spanIds: Array(UUID)}
-    `,
-    format: "JSONEachRow",
-    query_params: { spanIds: spans.map((span) => span.spanId) },
-  });
-
-  const events = (await chEvents.json()) as {
+  const events = await executeQuery<{
     id: string;
     timestamp: string;
     spanId: string;
     name: string;
     projectId: string;
     attributes: string;
-  }[];
+  }>({
+    query: `
+      SELECT id, timestamp, span_id spanId, name, attributes
+      FROM events
+      WHERE span_id IN {spanIds: Array(UUID)}
+    `,
+    parameters: {
+      spanIds: spans.map((span) => span.spanId),
+    },
+    projectId: sharedTrace.projectId,
+  });
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
 

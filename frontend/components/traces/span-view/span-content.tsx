@@ -8,12 +8,22 @@ interface SpanMessagesProps {
   type: "input" | "output";
 }
 
+const extractPayloadUrl = (data: any): string | null => {
+  if (typeof data === "string") {
+    const match = data.match(/<lmnr_payload_url>(.*?)<\/lmnr_payload_url>/);
+    return match ? match[1] : null;
+  }
+  return null;
+};
+
 const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesProps>) => {
   const initialData = type === "input" ? span.input : span.output;
   const [spanData, setSpanData] = useState(initialData);
 
   useEffect(() => {
-    const url = type === "input" ? span.inputUrl : span.outputUrl;
+    const rawData = type === "input" ? span.input : span.output;
+    const url = extractPayloadUrl(rawData);
+
     if (url) {
       const fullUrl = url.startsWith("/") ? `${url}?payloadType=raw` : url;
       fetch(fullUrl).then((response) => {
@@ -22,7 +32,7 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
         });
       });
     }
-  }, [span.inputUrl, span.outputUrl, type]);
+  }, [span.input, span.output, type]);
 
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;

@@ -1,6 +1,7 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { get } from "lodash";
 import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -56,6 +57,8 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setLangGraph,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -75,6 +78,8 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setLangGraph: state.setLangGraph,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
@@ -129,10 +134,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   );
 
   useEffect(() => {
-    if (trace.hasBrowserSession) {
+    if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+      setHasBrowserSession(true);
       setBrowserSession(true);
     }
-  }, [setBrowserSession, trace.hasBrowserSession]);
+  }, [setBrowserSession, setHasBrowserSession, spans]);
 
   useEffect(() => {
     setSpans(spans);
@@ -244,7 +250,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 >
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={trace.id}
                     llmSpanIds={llmSpanIds}
                     onTimelineChange={setBrowserSessionTime}

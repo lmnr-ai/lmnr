@@ -1,4 +1,4 @@
-import { and, eq, inArray, not, sql } from "drizzle-orm";
+import { isNil } from "lodash";
 
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
 import {
@@ -11,11 +11,7 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { processFilters, processors } from "@/lib/actions/common/utils";
-import { db } from "@/lib/db/drizzle";
-import { spans, tagClasses, tags } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
-import { createModelFilter } from "@/lib/traces/utils";
+import { FilterDef } from "@/lib/db/modifiers";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -90,18 +86,19 @@ const spansSelectColumns = [
 ];
 
 export interface BuildSpansQueryOptions {
+  columns?: string[];
   projectId: string;
   spanIds?: string[];
   filters: FilterDef[];
-  limit: number;
-  offset: number;
+  limit?: number;
+  offset?: number;
   startTime?: string;
   endTime?: string;
   pastHours?: string;
 }
 
 export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): QueryResult => {
-  const { spanIds = [], filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { spanIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -118,7 +115,7 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
 
   const queryOptions: SelectQueryOptions = {
     select: {
-      columns: spansSelectColumns,
+      columns: columns || spansSelectColumns,
       table: "spans",
     },
     timeRange: {
@@ -134,10 +131,13 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
       column: "start_time",
       direction: "DESC",
     },
-    pagination: {
-      limit,
-      offset,
-    },
+    ...(!isNil(limit) &&
+      !isNil(offset) && {
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -179,67 +179,3 @@ export const buildSpansCountQueryWithParams = (
 
   return buildSelectQuery(queryOptions);
 };
-
-const processTraceSpanAttributeFilter = (filter: FilterDef): FilterDef => {
-  switch (filter.column) {
-    case "path":
-      return { ...filter, column: "(attributes ->> 'lmnr.span.path')" };
-
-    case "tokens":
-      return { ...filter, column: "(attributes ->> 'llm.usage.total_tokens')::int8" };
-
-    case "cost":
-      return { ...filter, column: "(attributes ->> 'gen_ai.usage.cost')::float8" };
-
-    default:
-      return filter;
-  }
-};
-
-export const processTraceSpanFilters = (filters: FilterDef[]) =>
-  processFilters<FilterDef, any>(filters, {
-    processors: processors<FilterDef, any>([
-      {
-        column: "status",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          if (filter.value === "success") {
-            return filter.operator === "eq" ? sql`status IS NULL` : sql`status IS NOT NULL`;
-          } else if (filter.value === "error") {
-            return filter.operator === "eq" ? sql`status = 'error'` : sql`status != 'error' OR status IS NULL`;
-          }
-          return sql`1=1`;
-        },
-      },
-      {
-        column: "tags",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          const name = filter.value;
-          const inArrayFilter = inArray(
-            spans.spanId,
-            db
-              .select({ span_id: spans.spanId })
-              .from(spans)
-              .innerJoin(tags, eq(spans.spanId, tags.spanId))
-              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
-              .where(and(eq(tagClasses.name, name)))
-          );
-          return filter.operator === "eq" ? inArrayFilter : not(inArrayFilter);
-        },
-      },
-      {
-        column: "model",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => createModelFilter(filter),
-      },
-    ]),
-    defaultProcessor: (filter) => {
-      const processed = processTraceSpanAttributeFilter(filter);
-      return (
-        filtersToSql([processed], [new RegExp(/^\(attributes\s*->>\s*'[a-zA-Z_\.]+'\)(?:::int8|::float8)?$/)], {
-          latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`,
-        })[0] || null
-      );
-    },
-  });

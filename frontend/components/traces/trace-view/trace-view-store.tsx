@@ -51,7 +51,6 @@ export type TraceViewTrace = {
   status: string;
   trace_type: string;
   visibility: "public" | "private";
-  hasBrowserSession?: boolean;
 };
 
 interface TraceViewStoreState {
@@ -69,6 +68,7 @@ interface TraceViewStoreState {
   search: string;
   zoom: number;
   treeWidth: number;
+  hasBrowserSession: boolean;
 }
 
 interface TraceViewStoreActions {
@@ -88,6 +88,7 @@ interface TraceViewStoreActions {
   setSearch: (search: string) => void;
   setTreeWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
+  setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
 
@@ -119,7 +120,9 @@ const createTraceViewStore = () =>
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
+        hasBrowserSession: false,
 
+        setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => set({ trace }),
         updateTrace: (updater) => {
           const trace = get().trace;

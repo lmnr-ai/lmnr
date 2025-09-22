@@ -83,6 +83,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
               <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
                 {datapointId && evaluationId && (
                   <HumanEvaluationScore
+                    traceId={traceId}
                     options={humanEvaluatorOptions}
                     key={`${datapointId}-${spanId}`}
                     evaluationId={evaluationId as string}
