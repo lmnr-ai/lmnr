@@ -338,15 +338,3 @@ export const tryParseJson = (value: string) => {
     return null;
   }
 };
-
-export const normalizeClickHouseTimestamp = (timestamp: string): string => {
-  if (!timestamp) return timestamp;
-
-  if (timestamp.includes("+") || timestamp.includes("Z")) {
-    return timestamp;
-  }
-
-  const truncatedTimestamp = timestamp.replace(/(\.\d{3})\d*/, "$1");
-
-  return truncatedTimestamp.replace(" ", "T") + "Z";
-};

@@ -33,8 +33,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         input_cost as inputCost,
         output_cost as outputCost,
         total_cost as totalCost,
-        start_time as startTime,
-        end_time as endTime,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         trace_id as traceId,
         status,
         attributes,
@@ -61,7 +61,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     attributes: string;
   }>({
     query: `
-      SELECT id, timestamp, span_id spanId, name, attributes
+      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ'), span_id spanId, name, attributes
       FROM events
       WHERE span_id IN {spanIds: Array(UUID)}
     `,
@@ -80,7 +80,6 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     parentSpanId: span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId,
     events: (spanEventsMap[span.spanId] || []).map((event) => ({
       ...event,
-      timestamp: new Date(`${event.timestamp}Z`).toISOString(),
       attributes: tryParseJson(event.attributes),
     })),
   }));
