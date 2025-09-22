@@ -77,7 +77,7 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
 
   if (traceIds?.length > 0) {
     customConditions.push({
-      condition: `trace_id IN ({traceIds:Array(UUID)})`,
+      condition: `id IN ({traceIds:Array(UUID)})`,
       params: { traceIds },
     });
   }
@@ -130,7 +130,7 @@ export const buildSessionsCountQueryWithParams = (
 
   if (traceIds?.length > 0) {
     customConditions.push({
-      condition: `trace_id IN ({traceIds:Array(String)})`,
+      condition: `id IN ({traceIds:Array(UUID)})`,
       params: { traceIds },
     });
   }

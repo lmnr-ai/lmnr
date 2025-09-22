@@ -99,12 +99,12 @@ const searchTraceIds = async ({
   const baseQuery = `
       SELECT DISTINCT(trace_id) traceId
       FROM spans
-      WHERE project_id = {projectId: UUID} AND session_id != '<null>' AND session_id != ''
+      WHERE project_id = {projectId: UUID}
   `;
 
   const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+  const finalQuery = `${queryWithTime} AND session_id != '<null>' AND session_id != '' AND (${searchTypeToQueryFilter(searchType, "query")})`;
 
   const response = await clickhouseClient.query({
     query: `${finalQuery}
