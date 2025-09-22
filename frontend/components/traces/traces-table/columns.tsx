@@ -14,13 +14,18 @@ import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
-const renderCost = (val: any) => {
-  if (val == null) {
-    return "-";
-  }
-  const parsed = parseFloat(val);
-  return isNaN(parsed) ? "-" : `$${parsed.toFixed(5)}`;
-};
+const format = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 5,
+  minimumFractionDigits: 1,
+});
+
+const detailedFormat = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 8,
+});
 
 export const columns: ColumnDef<TraceRow, any>[] = [
   {
@@ -106,38 +111,44 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
-    cell: (row) => (
-      <TooltipProvider delayDuration={100}>
-        <Tooltip>
-          <TooltipTrigger className="relative p-0">
-            <div
-              style={{
-                width: row.column.getSize() - 32,
-              }}
-              className="relative"
-            >
-              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{renderCost(row.getValue())}</div>
-              </div>
-            </div>
-          </TooltipTrigger>
-          {row.getValue() !== undefined && (
-            <TooltipContent side="bottom" className="p-2 border">
-              <div>
-                <div className="flex justify-between space-x-2">
-                  <span>Input cost</span>
-                  <span>{renderCost(row.row.original.inputCost)}</span>
+    cell: (row) => {
+      if (row.getValue() > 0) {
+        return (
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger className="relative p-0">
+                <div
+                  style={{
+                    width: row.column.getSize() - 32,
+                  }}
+                  className="relative"
+                >
+                  <div className="absolute inset-0 top-[-4px] items-center h-full flex">
+                    <div className="text-ellipsis overflow-hidden whitespace-nowrap">
+                      {format.format(row.getValue())}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between space-x-2">
-                  <span>Output cost</span>
-                  <span>{renderCost(row.row.original.outputCost)}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="p-2 border">
+                <div>
+                  <div className="flex justify-between space-x-2">
+                    <span>Input cost</span>
+                    <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+                  </div>
+                  <div className="flex justify-between space-x-2">
+                    <span>Output cost</span>
+                    <span>{detailedFormat.format(row.row.original.outputCost)}</span>
+                  </div>
                 </div>
-              </div>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
-    ),
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+
+      return "-";
+    },
     size: 100,
   },
   {
