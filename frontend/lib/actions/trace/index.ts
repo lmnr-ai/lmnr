@@ -207,7 +207,7 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
   };
 }
 
-export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace> {
+export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
@@ -215,7 +215,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
   });
 
   if (!sharedTrace) {
-    throw new Error("Trace not found.");
+    return undefined;
   }
 
   const projectId = sharedTrace.projectId;
