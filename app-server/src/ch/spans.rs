@@ -99,11 +99,8 @@ impl CHSpan {
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
 
-        let span_input_string = if span.input_url.is_some() {
-            format!(
-                "<lmnr_payload_url>{}</lmnr_payload_url>",
-                span.input_url.as_ref().unwrap()
-            )
+        let span_input_string = if let Some(input_url) = &span.input_url {
+            format!("<lmnr_payload_url>{}</lmnr_payload_url>", input_url)
         } else {
             span.input
                 .as_ref()
@@ -111,11 +108,8 @@ impl CHSpan {
                 .unwrap_or(String::new())
         };
 
-        let span_output_string = if span.output_url.is_some() {
-            format!(
-                "<lmnr_payload_url>{}</lmnr_payload_url>",
-                span.output_url.as_ref().unwrap()
-            )
+        let span_output_string = if let Some(output_url) = &span.output_url {
+            format!("<lmnr_payload_url>{}</lmnr_payload_url>", output_url)
         } else {
             span.output
                 .as_ref()
