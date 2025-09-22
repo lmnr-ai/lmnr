@@ -177,9 +177,6 @@ export const onRealtimeUpdateSpans =
         newTrace.totalCost +=
           (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
-        newTrace.hasBrowserSession =
-          trace.hasBrowserSession || newSpan.attributes["lmnr.internal.has_browser_session"];
-
         return newTrace;
       });
 
