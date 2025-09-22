@@ -101,7 +101,7 @@ export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSch
     query: `
       ALTER TABLE spans
       UPDATE output = {output: String}
-      WHERE trace_id = {traceId: UUID} span_id = {spanId: UUID} AND project_id = {projectId: UUID}
+      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
     `,
     query_params: {
       output: JSON.stringify(output),
