@@ -85,8 +85,8 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
 // Traces table column mapping
 const tracesSelectColumns = [
   "id",
-  "start_time as startTime",
-  "end_time as endTime",
+  "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
+  "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
   "session_id as sessionId",
   "metadata",
   "tags",

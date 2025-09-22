@@ -63,8 +63,8 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       input_cost as inputCost,
       output_cost as outputCost,
       total_cost as totalCost,
-      start_time as startTime,
-      end_time as endTime,
+      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       trace_id as traceId,
       status,
       input,
@@ -101,7 +101,7 @@ export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSch
     query: `
       ALTER TABLE spans
       UPDATE output = {output: String}
-      WHERE trace_id = {traceId: UUID} span_id = {spanId: UUID} AND project_id = {projectId: UUID}
+      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
     `,
     query_params: {
       output: JSON.stringify(output),

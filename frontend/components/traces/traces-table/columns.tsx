@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -58,7 +58,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         <div className="flex items-center gap-2">
           {row.row.original.topSpanName ? (
             <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-          ) : isStringDateOld(normalizeClickHouseTimestamp(row.row.original.endTime)) ? (
+          ) : isStringDateOld(row.row.original.endTime) ? (
             <NoSpanTooltip>
               <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
                 <X className="w-4 h-4" />
@@ -70,7 +70,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         </div>
         {row.row.original.topSpanName ? (
           <div className="text-sm truncate">{row.row.original.topSpanName}</div>
-        ) : isStringDateOld(normalizeClickHouseTimestamp(row.row.original.endTime)) ? (
+        ) : isStringDateOld(row.row.original.endTime) ? (
           <NoSpanTooltip>
             <div className="flex text-muted-foreground">None</div>
           </NoSpanTooltip>
@@ -84,12 +84,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => (
-      <ClientTimestampFormatter
-        timestamp={String(normalizeClickHouseTimestamp(row.getValue()))}
-        format={TIME_SECONDS_FORMAT}
-      />
-    ),
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
     size: 150,
   },
