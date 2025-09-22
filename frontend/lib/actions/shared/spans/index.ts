@@ -61,7 +61,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     attributes: string;
   }>({
     query: `
-      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ'), span_id spanId, name, attributes
+      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, span_id spanId, name, attributes
       FROM events
       WHERE span_id IN {spanIds: Array(UUID)}
     `,
