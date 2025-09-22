@@ -36,7 +36,7 @@ export async function PATCH(
       spanId,
       projectId,
       traceId,
-      ...body,
+      output: body?.output,
     });
 
     return NextResponse.json({ success: true });
