@@ -211,9 +211,8 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
-  const { projectId, spanIds } = input;
+  const { projectId, spanIds } = DeleteSpansSchema.parse(input);
 
-  await db.delete(spans).where(and(inArray(spans.spanId, spanIds), eq(spans.projectId, projectId)));
   await clickhouseClient.command({
     query: `
         DELETE FROM spans
