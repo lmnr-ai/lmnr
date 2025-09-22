@@ -1,5 +1,6 @@
 "use client";
 
+import { Row } from "@tanstack/react-table";
 import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -11,7 +12,7 @@ import { useTraceViewNavigation } from "@/components/traces/trace-view/navigatio
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SessionRow } from "@/lib/traces/types";
+import { SessionRow, TraceRow } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
 
 import { DataTable } from "../../ui/datatable";
@@ -154,15 +155,74 @@ export default function SessionsTable() {
   );
 
   const handleRowClick = useCallback(
-    (row: SessionRow) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("sessionId", row.id);
-      // Navigate to traces with session filter
-      const filterParam = JSON.stringify({ column: "session_id", value: row.id, operator: "eq" });
-      params.set("filter", filterParam);
-      router.push(`/project/${projectId}/traces?${params.toString()}`);
+    async (row: Row<SessionRow>) => {
+      if (!row.original?.subRows) {
+        const params = new URLSearchParams(searchParams);
+        setTraceId(row.original.id);
+        params.set("traceId", row.original.id);
+        router.push(`${pathName}?${params.toString()}`);
+        return;
+      }
+
+      row.toggleExpanded();
+
+      const filter = {
+        column: "session_id",
+        value: row.original.id,
+        operator: "eq",
+      };
+
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", "0");
+        urlParams.set("pageSize", "50");
+        urlParams.set("filter", JSON.stringify(filter));
+
+        if (pastHours != null) urlParams.set("pastHours", pastHours);
+        if (startDate != null) urlParams.set("startDate", startDate);
+        if (endDate != null) urlParams.set("endDate", endDate);
+
+        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`);
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        }
+
+        const traces = (await res.json()) as { items: TraceRow[]; count: number };
+        setSessions((sessions) =>
+          sessions?.map((s) => {
+            if (s.id === row.original.id) {
+              return {
+                ...s,
+                subRows: traces.items
+                  .map((t) => ({
+                    id: t.id,
+                    startTime: t.startTime,
+                    endTime: t.endTime,
+                    duration: new Date(t.endTime).getTime() - new Date(t.startTime).getTime(),
+                    inputTokens: t.inputTokens,
+                    outputTokens: t.outputTokens,
+                    totalTokens: t.totalTokens,
+                    inputCost: t.inputCost,
+                    outputCost: t.outputCost,
+                    totalCost: t.totalCost,
+                    userId: t.userId,
+                  }))
+                  .toReversed(),
+              };
+            }
+            return s;
+          })
+        );
+      } catch (error) {
+        toast({
+          title: "Failed to load traces. Please try again.",
+          variant: "destructive",
+        });
+        row.toggleExpanded();
+      }
     },
-    [pathName, router, searchParams, projectId]
+    [setTraceId, pathName, projectId, router, searchParams, pastHours, startDate, endDate, toast]
   );
 
   const onPageChange = useCallback(
@@ -181,9 +241,7 @@ export default function SessionsTable() {
       columns={columns}
       data={sessions}
       getRowId={(session) => session.id}
-      onRowClick={(row) => {
-        handleRowClick(row.original);
-      }}
+      onRowClick={handleRowClick}
       paginated
       focusedRowId={searchParams.get("sessionId")}
       manualPagination

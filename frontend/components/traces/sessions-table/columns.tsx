@@ -6,19 +6,13 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionRow } from "@/lib/traces/types";
-import { getDurationString, normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 5,
   minimumFractionDigits: 1,
-});
-
-const detailedFormat = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 8,
 });
 
 export const filters: ColumnFilter[] = [
@@ -83,7 +77,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     header: "Type",
     cell: ({ row }) =>
-      row.original.type === "session" ? (
+      row.original?.subRows ? (
         <div className="flex items-center gap-2">
           <span className="">Session</span>
           {row.getIsExpanded() ? (
@@ -109,18 +103,13 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Start time",
-    cell: (row) => (
-      <ClientTimestampFormatter
-        timestamp={String(normalizeClickHouseTimestamp(row.getValue()))}
-        format={TIME_SECONDS_FORMAT}
-      />
-    ),
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
     size: 150,
   },
   {
     accessorFn: (row) => {
-      if (row.type === "trace") {
+      if (!row?.subRows) {
         return getDurationString(row.startTime, row.endTime);
       }
 
@@ -130,19 +119,19 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 100,
   },
   {
-    accessorFn: (row) => "$" + row.inputCost?.toFixed(5),
+    accessorFn: (row) => format.format(row.inputCost),
     header: "Input cost",
     id: "input_cost",
     size: 120,
   },
   {
-    accessorFn: (row) => "$" + row.outputCost?.toFixed(5),
+    accessorFn: (row) => format.format(row.outputCost),
     header: "Output cost",
     id: "output_cost",
     size: 120,
   },
   {
-    accessorFn: (row) => "$" + row.totalCost?.toFixed(5),
+    accessorFn: (row) => format.format(row.totalCost),
     header: "Total cost",
     id: "total_cost",
     size: 120,
@@ -160,21 +149,21 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => row.totalTokens || "-",
+    accessorFn: (row) => row.totalTokens,
     header: "Total tokens",
     id: "total_tokens",
     size: 120,
   },
   {
-    accessorFn: (row) => (row.type === "session" ? (row.traceCount ?? 0) : "-"),
+    accessorFn: (row) => (row?.subRows ? row.traceCount || 0 : "-"),
     header: "Trace Count",
     id: "trace_count",
     size: 120,
   },
   {
-    accessorFn: (row) => (row.type === "session" ? "-" : row.userId),
+    accessorFn: (row) => (row?.subRows ? "-" : row.userId),
     header: "User ID",
     id: "user_id",
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
   },
 ];

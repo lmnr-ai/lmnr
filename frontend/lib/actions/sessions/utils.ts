@@ -47,8 +47,8 @@ const sessionsSelectColumns = [
   "SUM(input_tokens) as inputTokens",
   "SUM(output_tokens) as outputTokens",
   "SUM(total_tokens) as totalTokens",
-  "MIN(start_time) as startTime",
-  "MAX(end_time) as endTime",
+  "formatDateTime(MIN(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
+  "formatDateTime(MAX(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
   "SUM(duration) as duration",
   "SUM(input_cost) as inputCost",
   "SUM(output_cost) as outputCost",
@@ -58,7 +58,7 @@ const sessionsSelectColumns = [
 
 export interface BuildSessionsQueryOptions {
   columns?: string[];
-  sessionIds?: string[];
+  traceIds?: string[];
   filters: FilterDef[];
   limit?: number;
   offset?: number;
@@ -68,17 +68,17 @@ export interface BuildSessionsQueryOptions {
 }
 
 export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
-  const { sessionIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
+  const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [];
 
-  if (sessionIds?.length > 0) {
+  if (traceIds?.length > 0) {
     customConditions.push({
-      condition: `session_id IN ({sessionIds:Array(String)})`,
-      params: { sessionIds },
+      condition: `trace_id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
     });
   }
 
@@ -108,11 +108,11 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     },
     ...(!isNil(limit) &&
       !isNil(offset) && {
-        pagination: {
-          limit,
-          offset,
-        },
-      }),
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -121,17 +121,17 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
 export const buildSessionsCountQueryWithParams = (
   options: Omit<BuildSessionsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { sessionIds = [], filters, startTime, endTime, pastHours } = options;
+  const { traceIds = [], filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [];
 
-  if (sessionIds?.length > 0) {
+  if (traceIds?.length > 0) {
     customConditions.push({
-      condition: `session_id IN ({sessionIds:Array(String)})`,
-      params: { sessionIds },
+      condition: `trace_id IN ({traceIds:Array(String)})`,
+      params: { traceIds },
     });
   }
 

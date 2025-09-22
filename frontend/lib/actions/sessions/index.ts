@@ -43,21 +43,21 @@ export async function getSessions(
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const sessionIds = search
-    ? await searchSessionIds({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
+  const traceIds = search
+    ? await searchTraceIds({
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
 
-  if (search && sessionIds?.length === 0) {
+  if (search && traceIds?.length === 0) {
     return { items: [], count: 0 };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
-    sessionIds,
+    traceIds,
     filters,
     limit,
     offset,
@@ -67,7 +67,7 @@ export async function getSessions(
   });
 
   const { query: countQuery, parameters: countParams } = buildSessionsCountQueryWithParams({
-    sessionIds,
+    traceIds,
     filters,
     startTime,
     endTime,
@@ -75,17 +75,17 @@ export async function getSessions(
   });
 
   const [items, [count]] = await Promise.all([
-    executeQuery<SessionRow>({ query: mainQuery, parameters: mainParams, projectId }),
+    executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
 
   return {
-    items: items,
+    items: items.map((item) => ({ ...item, subRows: [] })),
     count: count?.count || 0,
   };
 }
 
-const searchSessionIds = async ({
+const searchTraceIds = async ({
   projectId,
   searchQuery,
   timeRange,
@@ -97,9 +97,9 @@ const searchSessionIds = async ({
   searchType?: SpanSearchType[];
 }): Promise<string[]> => {
   const baseQuery = `
-      SELECT DISTINCT(session_id) sessionId FROM spans
-      WHERE project_id = {projectId: UUID}
-        AND session_id != '<null>' AND session_id != ''
+      SELECT DISTINCT(trace_id) traceId
+      FROM spans
+      WHERE project_id = {projectId: UUID} AND session_id != '<null>' AND session_id != ''
   `;
 
   const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
@@ -117,9 +117,9 @@ const searchSessionIds = async ({
     },
   });
 
-  const result = (await response.json()) as { sessionId: string }[];
+  const result = (await response.json()) as { traceId: string }[];
 
-  return result.map((i) => i.sessionId);
+  return result.map((i) => i.traceId);
 };
 
 export async function deleteSessions(input: z.infer<typeof DeleteSessionsSchema>) {
