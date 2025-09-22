@@ -17,6 +17,7 @@ export const GetSpanSchema = z.object({
 export const UpdateSpanOutputSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
+  traceId: z.string(),
   output: z.any(),
 });
 
@@ -94,24 +95,21 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
 }
 
 export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
-  const { spanId, projectId, output } = UpdateSpanOutputSchema.parse(input);
+  const { spanId, projectId, traceId, output } = UpdateSpanOutputSchema.parse(input);
 
-  await clickhouseClient
-    .command({
-      query: `
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE spans
       UPDATE output = {output: String}
-      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
+      WHERE trace_id = {traceId: UUID} span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        output: JSON.stringify(output),
-        spanId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error updating span output in ClickHouse", error);
-    });
+    query_params: {
+      output: JSON.stringify(output),
+      spanId,
+      projectId,
+      traceId,
+    },
+  });
 }
 
 export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema>) {

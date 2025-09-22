@@ -1,3 +1,5 @@
+import { isNil } from "lodash";
+
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
@@ -129,8 +131,8 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
       column: "start_time",
       direction: "DESC",
     },
-    ...(!!limit &&
-      !!offset && {
+    ...(!isNil(limit) &&
+      !isNil(offset) && {
       pagination: {
         limit,
         offset,

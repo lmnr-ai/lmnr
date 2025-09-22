@@ -34,6 +34,27 @@ export const tagSource = pgEnum("tag_source", ["MANUAL", "AUTO", "CODE"]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner", "admin"]);
 
+export const datasetParquets = pgTable(
+  "dataset_parquets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    datasetId: uuid("dataset_id").defaultRandom().notNull(),
+    parquetPath: text("parquet_path").notNull(),
+    jobId: uuid("job_id").defaultRandom().notNull(),
+    name: text(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.datasetId],
+      foreignColumns: [datasets.id],
+      name: "dataset_parquets_dataset_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const tracesAgentChats = pgTable(
   "traces_agent_chats",
   {
@@ -569,16 +590,14 @@ export const evaluatorSpanPaths = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" })
-    .primaryKey()
-    .generatedByDefaultAsIdentity({
-      name: "subscription_tiers_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
