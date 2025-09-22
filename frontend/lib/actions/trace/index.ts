@@ -8,7 +8,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { sharedPayloads, traces } from "@/lib/db/migrations/schema";
+import { sharedPayloads, sharedTraces } from "@/lib/db/migrations/schema";
 
 export const UpdateTraceVisibilitySchema = z.object({
   traceId: z.string(),
@@ -146,18 +146,17 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
    * 3. Perform PostgreSQL transaction for traces and shared payloads
    */
   return await db.transaction(async (tx) => {
-    await tx
-      .update(traces)
-      .set({ visibility })
-      .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)));
-
-    if (payloadIds.length > 0) {
-      if (visibility === "public") {
+    if (visibility === "public") {
+      await tx.insert(sharedTraces).values({ id: traceId, projectId }).onConflictDoNothing();
+      if (payloadIds.length > 0) {
         await tx
           .insert(sharedPayloads)
           .values(payloadIds.map((payloadId) => ({ payloadId, projectId })))
           .onConflictDoNothing();
-      } else {
+      }
+    } else {
+      await tx.delete(sharedTraces).where(and(eq(sharedTraces.id, traceId), eq(sharedTraces.projectId, projectId)));
+      if (payloadIds.length > 0) {
         await tx
           .delete(sharedPayloads)
           .where(and(inArray(sharedPayloads.payloadId, payloadIds), eq(sharedPayloads.projectId, projectId)));
@@ -169,6 +168,10 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
 export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<TraceViewTrace> {
   const { traceId, projectId } = GetTraceSchema.parse(input);
 
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
+  });
+
   const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
     query: `
       SELECT
@@ -200,28 +203,22 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
 
   return {
     ...trace,
-    // TODO: get visibility from public traces table.
-    visibility: "private",
+    visibility: sharedTrace ? "public" : "private",
   };
 }
 
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
-  const pgTrace = await db.query.traces.findFirst({
-    where: eq(traces.id, traceId),
-    columns: {
-      visibility: true,
-      hasBrowserSession: true,
-      projectId: true,
-    },
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
   });
 
-  if (!pgTrace || pgTrace.visibility !== "public") {
+  if (!sharedTrace) {
     throw new Error("Trace not found.");
   }
 
-  const projectId = pgTrace.projectId;
+  const projectId = sharedTrace.projectId;
 
   const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
     query: `
@@ -254,7 +251,6 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   return {
     ...trace,
-    // TODO: get visibility from public traces table.
-    visibility: "private",
+    visibility: "public",
   };
 }

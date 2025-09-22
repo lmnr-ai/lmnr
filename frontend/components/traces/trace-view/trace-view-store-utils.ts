@@ -127,8 +127,6 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
 
   const childSpans = getChildSpansMap(spans);
 
-  console.log("child spans", childSpans);
-
   // Traverse function to get ordered spans respecting collapsed state
   const traverse = (
     span: TraceViewSpan,

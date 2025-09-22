@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getSpanEventsWithTraceId } from "@/lib/actions/span";
+import { getEvents } from "@/lib/actions/events";
 
 export async function GET(
   _req: Request,
@@ -11,7 +11,7 @@ export async function GET(
   const { projectId, traceId, spanId } = params;
 
   try {
-    const events = await getSpanEventsWithTraceId({ spanId, traceId, projectId });
+    const events = await getEvents({ spanId, traceId, projectId });
 
     return NextResponse.json(events);
   } catch (e) {

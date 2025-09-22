@@ -94,6 +94,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     handleZoom,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -108,6 +110,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   // Local storage states
@@ -204,6 +208,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         const spans = enrichSpansWithPending(results);
 
         setSpans(spans);
+
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+          setHasBrowserSession(true);
+          setBrowserSession(true);
+        }
 
         if (spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
@@ -314,10 +323,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     };
   }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
 
-  console.log(
-    spans.some((s) => !!get(s.attributes, "lmnr.internal.has_browser_session")),
-    spans
-  );
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
@@ -478,7 +483,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {!isLoading && (
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={spans.some((s) => !!get(s.attributes, "lmnr.internal.has_browser_session"))}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={traceId}
                     llmSpanIds={llmSpanIds}
                   />

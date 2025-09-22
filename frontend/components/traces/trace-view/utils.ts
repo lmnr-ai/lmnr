@@ -55,33 +55,22 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           continue;
         }
 
-        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : null;
-        const parentSpanName = i > 0 ? parentSpanNames[i - 1] : null;
-        const pendingSpan = {
+        const parentSpanId = i > 0 ? parentSpanIds[i - 1] : undefined;
+        const pendingSpan: TraceViewSpan = {
           spanId,
           name: spanName,
           parentSpanId,
-          parentSpanName,
           startTime: new Date(span.startTime).toISOString(),
           endTime: new Date(span.endTime).toISOString(),
           attributes: {},
           events: [],
-          logs: [],
-          spans: [],
           traceId: span.traceId,
-          traceName: span.name,
-          input: null,
-          output: null,
-          inputPreview: null,
-          outputPreview: null,
           spanType: SpanType.DEFAULT,
           path: "",
-          inputUrl: null,
-          outputUrl: null,
           pending: true,
           status: span.status,
           collapsed: false,
-        } as TraceViewSpan;
+        };
         pendingSpans.set(spanId, pendingSpan);
       }
     }
@@ -204,8 +193,6 @@ export const onRealtimeUpdateSpans =
         newTrace.totalCost +=
         (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
         (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
-        newTrace.hasBrowserSession =
-        trace.hasBrowserSession || rtEventSpan.attributes["lmnr.internal.has_browser_session"];
 
         setTrace(newTrace);
       }
