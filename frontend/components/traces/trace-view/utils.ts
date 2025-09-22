@@ -165,8 +165,8 @@ export const onRealtimeUpdateSpans =
 
         const newTrace = { ...trace };
 
-        newTrace.startTime = normalizeClickHouseTimestamp(newTrace.startTime);
-        newTrace.endTime = new Date(normalizeClickHouseTimestamp(newTrace.endTime)).getTime() > new Date(newSpan.endTime).getTime() ? normalizeClickHouseTimestamp(newTrace.endTime) : newSpan.endTime;
+        newTrace.startTime = new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime() ? newTrace.startTime : newSpan.startTime;
+        newTrace.endTime = new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
         newTrace.totalTokens +=
           (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
           (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
@@ -186,8 +186,10 @@ export const onRealtimeUpdateSpans =
         if (index !== -1) {
           // Always replace existing span, regardless of pending status
           newSpans[index] = {
-            ...newSpans[index],
             ...newSpan,
+            collapsed: newSpans[index].collapsed || false,
+            events: [],
+            path: "",
           };
         } else {
           newSpans.push({
@@ -197,6 +199,7 @@ export const onRealtimeUpdateSpans =
             path: "",
           });
         }
+
         return enrichSpansWithPending(newSpans);
       });
     };

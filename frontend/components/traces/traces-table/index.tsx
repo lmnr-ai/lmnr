@@ -149,8 +149,8 @@ export default function TracesTable() {
 
         newTraces[existingTraceIndex] = {
           ...existingTrace,
-          startTime: normalizeClickHouseTimestamp(existingTrace.startTime),
-          endTime: new Date(normalizeClickHouseTimestamp(existingTrace.endTime)).getTime() > new Date(spanData.endTime).getTime() ? normalizeClickHouseTimestamp(existingTrace.endTime) : spanData.endTime,
+          startTime: new Date(existingTrace.startTime).getTime() < new Date(spanData.startTime).getTime() ? existingTrace.startTime : spanData.startTime,
+          endTime: new Date(existingTrace.endTime).getTime() > new Date(spanData.endTime).getTime() ? existingTrace.endTime : spanData.endTime,
           totalTokens: existingTrace.totalTokens + spanInputTokens + spanOutputTokens,
           inputTokens: existingTrace.inputTokens + spanInputTokens,
           outputTokens: existingTrace.outputTokens + spanOutputTokens,

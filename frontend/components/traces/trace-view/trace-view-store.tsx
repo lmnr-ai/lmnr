@@ -146,8 +146,8 @@ const createTraceViewStore = () =>
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
-            const startTime = new Date(trace?.startTime || 0).getTime();
-            const endTime = new Date(trace?.endTime || 0).getTime();
+            const startTime = new Date(trace.startTime).getTime();
+            const endTime = new Date(trace.endTime).getTime();
             return transformSpansToMinimap(get().spans, endTime - startTime);
           }
           return [];
