@@ -93,7 +93,7 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
 const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
   if (isNil(attributes)) return [];
 
-  const aiPromptTools = get(attributes, "ai.prompt.tools", {});
+  const aiPromptTools = get(attributes, "ai.prompt.tools", []);
 
   if (aiPromptTools && Array.isArray(aiPromptTools)) {
     try {
