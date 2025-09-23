@@ -72,10 +72,8 @@ interface TraceViewStoreState {
 }
 
 interface TraceViewStoreActions {
-  setTrace: (trace?: TraceViewTrace) => void;
-  updateTrace: (updater: (trace: TraceViewTrace) => TraceViewTrace) => void;
-  setSpans: (spans: TraceViewSpan[]) => void;
-  updateSpans: (updater: (spans: TraceViewSpan[]) => TraceViewSpan[]) => void;
+  setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void;
+  setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
@@ -123,23 +121,31 @@ const createTraceViewStore = () =>
         hasBrowserSession: false,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
-        setTrace: (trace) => set({ trace }),
-        updateTrace: (updater) => {
-          const trace = get().trace;
-          if (trace) {
-            set({ trace: updater(trace) });
+        setTrace: (trace) => {
+          if (typeof trace === 'function') {
+            const prevTrace = get().trace;
+            const newTrace = trace(prevTrace);
+            set({ trace: newTrace });
+          } else {
+            set({ trace });
           }
         },
         updateTraceVisibility: (visibility) => {
-          const trace = get().trace;
-          if (trace) {
-            set({ trace: { ...trace, visibility } });
-          }
+          get().setTrace((trace) => {
+            if (trace) {
+              return { ...trace, visibility };
+            }
+            return trace;
+          });
         },
-        setSpans: (spans) => set({ spans: spans.map((s) => ({ ...s, collapsed: false })) }),
-        updateSpans: (updater) => {
-          const spans = get().spans;
-          set({ spans: updater(spans) });
+        setSpans: (spans) => {
+          if (typeof spans === 'function') {
+            const prevSpans = get().spans;
+            const newSpans = spans(prevSpans);
+            set({ spans: newSpans });
+          } else {
+            set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
+          }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => transformSpansToTree(get().spans),
@@ -184,10 +190,9 @@ const createTraceViewStore = () =>
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
-          const { spans } = get();
-          set({
-            spans: spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span)),
-          });
+          get().setSpans((spans) =>
+            spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span))
+          );
         },
         setSpanPath: (spanPath) => set({ spanPath }),
         getHasLangGraph: () =>

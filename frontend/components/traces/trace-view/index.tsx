@@ -60,10 +60,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSelectedSpan,
     spans,
     setSpans,
-    updateSpans,
     trace,
     setTrace,
-    updateTrace,
     isSpansLoading,
     isTraceLoading,
     setIsTraceLoading,
@@ -73,10 +71,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
     setSpans: state.setSpans,
-    updateSpans: state.updateSpans,
     trace: state.trace,
     setTrace: state.setTrace,
-    updateTrace: state.updateTrace,
     isTraceLoading: state.isTraceLoading,
     isSpansLoading: state.isSpansLoading,
     setIsSpansLoading: state.setIsSpansLoading,
@@ -312,7 +308,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         if (payload.spans && Array.isArray(payload.spans)) {
           for (const span of payload.spans) {
             if (span.traceId === traceId) {
-              onRealtimeUpdateSpans(updateSpans, updateTrace, setBrowserSession)(span);
+              onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
             }
           }
         }
@@ -328,7 +324,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     return () => {
       eventSource.close();
     };
-  }, [setBrowserSession, updateSpans, updateTrace, traceId, projectId]);
+  }, [setBrowserSession, setSpans, setTrace, traceId, projectId]);
 
   if (isLoading) {
     return (

@@ -150,8 +150,8 @@ export const getDefaultTraceViewWidth = () => {
 
 export const onRealtimeUpdateSpans =
   (
-    updateSpans: (updater: (spans: TraceViewSpan[]) => TraceViewSpan[]) => void,
-    updateTrace: (updater: (trace: TraceViewTrace) => TraceViewTrace) => void,
+    setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,
+    setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
     setShowBrowserSession: (show: boolean) => void,
   ) =>
     (newSpan: RealtimeSpan) => {
@@ -160,7 +160,8 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
-      updateTrace((trace) => {
+      setTrace((trace) => {
+        if (!trace) return trace;
 
         const newTrace = { ...trace };
 
@@ -179,7 +180,7 @@ export const onRealtimeUpdateSpans =
         return newTrace;
       });
 
-      updateSpans((spans) => {
+      setSpans((spans) => {
         const newSpans = [...spans];
         const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
         if (index !== -1) {

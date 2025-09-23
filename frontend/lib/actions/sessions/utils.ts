@@ -3,7 +3,7 @@ import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
 import { processFilters, processors } from "@/lib/actions/common/utils";
 import { db } from "@/lib/db/drizzle";
-import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
+import { spans, tagClasses, tags } from "@/lib/db/migrations/schema";
 import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
 
 enum AllowedCastType {
