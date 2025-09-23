@@ -49,11 +49,11 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const swrKey =
     spanIds.length > 0
       ? {
-          url: isShared
-            ? `/api/shared/traces/${traceId}/spans/images`
-            : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
-          spanIds,
-        }
+        url: isShared
+          ? `/api/shared/traces/${traceId}/spans/images`
+          : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
+        spanIds,
+      }
       : null;
 
   const postFetcher = async ({ url, spanIds }: { url: string; spanIds: string[] }) => {
