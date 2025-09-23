@@ -4,6 +4,7 @@ import React, { KeyboardEventHandler, memo, PropsWithChildren, useCallback, useR
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
+import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context.tsx";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ const SearchSpansInput = ({
   const searchParams = useSearchParams();
   const searchInQuery = searchParams.getAll("searchIn");
   const [searchIn, setSearchIn] = useState<string>(searchInQuery?.length === 1 ? searchInQuery?.[0] : "all");
+  const { value: filters } = useFiltersContextProvider();
 
   const { value, onChange } = useTraceViewStoreContext((state) => ({
     value: state.search,
@@ -38,9 +40,9 @@ const SearchSpansInput = ({
   );
 
   const handleSubmit = useCallback(() => {
-    submit(value, searchIn === "all" ? ["input", "output"] : [value], []);
+    submit(value, searchIn === "all" ? ["input", "output"] : [value], filters);
     inputRef?.current?.blur();
-  }, [searchIn, submit, value]);
+  }, [filters, searchIn, submit, value]);
 
   const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = useCallback(
     (e) => {
