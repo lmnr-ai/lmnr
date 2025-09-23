@@ -95,23 +95,29 @@ export interface BuildSpansQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customConditions?: Array<{
+    condition: string;
+    params: QueryParams;
+  }>;
 }
 
 export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): QueryResult => {
-  const { spanIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
+  const { spanIds = [], filters, limit, offset, startTime, endTime, pastHours, columns, customConditions: additionalConditions = [] } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
-  }> =
-    spanIds?.length > 0
+  }> = [
+    ...additionalConditions,
+    ...(spanIds?.length > 0
       ? [
         {
           condition: `span_id IN ({spanIds:Array(UUID)})`,
           params: { spanIds },
         },
       ]
-      : [];
+      : [])
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -146,20 +152,22 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
 export const buildSpansCountQueryWithParams = (
   options: Omit<BuildSpansQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { spanIds = [], filters, startTime, endTime, pastHours } = options;
+  const { spanIds = [], filters, startTime, endTime, pastHours, customConditions: additionalConditions = [] } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
-  }> =
-    spanIds?.length > 0
+  }> = [
+    ...additionalConditions,
+    ...(spanIds?.length > 0
       ? [
         {
           condition: `span_id IN ({spanIds:Array(UUID)})`,
           params: { spanIds },
         },
       ]
-      : [];
+      : [])
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {

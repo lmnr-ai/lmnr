@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Operator } from "@/components/ui/datatable-filter/utils.ts";
+import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSpansCountQueryWithParams, buildSpansQueryWithParams } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -33,6 +34,59 @@ export const DeleteSpansSchema = z.object({
   spanIds: z.array(z.string()).min(1),
 });
 
+async function getDefaultTraceIds({
+  projectId,
+  filters,
+  startTime,
+  endTime,
+  pastHours,
+}: {
+  projectId: string;
+  filters: FilterDef[];
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
+}): Promise<string[]> {
+  const customConditions = [
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType: "DEFAULT" },
+    },
+  ];
+
+  const queryOptions = {
+    select: {
+      columns: ["id"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: {
+      processors: new Map(),
+    },
+    customConditions,
+    orderBy: {
+      column: "start_time",
+      direction: "DESC" as const,
+    },
+  };
+
+  const { query, parameters } = buildSelectQuery(queryOptions);
+
+  const result = await executeQuery<{ id: string }>({
+    query,
+    parameters,
+    projectId,
+  });
+
+  return result.map((row) => row.id);
+}
+
 export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[]; count: number }> {
   const {
     projectId,
@@ -51,6 +105,18 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
+  const defaultTraceIds = await getDefaultTraceIds({
+    projectId,
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+  });
+
+  if (defaultTraceIds.length === 0) {
+    return { items: [], count: 0 };
+  }
+
   const spanIds = search
     ? await searchSpanIds({
       projectId,
@@ -64,6 +130,11 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     return { items: [], count: 0 };
   }
 
+  const traceIdCustomCondition = {
+    condition: `trace_id IN ({defaultTraceIds:Array(UUID)})`,
+    params: { defaultTraceIds },
+  };
+
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
     projectId,
     spanIds,
@@ -73,6 +144,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     startTime,
     endTime,
     pastHours,
+    customConditions: [traceIdCustomCondition],
   });
 
   const { query: countQuery, parameters: countParams } = buildSpansCountQueryWithParams({
@@ -82,6 +154,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     startTime,
     endTime,
     pastHours,
+    customConditions: [traceIdCustomCondition],
   });
 
   const [items, [count]] = await Promise.all([
