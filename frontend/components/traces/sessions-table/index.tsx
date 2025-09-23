@@ -138,7 +138,7 @@ export default function SessionsTable() {
           });
           setSessions((prev) => {
             if (prev) {
-              return prev.filter((s) => !sessionIds.includes(s.id));
+              return prev.filter((s) => !sessionIds.includes(s.sessionId));
             }
             return prev;
           });

@@ -74,7 +74,6 @@ export async function getSessions(
     pastHours,
   });
 
-  console.log("main query", mainQuery);
   const [items, [count]] = await Promise.all([
     executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
