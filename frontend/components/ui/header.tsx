@@ -16,6 +16,8 @@ import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
 import { Project, WorkspaceTier } from "@/lib/workspaces/types";
 
+import { Button } from "./button";
+
 interface HeaderProps {
   path: string;
   className?: string;
@@ -69,9 +71,14 @@ export default function Header({
         {project && (
           <div className="flex items-center gap-1 ml-1 text-secondary-foreground">
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center space-x-1 hover:bg-secondary rounded-lg px-2 py-1 transition-colors">
-                <span className="whitespace-nowrap truncate">{project.name}</span>
-                <ChevronDown className="h-4 w-4" />
+              <DropdownMenuTrigger
+                asChild
+                className="flex items-center space-x-1 hover:bg-secondary rounded-lg px-2 py-1 transition-colors"
+              >
+                <Button className="h-7" variant="ghost">
+                  <span className="whitespace-nowrap truncate text-base">{project.name}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 {projects.map((p) => (

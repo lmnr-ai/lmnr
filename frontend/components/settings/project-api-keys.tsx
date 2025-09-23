@@ -57,7 +57,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       <div className="flex flex-col items-start space-y-4">
         <h1 className="text-lg">Project API keys</h1>
         <Label>
-          Create a Laminar API key to make pipeline calls from your application. These keys are tied to the project.
+          Create a Laminar API key to send traces from your AI application. These keys are tied to the project.
         </Label>
         <Dialog
           open={isGenerateKeyDialogOpen}

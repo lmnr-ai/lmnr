@@ -144,7 +144,7 @@ const searchSpanIds = async ({
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) {
-  const { projectId, search, traceId, searchIn, filter: inputFilters } = GetTraceSpansSchema.parse(input);
+  const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
 
   const filters: FilterDef[] = compact(inputFilters);
 

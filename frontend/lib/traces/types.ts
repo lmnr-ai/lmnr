@@ -174,16 +174,26 @@ export type TracePreview = {
   outputMessageIds: string[];
 };
 
-export type SessionPreview = {
+// We have id and sessionId here because
+// its not possible to make good type intersection,
+// and use it in tanstack table wrappers.
+export type SessionRow = {
   id: string;
-  traceCount: number;
-  inputCost: number;
-  outputCost: number;
-  cost: number;
+  sessionId: string;
+  subRows: TraceRow[];
+
+  traceCount?: number;
   startTime: string;
   endTime: string;
   duration: number;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  totalTokenCount: number;
+
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+
+  userId?: string;
 };

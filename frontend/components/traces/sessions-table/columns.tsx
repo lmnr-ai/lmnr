@@ -1,18 +1,84 @@
+import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { ColumnDef } from "@tanstack/react-table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { SessionRow } from "@/components/traces/sessions-table/index";
+import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-import { SessionPreview, Trace } from "@/lib/traces/types";
+import { SessionRow } from "@/lib/traces/types";
 import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
+
+const format = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 5,
+  minimumFractionDigits: 1,
+});
+
+export const filters: ColumnFilter[] = [
+  {
+    key: "session_id",
+    name: "Session ID",
+    dataType: "string",
+  },
+  {
+    key: "user_id",
+    name: "User ID",
+    dataType: "string",
+  },
+  {
+    key: "trace_count",
+    name: "Trace Count",
+    dataType: "number",
+  },
+  {
+    key: "duration",
+    name: "Duration",
+    dataType: "number",
+  },
+  {
+    key: "total_tokens",
+    name: "Total Tokens",
+    dataType: "number",
+  },
+  {
+    key: "input_tokens",
+    name: "Input Tokens",
+    dataType: "number",
+  },
+  {
+    key: "output_tokens",
+    name: "Output Tokens",
+    dataType: "number",
+  },
+  {
+    key: "total_cost",
+    name: "Total Cost",
+    dataType: "number",
+  },
+  {
+    key: "input_cost",
+    name: "Input Cost",
+    dataType: "number",
+  },
+  {
+    key: "output_cost",
+    name: "Output Cost",
+    dataType: "number",
+  },
+  {
+    key: "tags",
+    name: "Tags",
+    dataType: "string",
+  },
+];
 
 export const columns: ColumnDef<SessionRow, any>[] = [
   {
     header: "Type",
     cell: ({ row }) =>
-      row.original.type === "session" ? (
+      row.original?.subRows ? (
         <div className="flex items-center gap-2">
           <span className="">Session</span>
           {row.getIsExpanded() ? (
@@ -30,13 +96,13 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => (row.data.id === null ? "-" : row.data.id),
+    accessorFn: (row) => row.id || row.sessionId,
     header: "ID",
     id: "id",
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
   },
   {
-    accessorFn: (row) => row.data.startTime,
+    accessorFn: (row) => row.startTime,
     header: "Start time",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
@@ -44,129 +110,83 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   },
   {
     accessorFn: (row) => {
-      if (row.type === "trace") {
-        return getDurationString(row.data.startTime, row.data.endTime);
+      if (!row?.subRows) {
+        return getDurationString(row.startTime, row.endTime);
       }
 
-      return (row.data as SessionPreview).duration.toFixed(3) + "s";
+      return row.duration.toFixed(3) + "s";
     },
     header: "Duration",
     size: 100,
   },
   {
-    accessorFn: (row) => "$" + row.data.inputCost?.toFixed(5),
+    accessorFn: (row) => format.format(row.inputCost),
     header: "Input cost",
     id: "input_cost",
     size: 120,
   },
   {
-    accessorFn: (row) => "$" + row.data.outputCost?.toFixed(5),
+    accessorFn: (row) => format.format(row.outputCost),
     header: "Output cost",
     id: "output_cost",
     size: 120,
   },
   {
-    accessorFn: (row) => "$" + row.data.cost?.toFixed(5),
+    accessorFn: (row) => format.format(row.totalCost),
     header: "Total cost",
-    id: "cost",
+    id: "total_cost",
     size: 120,
   },
   {
-    accessorFn: (row) => row.data.inputTokenCount,
+    accessorFn: (row) => row.inputTokens,
     header: "Input tokens",
-    id: "input_token_count",
+    id: "input_tokens",
     size: 120,
   },
   {
-    accessorFn: (row) => row.data.outputTokenCount,
+    accessorFn: (row) => row.outputTokens,
     header: "Output tokens",
-    id: "output_token_count",
+    id: "output_tokens",
     size: 120,
   },
   {
-    accessorFn: (row) => row.data.totalTokenCount,
+    accessorFn: (row) => row.totalTokens,
     header: "Total tokens",
-    id: "total_token_count",
+    id: "total_tokens",
     size: 120,
   },
   {
-    accessorFn: (row) => (row.type === "session" ? ((row.data as SessionPreview).traceCount ?? 0) : "-"),
+    accessorFn: (row) => (row?.subRows ? row.traceCount || 0 : "-"),
     header: "Trace Count",
     id: "trace_count",
     size: 120,
   },
   {
-    accessorFn: (row) => (row.type === "session" ? "-" : (row.data as Trace).userId),
+    accessorFn: (row) => (row?.subRows ? "-" : row.userId),
     header: "User ID",
     id: "user_id",
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
   },
-];
+  {
+    accessorFn: (row) => ("tags" in row ? row.tags : "-"),
+    cell: (row) => {
+      const tags = row.getValue() as string[];
 
-export const filters: ColumnFilter[] = [
-  {
-    key: "session_id",
-    name: "ID",
-    dataType: "string",
-  },
-  {
-    key: "trace_id",
-    name: "Trace ID",
-    dataType: "string",
-  },
-  {
-    key: "duration",
-    name: "Duration",
-    dataType: "number",
-  },
-  {
-    key: "input_cost",
-    name: "Input cost",
-    dataType: "number",
-  },
-  {
-    key: "output_cost",
-    name: "Output cost",
-    dataType: "number",
-  },
-  {
-    key: "cost",
-    name: "Total cost",
-    dataType: "number",
-  },
-  {
-    key: "input_token_count",
-    name: "Input tokens",
-    dataType: "number",
-  },
-  {
-    key: "output_token_count",
-    name: "Output tokens",
-    dataType: "number",
-  },
-  {
-    key: "total_token_count",
-    name: "Total tokens",
-    dataType: "number",
-  },
-  {
-    key: "trace_count",
-    name: "Trace count",
-    dataType: "number",
-  },
-  {
-    key: "metadata",
-    name: "Metadata",
-    dataType: "json",
-  },
-  {
-    key: "tags",
-    name: "Tags",
-    dataType: "string",
-  },
-  {
-    key: "user_id",
-    name: "User ID",
-    dataType: "string",
+      if (Array.isArray(tags) && tags?.length > 0) {
+        return (
+          <>
+            {tags.map((tag) => (
+              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                <span>{tag}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
+    header: "Tags",
+    accessorKey: "tags",
+    id: "tags",
   },
 ];
