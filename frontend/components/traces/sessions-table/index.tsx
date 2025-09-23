@@ -1,8 +1,8 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
+import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
@@ -10,20 +10,14 @@ import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SessionPreview, Trace } from "@/lib/traces/types";
+import { SessionRow, TraceRow } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
-
-export type SessionRow = {
-  type: string;
-  data: SessionPreview | Trace;
-  subRows: Omit<SessionRow, "subRows">[];
-};
 
 export default function SessionsTable() {
   const { projectId } = useParams();
@@ -31,29 +25,27 @@ export default function SessionsTable() {
   const pathName = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-
   const { setTraceId, traceId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     traceId: state.traceId,
   }));
 
-  const [sessions, setSessions] = useState<SessionRow[] | undefined>(undefined);
-  const [totalCount, setTotalCount] = useState<number>(0);
-
-  const pageNumber = parseInt(searchParams.get("pageNumber") ?? "0");
-  const pageSize = Math.max(parseInt(searchParams.get("pageSize") ?? "50"), 1);
+  const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
+  const pageSize = searchParams.get("pageSize") ? Math.max(parseInt(searchParams.get("pageSize")!), 1) : 50;
   const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
 
+  const [sessions, setSessions] = useState<SessionRow[] | undefined>(undefined);
+  const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
   const { setNavigationRefList } = useTraceViewNavigation();
 
   useEffect(() => {
-    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t.data.id));
+    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t?.id));
   }, [setNavigationRefList, sessions]);
 
   const getSessions = useCallback(async () => {
@@ -64,11 +56,11 @@ export default function SessionsTable() {
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
 
-      filter.forEach((filter) => urlParams.append("filter", filter));
-
       if (pastHours != null) urlParams.set("pastHours", pastHours);
       if (startDate != null) urlParams.set("startDate", startDate);
       if (endDate != null) urlParams.set("endDate", endDate);
+
+      filter.forEach((filter) => urlParams.append("filter", filter));
 
       if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
         urlParams.set("search", textSearchFilter);
@@ -87,19 +79,11 @@ export default function SessionsTable() {
         throw new Error(`Failed to fetch sessions: ${res.status} ${res.statusText}`);
       }
 
-      const data = (await res.json()) as PaginatedResponse<SessionPreview>;
+      const data = (await res.json()) as PaginatedResponse<SessionRow>;
 
-      setSessions(
-        data.items.map((s) => ({
-          type: "session",
-          data: s,
-          subRows: [],
-        }))
-      );
-
+      setSessions(data.items);
       setTotalCount(data.totalCount);
     } catch (error) {
-      console.error(error);
       toast({
         title: "Failed to load sessions. Please try again.",
         variant: "destructive",
@@ -123,71 +107,113 @@ export default function SessionsTable() {
     toast,
   ]);
 
-  const onPageChange = useCallback(
-    (pageNumber: number, pageSize: number) => {
-      const params = new URLSearchParams(searchParams);
-      params.set("pageNumber", pageNumber.toString());
-      params.set("pageSize", pageSize.toString());
-      router.push(`${pathName}?${params.toString()}`);
-    },
-    [pathName, router, searchParams]
-  );
-
-  const posthog = usePostHog();
-
-  const onSearch = () => {
-    if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture("traces_list_searched", {
-        searchParams: searchParams.toString(),
-      });
+  useEffect(() => {
+    if (pastHours || startDate || endDate) {
+      getSessions();
+    } else {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+      router.push(`${pathName}?${sp.toString()}`);
     }
-  };
+  }, [projectId, pageNumber, pageSize, JSON.stringify(filter), pastHours, startDate, endDate, textSearchFilter]);
+
+  const handleDeleteSessions = useCallback(
+    async (sessionIds: string[]) => {
+      const params = new URLSearchParams(sessionIds.map((id) => ["id", id]));
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/sessions?${params.toString()}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          toast({
+            title: "Failed to delete Session",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Sessions deleted",
+            description: `Successfully deleted ${sessionIds.length} session(s).`,
+          });
+          setSessions((prev) => {
+            if (prev) {
+              return prev.filter((s) => !sessionIds.includes(s.sessionId));
+            }
+            return prev;
+          });
+          setTotalCount((prev) => Math.max(prev - sessionIds.length, 0));
+        }
+      } catch (e) {
+        toast({
+          title: e instanceof Error ? e.message : "Failed to delete sessions. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, toast]
+  );
 
   const handleRowClick = useCallback(
     async (row: Row<SessionRow>) => {
-      if (row.original.type === "trace") {
+      if (!row.original.subRows) {
         const params = new URLSearchParams(searchParams);
-        setTraceId(row.original.data.id);
-        params.set("traceId", row.original.data.id);
+        setTraceId(row.original.id);
+        params.set("traceId", row.original.id);
         router.push(`${pathName}?${params.toString()}`);
         return;
       }
 
+      const isCurrentlyExpanded = row.getIsExpanded();
       row.toggleExpanded();
+
+      if (isCurrentlyExpanded) {
+        setSessions((sessions) =>
+          sessions?.map((s) => {
+            if (s.sessionId === row.original.sessionId) {
+              return {
+                ...s,
+                subRows: [],
+              };
+            }
+            return s;
+          })
+        );
+        return;
+      }
 
       const filter = {
         column: "session_id",
-        value: row.original.data.id,
+        value: row.original.sessionId,
         operator: "eq",
       };
 
       try {
-        const res = await fetch(
-          `/api/projects/${projectId}/traces?pageNumber=0&pageSize=50&filter=${JSON.stringify(filter)}`
-        );
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", "0");
+        urlParams.set("pageSize", "50");
+        urlParams.set("filter", JSON.stringify(filter));
+
+        if (pastHours != null) urlParams.set("pastHours", pastHours);
+        if (startDate != null) urlParams.set("startDate", startDate);
+        if (endDate != null) urlParams.set("endDate", endDate);
+
+        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
         }
 
-        const traces = (await res.json()) as PaginatedResponse<Trace>;
+        const traces = (await res.json()) as { items: TraceRow[]; count: number };
         setSessions((sessions) =>
           sessions?.map((s) => {
-            if (s.data.id === row.original.data.id) {
+            if (s.sessionId === row.original.sessionId) {
               return {
                 ...s,
-                type: "session",
-                subRows: traces.items
-                  .map((t) => ({
-                    type: "trace",
-                    data: t,
-                    subRows: [],
-                  }))
-                  .toReversed(),
+                subRows: traces.items.toReversed(),
               };
-            } else {
-              return s;
             }
+            return s;
           })
         );
       } catch (error) {
@@ -198,42 +224,47 @@ export default function SessionsTable() {
         row.toggleExpanded();
       }
     },
-    [setTraceId, pathName, projectId, router, searchParams]
+    [setTraceId, pathName, projectId, router, searchParams, pastHours, startDate, endDate, toast]
   );
 
-  useEffect(() => {
-    if (pastHours || startDate || endDate) {
-      getSessions();
-    } else {
-      const sp = new URLSearchParams(searchParams.toString());
-      sp.set("pastHours", "24");
-      router.push(`${pathName}?${sp.toString()}`);
-    }
-  }, [pageSize, projectId, JSON.stringify(filter), pastHours, startDate, endDate, textSearchFilter]);
+  const onPageChange = useCallback(
+    (pageNumber: number, pageSize: number) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("pageNumber", pageNumber.toString());
+      params.set("pageSize", pageSize.toString());
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
 
   return (
     <DataTable
       className="border-none w-full"
       columns={columns}
       data={sessions}
-      getRowId={(row) => row.data.id}
+      getRowId={(session) => get(session, ["id"], session.sessionId)}
       onRowClick={handleRowClick}
       paginated
-      focusedRowId={traceId || searchParams.get("traceId")}
+      focusedRowId={searchParams.get("sessionId")}
+      manualPagination
       pageCount={pageCount}
       defaultPageSize={pageSize}
       defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
-      manualPagination
       totalItemsCount={totalCount}
       enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
+      selectionPanel={(selectedRowIds) => (
+        <div className="flex flex-col space-y-2">
+          <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteSessions} entityName="sessions" />
+        </div>
+      )}
     >
       <div className="flex flex-1 w-full space-x-2">
         <DataTableFilter columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSessions} variant="outline" className="text-xs" />
-        <SearchInput placeholder="Search in sessions..." onSearch={onSearch} />
+        <SearchInput placeholder="Search in sessions..." />
       </div>
       <DataTableFilterList />
     </DataTable>
