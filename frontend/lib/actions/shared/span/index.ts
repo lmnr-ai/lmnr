@@ -102,7 +102,7 @@ export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSch
     attributes: string;
   }>({
     query: `
-      SELECT id, formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ'), span_id spanId, name, attributes
+      SELECT id, formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, span_id spanId, name, attributes
       FROM events
       WHERE span_id = {spanId: UUID}
     `,
