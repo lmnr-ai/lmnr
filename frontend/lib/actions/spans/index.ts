@@ -78,6 +78,10 @@ async function getDefaultTraceIds({
       column: "start_time",
       direction: "DESC" as const,
     },
+    // pagination: {
+    //   limit: 1000,
+    //   offset: 0,
+    // },
   };
 
   const { query, parameters } = buildSelectQuery(queryOptions);
@@ -237,60 +241,111 @@ const getTraceTreeStructure = async (
   });
 };
 
-export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) {
-  const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
-  const filters: FilterDef[] = compact(inputFilters);
-
-  let finalSpanIds: string[] = [];
-  let parentRewiring: Map<string, string | undefined> = new Map();
-
-  // Apply rewiring when we have search or filters (or both)
+const processSearchAndFiltering = async ({
+  projectId,
+  traceId,
+  search,
+  searchIn,
+  filters,
+}: {
+  projectId: string;
+  traceId: string;
+  search?: string | null;
+  searchIn: SpanSearchType[];
+  filters: FilterDef[];
+}): Promise<{
+  finalSpanIds: string[];
+  parentRewiring: Map<string, string | undefined>;
+}> => {
   const shouldApplyRewiring = search || filters.length > 0;
 
-  if (shouldApplyRewiring) {
-    let matchingSpanIds: string[] = [];
+  if (!shouldApplyRewiring) {
+    return {
+      finalSpanIds: [],
+      parentRewiring: new Map(),
+    };
+  }
 
-    if (search) {
-      // Get spans that match the search
-      matchingSpanIds = await searchSpanIds({
+  let spanIdsToProcess: string[] = [];
+
+  if (search && filters.length > 0) {
+    // Both search and filters: get intersection
+    const [searchedSpanIds, filterSpanIds] = await Promise.all([
+      searchSpanIds({
         projectId,
         traceId,
         searchQuery: search,
         timeRange: { pastHours: "all" },
-        searchType: searchIn as SpanSearchType[],
-      });
+        searchType: searchIn,
+      }),
+      (async () => {
+        const { query: filterQuery, parameters: filterParams } = buildSpansQueryWithParams({
+          columns: ["span_id as spanId"],
+          projectId,
+          filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+        });
 
-      if (matchingSpanIds.length === 0) {
-        return { items: [], count: 0 };
-      }
-    } else {
-      // No search, but we have filters - query to get matching spans
-      const { query: filterQuery, parameters: filterParams } = buildSpansQueryWithParams({
-        columns: ["span_id as spanId"],
-        projectId,
-        filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
-      });
+        const filteredSpans = await executeQuery<{ spanId: string }>({
+          query: filterQuery,
+          parameters: filterParams,
+          projectId,
+        });
 
-      const filteredSpans = await executeQuery<{ spanId: string }>({
-        query: filterQuery,
-        parameters: filterParams,
-        projectId,
-      });
+        return filteredSpans.map((span) => span.spanId);
+      })(),
+    ]);
 
-      matchingSpanIds = filteredSpans.map((span) => span.spanId);
+    const searchSet = new Set(searchedSpanIds);
+    spanIdsToProcess = filterSpanIds.filter((id) => searchSet.has(id));
+  } else if (search) {
+    spanIdsToProcess = await searchSpanIds({
+      projectId,
+      traceId,
+      searchQuery: search,
+      timeRange: { pastHours: "all" },
+      searchType: searchIn,
+    });
+  } else if (filters.length > 0) {
+    const { query: filterQuery, parameters: filterParams } = buildSpansQueryWithParams({
+      columns: ["span_id as spanId"],
+      projectId,
+      filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    });
 
-      if (matchingSpanIds.length === 0) {
-        return { items: [], count: 0 };
-      }
-    }
+    const filteredSpans = await executeQuery<{ spanId: string }>({
+      query: filterQuery,
+      parameters: filterParams,
+      projectId,
+    });
 
-    // Get the complete tree structure and apply rewiring
-    const treeStructure = await getTraceTreeStructure(projectId, traceId);
-    const result = processSpanSelection(matchingSpanIds, treeStructure);
-    finalSpanIds = result.spanIds;
-    parentRewiring = result.parentRewiring;
+    spanIdsToProcess = filteredSpans.map((span) => span.spanId);
   }
 
+  if (spanIdsToProcess.length === 0) {
+    return {
+      finalSpanIds: [],
+      parentRewiring: new Map(),
+    };
+  }
+
+  const treeStructure = await getTraceTreeStructure(projectId, traceId);
+  const result = processSpanSelection(spanIdsToProcess, treeStructure);
+
+  return {
+    finalSpanIds: result.spanIds,
+    parentRewiring: result.parentRewiring,
+  };
+};
+
+async function fetchSpansAndEvents({
+  projectId,
+  traceId,
+  finalSpanIds,
+}: {
+  projectId: string;
+  traceId: string;
+  finalSpanIds: string[];
+}) {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: [
       "span_id as spanId",
@@ -307,10 +362,10 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
     ],
     projectId,
     spanIds: finalSpanIds.length > 0 ? finalSpanIds : undefined,
-    filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    filters: [{ value: traceId, operator: Operator.Eq, column: "trace_id" }],
   });
 
-  const [spans, events] = await Promise.all([
+  return await Promise.all([
     executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
       query,
       parameters,
@@ -332,13 +387,35 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) 
       projectId,
     }),
   ]);
+}
+
+export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {
+  const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
+  const filters: FilterDef[] = compact(inputFilters);
+
+  const { finalSpanIds, parentRewiring } = await processSearchAndFiltering({
+    projectId,
+    traceId,
+    search,
+    searchIn: searchIn as SpanSearchType[],
+    filters,
+  });
+
+  if ((search || filters.length > 0) && finalSpanIds.length === 0) {
+    return [];
+  }
+
+  const [spans, events] = await fetchSpansAndEvents({
+    projectId,
+    traceId,
+    finalSpanIds,
+  });
 
   if (spans.length === 0) {
     return [];
   }
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
-
   return spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
 }
 

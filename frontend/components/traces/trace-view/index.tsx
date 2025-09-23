@@ -203,11 +203,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         const response = await fetch(url);
         const results = (await response.json()) as TraceViewSpan[];
 
-        const spans = search ? results : enrichSpansWithPending(results);
+        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
 
-        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
         }
