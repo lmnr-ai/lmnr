@@ -1,10 +1,9 @@
-import { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import { SpanType } from "@/lib/traces/types";
+import { RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -148,65 +147,61 @@ export const getDefaultTraceViewWidth = () => {
   return 1000;
 };
 
-const dbSpanRowToSpan = (row: Record<string, any>): TraceViewSpan => ({
-  spanId: row.span_id,
-  parentSpanId: row.parent_span_id,
-  traceId: row.trace_id,
-  spanType: row.span_type,
-  name: row.name,
-  path: row.attributes["lmnr.span.path"] ?? "",
-  startTime: row.start_time,
-  endTime: row.end_time,
-  attributes: row.attributes,
-  events: [],
-  model: row.attributes["gen_ai.response.model"] ?? row.attributes["gen_ai.request.model"] ?? null,
-  collapsed: false,
-});
 
 export const onRealtimeUpdateSpans =
   (
-    spans: TraceViewSpan[],
-    setSpans: (spans: TraceViewSpan[]) => void,
-    setTrace: (trace?: TraceViewTrace) => void,
+    setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,
+    setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
     setShowBrowserSession: (show: boolean) => void,
-    trace?: TraceViewTrace
   ) =>
-    (payload: RealtimePostgresInsertPayload<Record<string, any>>) => {
-      const rtEventSpan = dbSpanRowToSpan(payload.new);
+    (newSpan: RealtimeSpan) => {
 
-      if (rtEventSpan.attributes["lmnr.internal.has_browser_session"]) {
+      if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
         setShowBrowserSession(true);
       }
 
-      if (trace) {
+      setTrace((trace) => {
+        if (!trace) return trace;
+
         const newTrace = { ...trace };
-        newTrace.endTime = new Date(
-          Math.max(new Date(newTrace.endTime).getTime(), new Date(rtEventSpan.endTime).getTime())
-        ).toUTCString();
+
+        newTrace.startTime = new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime() ? newTrace.startTime : newSpan.startTime;
+        newTrace.endTime = new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
         newTrace.totalTokens +=
-        (rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-        (rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-        newTrace.inputTokens += rtEventSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-        newTrace.outputTokens += rtEventSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-        newTrace.inputCost += rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-        newTrace.outputCost += rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
+          (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
+          (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
+        newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+        newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+        newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
+        newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
         newTrace.totalCost +=
-        (rtEventSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
-        (rtEventSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+          (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
+          (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+        return newTrace;
+      });
 
-        setTrace(newTrace);
-      }
+      setSpans((spans) => {
+        const newSpans = [...spans];
+        const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
+        if (index !== -1) {
+          // Always replace existing span, regardless of pending status
+          newSpans[index] = {
+            ...newSpan,
+            collapsed: newSpans[index].collapsed || false,
+            events: [],
+            path: "",
+          };
+        } else {
+          newSpans.push({
+            ...newSpan,
+            collapsed: false,
+            events: [],
+            path: "",
+          });
+        }
 
-      const newSpans = [...spans];
-      const index = newSpans.findIndex((span) => span.spanId === rtEventSpan.spanId);
-      if (index !== -1) {
-      // Always replace existing span, regardless of pending status
-        newSpans[index] = rtEventSpan;
-      } else {
-        newSpans.push(rtEventSpan);
-      }
-
-      setSpans(enrichSpansWithPending(newSpans));
+        return enrichSpansWithPending(newSpans);
+      });
     };
 
 export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {

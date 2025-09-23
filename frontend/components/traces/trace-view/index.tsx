@@ -27,7 +27,6 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
@@ -123,7 +122,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }));
 
   const { value: filters } = useFiltersContextProvider();
-  const { supabaseClient: supabase } = useUserContext();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -298,30 +296,35 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
 
   useEffect(() => {
-    if (!supabase || !traceId) {
+    if (!traceId || !projectId) {
       return;
     }
-    // Clean up
-    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
 
-    const channel = supabase
-      .channel(`trace-updates-${traceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "spans",
-          filter: `trace_id=eq.${traceId}`,
-        },
-        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
-      )
-      .subscribe();
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+
+    eventSource.addEventListener("new_spans", (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            if (span.traceId === traceId) {
+              onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error processing SSE message:", error);
+      }
+    });
+
+    eventSource.addEventListener("error", (error) => {
+      console.error("SSE connection error:", error);
+    });
 
     return () => {
-      channel.unsubscribe();
+      eventSource.close();
     };
-  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
+  }, [setBrowserSession, setSpans, setTrace, traceId, projectId]);
 
   if (isLoading) {
     return (

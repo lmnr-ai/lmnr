@@ -22,7 +22,7 @@ export const MIN_TREE_VIEW_WIDTH = 450;
 
 export type TraceViewSpan = {
   spanId: string;
-  parentSpanId?: string;
+  parentSpanId?: string | null;
   traceId: string;
   name: string;
   startTime: string;
@@ -72,8 +72,8 @@ interface TraceViewStoreState {
 }
 
 interface TraceViewStoreActions {
-  setTrace: (trace?: TraceViewTrace) => void;
-  setSpans: (spans: TraceViewSpan[]) => void;
+  setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void;
+  setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
@@ -121,21 +121,39 @@ const createTraceViewStore = () =>
         hasBrowserSession: false,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
-        setTrace: (trace) => set({ trace }),
-        updateTraceVisibility: (visibility) => {
-          const trace = get().trace;
-          if (trace) {
-            set({ trace: { ...trace, visibility } });
+        setTrace: (trace) => {
+          if (typeof trace === 'function') {
+            const prevTrace = get().trace;
+            const newTrace = trace(prevTrace);
+            set({ trace: newTrace });
+          } else {
+            set({ trace });
           }
         },
-        setSpans: (spans) => set({ spans: spans.map((s) => ({ ...s, collapsed: false })) }),
+        updateTraceVisibility: (visibility) => {
+          get().setTrace((trace) => {
+            if (trace) {
+              return { ...trace, visibility };
+            }
+            return trace;
+          });
+        },
+        setSpans: (spans) => {
+          if (typeof spans === 'function') {
+            const prevSpans = get().spans;
+            const newSpans = spans(prevSpans);
+            set({ spans: newSpans });
+          } else {
+            set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
+          }
+        },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => transformSpansToTree(get().spans),
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
-            const startTime = new Date(trace?.startTime || 0).getTime();
-            const endTime = new Date(trace?.endTime || 0).getTime();
+            const startTime = new Date(trace.startTime).getTime();
+            const endTime = new Date(trace.endTime).getTime();
             return transformSpansToMinimap(get().spans, endTime - startTime);
           }
           return [];
@@ -172,10 +190,9 @@ const createTraceViewStore = () =>
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
-          const { spans } = get();
-          set({
-            spans: spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span)),
-          });
+          get().setSpans((spans) =>
+            spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span))
+          );
         },
         setSpanPath: (spanPath) => set({ spanPath }),
         getHasLangGraph: () =>

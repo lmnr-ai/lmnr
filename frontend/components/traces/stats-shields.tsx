@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { compact, get, sortBy, uniq } from "lodash";
+import { compact, get, isNil, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
@@ -91,8 +91,11 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
 };
 
 const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
-  const aiPromptTools = get(attributes, "ai.prompt.tools");
-  if (aiPromptTools) {
+  if (isNil(attributes)) return [];
+
+  const aiPromptTools = get(attributes, "ai.prompt.tools", []);
+
+  if (aiPromptTools && Array.isArray(aiPromptTools)) {
     try {
       return aiPromptTools.map((tool: any) => ({
         name: get(tool, "name", ""),
@@ -227,12 +230,12 @@ const SpanStatsShields = ({
   className,
   children,
 }: PropsWithChildren<SpanStatsShieldsProps>) => {
-  const inputTokenCount = attributes["gen_ai.usage.input_tokens"] ?? 0;
-  const outputTokenCount = attributes["gen_ai.usage.output_tokens"] ?? 0;
+  const inputTokenCount = get(attributes, "gen_ai.usage.input_tokens", 0);
+  const outputTokenCount = get(attributes, "gen_ai.usage.output_tokens", 0);
   const totalTokenCount = inputTokenCount + outputTokenCount;
-  const inputCost = attributes["gen_ai.usage.input_cost"] ?? 0;
-  const outputCost = attributes["gen_ai.usage.output_cost"] ?? 0;
-  const cost = attributes["gen_ai.usage.cost"] ?? 0;
+  const inputCost = get(attributes, "gen_ai.usage.input_cost", 0);
+  const outputCost = get(attributes, "gen_ai.usage.output_cost", 0);
+  const cost = get(attributes, "gen_ai.usage.cost", 0);
   const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(attributes);
   const structuredOutputSchema =

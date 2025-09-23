@@ -4,6 +4,7 @@ pub mod error;
 pub mod evaluations;
 pub mod probes;
 pub mod provider_api_keys;
+pub mod realtime;
 pub mod spans;
 pub mod sql;
 pub mod types;

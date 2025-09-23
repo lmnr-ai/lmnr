@@ -27,6 +27,20 @@ export enum SpanType {
   EVENT = "EVENT",
 }
 
+export type RealtimeSpan = {
+  spanId: string;
+  parentSpanId?: string | null;
+  traceId: string;
+  spanType: SpanType;
+  name: string;
+  startTime: string;
+  endTime: string;
+  attributes: Record<string, any>;
+  status?: string;
+  projectId: string;
+  createdAt: string;
+};
+
 export type Span = {
   spanId: string;
   parentSpanId?: string;
