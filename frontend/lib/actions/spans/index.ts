@@ -78,10 +78,6 @@ async function getDefaultTraceIds({
       column: "start_time",
       direction: "DESC" as const,
     },
-    // pagination: {
-    //   limit: 1000,
-    //   offset: 0,
-    // },
   };
 
   const { query, parameters } = buildSelectQuery(queryOptions);
