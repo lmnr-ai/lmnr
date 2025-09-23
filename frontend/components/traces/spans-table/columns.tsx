@@ -9,7 +9,7 @@ import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanRow, SpanType } from "@/lib/traces/types";
-import { normalizeClickHouseTimestamp, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -110,7 +110,7 @@ export const columns: ColumnDef<SpanRow, any>[] = [
   {
     cell: (row) => <Mono>{row.getValue()}</Mono>,
     header: "ID",
-    accessorFn: (row) => row.spanId.replace(/^00000000-0000-0000-/g, ""),
+    accessorFn: (row) => row.spanId,
     id: "span_id",
   },
   {
@@ -154,12 +154,7 @@ export const columns: ColumnDef<SpanRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => (
-      <ClientTimestampFormatter
-        timestamp={String(normalizeClickHouseTimestamp(row.getValue()))}
-        format={TIME_SECONDS_FORMAT}
-      />
-    ),
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
     id: "start_time",
     size: 150,
   },

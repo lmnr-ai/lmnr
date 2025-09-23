@@ -22,7 +22,7 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
-  hasBrowserSession: boolean | null;
+  hasBrowserSession?: boolean;
   traceId: string;
   onTimelineChange: (time: number) => void;
   llmSpanIds?: string[];

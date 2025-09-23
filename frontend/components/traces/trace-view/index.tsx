@@ -1,3 +1,4 @@
+import { get } from "lodash";
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
@@ -12,6 +13,7 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
   TraceViewSpan,
+  TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -27,7 +29,7 @@ import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
@@ -42,7 +44,7 @@ interface TraceViewProps {
   traceId: string;
   // Span id here to control span selection by spans table
   spanId?: string;
-  propsTrace?: Trace;
+  propsTrace?: TraceViewTrace;
   onClose: () => void;
 }
 
@@ -90,9 +92,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSession,
     zoom,
     handleZoom,
-    setBrowserSessionTime,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -107,6 +110,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   // Local storage states
@@ -144,11 +149,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           });
           return;
         }
-        const traceData = (await response.json()) as Trace;
+        const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
-        if (traceData.hasBrowserSession) {
-          setBrowserSession(true);
-        }
       }
     } catch (e) {
       toast({
@@ -201,10 +203,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
-        const results = await response.json();
+        const results = (await response.json()) as TraceViewSpan[];
+
         const spans = enrichSpansWithPending(results);
 
         setSpans(spans);
+
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+          setHasBrowserSession(true);
+          setBrowserSession(true);
+        }
 
         if (spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
@@ -452,9 +460,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
               ) : selectedSpan ? (
                 selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+                  <HumanEvaluatorSpanView
+                    traceId={selectedSpan.traceId}
+                    spanId={selectedSpan.spanId}
+                    key={selectedSpan.spanId}
+                  />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
                 )
               ) : (
                 <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
@@ -471,7 +483,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {!isLoading && (
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={traceId}
                     llmSpanIds={llmSpanIds}
                   />

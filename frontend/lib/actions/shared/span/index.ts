@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
-import { clickhouseClient } from "@/lib/clickhouse/client";
-import { db } from "@/lib/db/drizzle";
-import { spans } from "@/lib/db/migrations/schema";
+import { executeQuery } from "@/lib/actions/sql";
+import { db } from "@/lib/db/drizzle.ts";
+import { sharedTraces } from "@/lib/db/migrations/schema.ts";
+import { Span } from "@/lib/traces/types.ts";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
@@ -14,82 +15,103 @@ export const GetSharedSpanSchema = z.object({
 export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) => {
   const { spanId, traceId } = GetSharedSpanSchema.parse(input);
 
-  const [dbSpan, chResult] = await Promise.all([
-    db.query.spans.findFirst({
-      where: and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)),
-      columns: {
-        spanId: true,
-        createdAt: true,
-        parentSpanId: true,
-        name: true,
-        spanType: true,
-        startTime: true,
-        endTime: true,
-        traceId: true,
-        projectId: true,
-        inputUrl: true,
-        outputUrl: true,
-        status: true,
-      },
-    }),
-    clickhouseClient.query({
-      query: `
-        SELECT input, output, attributes
-        FROM spans
-        WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
-        LIMIT 1
-      `,
-      format: "JSONEachRow",
-      query_params: { spanId, traceId },
-    }),
-  ]);
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
 
-  if (!dbSpan) {
-    throw new Error("Span not found");
+  if (!sharedTrace) {
+    throw new Error("No shared trace found.");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string; attributes: string }];
-  const { input: spanInput, output: spanOutput, attributes, } = chData[0] || {};
+  const [span] = await executeQuery<Omit<Span, "attributes"> & { attributes: string }>({
+    query: `
+      SELECT
+        span_id as spanId,
+        parent_span_id as parentSpanId,
+        name,
+        span_type as spanType,
+        input_tokens as inputTokens,
+        output_tokens as outputTokens,
+        total_tokens as totalTokens,
+        input_cost as inputCost,
+        output_cost as outputCost,
+        total_cost as totalCost,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+        trace_id as traceId,
+        status,
+        input,
+        output,
+        path,
+        attributes
+      FROM spans
+      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
+      LIMIT 1
+    `,
+    parameters: {
+      spanId,
+      traceId,
+    },
+    projectId: sharedTrace.projectId,
+  });
+
+  if (!span) {
+    throw new Error("No span found.");
+  }
 
   return {
-    ...dbSpan,
-    input: tryParseJson(spanInput),
-    output: tryParseJson(spanOutput),
-    attributes: tryParseJson(attributes) ?? {},
+    ...span,
+    input: tryParseJson(span.input),
+    output: tryParseJson(span.output),
+    attributes: tryParseJson(span.attributes) ?? {},
   };
 };
 
 export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSchema>) => {
   const { spanId, traceId } = GetSharedSpanSchema.parse(input);
 
-  // First verify the span exists and belongs to the trace
-  const span = await db.query.spans.findFirst({
-    where: and(eq(spans.spanId, spanId), eq(spans.traceId, traceId)),
-    columns: {
-      spanId: true,
-    },
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
   });
 
-  if (!span) {
+  if (!sharedTrace) {
+    throw new Error("No shared trace found.");
+  }
+
+  // Check if span really belongs to trace.
+  const [spanExists] = await executeQuery<{ exists: number }>({
+    query: `
+      SELECT 1 as exists
+      FROM spans
+      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
+      LIMIT 1
+    `,
+    parameters: { spanId, traceId },
+    projectId: sharedTrace.projectId,
+  });
+
+  if (!spanExists) {
     throw new Error("Span not found or does not belong to the given trace");
   }
 
-  const chResult = await clickhouseClient.query({
+  const events = await executeQuery<{
+    id: string;
+    timestamp: string;
+    spanId: string;
+    name: string;
+    attributes: string;
+  }>({
     query: `
-      SELECT id, timestamp, span_id spanId, name, attributes
+      SELECT id, formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, span_id spanId, name, attributes
       FROM events
       WHERE span_id = {spanId: UUID}
     `,
-    format: "JSONEachRow",
-    query_params: { spanId },
+    parameters: { spanId },
+    projectId: sharedTrace.projectId,
   });
 
-  const rows = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string; attributes: string }[];
-
-  return rows.map((row) => ({
+  return events.map((row) => ({
     ...row,
-    timestamp: new Date(`${row.timestamp}Z`),
     attributes: tryParseJson(row.attributes) ?? {},
   }));
 };
-

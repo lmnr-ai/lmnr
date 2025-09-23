@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
@@ -79,19 +80,3 @@ function extractImagesFromMessages(messages: any): string[] {
     .reverse()
     .slice(0, 1);
 }
-
-const tryParseJson = (value: string) => {
-  if (value === "" || value === undefined) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    // Parse with brackets because we used to stringify array using comma separator on server.
-    // This is no longer the case, but we'll keep this for backwards compatibility.
-    try {
-      return JSON.parse(`[${value}]`);
-    } catch (e2) {
-      console.log("Failed to parse JSON with brackets:", e2);
-      return value;
-    }
-  }
-};
