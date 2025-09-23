@@ -1,7 +1,7 @@
-import { Loader } from "lucide-react";
 import React, { memo, PropsWithChildren, useCallback, useEffect, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { Span } from "@/lib/traces/types";
 
@@ -53,8 +53,10 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
 
   if (isLoading) {
     return (
-      <div className="flex pt-8 justify-center items-center">
-        <Loader className="animate-spin w-4 h-4" />
+      <div className="flex flex-col gap-2 p-4 justify-center items-center">
+        <Skeleton className="w-full h-8" />
+        <Skeleton className="w-full h-8" />
+        <Skeleton className="w-full h-8" />
       </div>
     );
   }
