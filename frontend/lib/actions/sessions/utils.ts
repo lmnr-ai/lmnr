@@ -1,11 +1,10 @@
 import { isNil } from "lodash";
 
-import { Operator } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
   createCustomFilter,
-  createNumberFilter,
   createStringFilter,
   QueryParams,
   QueryResult,
@@ -13,7 +12,7 @@ import {
 } from "@/lib/actions/common/query-builder";
 import { FilterDef } from "@/lib/db/modifiers";
 
-const sessionsColumnFilterConfig: ColumnFilterConfig = {
+const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["session_id", createStringFilter],
     ["user_id", createStringFilter],
@@ -30,26 +29,111 @@ const sessionsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => ({ [paramKey]: filter.value })
       ),
     ],
-    ["trace_count", createNumberFilter("Float64")],
-    ["input_tokens", createNumberFilter("Float64")],
-    ["output_tokens", createNumberFilter("Float64")],
-    ["total_tokens", createNumberFilter("Float64")],
-    ["input_cost", createNumberFilter("Float64")],
-    ["output_cost", createNumberFilter("Float64")],
-    ["total_cost", createNumberFilter("Float64")],
-    ["duration", createNumberFilter("Float64")],
+  ]),
+};
+
+const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
+  processors: new Map([
+    [
+      "trace_count",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `COUNT(*) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "input_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(input_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "output_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(output_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "total_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(total_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "input_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(input_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "output_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(output_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "total_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(total_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "duration",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(end_time - start_time) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
   ]),
 };
 
 const sessionsSelectColumns = [
-  "session_id as id",
+  "session_id as sessionId",
   "COUNT(*) as traceCount",
   "SUM(input_tokens) as inputTokens",
   "SUM(output_tokens) as outputTokens",
   "SUM(total_tokens) as totalTokens",
   "formatDateTime(MIN(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
   "formatDateTime(MAX(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
-  "SUM(duration) as duration",
+  "SUM(end_time - start_time) as duration",
   "SUM(input_cost) as inputCost",
   "SUM(output_cost) as outputCost",
   "SUM(total_cost) as totalCost",
@@ -69,6 +153,28 @@ export interface BuildSessionsQueryOptions {
 
 export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
   const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
+
+  const whereFilters: FilterDef[] = [];
+  const havingFilters: FilterDef[] = [];
+
+  const aggregateColumns = new Set([
+    "trace_count",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "input_cost",
+    "output_cost",
+    "total_cost",
+    "duration",
+  ]);
+
+  filters.forEach((filter) => {
+    if (aggregateColumns.has(filter.column)) {
+      havingFilters.push(filter);
+    } else {
+      whereFilters.push(filter);
+    }
+  });
 
   const customConditions: Array<{
     condition: string;
@@ -98,10 +204,12 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
       pastHours,
       timeColumn: "start_time",
     },
-    filters,
-    columnFilterConfig: sessionsColumnFilterConfig,
+    filters: whereFilters,
+    columnFilterConfig: sessionsWhereColumnFilterConfig,
+    havingFilters,
+    havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
     customConditions,
-    groupBy: ["id"],
+    groupBy: ["session_id"],
     orderBy: {
       column: "MIN(start_time)",
       direction: "DESC",
@@ -123,6 +231,28 @@ export const buildSessionsCountQueryWithParams = (
 ): QueryResult => {
   const { traceIds = [], filters, startTime, endTime, pastHours } = options;
 
+  const whereFilters: FilterDef[] = [];
+  const havingFilters: FilterDef[] = [];
+
+  const aggregateColumns = new Set([
+    "trace_count",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "input_cost",
+    "output_cost",
+    "total_cost",
+    "duration",
+  ]);
+
+  filters.forEach((filter) => {
+    if (aggregateColumns.has(filter.column)) {
+      havingFilters.push(filter);
+    } else {
+      whereFilters.push(filter);
+    }
+  });
+
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
@@ -140,6 +270,34 @@ export const buildSessionsCountQueryWithParams = (
     params: {},
   });
 
+  if (havingFilters.length > 0) {
+    const subqueryOptions: SelectQueryOptions = {
+      select: {
+        columns: ["session_id"],
+        table: "traces",
+      },
+      timeRange: {
+        startTime,
+        endTime,
+        pastHours,
+        timeColumn: "start_time",
+      },
+      filters: whereFilters,
+      columnFilterConfig: sessionsWhereColumnFilterConfig,
+      havingFilters,
+      havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
+      customConditions,
+      groupBy: ["session_id"],
+    };
+
+    const subquery = buildSelectQuery(subqueryOptions);
+
+    return {
+      query: `SELECT COUNT(*) as count FROM (${subquery.query}) as sessions_with_filters`,
+      parameters: subquery.parameters,
+    };
+  }
+
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: ["COUNT(DISTINCT session_id) as count"],
@@ -151,8 +309,8 @@ export const buildSessionsCountQueryWithParams = (
       pastHours,
       timeColumn: "start_time",
     },
-    filters,
-    columnFilterConfig: sessionsColumnFilterConfig,
+    filters: whereFilters,
+    columnFilterConfig: sessionsWhereColumnFilterConfig,
     customConditions,
   };
 

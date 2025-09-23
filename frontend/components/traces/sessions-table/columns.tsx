@@ -3,6 +3,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionRow } from "@/lib/traces/types";
@@ -95,7 +96,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => row.id,
+    accessorFn: (row) => row.sessionId || row.id,
     header: "ID",
     id: "id",
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
@@ -165,5 +166,27 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     header: "User ID",
     id: "user_id",
     cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
+  },
+  {
+    accessorFn: (row) => ("tags" in row ? row.tags : "-"),
+    cell: (row) => {
+      const tags = row.getValue() as string[];
+
+      if (Array.isArray(tags) && tags?.length > 0) {
+        return (
+          <>
+            {tags.map((tag) => (
+              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                <span>{tag}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
+    header: "Tags",
+    accessorKey: "tags",
+    id: "tags",
   },
 ];

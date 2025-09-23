@@ -148,6 +148,15 @@ export interface WhereClauseOptions {
   }>;
 }
 
+export interface HavingClauseOptions {
+  havingFilters?: FilterDef[];
+  havingColumnFilterConfig?: ColumnFilterConfig;
+  customHavingConditions?: Array<{
+    condition: string;
+    params: QueryParams;
+  }>;
+}
+
 const buildWhereClause = (options: WhereClauseOptions): QueryResult => {
   const { timeRange, filters = [], columnFilterConfig, customConditions = [] } = options;
 
@@ -181,7 +190,32 @@ const buildWhereClause = (options: WhereClauseOptions): QueryResult => {
   };
 };
 
-export interface SelectQueryOptions extends WhereClauseOptions {
+const buildHavingClause = (options: HavingClauseOptions): QueryResult => {
+  const { havingFilters = [], havingColumnFilterConfig, customHavingConditions = [] } = options;
+
+  const allConditions: string[] = [];
+  const allParams: QueryParams = {};
+
+  if (havingFilters.length > 0 && havingColumnFilterConfig) {
+    const filterResult = buildColumnFilters(havingFilters, havingColumnFilterConfig);
+    if (filterResult.condition) {
+      allConditions.push(filterResult.condition);
+      Object.assign(allParams, filterResult.params);
+    }
+  }
+
+  customHavingConditions.forEach(({ condition, params }) => {
+    allConditions.push(condition);
+    Object.assign(allParams, params);
+  });
+
+  return {
+    query: allConditions.length > 0 ? `HAVING ${allConditions.join(" AND ")}` : "",
+    parameters: allParams,
+  };
+};
+
+export interface SelectQueryOptions extends WhereClauseOptions, HavingClauseOptions {
   select: SelectOptions;
   groupBy?: string[];
   orderBy?: OrderByOptions;
@@ -191,6 +225,7 @@ export interface SelectQueryOptions extends WhereClauseOptions {
 const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   const { select, groupBy, orderBy, pagination } = options;
   const whereResult = buildWhereClause(options);
+  const havingResult = buildHavingClause(options);
 
   let query = `SELECT ${select.columns.join(", ")} FROM ${select.table}`;
 
@@ -202,11 +237,15 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
     query += ` GROUP BY ${groupBy.join(", ")}`;
   }
 
+  if (havingResult.query) {
+    query += ` ${havingResult.query}`;
+  }
+
   if (orderBy) {
     query += ` ORDER BY ${orderBy.column} ${orderBy.direction || "DESC"}`;
   }
 
-  const allParams = { ...whereResult.parameters };
+  const allParams = { ...whereResult.parameters, ...havingResult.parameters };
 
   if (pagination) {
     query += ` LIMIT {limit:UInt32} OFFSET {offset:UInt32}`;

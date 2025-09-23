@@ -162,21 +162,8 @@ export type TracePreview = {
 
 export type SessionRow = {
   id: string;
-  subRows: {
-    id: string;
-    startTime: string;
-    endTime: string;
-
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-
-    inputCost: number;
-    outputCost: number;
-    totalCost: number;
-
-    userId?: string;
-  }[];
+  sessionId: string;
+  subRows: TraceRow[];
 
   traceCount?: number;
   startTime: string;

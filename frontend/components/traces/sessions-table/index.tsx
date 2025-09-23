@@ -45,7 +45,7 @@ export default function SessionsTable() {
   const { setNavigationRefList } = useTraceViewNavigation();
 
   useEffect(() => {
-    setNavigationRefList(map(sessions, (s) => s.id));
+    setNavigationRefList(map(sessions, (s) => s.sessionId));
   }, [setNavigationRefList, sessions]);
 
   const getSessions = useCallback(async () => {
@@ -156,7 +156,7 @@ export default function SessionsTable() {
 
   const handleRowClick = useCallback(
     async (row: Row<SessionRow>) => {
-      if (!row.original?.subRows) {
+      if (!row.original.subRows) {
         const params = new URLSearchParams(searchParams);
         setTraceId(row.original.id);
         params.set("traceId", row.original.id);
@@ -168,7 +168,7 @@ export default function SessionsTable() {
 
       const filter = {
         column: "session_id",
-        value: row.original.id,
+        value: row.original.sessionId,
         operator: "eq",
       };
 
@@ -191,24 +191,10 @@ export default function SessionsTable() {
         const traces = (await res.json()) as { items: TraceRow[]; count: number };
         setSessions((sessions) =>
           sessions?.map((s) => {
-            if (s.id === row.original.id) {
+            if (s.sessionId === row.original.sessionId) {
               return {
                 ...s,
-                subRows: traces.items
-                  .map((t) => ({
-                    id: t.id,
-                    startTime: t.startTime,
-                    endTime: t.endTime,
-                    duration: new Date(t.endTime).getTime() - new Date(t.startTime).getTime(),
-                    inputTokens: t.inputTokens,
-                    outputTokens: t.outputTokens,
-                    totalTokens: t.totalTokens,
-                    inputCost: t.inputCost,
-                    outputCost: t.outputCost,
-                    totalCost: t.totalCost,
-                    userId: t.userId,
-                  }))
-                  .toReversed(),
+                subRows: traces.items.toReversed(),
               };
             }
             return s;
@@ -240,7 +226,7 @@ export default function SessionsTable() {
       className="border-none w-full"
       columns={columns}
       data={sessions}
-      getRowId={(session) => session.id}
+      getRowId={(session) => session.sessionId}
       onRowClick={handleRowClick}
       paginated
       focusedRowId={searchParams.get("sessionId")}
