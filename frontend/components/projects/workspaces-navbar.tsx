@@ -16,7 +16,7 @@ export default function WorkspacesNavbar() {
   const { data, isLoading } = useSWR("/api/workspaces", swrFetcher);
   const pathname = usePathname();
   return (
-    <div className="flex flex-col h-screen fixed border-r w-64 items-center justify-start">
+    <div className="flex flex-col h-screen fixed border-r w-64 items-center justify-start overflow-hidden">
       <Link href={"/projects"} className="flex w-full p-4 h-14 items-center justify-start mb-4">
         <Image alt="" src={logo} width={130} />
       </Link>
