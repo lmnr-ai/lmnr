@@ -17,7 +17,7 @@ const format = new Intl.NumberFormat("en-US", {
 
 export const filters: ColumnFilter[] = [
   {
-    key: "id",
+    key: "session_id",
     name: "Session ID",
     dataType: "string",
   },

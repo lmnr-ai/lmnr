@@ -15,7 +15,7 @@ import { FilterDef } from "@/lib/db/modifiers";
 
 const sessionsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
-    ["id", createStringFilter],
+    ["session_id", createStringFilter],
     ["user_id", createStringFilter],
     [
       "tags",
