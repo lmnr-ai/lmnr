@@ -96,7 +96,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     size: 120,
   },
   {
-    accessorFn: (row) => row.sessionId || row.id,
+    accessorFn: (row) => row.id || row.sessionId,
     header: "ID",
     id: "id",
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,

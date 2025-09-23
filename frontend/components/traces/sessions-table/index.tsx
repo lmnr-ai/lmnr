@@ -1,7 +1,7 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { map } from "lodash";
+import { get, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -164,7 +164,23 @@ export default function SessionsTable() {
         return;
       }
 
+      const isCurrentlyExpanded = row.getIsExpanded();
       row.toggleExpanded();
+
+      if (isCurrentlyExpanded) {
+        setSessions((sessions) =>
+          sessions?.map((s) => {
+            if (s.sessionId === row.original.sessionId) {
+              return {
+                ...s,
+                subRows: [],
+              };
+            }
+            return s;
+          })
+        );
+        return;
+      }
 
       const filter = {
         column: "session_id",
@@ -226,7 +242,7 @@ export default function SessionsTable() {
       className="border-none w-full"
       columns={columns}
       data={sessions}
-      getRowId={(session) => session.sessionId}
+      getRowId={(session) => get(session, ["id"], session.sessionId)}
       onRowClick={handleRowClick}
       paginated
       focusedRowId={searchParams.get("sessionId")}
