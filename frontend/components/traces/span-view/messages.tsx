@@ -1,6 +1,6 @@
 import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { ModelMessage } from "ai";
-import { isEqual } from "lodash";
+import { isEqual, isNil } from "lodash";
 import { ChevronDown } from "lucide-react";
 import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
 import { z } from "zod/v4";
@@ -208,8 +208,9 @@ const MessagesRenderer = ({
   }
 };
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
+  if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;
+  if (isNil(prevProps.messages) || isNil(nextProps.messages)) return false;
   if (prevProps.messages.length !== nextProps.messages.length) return false;
   return isEqual(prevProps.messages, nextProps.messages);
 });
-
 export default Messages;

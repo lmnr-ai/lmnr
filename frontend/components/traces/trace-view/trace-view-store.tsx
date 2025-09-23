@@ -49,7 +49,7 @@ export type TraceViewTrace = {
   totalCost: number;
   metadata: string;
   status: string;
-  trace_type: string;
+  traceType: string;
   visibility: "public" | "private";
 };
 
