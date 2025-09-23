@@ -1,5 +1,6 @@
 import { isNil } from "lodash";
 
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
@@ -12,6 +13,7 @@ import {
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import { FilterDef } from "@/lib/db/modifiers";
+import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -102,7 +104,17 @@ export interface BuildSpansQueryOptions {
 }
 
 export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): QueryResult => {
-  const { spanIds = [], filters, limit, offset, startTime, endTime, pastHours, columns, customConditions: additionalConditions = [] } = options;
+  const {
+    spanIds = [],
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    columns,
+    customConditions: additionalConditions = [],
+  } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -116,7 +128,7 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
           params: { spanIds },
         },
       ]
-      : [])
+      : []),
   ];
 
   const queryOptions: SelectQueryOptions = {
@@ -166,7 +178,7 @@ export const buildSpansCountQueryWithParams = (
           params: { spanIds },
         },
       ]
-      : [])
+      : []),
   ];
 
   const queryOptions: SelectQueryOptions = {
@@ -187,3 +199,85 @@ export const buildSpansCountQueryWithParams = (
 
   return buildSelectQuery(queryOptions);
 };
+
+export const filterAndRewireSpans = (
+  matchingSpanIds: string[],
+  treeStructure: { spanId: string; parentSpanId: string | undefined }[]
+): { filteredSpanIds: string[]; parentRewiring: Map<string, string | undefined> } => {
+  const spanMap = new Map(treeStructure.map((span) => [span.spanId, span.parentSpanId]));
+  const matchingSet = new Set(matchingSpanIds);
+  const parentRewiring = new Map<string, string | undefined>();
+
+  for (const spanId of matchingSpanIds) {
+    let currentSpanId = spanId;
+    let newParent: string | undefined = undefined;
+
+    while (currentSpanId) {
+      const parentId = spanMap.get(currentSpanId);
+      if (!parentId || parentId === "00000000-0000-0000-0000-000000000000") {
+        // Reached root, no parent
+        break;
+      }
+
+      if (matchingSet.has(parentId)) {
+        newParent = parentId;
+        break;
+      }
+
+      currentSpanId = parentId;
+    }
+
+    parentRewiring.set(spanId, newParent);
+  }
+
+  return {
+    filteredSpanIds: matchingSpanIds,
+    parentRewiring,
+  };
+};
+
+export function processSpanSelection(
+  searchMatchSpanIds: string[],
+  treeStructure: { spanId: string; parentSpanId: string | undefined }[]
+): {
+  spanIds: string[];
+  parentRewiring: Map<string, string | undefined>;
+} {
+  if (searchMatchSpanIds.length === 0) {
+    return { spanIds: [], parentRewiring: new Map() };
+  }
+
+  const result = filterAndRewireSpans(searchMatchSpanIds, treeStructure);
+
+  return {
+    spanIds: result.filteredSpanIds,
+    parentRewiring: result.parentRewiring,
+  };
+}
+
+const applyParentRewiring = (
+  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
+  parentRewiring: Map<string, string | undefined>
+): string | undefined => {
+  if (parentRewiring.has(span.spanId)) {
+    const effectiveParentId = parentRewiring.get(span.spanId) || undefined;
+    return effectiveParentId === "00000000-0000-0000-0000-000000000000" ? undefined : effectiveParentId;
+  }
+  return span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId;
+};
+export const transformSpanWithEvents = (
+  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
+  spanEventsMap: Record<string, any[]>,
+  parentRewiring: Map<string, string | undefined>,
+  projectId: string
+): TraceViewSpan => ({
+  ...span,
+  attributes: tryParseJson(span.attributes) || {},
+  parentSpanId: applyParentRewiring(span, parentRewiring),
+  name: span.name,
+  events: (spanEventsMap[span.spanId] || []).map((event) => ({
+    ...event,
+    projectId,
+  })),
+  collapsed: false,
+});

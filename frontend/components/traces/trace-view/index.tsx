@@ -203,11 +203,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         const response = await fetch(url);
         const results = (await response.json()) as TraceViewSpan[];
 
-        const spans = enrichSpansWithPending(results);
+        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
 
-        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
         }
@@ -224,7 +224,18 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         setIsSpansLoading(false);
       }
     },
-    [setIsSpansLoading, projectId, traceId, setSpans, setSearch, spanId, searchParams, spanPath, setSelectedSpan]
+    [
+      setIsSpansLoading,
+      search,
+      projectId,
+      traceId,
+      setSpans,
+      setSearch,
+      spanId,
+      searchParams,
+      spanPath,
+      setSelectedSpan,
+    ]
   );
 
   const handleClose = useCallback(() => {
@@ -282,10 +293,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [handleFetchTrace, projectId, traceId]);
 
   useEffect(() => {
-    const search = searchParams.get("search") || "";
+    const searchTerm = searchParams.get("search") || search || "";
     const searchIn = searchParams.getAll("searchIn");
 
-    fetchSpans(search, searchIn, filters);
+    fetchSpans(searchTerm, searchIn, filters);
 
     return () => {
       setSpans([]);

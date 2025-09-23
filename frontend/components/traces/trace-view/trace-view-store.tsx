@@ -22,7 +22,7 @@ export const MIN_TREE_VIEW_WIDTH = 450;
 
 export type TraceViewSpan = {
   spanId: string;
-  parentSpanId?: string | null;
+  parentSpanId?: string;
   traceId: string;
   name: string;
   startTime: string;
@@ -122,7 +122,7 @@ const createTraceViewStore = () =>
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
-          if (typeof trace === 'function') {
+          if (typeof trace === "function") {
             const prevTrace = get().trace;
             const newTrace = trace(prevTrace);
             set({ trace: newTrace });
@@ -139,7 +139,7 @@ const createTraceViewStore = () =>
           });
         },
         setSpans: (spans) => {
-          if (typeof spans === 'function') {
+          if (typeof spans === "function") {
             const prevSpans = get().spans;
             const newSpans = spans(prevSpans);
             set({ spans: newSpans });

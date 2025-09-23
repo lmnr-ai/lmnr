@@ -29,7 +29,7 @@ export enum SpanType {
 
 export type RealtimeSpan = {
   spanId: string;
-  parentSpanId?: string | null;
+  parentSpanId?: string;
   traceId: string;
   spanType: SpanType;
   name: string;
