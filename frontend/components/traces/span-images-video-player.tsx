@@ -8,7 +8,6 @@ import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
 import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,11 +49,11 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const swrKey =
     spanIds.length > 0
       ? {
-        url: isShared
-          ? `/api/shared/traces/${traceId}/spans/images`
-          : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
-        spanIds,
-      }
+          url: isShared
+            ? `/api/shared/traces/${traceId}/spans/images`
+            : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
+          spanIds,
+        }
       : null;
 
   const postFetcher = async ({ url, spanIds }: { url: string; spanIds: string[] }) => {
@@ -239,15 +238,13 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   return (
     <div className="flex flex-col h-full w-full">
       <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
-        <Button onClick={handlePlayPause} variant="ghost" size="sm" className="p-1">
-          {isPlaying ? <PauseIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
-        </Button>
+        <button onClick={handlePlayPause} className="text-white py-1 rounded">
+          {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+        </button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="px-2 text-sm">
-              {speed}x
-            </Button>
+          <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+            {speed}x
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {speedOptions.map((speedOption) => (
@@ -269,7 +266,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
           onChange={handleTimelineChange}
         />
 
-        <span ref={timeDisplayRef} className="font-mono text-sm">
+        <span ref={timeDisplayRef} className="font-mono">
           {formatSecondsToMinutesAndSeconds(0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
         </span>
       </div>

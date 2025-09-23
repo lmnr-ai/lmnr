@@ -303,7 +303,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                   min="0"
                   step="0.1"
                   max={duration}
-                  value={sessionTime}
+                  value={sessionTime || 0}
                   onChange={handleTimelineChange}
                 />
                 <span className="font-mono">
