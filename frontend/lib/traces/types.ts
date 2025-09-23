@@ -160,6 +160,9 @@ export type TracePreview = {
   outputMessageIds: string[];
 };
 
+// We have id and sessionId here because
+// its not possible to make good type intersection,
+// and use it in tanstack table wrappers.
 export type SessionRow = {
   id: string;
   sessionId: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { get, map } from "lodash";
+import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -45,7 +45,7 @@ export default function SessionsTable() {
   const { setNavigationRefList } = useTraceViewNavigation();
 
   useEffect(() => {
-    setNavigationRefList(map(sessions, (s) => s.sessionId));
+    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t?.id));
   }, [setNavigationRefList, sessions]);
 
   const getSessions = useCallback(async () => {
