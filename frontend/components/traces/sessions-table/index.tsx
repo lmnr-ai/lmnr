@@ -31,7 +31,7 @@ export default function SessionsTable() {
   }));
 
   const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
-  const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
+  const pageSize = searchParams.get("pageSize") ? Math.max(parseInt(searchParams.get("pageSize")!), 1) : 50;
   const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
