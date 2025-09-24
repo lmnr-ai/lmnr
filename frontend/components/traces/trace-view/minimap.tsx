@@ -169,7 +169,9 @@ function Minimap({ onSpanSelect }: Props) {
 
       if (span) {
         scrollTo(span.yOffset - 48);
-        onSpanSelect(span.span);
+        if (!span.pending) {
+          onSpanSelect(span.span);
+        }
       }
     },
     [minimapSpans, scrollTo, onSpanSelect]
