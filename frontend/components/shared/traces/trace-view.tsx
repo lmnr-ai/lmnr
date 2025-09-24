@@ -53,7 +53,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setBrowserSession,
     zoom,
     handleZoom,
-    setBrowserSessionTime,
     setLangGraph,
     langGraph,
     getHasLangGraph,
@@ -74,7 +73,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     handleZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
-    setBrowserSessionTime: state.setSessionTime,
     setLangGraph: state.setLangGraph,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
@@ -253,7 +251,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                     hasBrowserSession={hasBrowserSession}
                     traceId={trace.id}
                     llmSpanIds={llmSpanIds}
-                    onTimelineChange={setBrowserSessionTime}
                   />
                 </ResizablePanel>
               </>
