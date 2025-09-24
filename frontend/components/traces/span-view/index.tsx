@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
+import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
 interface SpanViewProps {
   spanId: string;
-  traceId: string;
+  trace: TraceViewTrace;
 }
 
 const swrFetcher = async (url: string) => {
@@ -32,15 +33,19 @@ const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, trace }: SpanViewProps) {
   const { projectId } = useParams();
+  const params = new URLSearchParams([
+    ["startTime", trace.startTime],
+    ["endTime", trace.endTime],
+  ]);
   const {
     data: span,
     isLoading,
     error,
-  } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  } = useSWR<Span>(`/api/projects/${projectId}/traces/${trace.id}/spans/${spanId}?${params}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(
-    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
+    `/api/projects/${projectId}/traces/${trace.id}/spans/${spanId}/events`,
     swrFetcher
   );
 
