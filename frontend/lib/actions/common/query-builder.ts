@@ -49,20 +49,20 @@ const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult =>
 
   if (pastHours && !isNaN(parseFloat(pastHours))) {
     return {
-      condition: `${timeColumn} > now() - INTERVAL {pastHours:UInt32} HOUR`,
+      condition: `${timeColumn} >= now() - INTERVAL {pastHours:UInt32} HOUR`,
       params: { pastHours: parseInt(pastHours) },
     };
   }
 
   if (startTime) {
-    const conditions: string[] = [`${timeColumn} > {startTime:String}`];
+    const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
     const params: QueryParams = { startTime };
 
     if (endTime) {
-      conditions.push(`${timeColumn} < {endTime:String}`);
+      conditions.push(`${timeColumn} <= {endTime:String}`);
       params.endTime = endTime;
     } else {
-      conditions.push(`${timeColumn} < now()`);
+      conditions.push(`${timeColumn} <= now()`);
     }
 
     return {

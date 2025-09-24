@@ -9,6 +9,7 @@ export interface TreeSpan {
   depth: number;
   yOffset: number;
   parentY: number;
+  pending: boolean;
 }
 
 export interface SegmentEvent {
@@ -84,6 +85,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
       depth,
       yOffset,
       parentY,
+      pending: span.pending || false,
     });
 
     maxY.current = maxY.current + 36;

@@ -200,10 +200,14 @@ export const buildSpansCountQueryWithParams = (
   return buildSelectQuery(queryOptions);
 };
 
-export const filterAndRewireSpans = (
+export const createParentRewiring = (
   matchingSpanIds: string[],
   treeStructure: { spanId: string; parentSpanId: string | undefined }[]
-): { filteredSpanIds: string[]; parentRewiring: Map<string, string | undefined> } => {
+): Map<string, string | undefined> => {
+  if (matchingSpanIds.length === 0) {
+    return new Map();
+  }
+
   const spanMap = new Map(treeStructure.map((span) => [span.spanId, span.parentSpanId]));
   const matchingSet = new Set(matchingSpanIds);
   const parentRewiring = new Map<string, string | undefined>();
@@ -230,30 +234,8 @@ export const filterAndRewireSpans = (
     parentRewiring.set(spanId, newParent);
   }
 
-  return {
-    filteredSpanIds: matchingSpanIds,
-    parentRewiring,
-  };
+  return parentRewiring;
 };
-
-export function processSpanSelection(
-  searchMatchSpanIds: string[],
-  treeStructure: { spanId: string; parentSpanId: string | undefined }[]
-): {
-  spanIds: string[];
-  parentRewiring: Map<string, string | undefined>;
-} {
-  if (searchMatchSpanIds.length === 0) {
-    return { spanIds: [], parentRewiring: new Map() };
-  }
-
-  const result = filterAndRewireSpans(searchMatchSpanIds, treeStructure);
-
-  return {
-    spanIds: result.filteredSpanIds,
-    parentRewiring: result.parentRewiring,
-  };
-}
 
 const applyParentRewiring = (
   span: Omit<TraceViewSpan, "attributes"> & { attributes: string },

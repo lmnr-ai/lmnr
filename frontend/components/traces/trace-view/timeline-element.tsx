@@ -28,6 +28,12 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
+  const handleSpanSelect = () => {
+    if (!span.span.pending) {
+      setSelectedSpan(span.span);
+    }
+  };
+
   useLayoutEffect(() => {
     if (!blockRef.current || !textRef.current) return;
 
@@ -104,7 +110,7 @@ const TimelineElement = ({
     <div
       key={virtualRow.index}
       data-index={virtualRow.index}
-      onClick={() => setSelectedSpan(span.span)}
+      onClick={handleSpanSelect}
       className={cn(
         "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
       )}
