@@ -8,7 +8,7 @@ import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/a
 import {
   buildSpansCountQueryWithParams,
   buildSpansQueryWithParams,
-  processSpanSelection,
+  createParentRewiring,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -326,10 +326,10 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
-      ? processSpanSelection(
+      ? createParentRewiring(
         spans.map((span) => span.spanId),
         treeStructure
-      ).parentRewiring
+      )
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
