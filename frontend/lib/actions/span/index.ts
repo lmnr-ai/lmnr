@@ -12,6 +12,8 @@ export const GetSpanSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
   traceId: z.string().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
 export const UpdateSpanOutputSchema = z.object({
@@ -41,7 +43,7 @@ export const PushSpanSchema = z.object({
 });
 
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
-  const { spanId, traceId, projectId } = GetSpanSchema.parse(input);
+  const { spanId, traceId, projectId, startTime, endTime } = GetSpanSchema.parse(input);
 
   const whereConditions = [`span_id = {spanId: UUID}`];
   const parameters: Record<string, any> = { spanId };
@@ -49,6 +51,16 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   if (traceId) {
     whereConditions.push(`trace_id = {traceId: UUID}`);
     parameters.traceId = traceId;
+  }
+
+  if (startTime) {
+    whereConditions.push(`start_time >= {startTime: String}`);
+    parameters.startTime = startTime.replace("Z", "");
+  }
+
+  if (endTime) {
+    whereConditions.push(`start_time <= {endTime: String}`);
+    parameters.endTime = endTime.replace("Z", "");
   }
 
   const mainQuery = `

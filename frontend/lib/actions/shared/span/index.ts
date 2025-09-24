@@ -10,10 +10,25 @@ import { Span } from "@/lib/traces/types.ts";
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
   traceId: z.string(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
 export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) => {
-  const { spanId, traceId } = GetSharedSpanSchema.parse(input);
+  const { spanId, traceId, startTime, endTime } = GetSharedSpanSchema.parse(input);
+
+  const whereConditions = [`span_id = {spanId: UUID}`, `trace_id = {traceId: UUID}`];
+  const parameters: Record<string, any> = { spanId, traceId };
+
+  if (startTime) {
+    whereConditions.push(`start_time >= {startTime: String}`);
+    parameters.startTime = startTime.replace("Z", "");
+  }
+
+  if (endTime) {
+    whereConditions.push(`start_time <= {endTime: String}`);
+    parameters.endTime = endTime.replace("Z", "");
+  }
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
     where: eq(sharedTraces.id, traceId),
@@ -45,13 +60,10 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         path,
         attributes
       FROM spans
-      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
+      WHERE ${whereConditions.join(" AND ")}
       LIMIT 1
     `,
-    parameters: {
-      spanId,
-      traceId,
-    },
+    parameters,
     projectId: sharedTrace.projectId,
   });
 
