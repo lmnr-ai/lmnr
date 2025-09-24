@@ -7,6 +7,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
 import { Span } from "@/lib/traces/types.ts";
+import { formatEndTimeForQuery } from "@/lib/utils.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.string(),
@@ -60,7 +61,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
 
   if (endTime) {
     whereConditions.push(`start_time <= {endTime: String}`);
-    parameters.endTime = endTime.replace("Z", "");
+    parameters.endTime = formatEndTimeForQuery(endTime);
   }
 
   const mainQuery = `

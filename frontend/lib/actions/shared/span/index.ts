@@ -6,6 +6,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { Span } from "@/lib/traces/types.ts";
+import { formatEndTimeForQuery } from "@/lib/utils.ts";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),
@@ -27,7 +28,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
 
   if (endTime) {
     whereConditions.push(`start_time <= {endTime: String}`);
-    parameters.endTime = endTime.replace("Z", "");
+    parameters.endTime = formatEndTimeForQuery(endTime);
   }
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
