@@ -30,7 +30,11 @@ export const GetTraceSpansSchema = FiltersSchema.extend({
   projectId: z.string(),
   traceId: z.string(),
   startTime: z.string().transform((val) => val.replace("Z", "")),
-  endTime: z.string().transform((val) => val.replace("Z", "")),
+  endTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (val ? val.replace("Z", "") : undefined)),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
@@ -207,7 +211,7 @@ const getTraceTreeStructure = async ({
   projectId: string;
   traceId: string;
   startTime: string;
-  endTime: string;
+  endTime?: string;
 }): Promise<{ spanId: string; parentSpanId: string | undefined }[]> => {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: ["span_id as spanId", "parent_span_id as parentSpanId"],
@@ -254,7 +258,7 @@ const fetchTraceSpans = async ({
   spanIds: string[];
   filters: FilterDef[];
   startTime: string;
-  endTime: string;
+  endTime?: string;
 }) => {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: [
@@ -288,15 +292,22 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, startTime, endTime, searchIn, filter: inputFilters } = input;
   const filters: FilterDef[] = compact(inputFilters);
 
+  const timeRange: TimeRange = endTime
+    ? {
+      start: new Date(startTime + "Z"),
+      end: new Date(endTime + "Z"),
+    }
+    : {
+      start: new Date(startTime + "Z"),
+      end: new Date(),
+    };
+
   const spanIds = search
     ? await searchSpanIds({
       projectId,
       traceId,
       searchQuery: search,
-      timeRange: {
-        start: new Date(startTime + "Z"),
-        end: new Date(endTime + "Z"),
-      },
+      timeRange,
       searchType: searchIn as SpanSearchType[],
     })
     : [];
