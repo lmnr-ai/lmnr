@@ -38,8 +38,7 @@ use crate::{
 pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    evaluators_queue: Arc<MessageQueue>,
-    trace_summary_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
     sse_connections: SseConnectionMap,
@@ -48,8 +47,7 @@ pub async fn process_queue_spans(
         inner_process_queue_spans(
             db.clone(),
             cache.clone(),
-            evaluators_queue.clone(),
-            trace_summary_queue.clone(),
+            queue.clone(),
             clickhouse.clone(),
             storage.clone(),
             sse_connections.clone(),
@@ -62,15 +60,14 @@ pub async fn process_queue_spans(
 async fn inner_process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    evaluators_queue: Arc<MessageQueue>,
-    trace_summary_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
     sse_connections: SseConnectionMap,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
-        evaluators_queue
+        queue
             .get_receiver(
                 OBSERVATIONS_QUEUE,
                 OBSERVATIONS_EXCHANGE,
@@ -127,8 +124,7 @@ async fn inner_process_queue_spans(
             cache.clone(),
             storage.clone(),
             acker,
-            evaluators_queue.clone(),
-            trace_summary_queue.clone(),
+            queue.clone(),
             sse_connections.clone(),
         )
         .await;
@@ -144,8 +140,7 @@ async fn process_spans_and_events_batch(
     cache: Arc<Cache>,
     storage: Arc<Storage>,
     acker: MessageQueueAcker,
-    evaluators_queue: Arc<MessageQueue>,
-    trace_summary_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     sse_connections: SseConnectionMap,
 ) {
     let mut all_spans = Vec::new();
@@ -212,8 +207,7 @@ async fn process_spans_and_events_batch(
         clickhouse,
         cache,
         acker,
-        evaluators_queue,
-        trace_summary_queue,
+        queue,
         sse_connections,
     )
     .await;
@@ -236,8 +230,7 @@ async fn process_batch(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
-    evaluators_queue: Arc<MessageQueue>,
-    trace_summary_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     sse_connections: SseConnectionMap,
 ) {
     let mut span_usage_vec = Vec::new();
@@ -323,7 +316,7 @@ async fn process_batch(
                 span.project_id,
                 trace_start_time,
                 trace_end_time,
-                trace_summary_queue.clone(),
+                queue.clone(),
             )
             .await
             {
@@ -414,7 +407,7 @@ async fn process_batch(
                             span.project_id,
                             evaluator.id,
                             span_output.clone(),
-                            evaluators_queue.clone(),
+                            queue.clone(),
                         )
                         .await
                         {

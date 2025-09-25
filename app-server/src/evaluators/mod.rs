@@ -270,11 +270,7 @@ pub async fn push_to_evaluators_queue(
         // Don't return error for now, skip publishing
     } else {
         queue
-            .publish(
-                &mq_message,
-                EVALUATORS_EXCHANGE,
-                EVALUATORS_ROUTING_KEY,
-            )
+            .publish(&mq_message, EVALUATORS_EXCHANGE, EVALUATORS_ROUTING_KEY)
             .await?;
     }
 

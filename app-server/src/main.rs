@@ -557,7 +557,6 @@ fn main() -> anyhow::Result<()> {
                             db_for_http.clone(),
                             cache_for_http.clone(),
                             mq_for_http.clone(),
-                            mq_for_http.clone(), // trace summary queue - same as evaluators queue for now
                             clickhouse.clone(),
                             storage.clone(),
                             sse_connections.clone(),
