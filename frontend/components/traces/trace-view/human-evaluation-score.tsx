@@ -28,6 +28,7 @@ interface HumanEvaluationScoreProps {
   name: string;
   spanId: string;
   resultId: string;
+  traceId: string;
   projectId: string;
   options?: { value: number; label: string }[];
 }
@@ -56,6 +57,7 @@ const HumanEvaluationScore = ({
   name,
   spanId,
   projectId,
+  traceId,
   resultId,
 }: HumanEvaluationScoreProps) => {
   const { toast } = useToast();
@@ -109,7 +111,7 @@ const HumanEvaluationScore = ({
           }),
         });
 
-        const spanResponse = await fetch(`/api/projects/${projectId}/spans/${spanId}`, {
+        const spanResponse = await fetch(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, {
           method: "PATCH",
           body: JSON.stringify({
             output: scoreValue,

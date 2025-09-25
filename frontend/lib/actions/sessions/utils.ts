@@ -1,108 +1,318 @@
-import { and, eq, inArray, not, SQL, sql } from "drizzle-orm";
+import { isNil } from "lodash";
 
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
-import { processFilters, processors } from "@/lib/actions/common/utils";
-import { db } from "@/lib/db/drizzle";
-import { spans,tagClasses, tags } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import {
+  buildSelectQuery,
+  ColumnFilterConfig,
+  createCustomFilter,
+  createStringFilter,
+  QueryParams,
+  QueryResult,
+  SelectQueryOptions,
+} from "@/lib/actions/common/query-builder";
+import { FilterDef } from "@/lib/db/modifiers";
 
-enum AllowedCastType {
-  TraceType = "trace_type",
-  SpanType = "span_type",
+const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
+  processors: new Map([
+    ["session_id", createStringFilter],
+    ["user_id", createStringFilter],
+    [
+      "tags",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(tags, {${paramKey}:String})`;
+          } else {
+            return `NOT has(tags, {${paramKey}:String})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
+  ]),
+};
+
+const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
+  processors: new Map([
+    [
+      "trace_count",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `COUNT(*) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "input_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(input_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "output_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(output_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "total_tokens",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(total_tokens) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "input_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(input_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "output_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(output_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "total_cost",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(total_cost) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+    [
+      "duration",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          const opSymbol = OperatorLabelMap[operator];
+          return `SUM(end_time - start_time) ${opSymbol} {${paramKey}:Float64}`;
+        },
+        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+      ),
+    ],
+  ]),
+};
+
+const sessionsSelectColumns = [
+  "session_id as sessionId",
+  "COUNT(*) as traceCount",
+  "SUM(input_tokens) as inputTokens",
+  "SUM(output_tokens) as outputTokens",
+  "SUM(total_tokens) as totalTokens",
+  "formatDateTime(MIN(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
+  "formatDateTime(MAX(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+  "SUM(end_time - start_time) as duration",
+  "SUM(input_cost) as inputCost",
+  "SUM(output_cost) as outputCost",
+  "SUM(total_cost) as totalCost",
+  "any(user_id) as userId",
+];
+
+export interface BuildSessionsQueryOptions {
+  columns?: string[];
+  traceIds?: string[];
+  filters: FilterDef[];
+  limit?: number;
+  offset?: number;
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
 }
 
-const AGGREGATE_COLUMNS = new Set([
-  "trace_count",
-  "input_token_count",
-  "output_token_count",
-  "total_token_count",
-  "cost",
-  "input_cost",
-  "output_cost",
-  "duration",
-]);
+export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
+  const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
 
-export const processSessionFilters = (filters: FilterDef[]) => {
-  const whereFilters = filters.filter((f) => !AGGREGATE_COLUMNS.has(f.column));
-  const havingFilters = filters.filter((f) => AGGREGATE_COLUMNS.has(f.column));
+  const whereFilters: FilterDef[] = [];
+  const havingFilters: FilterDef[] = [];
 
-  const whereFiltersResult = processFilters<FilterDef, SQL>(whereFilters, {
-    processors: processors<FilterDef, SQL>([
-      {
-        column: "tags",
-        operators: [Operator.Eq, Operator.Ne],
-        process: (filter) => {
-          const tagName = filter.value;
-          const inArrayFilter = inArray(
-            sql`id`,
-            db
-              .select({ id: spans.traceId })
-              .from(spans)
-              .innerJoin(tags, eq(spans.spanId, tags.spanId))
-              .innerJoin(tagClasses, eq(tags.classId, tagClasses.id))
-              .where(and(eq(tagClasses.name, tagName)))
-          );
-          return filter.operator === Operator.Eq ? inArrayFilter : not(inArrayFilter);
-        },
-      },
-      {
-        column: "metadata",
-        operators: [Operator.Eq],
-        process: (filter) => {
-          const [key, value] = filter.value.split(/=(.*)/);
-          return sql`metadata @> ${JSON.stringify({ [key]: value })}`;
-        },
-      },
-      {
-        column: "trace_id",
-        process: (filter) =>
-          // Map trace_id to the actual column name 'id' in the traces table
-          filtersToSql([{ ...filter, column: "id" }], [], {})[0],
-      },
-      {
-        column: "traceType",
-        process: (filter) => filtersToSql([{ ...filter, castType: AllowedCastType.TraceType }], [], {})[0],
-      },
-      {
-        column: "spanType",
-        process: (filter) => {
-          const uppercased = filter.value.toUpperCase().trim();
-          const value = uppercased === "SPAN" ? "'DEFAULT'" : `'${uppercased}'`;
-          return filtersToSql([{ ...filter, value, castType: AllowedCastType.SpanType }], [], {})[0];
-        },
-      },
-    ]),
-    defaultProcessor: (filter) =>
-      filtersToSql([filter], [], {
-        duration: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))::float8`,
-      })[0] || null,
+  const aggregateColumns = new Set([
+    "trace_count",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "input_cost",
+    "output_cost",
+    "total_cost",
+    "duration",
+  ]);
+
+  filters.forEach((filter) => {
+    if (aggregateColumns.has(filter.column)) {
+      havingFilters.push(filter);
+    } else {
+      whereFilters.push(filter);
+    }
   });
 
-  const havingFiltersResult = processFilters<FilterDef, SQL>(havingFilters, {
-    defaultProcessor: (filter) => {
-      const aggregateColumnMap: Record<string, SQL> = {
-        trace_count: sql`COUNT(id)`,
-        input_token_count: sql`SUM(input_token_count)`,
-        output_token_count: sql`SUM(output_token_count)`,
-        total_token_count: sql`SUM(total_token_count)`,
-        cost: sql`SUM(cost)`,
-        input_cost: sql`SUM(input_cost)`,
-        output_cost: sql`SUM(output_cost)`,
-        duration: sql`SUM(EXTRACT(EPOCH FROM (end_time - start_time)))`,
-      };
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [];
 
-      const aggregateColumn = aggregateColumnMap[filter.column];
-      if (!aggregateColumn) return null;
+  if (traceIds?.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
 
-      const sqlOperator = OperatorLabelMap[filter.operator];
-      if (!sqlOperator) return null;
+  customConditions.push({
+    condition: `session_id != '<null>' AND session_id != ''`,
+    params: {},
+  });
 
-      return sql`${aggregateColumn} ${sql.raw(sqlOperator)} ${filter.value}`;
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: columns || sessionsSelectColumns,
+      table: "traces",
     },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters: whereFilters,
+    columnFilterConfig: sessionsWhereColumnFilterConfig,
+    havingFilters,
+    havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
+    customConditions,
+    groupBy: ["session_id"],
+    orderBy: {
+      column: "MIN(start_time)",
+      direction: "DESC",
+    },
+    ...(!isNil(limit) &&
+      !isNil(offset) && {
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
+export const buildSessionsCountQueryWithParams = (
+  options: Omit<BuildSessionsQueryOptions, "limit" | "offset">
+): QueryResult => {
+  const { traceIds = [], filters, startTime, endTime, pastHours } = options;
+
+  const whereFilters: FilterDef[] = [];
+  const havingFilters: FilterDef[] = [];
+
+  const aggregateColumns = new Set([
+    "trace_count",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "input_cost",
+    "output_cost",
+    "total_cost",
+    "duration",
+  ]);
+
+  filters.forEach((filter) => {
+    if (aggregateColumns.has(filter.column)) {
+      havingFilters.push(filter);
+    } else {
+      whereFilters.push(filter);
+    }
   });
 
-  return {
-    whereFilters: whereFiltersResult,
-    havingFilters: havingFiltersResult,
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [];
+
+  if (traceIds?.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
+
+  customConditions.push({
+    condition: `session_id != '<null>' AND session_id != ''`,
+    params: {},
+  });
+
+  if (havingFilters.length > 0) {
+    const subqueryOptions: SelectQueryOptions = {
+      select: {
+        columns: ["session_id"],
+        table: "traces",
+      },
+      timeRange: {
+        startTime,
+        endTime,
+        pastHours,
+        timeColumn: "start_time",
+      },
+      filters: whereFilters,
+      columnFilterConfig: sessionsWhereColumnFilterConfig,
+      havingFilters,
+      havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
+      customConditions,
+      groupBy: ["session_id"],
+    };
+
+    const subquery = buildSelectQuery(subqueryOptions);
+
+    return {
+      query: `SELECT COUNT(*) as count FROM (${subquery.query}) as sessions_with_filters`,
+      parameters: subquery.parameters,
+    };
+  }
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["COUNT(DISTINCT session_id) as count"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters: whereFilters,
+    columnFilterConfig: sessionsWhereColumnFilterConfig,
+    customConditions,
   };
+
+  return buildSelectQuery(queryOptions);
 };

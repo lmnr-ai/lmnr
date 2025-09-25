@@ -24,16 +24,14 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait,
     },
+    realtime::{SseConnectionMap, SseMessage, send_to_project_connections},
     storage::Storage,
     traces::{
         IngestedBytes,
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
-        utils::{
-            get_llm_usage_for_span, prepare_span_for_recording, record_spans,
-            record_tags_to_db_and_ch,
-        },
+        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags_to_db_and_ch},
     },
 };
 
@@ -44,6 +42,7 @@ pub async fn process_queue_spans(
     trace_summary_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
+    sse_connections: SseConnectionMap,
 ) {
     loop {
         inner_process_queue_spans(
@@ -53,6 +52,7 @@ pub async fn process_queue_spans(
             trace_summary_queue.clone(),
             clickhouse.clone(),
             storage.clone(),
+            sse_connections.clone(),
         )
         .await;
         log::warn!("Span listener exited. Rebinding queue conneciton...");
@@ -66,6 +66,7 @@ async fn inner_process_queue_spans(
     trace_summary_queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
+    sse_connections: SseConnectionMap,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
@@ -128,6 +129,7 @@ async fn inner_process_queue_spans(
             acker,
             evaluators_queue.clone(),
             trace_summary_queue.clone(),
+            sse_connections.clone(),
         )
         .await;
     }
@@ -144,6 +146,7 @@ async fn process_spans_and_events_batch(
     acker: MessageQueueAcker,
     evaluators_queue: Arc<MessageQueue>,
     trace_summary_queue: Arc<MessageQueue>,
+    sse_connections: SseConnectionMap,
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -211,6 +214,7 @@ async fn process_spans_and_events_batch(
         acker,
         evaluators_queue,
         trace_summary_queue,
+        sse_connections,
     )
     .await;
 }
@@ -234,8 +238,8 @@ async fn process_batch(
     acker: MessageQueueAcker,
     evaluators_queue: Arc<MessageQueue>,
     trace_summary_queue: Arc<MessageQueue>,
+    sse_connections: SseConnectionMap,
 ) {
-    let mut trace_attributes_vec = Vec::new();
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
@@ -253,7 +257,7 @@ async fn process_batch(
 
         // Apply event filtering logic
         let mut has_seen_first_token = false;
-        let filtered_events = span_events
+        let filtered_events: Vec<Event> = span_events
             .into_iter()
             .sorted_by(|a, b| a.timestamp.cmp(&b.timestamp))
             .filter(|event| {
@@ -270,28 +274,12 @@ async fn process_batch(
             })
             .collect();
 
-        let trace_attrs = prepare_span_for_recording(span, &span_usage, &filtered_events);
+        prepare_span_for_recording(span, &span_usage, &filtered_events);
         convert_span_to_provider_format(span);
 
-        trace_attributes_vec.push(trace_attrs);
         span_usage_vec.push(span_usage);
         all_events.extend(filtered_events);
     }
-
-    // Record spans and traces to database (batch write)
-    let db_success = match record_spans(db.clone(), &spans, &trace_attributes_vec).await {
-        Ok(_) => true,
-        Err(e) => {
-            log::error!("Failed to record spans batch: {:?}", e);
-            let _ = acker.reject(false).await.map_err(|e| {
-                log::error!(
-                    "[Write to DB] Failed to reject MQ delivery (batch): {:?}",
-                    e
-                );
-            });
-            false
-        }
-    };
 
     // Record spans to clickhouse
     let ch_spans: Vec<CHSpan> = spans
@@ -308,27 +296,18 @@ async fn process_batch(
         })
         .collect();
 
-    let ch_success = match ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
-        Ok(_) => true,
-        Err(e) => {
+    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+        log::error!(
+            "Failed to record {} spans to clickhouse: {:?}",
+            ch_spans.len(),
+            e
+        );
+        let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
-                "Failed to record {} spans to clickhouse: {:?}",
-                ch_spans.len(),
+                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
                 e
             );
-            let _ = acker.reject(false).await.map_err(|e| {
-                log::error!(
-                    "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
-                    e
-                );
-            });
-            false
-        }
-    };
-
-    // Only proceed if both database and clickhouse writes were successful
-    if !db_success || !ch_success {
-        return;
+        });
     }
 
     // Check for completed traces (top-level spans) and push to trace summary queue
@@ -365,6 +344,9 @@ async fn process_batch(
             }
         }
     }
+    // Record spans and traces to database (batch write)
+    // Send realtime messages directly to SSE connections after successful ClickHouse writes
+    send_realtime_messages_to_sse(&spans, &sse_connections).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
@@ -464,4 +446,59 @@ async fn process_batch(
             }
         }
     }
+}
+
+/// Send realtime span messages directly to SSE connections
+async fn send_realtime_messages_to_sse(spans: &[Span], sse_connections: &SseConnectionMap) {
+    // Group spans by project_id
+    let mut projects_with_spans: std::collections::HashMap<Uuid, Vec<&Span>> =
+        std::collections::HashMap::new();
+
+    for span in spans {
+        projects_with_spans
+            .entry(span.project_id)
+            .or_insert_with(Vec::new)
+            .push(span);
+    }
+
+    // Only send messages for projects that have active SSE connections
+    for (project_id, project_spans) in projects_with_spans {
+        if !sse_connections.contains_key(&project_id) {
+            continue; // Skip if no active connections for this project
+        }
+
+        // Send all spans for this project in a single message
+        let spans_data: Vec<Value> = project_spans
+            .iter()
+            .map(|span| span_to_realtime_span(span))
+            .collect();
+
+        let spans_message = SseMessage {
+            event_type: "new_spans".to_string(),
+            data: serde_json::json!({
+                "spans": spans_data
+            }),
+        };
+
+        send_to_project_connections(sse_connections, &project_id, spans_message);
+    }
+}
+
+/// Convert span to lightweight database row format for realtime updates
+/// Includes all span data except heavy input/output fields
+fn span_to_realtime_span(span: &Span) -> Value {
+    serde_json::json!({
+        "spanId": span.span_id,
+        "parentSpanId": span.parent_span_id,
+        "traceId": span.trace_id,
+        "spanType": span.span_type,
+        "name": span.name,
+        "startTime": span.start_time,
+        "endTime": span.end_time,
+        "attributes": span.attributes.to_value(),
+        "status": span.status,
+        "projectId": span.project_id,
+        "createdAt": span.start_time, // Use start_time as created_at for compatibility
+        // Note: input and output fields are intentionally excluded for performance
+    })
 }

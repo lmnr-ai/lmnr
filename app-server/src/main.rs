@@ -41,6 +41,7 @@ use traces::{
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
+use realtime::{SseConnectionMap, cleanup_closed_connections};
 use sodiumoxide;
 use std::{
     env,
@@ -68,6 +69,7 @@ mod opentelemetry;
 mod project_api_keys;
 mod provider_api_keys;
 mod query_engine;
+mod realtime;
 mod routes;
 mod runtime;
 mod sql;
@@ -358,6 +360,11 @@ fn main() -> anyhow::Result<()> {
     // ==== 3.6 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
+    // ==== 3.6 SSE connections map ====
+    let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
+
+    runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
+
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
@@ -553,6 +560,7 @@ fn main() -> anyhow::Result<()> {
                             mq_for_http.clone(), // trace summary queue - same as evaluators queue for now
                             clickhouse.clone(),
                             storage.clone(),
+                            sse_connections.clone(),
                         ));
                     }
 
@@ -609,6 +617,7 @@ fn main() -> anyhow::Result<()> {
                         .app_data(web::Data::new(connection_for_health.clone()))
                         .app_data(web::Data::new(browser_agent.clone()))
                         .app_data(web::Data::new(query_engine.clone()))
+                        .app_data(web::Data::new(sse_connections.clone()))
                         .service(
                             web::scope("/v1/browser-sessions")
                                 .service(
@@ -651,7 +660,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::provider_api_keys::save_api_key)
                                 .service(routes::spans::create_span)
                                 .service(routes::sql::execute_sql_query)
-                                .service(routes::sql::validate_sql_query),
+                                .service(routes::sql::validate_sql_query)
+                                .service(routes::realtime::sse_endpoint),
                         )
                         .service(routes::probes::check_health)
                         .service(routes::probes::check_ready)

@@ -40,7 +40,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
@@ -71,7 +71,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
@@ -102,7 +102,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
@@ -134,7 +134,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time, model
@@ -169,7 +169,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time, model
@@ -204,7 +204,7 @@ SELECT
 FROM spans
 WHERE
     model != '<null>'
-  AND span_type = 1
+  AND span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time, model
@@ -241,7 +241,7 @@ FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
-  AND trace_type = 0
+  AND trace_type = 'DEFAULT'
   AND status IN ('', 'error')
 GROUP BY time, status
 ORDER BY time
@@ -314,7 +314,7 @@ SELECT
     sum(total_tokens) AS value
 FROM spans
 WHERE
-    span_type = 1
+    span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time
@@ -347,7 +347,7 @@ SELECT
     sum(total_cost) AS value
 FROM spans
 WHERE
-    span_type = 1
+    span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time

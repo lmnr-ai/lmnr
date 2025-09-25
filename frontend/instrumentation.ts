@@ -42,7 +42,7 @@ export async function register() {
 
       const initializeClickHouse = async () => {
         try {
-          const { clickhouseClient } = await import("@/lib/clickhouse/client.js");
+          const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
           const { readFileSync, readdirSync } = await import("fs");
           const { join } = await import("path");
 

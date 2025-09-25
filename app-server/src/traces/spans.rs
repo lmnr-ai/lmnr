@@ -49,7 +49,6 @@ const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 /// is not sent to the backend – this is done to overwrite trace IDs for spans.
 const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent_span";
 const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
-const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
 
 // Minimal number of tokens in the input or output to store the payload
 // in storage instead of database.
@@ -481,12 +480,6 @@ impl SpanAttributes {
     fn tracing_level(&self) -> Option<TracingLevel> {
         self.raw_attributes
             .get(TRACING_LEVEL_ATTRIBUTE_NAME)
-            .and_then(|s| serde_json::from_value(s.clone()).ok())
-    }
-
-    pub fn has_browser_session(&self) -> Option<bool> {
-        self.raw_attributes
-            .get(HAS_BROWSER_SESSION_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 }

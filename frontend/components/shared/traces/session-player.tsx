@@ -5,12 +5,13 @@ import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
 import { Loader2, X } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
 import SpanImagesVideoPlayer from "@/components/traces/span-images-video-player";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
@@ -22,67 +23,36 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
-  hasBrowserSession: boolean | null;
+  hasBrowserSession?: boolean;
   traceId: string;
-  onTimelineChange: (time: number) => void;
   llmSpanIds?: string[];
   onClose: () => void;
 }
 
-interface Event {
-  data: any;
-  timestamp: number;
-  type: number;
-}
-
 const speedOptions = [1, 2, 4, 8, 16];
 
-const SessionPlayer = ({
-  hasBrowserSession,
-  traceId,
-  onTimelineChange,
-  llmSpanIds = [],
-  onClose,
-}: SessionPlayerProps) => {
-  const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const browserContentRef = useRef<HTMLDivElement | null>(null);
+const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }: SessionPlayerProps) => {
+  const { setSessionTime, sessionTime } = useTraceViewStoreContext((state) => ({
+    setSessionTime: state.setSessionTime,
+    sessionTime: state.sessionTime,
+  }));
+
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const browserContentRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
-  const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [startTime, setStartTime] = useState(0);
-  const [currentUrl, setCurrentUrl] = useState<string>("");
-  const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
   const currentUrlIndexRef = useRef<number>(0);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [events, setEvents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentUrl, setCurrentUrl] = useState("");
+  const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
   const [activeTab, setActiveTab] = useState(hasBrowserSession ? "browser-session" : "images");
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
 
-  // Update active tab when hasBrowserSession changes
-  useEffect(() => {
-    if (!hasBrowserSession && activeTab === "browser-session") {
-      setActiveTab("images");
-    }
-  }, [hasBrowserSession, activeTab]);
-
-  useEffect(() => {
-    if (!browserContentRef.current || activeTab !== "browser-session") return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setDimensions({ width, height });
-      }
-    });
-
-    resizeObserver.observe(browserContentRef.current);
-
-    return () => resizeObserver.disconnect();
-  }, [activeTab]);
-
+  // Binary search to find current URL index - O(log n) complexity
   const findUrlIndex = (timeMs: number): number => {
     if (!urlChanges.length) return -1;
 
@@ -104,78 +74,73 @@ const SessionPlayer = ({
     return result;
   };
 
-  const updateCurrentUrl = (timeMs: number) => {
-    if (!urlChanges.length) return;
+  // Efficiently find current URL using binary search
+  const updateCurrentUrl = useCallback(
+    (timeMs: number) => {
+      if (!urlChanges.length) return;
 
-    const newIndex = findUrlIndex(timeMs);
-    if (newIndex === -1) return;
+      const newIndex = findUrlIndex(timeMs);
+      if (newIndex === -1) return;
 
-    if (newIndex !== currentUrlIndexRef.current) {
-      currentUrlIndexRef.current = newIndex;
-      const newUrl = urlChanges[newIndex].url;
+      // Only update if index changed (avoids unnecessary state updates)
+      if (newIndex !== currentUrlIndexRef.current) {
+        currentUrlIndexRef.current = newIndex;
+        const newUrl = urlChanges[newIndex].url;
 
-      if (newUrl !== currentUrl) {
-        setCurrentUrl(newUrl);
+        if (newUrl !== currentUrl) {
+          setCurrentUrl(newUrl);
+        }
       }
-    }
-  };
-
-  const getEvents = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Keep the shared API endpoint
-      const result = await fetchBrowserSessionEvents(`/api/shared/traces/${traceId}/browser-sessions/events`);
-
-      setEvents(result.events);
-      setUrlChanges(result.urlChanges);
-      setTotalDuration(result.duration);
-      setStartTime(result.startTime);
-      currentUrlIndexRef.current = 0;
-
-      if (result.urlChanges.length > 0) {
-        setCurrentUrl(result.urlChanges[0].url);
-      }
-    } catch (e) {
-      console.error("Error processing events:", e);
-      setEvents([]);
-      setUrlChanges([]);
-      setTotalDuration(0);
-      setStartTime(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [traceId]);
+    },
+    [currentUrl, findUrlIndex, urlChanges]
+  );
 
   useEffect(() => {
-    if (hasBrowserSession) {
-      setEvents([]);
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setTotalDuration(0);
-      setCurrentUrl("");
-      setUrlChanges([]);
-      currentUrlIndexRef.current = 0;
-      getEvents();
+    if (!hasBrowserSession && activeTab === "browser-session") {
+      setActiveTab("images");
     }
-  }, [hasBrowserSession, traceId, getEvents]);
+  }, [hasBrowserSession, activeTab]);
 
   useEffect(() => {
-    if (!events?.length || !playerContainerRef.current || activeTab !== "browser-session") {
-      if (playerRef.current) {
-        playerRef.current.$destroy?.();
-        playerRef.current = null;
+    if (!browserContentRef.current || activeTab !== "browser-session") return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+
+        setDimensions({ width, height: height - 56 });
       }
-      return;
-    }
+    });
 
-    if (playerRef.current) {
-      playerRef.current.$destroy?.();
-      playerRef.current = null;
-    }
+    resizeObserver.observe(browserContentRef.current);
+    return () => resizeObserver.disconnect();
+  }, [activeTab]);
 
-    if (playerContainerRef.current) {
-      playerContainerRef.current.innerHTML = "";
-    }
+  useEffect(() => {
+    if (!hasBrowserSession) return;
+
+    const loadEvents = async () => {
+      setIsLoading(true);
+      try {
+        const result = await fetchBrowserSessionEvents(`/api/shared/traces/${traceId}/browser-sessions/events`);
+        setEvents(result.events);
+        setUrlChanges(result.urlChanges);
+        setDuration(result.duration);
+        if (result.urlChanges.length > 0) {
+          setCurrentUrl(result.urlChanges[0].url);
+        }
+      } catch (error) {
+        console.error("Failed to load events:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, [hasBrowserSession, traceId]);
+
+  useEffect(() => {
+    if (!events?.length || !playerContainerRef.current) return;
 
     try {
       playerRef.current = new rrwebPlayer({
@@ -189,137 +154,89 @@ const SessionPlayer = ({
           events,
           showController: false,
           mouseTail: false,
-          width: dimensions.width || 800,
-          height: dimensions.height || 600,
+          width: dimensions.width,
+          height: dimensions.height,
           speed,
         },
       });
 
-      const startTime = events[0].timestamp;
-      setStartTime(startTime);
-
-      const duration = (events[events.length - 1].timestamp - events[0].timestamp) / 1000;
-      setTotalDuration(duration);
+      const eventStartTime = events[0].timestamp;
 
       playerRef.current.addEventListener("ui-update-player-state", (event: any) => {
-        if (event.payload === "playing") {
-          setIsPlaying(true);
-        } else if (event.payload === "paused") {
-          setIsPlaying(false);
-        }
+        setIsPlaying(event.payload === "playing");
       });
 
       playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
-        const newTime = event.payload / 1000;
-        setCurrentTime(newTime);
-        onTimelineChange(startTime + event.payload);
-
-        updateCurrentUrl(startTime + event.payload);
+        const timeInSeconds = event.payload / 1000;
+        if (setSessionTime) {
+          setSessionTime(timeInSeconds);
+        }
+        updateCurrentUrl(eventStartTime + event.payload);
       });
-    } catch (e) {
-      console.error("Error initializing player:", e);
+    } catch (error) {
+      console.error("Failed to initialize player:", error);
     }
-  }, [events, activeTab, speed, startTime, onTimelineChange]);
+
+    return () => playerRef.current?.$destroy?.();
+  }, [events, setSessionTime]);
 
   useEffect(() => {
-    if (!playerRef.current || !dimensions.width || !dimensions.height) return;
-
-    try {
+    if (playerRef.current) {
       playerRef.current.$set({
         width: dimensions.width,
         height: dimensions.height,
       });
-
-      requestAnimationFrame(() => {
-        if (playerRef.current) {
-          playerRef.current.triggerResize?.();
-        }
-      });
-    } catch (e) {
-      console.error("Error resizing player:", e);
+      playerRef.current.triggerResize();
     }
   }, [dimensions.width, dimensions.height]);
 
-  useEffect(() => {
-    if (playerRef.current) {
-      playerRef.current.setSpeed(speed);
-    }
-  }, [speed]);
-
   const handlePlayPause = useCallback(() => {
-    if (playerRef.current) {
-      try {
-        if (isPlaying) {
-          setIsPlaying(false);
-          playerRef.current.pause();
-        } else {
-          setIsPlaying(true);
-          playerRef.current.play();
-        }
-      } catch (e) {
-        console.error("Error in play/pause:", e);
-      }
+    if (!playerRef.current) return;
+
+    if (isPlaying) {
+      playerRef.current.pause();
+    } else {
+      playerRef.current.play();
     }
   }, [isPlaying]);
-
-  const handleSpeedChange = useCallback(
-    (newSpeed: number) => {
-      setSpeed(newSpeed);
-    },
-    [setSpeed]
-  );
 
   const handleTimelineChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const time = parseFloat(e.target.value);
-      setCurrentTime(time);
-
-      const wasPlaying = isPlaying;
-      if (wasPlaying && playerRef.current) {
-        playerRef.current.pause();
+      if (setSessionTime) {
+        setSessionTime(time);
       }
 
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (playerRef.current) {
+        const wasPlaying = isPlaying;
+        if (wasPlaying) playerRef.current.pause();
 
-      debounceTimerRef.current = setTimeout(() => {
-        if (playerRef.current) {
+        setTimeout(() => {
           playerRef.current.goto(time * 1000);
-          if (wasPlaying) {
-            requestAnimationFrame(() => {
-              playerRef.current.play();
-            });
-          }
-        }
-      }, 50);
+          if (wasPlaying) playerRef.current.play();
+        }, 50);
+      }
     },
-    [isPlaying]
+    [isPlaying, setSessionTime]
+  );
+
+  const handleChangeSpeed = useCallback(
+    (speed: number) => {
+      playerRef.current.setSpeed(speed);
+      setSpeed(speed);
+    },
+    [setSpeed]
   );
 
   useHotkeys("space", handlePlayPause, { enabled: activeTab === "browser-session" });
 
-  useEffect(
-    () => () => {
-      if (playerRef.current) {
-        try {
-          playerRef.current.$destroy?.();
-          playerRef.current = null;
-        } catch (e) {
-          console.error("Error cleaning up player:", e);
-        }
-      }
-    },
-    []
-  );
-
   return (
     <div className="relative w-full h-full flex flex-col">
-      <div className="h-10 border-b pl-4 pr-2 flex items-center gap-0 flex-shrink-0">
+      <div className="h-8 border-b pl-4 flex items-center gap-0 flex-shrink-0">
         {hasBrowserSession && (
           <button
             onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
               activeTab === "browser-session"
                 ? "border-secondary-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -331,7 +248,7 @@ const SessionPlayer = ({
 
         <button
           onClick={() => setActiveTab("images")}
-          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-2 text-sm transition-all gap-2 font-medium ${
+          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
             activeTab === "images"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -346,7 +263,6 @@ const SessionPlayer = ({
       </div>
 
       <div className="flex-1 min-h-0">
-        {/* Browser Session Tab */}
         <div
           ref={browserContentRef}
           className={`h-full flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
@@ -356,7 +272,8 @@ const SessionPlayer = ({
               <div className="text-center">
                 <h3 className="text-lg font-medium mb-2">No browser session</h3>
                 <p className="text-sm text-muted-foreground">
-                  Either the session is still being processed or you have an outdated SDK version.
+                  Either there is no browser session, the session is still being processed or you have an outdated SDK
+                  version.
                 </p>
               </div>
             </div>
@@ -373,7 +290,7 @@ const SessionPlayer = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
                     {speedOptions.map((speedOption) => (
-                      <DropdownMenuItem key={speedOption} onClick={() => handleSpeedChange(speedOption)}>
+                      <DropdownMenuItem key={speedOption} onClick={() => handleChangeSpeed(speedOption)}>
                         {speedOption}x
                       </DropdownMenuItem>
                     ))}
@@ -385,13 +302,12 @@ const SessionPlayer = ({
                   className="flex-grow cursor-pointer"
                   min="0"
                   step="0.1"
-                  max={totalDuration || 0}
-                  value={currentTime || 0}
+                  max={duration}
+                  value={sessionTime || 0}
                   onChange={handleTimelineChange}
                 />
                 <span className="font-mono">
-                  {formatSecondsToMinutesAndSeconds(currentTime || 0)}/
-                  {formatSecondsToMinutesAndSeconds(totalDuration || 0)}
+                  {formatSecondsToMinutesAndSeconds(sessionTime || 0)}/{formatSecondsToMinutesAndSeconds(duration)}
                 </span>
               </div>
 
@@ -410,24 +326,23 @@ const SessionPlayer = ({
               )}
 
               <div className="flex-1 min-h-0">
-                {isLoading && (
+                {isLoading ? (
                   <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
                     <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
                   </div>
-                )}
-                {!isLoading && events.length === 0 && hasBrowserSession && (
+                ) : !events.length ? (
                   <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
                     No browser session was recorded. Either the session is still being processed or you have an outdated
                     SDK version.
                   </div>
+                ) : (
+                  <div ref={playerContainerRef} className="w-full h-full" />
                 )}
-                {!isLoading && events.length > 0 && <div ref={playerContainerRef} className="w-full h-full" />}
               </div>
             </>
           )}
         </div>
 
-        {/* Images Tab */}
         <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
           <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} isShared />
         </div>
@@ -436,6 +351,4 @@ const SessionPlayer = ({
   );
 };
 
-SessionPlayer.displayName = "SessionPlayer";
-
-export default SessionPlayer;
+export default memo(SessionPlayer);

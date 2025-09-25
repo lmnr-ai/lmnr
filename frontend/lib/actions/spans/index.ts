@@ -1,17 +1,23 @@
-import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
-import { compact, groupBy, isNil } from "lodash";
+import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
+import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { Operator } from "@/components/ui/datatable-filter/utils.ts";
+import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { processSpanFilters, processTraceSpanFilters } from "@/lib/actions/spans/utils";
+import {
+  buildSpansCountQueryWithParams,
+  buildSpansQueryWithParams,
+  createParentRewiring,
+  transformSpanWithEvents,
+} from "@/lib/actions/spans/utils";
+import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchSpans } from "@/lib/clickhouse/spans";
+import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { spans, traces } from "@/lib/db/migrations/schema";
+import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
-import { getDateRangeFilters } from "@/lib/db/utils";
+import { Span } from "@/lib/traces/types";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -23,16 +29,62 @@ export const GetSpansSchema = PaginationFiltersSchema.extend({
 export const GetTraceSpansSchema = FiltersSchema.extend({
   projectId: z.string(),
   traceId: z.string(),
+  startTime: z.string().transform((val) => val.replace("Z", "")),
+  endTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (val ? val.replace("Z", "") : undefined)),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const DeleteSpansSchema = z.object({
   projectId: z.string(),
-  spanIds: z.array(z.string()),
+  spanIds: z.array(z.string()).min(1),
 });
 
-export async function getSpans(input: z.infer<typeof GetSpansSchema>) {
+function buildTraceSubquery({
+  startTime,
+  endTime,
+  pastHours,
+}: {
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
+}): { condition: string; params: Record<string, any> } {
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["id"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    customConditions: [
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType: "DEFAULT" },
+      },
+    ],
+    orderBy: {
+      column: "start_time",
+      direction: "DESC" as const,
+    },
+  };
+
+  const { query, parameters } = buildSelectQuery(queryOptions);
+
+  return {
+    condition: `trace_id IN (${query})`,
+    params: parameters,
+  };
+}
+
+export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[]; count: number }> {
   const {
     projectId,
     pastHours,
@@ -45,147 +97,268 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>) {
     filter: inputFilters,
   } = input;
 
-  const urlParamFilters: FilterDef[] = compact(inputFilters);
+  const filters: FilterDef[] = compact(inputFilters);
 
-  let searchSpanIds = null;
-  if (search) {
-    const timeRange = getTimeRange(pastHours, startTime, endTime);
-    const searchResult = await searchSpans({
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const traceSubquery = buildTraceSubquery({
+    startTime,
+    endTime,
+    pastHours,
+  });
+
+  const spanIds = search
+    ? await searchSpanIds({
       projectId,
       searchQuery: search,
-      timeRange,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
-    });
-    searchSpanIds = Array.from(searchResult.spanIds);
+    })
+    : [];
+
+  if (search && spanIds?.length === 0) {
+    return { items: [], count: 0 };
   }
 
-  const baseFilters = [
-    inArray(
-      sql`trace_id`,
-      db
-        .select({ id: traces.id })
-        .from(traces)
-        .where(and(eq(traces.traceType, "DEFAULT"), eq(traces.projectId, projectId)))
-    ),
-    sql`project_id = ${projectId}`,
-  ];
+  const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
+    projectId,
+    spanIds,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    customConditions: [traceSubquery],
+  });
 
-  const textSearchFilters = searchSpanIds ? [inArray(sql`span_id`, searchSpanIds)] : [];
+  const { query: countQuery, parameters: countParams } = buildSpansCountQueryWithParams({
+    projectId,
+    spanIds,
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+    customConditions: [traceSubquery],
+  });
 
-  const processedFilters = processSpanFilters(urlParamFilters);
+  const [items, [count]] = await Promise.all([
+    executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId }),
+    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
+  ]);
 
-  const allSqlFilters = [
-    ...getDateRangeFilters(startTime || null, endTime || null, pastHours || null),
-    ...processedFilters,
-    ...textSearchFilters,
-  ];
-
-  const { input: spanInput, output, ...columns } = getTableColumns(spans);
-
-  const baseQuery = db
-    .select({
-      ...columns,
-      latency: sql<number>`EXTRACT(EPOCH FROM (end_time - start_time))`.as("latency"),
-      path: sql<string>`attributes ->> 'lmnr.span.path'`.as("path"),
-      model: sql<string>`COALESCE(attributes ->> 'gen_ai.response.model', attributes ->> 'gen_ai.request.model')`.as(
-        "model"
-      ),
-    })
-    .from(spans)
-    .where(and(...baseFilters.concat(allSqlFilters)))
-    .orderBy(desc(spans.startTime))
-    .limit(pageSize)
-    .offset(pageNumber * pageSize);
-
-  const countQuery = db
-    .select({
-      totalCount: sql<number>`COUNT(*)`.as("total_count"),
-    })
-    .from(spans)
-    .where(and(...baseFilters.concat(allSqlFilters)));
-
-  const [items, totalCount] = await Promise.all([baseQuery, countQuery]);
-
-  return { items, totalCount: totalCount[0].totalCount };
+  return {
+    items: items,
+    count: count?.count || 0,
+  };
 }
 
-export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>) {
-  const { projectId, traceId, search, searchIn, filter: inputFilters } = input;
+export const searchSpanIds = async ({
+  projectId,
+  searchQuery,
+  timeRange,
+  traceId,
+  searchType,
+}: {
+  projectId: string;
+  searchQuery: string;
+  timeRange: TimeRange;
+  traceId?: string;
+  searchType?: SpanSearchType[];
+}): Promise<string[]> => {
+  const baseQuery = `
+      SELECT DISTINCT(span_id) spanId FROM spans
+      WHERE project_id = {projectId: UUID}
+  `;
 
-  const urlParamFilters: FilterDef[] = compact(inputFilters);
+  let queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
 
-  let searchSpanIds: string[] = [];
-  if (search) {
-    const timeRange = { pastHours: "all" } as TimeRange;
-    const searchResult = await searchSpans({
-      projectId,
-      searchQuery: search,
-      timeRange,
-      traceId,
-      searchType: searchIn as SpanSearchType[],
-    });
-
-    searchSpanIds = Array.from(searchResult.spanIds);
+  if (traceId) {
+    queryWithTime += ` AND trace_id = {traceId: UUID}`;
   }
 
-  const processedFilters = processTraceSpanFilters(urlParamFilters);
+  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
 
-  const spanItems = await db
-    .select({
-      // inputs and outputs are ignored on purpose
-      spanId: spans.spanId,
-      startTime: spans.startTime,
-      endTime: spans.endTime,
-      traceId: spans.traceId,
-      parentSpanId: spans.parentSpanId,
-      name: spans.name,
-      attributes: spans.attributes,
-      spanType: spans.spanType,
-      status: spans.status,
+  const queryParams: Record<string, any> = {
+    projectId,
+    query: `%${searchQuery.toLowerCase()}%`,
+  };
+
+  if (traceId) {
+    queryParams.traceId = traceId;
+  }
+
+  const response = await clickhouseClient.query({
+    query: `${finalQuery}
+     ORDER BY start_time DESC
+     LIMIT 1000`,
+    format: "JSONEachRow",
+    query_params: queryParams,
+  });
+
+  const result = (await response.json()) as { spanId: string }[];
+
+  return result.map((i) => i.spanId);
+};
+
+const getTraceTreeStructure = async ({
+  projectId,
+  traceId,
+  startTime,
+  endTime,
+}: {
+  projectId: string;
+  traceId: string;
+  startTime: string;
+  endTime?: string;
+}): Promise<{ spanId: string; parentSpanId: string | undefined }[]> => {
+  const { query, parameters } = buildSpansQueryWithParams({
+    columns: ["span_id as spanId", "parent_span_id as parentSpanId"],
+    projectId,
+    filters: [{ value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    startTime,
+    endTime,
+  });
+
+  return await executeQuery<{ spanId: string; parentSpanId: string }>({
+    query,
+    parameters,
+    projectId,
+  });
+};
+
+const fetchTraceEvents = async (projectId: string, traceId: string) =>
+  executeQuery<{
+    id: string;
+    timestamp: string;
+    spanId: string;
+    name: string;
+    attributes: string;
+  }>({
+    query: `
+        SELECT id, timestamp, span_id spanId, name, attributes
+        FROM events
+        WHERE trace_id = {traceId: UUID}
+    `,
+    parameters: { traceId },
+    projectId,
+  });
+
+const fetchTraceSpans = async ({
+  projectId,
+  traceId,
+  spanIds,
+  filters,
+  startTime,
+  endTime,
+}: {
+  projectId: string;
+  traceId: string;
+  spanIds: string[];
+  filters: FilterDef[];
+  startTime: string;
+  endTime?: string;
+}) => {
+  const { query, parameters } = buildSpansQueryWithParams({
+    columns: [
+      "span_id as spanId",
+      "trace_id as traceId",
+      "parent_span_id as parentSpanId",
+      "name",
+      "span_type as spanType",
+      "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
+      "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+      "attributes",
+      "model",
+      "status",
+      "path",
+    ],
+    projectId,
+    spanIds: spanIds.length > 0 ? spanIds : undefined,
+    filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    startTime,
+    endTime,
+  });
+
+  return executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
+    query,
+    parameters,
+    projectId,
+  });
+};
+
+export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {
+  const { projectId, search, traceId, startTime, endTime, searchIn, filter: inputFilters } = input;
+  const filters: FilterDef[] = compact(inputFilters);
+
+  const timeRange: TimeRange = endTime
+    ? {
+      start: new Date(startTime + "Z"),
+      end: new Date(endTime + "Z"),
+    }
+    : {
+      start: new Date(startTime + "Z"),
+      end: new Date(),
+    };
+
+  const spanIds = search
+    ? await searchSpanIds({
+      projectId,
+      traceId,
+      searchQuery: search,
+      timeRange,
+      searchType: searchIn as SpanSearchType[],
     })
-    .from(spans)
-    .where(
-      and(
-        eq(spans.traceId, traceId),
-        eq(spans.projectId, projectId),
-        ...processedFilters,
-        ...(!isNil(search) ? [inArray(spans.spanId, searchSpanIds)] : [])
-      )
-    )
-    .orderBy(asc(spans.startTime));
+    : [];
 
-  if (spanItems.length === 0) {
+  if (search && spanIds?.length === 0) {
     return [];
   }
 
-  const chResult = await clickhouseClient.query({
-    query: `
-      SELECT id, timestamp, span_id spanId, name
-      FROM events
-      WHERE span_id IN {spanIds: Array(UUID)} AND project_id = {projectId: UUID}
-    `,
-    format: "JSONEachRow",
-    query_params: { spanIds: spanItems.map((span) => span.spanId), projectId },
-  });
+  const shouldApplyRewiring = search || filters.length > 0;
 
-  const spanEvents = await chResult.json() as { id: string; timestamp: string; spanId: string; name: string }[];
+  const [spans, events, treeStructure] = await Promise.all([
+    fetchTraceSpans({
+      projectId,
+      traceId,
+      spanIds,
+      filters,
+      startTime,
+      endTime,
+    }),
+    fetchTraceEvents(projectId, traceId),
+    shouldApplyRewiring ? getTraceTreeStructure({ projectId, traceId, startTime, endTime }) : Promise.resolve([]),
+  ]);
 
-  const spanEventsMap = groupBy(spanEvents, (event) => event.spanId);
+  if (spans.length === 0) {
+    return [];
+  }
 
-  // For now, we flatten the span tree in the front-end if there is a search query,
-  // so we explicitly set the parentSpanId to null
-  return spanItems.map((span) => ({
-    ...span,
-    events: (spanEventsMap[span.spanId] || []).map((event) => ({
-      ...event,
-      timestamp: new Date(`${event.timestamp}Z`),
-    })),
-    parentSpanId: searchSpanIds.length > 0 || urlParamFilters.length > 0 ? null : span.parentSpanId,
-  }));
+  const parentRewiring =
+    shouldApplyRewiring && treeStructure.length > 0
+      ? createParentRewiring(
+        spans.map((span) => span.spanId),
+        treeStructure
+      )
+      : new Map<string, string | undefined>();
+
+  const spanEventsMap = groupBy(events, (event) => event.spanId);
+  return spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
-  const { projectId, spanIds } = input;
+  const { projectId, spanIds } = DeleteSpansSchema.parse(input);
 
-  await db.delete(spans).where(and(inArray(spans.spanId, spanIds), eq(spans.projectId, projectId)));
+  await clickhouseClient.command({
+    query: `
+        DELETE FROM spans
+        WHERE project_id = {projectId: UUID} 
+            AND span_id in ({spanIds: Array(UUID)})
+      `,
+    query_params: {
+      spanIds,
+      projectId,
+    },
+  });
 }

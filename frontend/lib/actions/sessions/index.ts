@@ -1,16 +1,15 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { processSessionFilters } from "@/lib/actions/sessions/utils";
-import { searchSpans } from "@/lib/clickhouse/spans";
+import { buildSessionsCountQueryWithParams, buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
+import { executeQuery } from "@/lib/actions/sql";
+import { clickhouseClient } from "@/lib/clickhouse/client";
+import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { traces } from "@/lib/db/migrations/schema";
+import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
-import { getDateRangeFilters } from "@/lib/db/utils";
+import { SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -19,7 +18,14 @@ export const GetSessionsSchema = PaginationFiltersSchema.extend({
   searchIn: z.array(z.string()).default([]),
 });
 
-export async function getSessions(input: z.infer<typeof GetSessionsSchema>) {
+export const DeleteSessionsSchema = z.object({
+  projectId: z.string(),
+  sessionIds: z.array(z.string()).min(1),
+});
+
+export async function getSessions(
+  input: z.infer<typeof GetSessionsSchema>
+): Promise<{ items: SessionRow[]; count: number }> {
   const {
     projectId,
     pastHours,
@@ -32,96 +38,102 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>) {
     filter: inputFilters,
   } = input;
 
-  const urlParamFilters: FilterDef[] = compact(inputFilters);
+  const filters: FilterDef[] = compact(inputFilters);
 
-  let searchTraceIds = null;
-  if (search) {
-    const timeRange = getTimeRange(pastHours, startTime, endTime);
-    const searchResult = await searchSpans({
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const traceIds = search
+    ? await searchTraceIds({
       projectId,
       searchQuery: search,
-      timeRange,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
-    });
-    searchTraceIds = Array.from(searchResult.traceIds);
-  }
-
-  const textSearchFilters = searchTraceIds ? [inArray(sql`id`, searchTraceIds)] : [];
-
-  const { whereFilters, havingFilters } = processSessionFilters(urlParamFilters);
-
-  const whereClause = [
-    isNotNull(traces.sessionId),
-    eq(traces.projectId, projectId),
-    ...getDateRangeFilters(startTime || null, endTime || null, pastHours || null),
-    ...whereFilters,
-    ...textSearchFilters,
-  ];
-
-  const query = db
-    .select({
-      id: traces.sessionId,
-      traceCount: sql<number>`COUNT(id)::int8`.as("trace_count"),
-      inputTokenCount: sql<number>`SUM(input_token_count)::int8`.as("input_token_count"),
-      outputTokenCount: sql<number>`SUM(output_token_count)::int8`.as("output_token_count"),
-      totalTokenCount: sql<number>`SUM(total_token_count)::int8`.as("total_token_count"),
-      startTime: sql<number>`MIN(start_time)`.as("start_time"),
-      endTime: sql<number>`MAX(end_time)`.as("end_time"),
-      duration: sql<number>`SUM(EXTRACT(EPOCH FROM (end_time - start_time)))::float8`.as("duration"),
-      inputCost: sql<number>`SUM(input_cost)::float8`.as("input_cost"),
-      outputCost: sql<number>`SUM(output_cost)::float8`.as("output_cost"),
-      cost: sql<number>`SUM(cost)::float8`.as("cost"),
     })
-    .from(traces)
-    .where(and(...whereClause))
-    .groupBy(traces.sessionId);
+    : [];
 
-  // Add HAVING clause only if there are aggregate filters
-  if (havingFilters.length > 0) {
-    query.having(and(...havingFilters));
+  if (search && traceIds?.length === 0) {
+    return { items: [], count: 0 };
   }
 
-  const finalQuery = query
-    .orderBy(desc(sql`start_time`))
-    .offset(pageNumber * pageSize)
-    .limit(pageSize);
+  const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
+    traceIds,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+  });
 
-  const countQuery = db
-    .select({
-      totalCount: sql<number>`COUNT(DISTINCT(session_id))`.as("total_count"),
-    })
-    .from(traces)
-    .where(and(...whereClause));
+  const { query: countQuery, parameters: countParams } = buildSessionsCountQueryWithParams({
+    traceIds,
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+  });
 
-  // Also add HAVING to count query if needed
-  const baseCountQuery = countQuery;
-  if (havingFilters.length > 0) {
-    // For count with HAVING, we need to wrap it in a subquery
-    const subquery = db
-      .select({ sessionId: traces.sessionId })
-      .from(traces)
-      .where(and(...whereClause))
-      .groupBy(traces.sessionId)
-      .having(and(...havingFilters));
-
-    const countWithHaving = db
-      .select({
-        totalCount: sql<number>`COUNT(*)`.as("total_count"),
-      })
-      .from(subquery.as("filtered_sessions"));
-
-    const [sessions, countResult] = await Promise.all([finalQuery, countWithHaving]);
-
-    return {
-      items: sessions,
-      totalCount: countResult[0]?.totalCount ?? 0,
-    };
-  }
-
-  const [sessions, countResult] = await Promise.all([finalQuery, baseCountQuery]);
+  const [items, [count]] = await Promise.all([
+    executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId }),
+    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
+  ]);
 
   return {
-    items: sessions,
-    totalCount: countResult[0]?.totalCount ?? 0,
+    items: items.map((item) => ({ ...item, subRows: [] })),
+    count: count?.count || 0,
   };
+}
+
+const searchTraceIds = async ({
+  projectId,
+  searchQuery,
+  timeRange,
+  searchType,
+}: {
+  projectId: string;
+  searchQuery: string;
+  timeRange: TimeRange;
+  searchType?: SpanSearchType[];
+}): Promise<string[]> => {
+  const baseQuery = `
+      SELECT DISTINCT(trace_id) traceId
+      FROM spans
+      WHERE project_id = {projectId: UUID}
+  `;
+
+  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+
+  const response = await clickhouseClient.query({
+    query: `${finalQuery}
+     ORDER BY start_time DESC
+     LIMIT 1000`,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      query: `%${searchQuery.toLowerCase()}%`,
+    },
+  });
+
+  const result = (await response.json()) as { traceId: string }[];
+
+  return result.map((i) => i.traceId);
+};
+
+export async function deleteSessions(input: z.infer<typeof DeleteSessionsSchema>) {
+  const { projectId, sessionIds } = DeleteSessionsSchema.parse(input);
+
+  await clickhouseClient.command({
+    query: `
+        DELETE FROM spans
+        WHERE project_id = {projectId: UUID} 
+            AND session_id in ({sessionIds: Array(String)})
+      `,
+    query_params: {
+      sessionIds,
+      projectId,
+    },
+  });
 }

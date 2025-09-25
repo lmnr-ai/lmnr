@@ -20,7 +20,11 @@ interface CodeSheetProps {
 
 const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
   // Process the value using the new renderText function
-  const { text: processedText, imageMap, hasImages } = useMemo(() => renderText(mode, renderedValue, true), [mode, renderedValue]);
+  const {
+    text: processedText,
+    imageMap,
+    hasImages,
+  } = useMemo(() => renderText(mode, renderedValue, true), [mode, renderedValue]);
 
   // Add image rendering extensions if images are found
   const combinedExtensions = useMemo(() => {
@@ -43,9 +47,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex justify-start">
               <Select value={mode} onValueChange={onModeChange}>
-                <SelectTrigger
-                  className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0"
-                >
+                <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0">
                   <SelectValue placeholder="Select tag type" />
                 </SelectTrigger>
                 <SelectContent>

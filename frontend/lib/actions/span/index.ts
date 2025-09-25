@@ -1,22 +1,26 @@
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
+import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { db } from "@/lib/db/drizzle";
-import { spans } from "@/lib/db/migrations/schema";
 import { downloadSpanImages } from "@/lib/spans/utils";
+import { Span } from "@/lib/traces/types.ts";
+import { formatEndTimeForQuery } from "@/lib/utils.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
+  traceId: z.string().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
 export const UpdateSpanOutputSchema = z.object({
   spanId: z.string(),
   projectId: z.string(),
+  traceId: z.string(),
   output: z.any(),
 });
 
@@ -40,69 +44,85 @@ export const PushSpanSchema = z.object({
 });
 
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
-  const { spanId, projectId } = GetSpanSchema.parse(input);
+  const { spanId, traceId, projectId, startTime, endTime } = GetSpanSchema.parse(input);
 
-  const [dbSpan, chResult] = await Promise.all([
-    db.query.spans.findFirst({
-      where: and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)),
-      columns: {
-        spanId: true,
-        createdAt: true,
-        parentSpanId: true,
-        name: true,
-        spanType: true,
-        startTime: true,
-        endTime: true,
-        traceId: true,
-        projectId: true,
-        inputUrl: true,
-        outputUrl: true,
-        status: true,
-      },
-    }),
-    clickhouseClient.query({
-      query: `
-        SELECT input, output, attributes
-        FROM spans
-        WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
-        LIMIT 1
-      `,
-      format: "JSONEachRow",
-      query_params: { spanId, projectId },
-    }),
-  ]);
+  const whereConditions = [`span_id = {spanId: UUID}`];
+  const parameters: Record<string, any> = { spanId };
 
-  if (!dbSpan) {
+  if (traceId) {
+    whereConditions.push(`trace_id = {traceId: UUID}`);
+    parameters.traceId = traceId;
+  }
+
+  if (startTime) {
+    whereConditions.push(`start_time >= {startTime: String}`);
+    parameters.startTime = startTime.replace("Z", "");
+  }
+
+  if (endTime) {
+    whereConditions.push(`start_time <= {endTime: String}`);
+    parameters.endTime = formatEndTimeForQuery(endTime);
+  }
+
+  const mainQuery = `
+    SELECT 
+      span_id as spanId,
+      parent_span_id as parentSpanId,
+      name,
+      span_type as spanType,
+      input_tokens as inputTokens,
+      output_tokens as outputTokens,
+      total_tokens as totalTokens,
+      input_cost as inputCost,
+      output_cost as outputCost,
+      total_cost as totalCost,
+      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+      trace_id as traceId,
+      status,
+      input,
+      output,
+      path,
+      attributes
+    FROM spans
+    WHERE ${whereConditions.join(" AND ")}
+    LIMIT 1
+  `;
+
+  const [span] = await executeQuery<Omit<Span, "attributes"> & { attributes: string }>({
+    query: mainQuery,
+    parameters,
+    projectId,
+  });
+
+  if (!span) {
     throw new Error("Span not found");
   }
 
-  const chData = (await chResult.json()) as [{ input: string; output: string, attributes: string }];
-  const { input: spanInput, output: spanOutput, attributes: spanAttributes } = chData[0] || {};
-
   return {
-    ...dbSpan,
-    input: tryParseJson(spanInput),
-    output: tryParseJson(spanOutput),
-    attributes: tryParseJson(spanAttributes) ?? {},
+    ...span,
+    input: tryParseJson(span.input),
+    output: tryParseJson(span.output),
+    attributes: tryParseJson(span.attributes) || {},
   };
 }
 
 export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
-  const { spanId, projectId, output } = UpdateSpanOutputSchema.parse(input);
+  const { spanId, projectId, traceId, output } = UpdateSpanOutputSchema.parse(input);
 
-  const [updatedSpan] = await db
-    .update(spans)
-    .set({
-      output,
-    })
-    .where(and(eq(spans.spanId, spanId), eq(spans.projectId, projectId)))
-    .returning();
-
-  if (!updatedSpan) {
-    throw new Error("Span not found");
-  }
-
-  return updatedSpan;
+  await clickhouseClient.command({
+    query: `
+      ALTER TABLE spans
+      UPDATE output = {output: String}
+      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
+    `,
+    query_params: {
+      output: JSON.stringify(output),
+      spanId,
+      projectId,
+      traceId,
+    },
+  });
 }
 
 export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema>) {
@@ -145,4 +165,3 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
-
