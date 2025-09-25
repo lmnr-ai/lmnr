@@ -204,7 +204,7 @@ async fn process_single_trace_summary(
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_max_interval(std::time::Duration::from_secs(30))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(60 * 5))) // 5 minutes max
         .build();
 
     match backoff::future::retry(backoff, call_internal_api).await {

@@ -2,8 +2,9 @@ import { observe } from '@lmnr-ai/lmnr';
 import { prettifyError } from 'zod/v4';
 
 import { executeQuery } from '@/lib/actions/sql';
-import { generateOrGetTraceSummary, TraceSummarySchema } from '@/lib/actions/trace/agent/summary';
+import { generateOrGetTraceSummary, TraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
 import { generateTraceSummary } from '@/lib/actions/trace/agent';
+import { checkTraceEligibility } from '@/lib/actions/project/trace-eligibility';
 
 /**
  * Internal endpoint for trace summary generation.
@@ -12,7 +13,7 @@ import { generateTraceSummary } from '@/lib/actions/trace/agent';
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const traceSummaryResult = TraceSummarySchema.safeParse(body);
+  const traceSummaryResult = TraceSummaryRequestSchema.safeParse(body);
 
   if (!traceSummaryResult.success) {
     console.error('Validation error for trace summary request:', prettifyError(traceSummaryResult.error));
@@ -52,7 +53,18 @@ export async function POST(req: Request) {
       });
     }
 
-    // Generate the trace summary since it contains LLM spans
+    // Check if project is eligible for trace summary generation
+    const eligibilityResult = await checkTraceEligibility({ projectId });
+
+    if (!eligibilityResult.isEligible) {
+      console.log(`Skipping trace summary generation for trace ${traceId} - ${eligibilityResult.reason}`);
+      return Response.json({
+        success: true,
+        message: `Skipped - ${eligibilityResult.reason}`
+      });
+    }
+
+    // Generate the trace summary since all requirements are met
     await observe({ name: "generateTraceSummaryIfNeeded" }, async () => await generateTraceSummary(traceSummaryResult.data));
 
     return Response.json({ success: true });

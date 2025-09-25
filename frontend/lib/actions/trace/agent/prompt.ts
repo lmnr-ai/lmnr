@@ -46,12 +46,13 @@ Strictly use this format to reference spans in your response.
 </span_reference_format>
 
 <response_format>
-For the final answer precisely follow this format:
-<very concise summary to help user understand what the agent/LLM was tasked to do and what's going on in this trace>
-
----
-
-<possible things worth investigating: logical failures, suboptimal tool calls, failure to properly follow the prompt, etc.>
+Strictly use the following JSON structure when producing your final output:
+{
+  "summary": "very concise summary to help user understand what the agent/LLM was tasked to do and what's going on in this trace",
+  "status": "Either info, warning, or error. info - no need for detailed trace investigation. warning - trace is worth paying attention to, unusual behavior is identified. error - failure to properly follow the original prompt, trace definitely needs detailed investigation",
+  "analysis": "possible things worth investigating: logical failures, suboptimal tool calls, failure to properly follow the prompt, etc. If nothing of substance was detected, simply leave it as an empty string",
+  "analysisPreview": "Single sentence to summarize why this trace needs attention. This sentence will be presented to the user to quickly identify traces worth looking at. This should not convey trace specific details, but rather high lever overview of core error or flaw, such: Logical error identified, wrong interpretation of information present on the screen. Empty string if attention is empty."
+}
 </response_format>
 
 Here's the complete trace data with all spans data:

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use chrono::Duration;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use rayon::prelude::*;
@@ -307,9 +308,9 @@ async fn process_batch(
     for span in &spans {
         if span.parent_span_id.is_none() {
             // This is a top-level span, meaning the trace is completed
-            // We're assuming that top level span start and end time are the same as the trace start and end time
-            let trace_start_time = span.start_time;
-            let trace_end_time = span.end_time;
+            // Add 24-hour buffer to start and end times
+            let trace_start_time = span.start_time - Duration::hours(24);
+            let trace_end_time = span.end_time + Duration::hours(24);
 
             if let Err(e) = push_to_trace_summary_queue(
                 span.trace_id,
