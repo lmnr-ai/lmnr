@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use crate::{
     ch::spans::append_tags_to_span,
-    db::{self, DB, project_api_keys::ProjectApiKey, tags::TagSource},
+    db::{DB, project_api_keys::ProjectApiKey, tags::TagSource},
+    query_engine::QueryEngine,
     routes::types::ResponseResult,
-    tags::insert_or_update_tag,
+    sql::{self, ClickhouseReadonlyClient},
+    tags::create_tag,
 };
 use actix_web::{
     HttpResponse, post,
@@ -39,6 +43,8 @@ pub async fn tag_trace(
     req: Json<TagRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
+    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
+    query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let req = req.into_inner();
@@ -49,15 +55,27 @@ pub async fn tag_trace(
     if names.is_empty() {
         return Ok(HttpResponse::BadRequest().body("No names provided"));
     }
+    let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
+    let query_engine = query_engine.as_ref().clone();
+    let clickhouse = clickhouse.as_ref().clone();
+
     let span_id = match &req {
         TagRequest::WithTraceId(req) => {
-            db::spans::get_root_span_id(&db.pool, &req.trace_id, &project_api_key.project_id)
-                .await?
+            sql::queries::get_top_span_id(
+                clickhouse_ro,
+                query_engine,
+                req.trace_id,
+                project_api_key.project_id,
+            )
+            .await?
         }
         TagRequest::WithSpanId(req) => {
-            let exists =
-                db::spans::is_span_in_project(&db.pool, &req.span_id, &project_api_key.project_id)
-                    .await?;
+            let exists = crate::ch::spans::is_span_in_project(
+                clickhouse.clone(),
+                req.span_id,
+                project_api_key.project_id,
+            )
+            .await?;
             if !exists {
                 return Ok(HttpResponse::NotFound().body("No matching spans found"));
             }
@@ -69,26 +87,21 @@ pub async fn tag_trace(
         return Ok(HttpResponse::NotFound().body("No matching spans found"));
     };
 
-    let clickhouse = clickhouse.as_ref().clone();
-
     let futures = names
         .iter()
         .map(|name| {
-            insert_or_update_tag(
+            create_tag(
                 &db.pool,
                 clickhouse.clone(),
                 project_api_key.project_id,
-                Uuid::new_v4(),
                 span_id,
-                None,
-                None,
                 name.clone(),
                 TagSource::CODE,
             )
         })
         .collect::<Vec<_>>();
 
-    let tags = futures_util::future::try_join_all(futures).await?;
+    let tag_ids = futures_util::future::try_join_all(futures).await?;
 
     append_tags_to_span(
         clickhouse.clone(),
@@ -98,14 +111,12 @@ pub async fn tag_trace(
     )
     .await?;
 
-    let response = tags
+    let response = tag_ids
         .iter()
-        .map(|tag| {
+        .map(|id| {
             serde_json::json!({
-                "id": tag.id,
-                "spanId": tag.span_id,
-                "createdAt": tag.created_at,
-                "updatedAt": tag.updated_at,
+                "id": id,
+                "spanId": span_id,
             })
         })
         .collect::<Vec<_>>();

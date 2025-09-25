@@ -134,7 +134,6 @@ export default function TracesTable() {
 
       const isTopSpan = spanData.parentSpanId === null;
 
-
       if (existingTraceIndex !== -1) {
         // Update existing trace
         const newTraces = [...currentTraces];
@@ -148,8 +147,14 @@ export default function TracesTable() {
 
         newTraces[existingTraceIndex] = {
           ...existingTrace,
-          startTime: new Date(existingTrace.startTime).getTime() < new Date(spanData.startTime).getTime() ? existingTrace.startTime : spanData.startTime,
-          endTime: new Date(existingTrace.endTime).getTime() > new Date(spanData.endTime).getTime() ? existingTrace.endTime : spanData.endTime,
+          startTime:
+            new Date(existingTrace.startTime).getTime() < new Date(spanData.startTime).getTime()
+              ? existingTrace.startTime
+              : spanData.startTime,
+          endTime:
+            new Date(existingTrace.endTime).getTime() > new Date(spanData.endTime).getTime()
+              ? existingTrace.endTime
+              : spanData.endTime,
           totalTokens: existingTrace.totalTokens + spanInputTokens + spanOutputTokens,
           inputTokens: existingTrace.inputTokens + spanInputTokens,
           outputTokens: existingTrace.outputTokens + spanOutputTokens,
@@ -160,7 +165,9 @@ export default function TracesTable() {
           topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
           topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
-          tags: Array.from(new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])),
+          tags: Array.from(
+            new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])
+          ),
           status: existingTrace.status !== "error" ? spanData.status : existingTrace.status,
           sessionId: spanData.attributes?.["lmnr.association.properties.session_id"] || existingTrace.sessionId,
         };
@@ -174,10 +181,14 @@ export default function TracesTable() {
           sessionId: spanData.attributes?.["session.id"] || null,
           inputTokens: spanData.attributes?.["gen_ai.usage.input_tokens"] || 0,
           outputTokens: spanData.attributes?.["gen_ai.usage.output_tokens"] || 0,
-          totalTokens: (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) + (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
+          totalTokens:
+            (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) +
+            (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
           inputCost: spanData.attributes?.["gen_ai.usage.input_cost"] || 0,
           outputCost: spanData.attributes?.["gen_ai.usage.output_cost"] || 0,
-          totalCost: (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) + (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
+          totalCost:
+            (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) +
+            (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
           metadata: spanData.attributes?.["metadata"] || null,
           topSpanId: isTopSpan ? spanData.spanId : null,
           traceType: "DEFAULT",
@@ -205,7 +216,6 @@ export default function TracesTable() {
 
   // SSE connection for realtime updates
   useEffect(() => {
-
     // Disable realtime updates if there are filters or search
     if (filter.length > 0 || !!textSearchFilter) {
       return;

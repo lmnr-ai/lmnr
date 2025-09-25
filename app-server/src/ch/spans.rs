@@ -218,3 +218,18 @@ pub async fn append_tags_to_span(
 
     Ok(())
 }
+
+pub async fn is_span_in_project(
+    clickhouse: clickhouse::Client,
+    span_id: Uuid,
+    project_id: Uuid,
+) -> Result<bool> {
+    let result = clickhouse
+        .query("SELECT count(*) FROM spans WHERE span_id = ? AND project_id = ?")
+        .bind(span_id)
+        .bind(project_id)
+        .fetch_one::<u64>()
+        .await?;
+
+    Ok(result > 0)
+}

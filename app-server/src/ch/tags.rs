@@ -36,17 +36,11 @@ pub struct CHTag {
 }
 
 impl CHTag {
-    pub fn new(
-        project_id: Uuid,
-        class_id: Uuid,
-        id: Uuid,
-        name: String,
-        source: TagSource,
-        span_id: Uuid,
-    ) -> Self {
+    pub fn new(project_id: Uuid, id: Uuid, name: String, source: TagSource, span_id: Uuid) -> Self {
         Self {
             project_id,
-            class_id,
+            // TODO: Remove this once we drop the class_id column
+            class_id: Uuid::nil(),
             created_at: chrono_to_nanoseconds(Utc::now()),
             id,
             name,
@@ -59,13 +53,12 @@ impl CHTag {
 pub async fn insert_tag(
     client: clickhouse::Client,
     project_id: Uuid,
-    class_id: Uuid,
     id: Uuid,
     name: String,
     source: TagSource,
     span_id: Uuid,
 ) -> Result<()> {
-    let tag = CHTag::new(project_id, class_id, id, name, source, span_id);
+    let tag = CHTag::new(project_id, id, name, source, span_id);
     let ch_insert = client.insert("tags");
     match ch_insert {
         Ok(mut ch_insert) => {

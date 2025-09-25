@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { formatDate } from "date-fns";
+import { formatDate, subYears } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -9,7 +9,7 @@ import { DateRange as ReactDateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
-import { Calendar } from "./calendar";
+import { Calendar, CalendarProps } from "./calendar";
 import { Label } from "./label";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -42,7 +42,11 @@ const RANGES: DateRange[] = [
   },
 ];
 
-function AbsoluteDateRangeFilter() {
+function AbsoluteDateRangeFilter({
+  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+}: {
+  disabled?: CalendarProps["disabled"];
+}) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -59,10 +63,10 @@ function AbsoluteDateRangeFilter() {
         urlFrom = new Date(searchParams.get("startDate") as string);
         setStartTime({
           hour: urlFrom.getHours().toString().padStart(2, "0"),
-          minute: urlFrom.getMinutes().toString().padStart(2, "0")
+          minute: urlFrom.getMinutes().toString().padStart(2, "0"),
         });
       }
-    } catch (e) { }
+    } catch (e) {}
 
     let urlTo: Date | undefined = undefined;
     try {
@@ -71,10 +75,10 @@ function AbsoluteDateRangeFilter() {
         urlTo = new Date(searchParams.get("endDate") as string);
         setEndTime({
           hour: urlTo.getHours().toString().padStart(2, "0"),
-          minute: urlTo.getMinutes().toString().padStart(2, "0")
+          minute: urlTo.getMinutes().toString().padStart(2, "0"),
         });
       }
-    } catch (e) { }
+    } catch (e) {}
 
     if (calendarDate === undefined || urlFrom === undefined || urlTo === undefined) {
       setCalendarDate({
@@ -143,7 +147,7 @@ function AbsoluteDateRangeFilter() {
             selected={calendarDate}
             onSelect={setCalendarDate}
             numberOfMonths={2}
-            disabled={{ after: new Date() }}
+            disabled={disabled}
             pagedNavigation
           />
           <div className="p-3">
@@ -252,8 +256,11 @@ function AbsoluteDateRangeFilter() {
     </div>
   );
 }
-
-export default function DateRangeFilter() {
+export default function DateRangeFilter({
+  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+}: {
+  disabled?: CalendarProps["disabled"];
+}) {
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
   const router = useRouter();
@@ -287,7 +294,7 @@ export default function DateRangeFilter() {
                 {range.name}
               </div>
             ))}
-            <AbsoluteDateRangeFilter />
+            <AbsoluteDateRangeFilter disabled={disabled} />
           </>
         }
       </div>

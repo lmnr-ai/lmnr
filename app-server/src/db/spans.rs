@@ -4,7 +4,6 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::traces::spans::SpanAttributes;
@@ -61,39 +60,6 @@ pub struct Span {
     pub tags: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
-}
-
-pub async fn get_root_span_id(
-    pool: &PgPool,
-    trace_id: &Uuid,
-    project_id: &Uuid,
-) -> Result<Option<Uuid>> {
-    let span_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT span_id FROM spans
-        WHERE trace_id = $1
-        AND project_id = $2
-        AND parent_span_id IS NULL
-        ORDER BY start_time ASC
-        LIMIT 1",
-    )
-    .bind(trace_id)
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(span_id)
-}
-
-pub async fn is_span_in_project(pool: &PgPool, span_id: &Uuid, project_id: &Uuid) -> Result<bool> {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM spans WHERE span_id = $1 AND project_id = $2)",
-    )
-    .bind(span_id)
-    .bind(project_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(exists)
 }
 
 #[cfg(test)]

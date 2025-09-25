@@ -1,15 +1,11 @@
 import { tagClasses, traces } from "../db/migrations/schema";
 import { Event } from "../events/types";
 
-export type TagClass = {
-  evaluatorRunnableGraph: any;
-  pipelineVersionId?: string | null;
-} & typeof tagClasses.$inferSelect;
+export type TagClass = typeof tagClasses.$inferSelect;
 
 export type SpanTag = {
   id: string;
   createdAt: string;
-  classId: string;
   spanId: string;
   name: string;
   email?: string;

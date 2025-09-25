@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
-};
+use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
 use regex::Regex;
@@ -15,7 +12,7 @@ use crate::{
 
 use crate::{
     cache::Cache,
-    db::{self, DB, spans::Span, tags::TagSource},
+    db::{DB, spans::Span, tags::TagSource},
     language_model::costs::estimate_cost_by_provider_name,
 };
 
@@ -109,24 +106,12 @@ pub async fn record_tags_to_db_and_ch(
         return Ok(());
     }
 
-    let project_tag_class_ids =
-        db::tags::get_tag_classes_by_project_id(&db.pool, *project_id, None)
-            .await?
-            .into_iter()
-            .map(|tag_class| (tag_class.name, tag_class.id))
-            .collect::<HashMap<_, _>>();
-
     for tag_name in tags {
-        let tag_class_id = project_tag_class_ids.get(tag_name).cloned();
-        let id = Uuid::new_v4();
-        crate::tags::insert_or_update_tag(
+        crate::tags::create_tag(
             &db.pool,
             clickhouse.clone(),
             *project_id,
-            id,
             *span_id,
-            tag_class_id,
-            None,
             tag_name.clone(),
             TagSource::CODE,
         )
