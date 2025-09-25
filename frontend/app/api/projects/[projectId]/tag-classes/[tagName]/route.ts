@@ -6,11 +6,11 @@ import { tagClasses } from '@/lib/db/migrations/schema';
 
 export async function POST(
   req: Request,
-  props: { params: Promise<{ projectId: string; tagClassId: string }> }
+  props: { params: Promise<{ projectId: string; tagName: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const tagClassId = params.tagClassId;
+  const tagName = params.tagName;
 
   const body = await req.json();
 
@@ -18,7 +18,7 @@ export async function POST(
     name: body.name,
     color: body.color,
   }).where(
-    and(eq(tagClasses.id, tagClassId), eq(tagClasses.projectId, projectId))
+    and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId))
   ).returning();
 
   if (result.length === 0) {
@@ -30,15 +30,15 @@ export async function POST(
 
 export async function DELETE(
   req: Request,
-  props: { params: Promise<{ projectId: string; tagClassId: string }> }
+  props: { params: Promise<{ projectId: string; tagName: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const tagClassId = params.tagClassId;
+  const tagName = params.tagName;
 
   const affectedRows = await db.delete(tagClasses).where(
     and(
-      eq(tagClasses.id, tagClassId),
+      eq(tagClasses.name, tagName),
       eq(tagClasses.projectId, projectId)
     )
   ).returning();

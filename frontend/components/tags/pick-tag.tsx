@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanTag,TagClass } from "@/lib/traces/types";
+import { SpanTag, TagClass } from "@/lib/traces/types";
 
 interface PickTagProps {
   setStep: Dispatch<SetStateAction<0 | 1>>;
@@ -22,9 +22,9 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const { tags, tagClasses, mutate, spanId } = useTagsContext();
   const { toast } = useToast();
   const { selected, available, hasExactMatch } = useMemo(() => {
-    const selectedIds = tags.map(({ classId }) => classId);
-    const selected = tagClasses.filter((tag) => selectedIds.includes(tag.id));
-    const available = tagClasses.filter((tag) => !selectedIds.includes(tag.id));
+    const selectedNames = tags.map(({ name }) => name);
+    const selected = tagClasses.filter((tag) => selectedNames.includes(tag.name));
+    const available = tagClasses.filter((tag) => !selectedNames.includes(tag.name));
 
     const searchLower = query.toLowerCase();
     const filteredSelected = selected.filter((tag) => tag.name.toLowerCase().includes(searchLower));
@@ -45,7 +45,6 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
         const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
           method: "POST",
           body: JSON.stringify({
-            classId: tagClass.id,
             name: tagClass.name,
           }),
         });
@@ -142,7 +141,7 @@ const AvailableTags = ({
 }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.id}>
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
         <Checkbox checked={false} onCheckedChange={onCheck(tag)} className="border border-secondary mr-2" />
         <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
         <span className="ml-1.5">{tag.name}</span>
@@ -162,9 +161,9 @@ const SelectedTags = ({
 }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.id}>
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
         <Checkbox
-          onCheckedChange={onCheck(spanTags.find((s) => s.classId === tag.id))}
+          onCheckedChange={onCheck(spanTags.find((s) => s.name === tag.name))}
           checked
           className="border border-secondary mr-2"
         />

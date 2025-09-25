@@ -6,7 +6,7 @@ import { useTagsContext } from "@/components/tags/tags-context";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanTag,TagClass } from "@/lib/traces/types";
+import { SpanTag, TagClass } from "@/lib/traces/types";
 
 const defaultColors: { color: string; name: string }[] = [
   {
@@ -86,7 +86,6 @@ const CreateTag = ({ name }: CreateTagProps) => {
       const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
         method: "POST",
         body: JSON.stringify({
-          classId: data.id,
           name: data.name,
         }),
       });
