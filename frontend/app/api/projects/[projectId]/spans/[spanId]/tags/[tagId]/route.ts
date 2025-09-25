@@ -1,10 +1,7 @@
-import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
-import { removeTagFromCHSpan } from "@/lib/actions/tags";
+import { getSpanTags, removeTagFromCHSpan } from "@/lib/actions/tags";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { db } from "@/lib/db/drizzle";
-import { tagClasses, tags } from "@/lib/db/migrations/schema";
 
 export async function DELETE(
   _req: NextRequest,
@@ -15,22 +12,16 @@ export async function DELETE(
   const spanId = params.spanId;
   const tagId = params.tagId;
 
-  const [res] = await db
-    .delete(tags)
-    .where(and(eq(tags.id, tagId), eq(tags.spanId, spanId), eq(tags.projectId, projectId)))
-    .returning();
-
-  const tagClass = await db.query.tagClasses.findFirst({
-    columns: {
-      name: true,
-    },
-    where: and(eq(tagClasses.id, res?.classId), eq(tagClasses.projectId, projectId)),
+  const chTags = await getSpanTags({
+    spanId,
+    projectId,
   });
-  const deletedTagName = tagClass?.name;
+
+  const deletedTagName = chTags.find(tag => tag.id === tagId)?.name;
 
   await clickhouseClient.exec({
     query: `
-      DELETE FROM default.tags 
+      DELETE FROM tags 
       WHERE id = {id: UUID} AND span_id = {span_id: UUID} AND project_id = {project_id: UUID}
     `,
     query_params: {
@@ -39,8 +30,6 @@ export async function DELETE(
       project_id: projectId,
     },
   });
-
-
 
   // Remove the tag from the span's tags_array in ClickHouse
   if (deletedTagName) {

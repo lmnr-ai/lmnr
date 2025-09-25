@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{
     HttpResponse, post,
     web::{Data, Json},
@@ -12,9 +14,10 @@ use crate::{
         DB,
         evaluators::{EvaluatorScoreSource, insert_evaluator_score},
         project_api_keys::ProjectApiKey,
-        spans::{get_root_span_id, is_span_in_project},
     },
+    query_engine::QueryEngine,
     routes::types::ResponseResult,
+    sql::{self, ClickhouseReadonlyClient},
 };
 
 #[derive(Deserialize)]
@@ -55,9 +58,14 @@ pub async fn create_evaluator_score(
     req: Json<CreateEvaluatorScoreRequest>,
     db: Data<DB>,
     clickhouse: Data<clickhouse::Client>,
+    clickhouse_ro: Data<Option<Arc<ClickhouseReadonlyClient>>>,
+    query_engine: Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let req = req.into_inner();
+    let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
+    let query_engine = query_engine.as_ref().clone();
+    let clickhouse = clickhouse.as_ref().clone();
 
     // Extract common fields from both variants
     let (name, metadata, score, source) = match &req {
@@ -85,11 +93,21 @@ pub async fn create_evaluator_score(
 
     let span_id = match &req {
         CreateEvaluatorScoreRequest::WithTraceId(req) => {
-            get_root_span_id(&db.pool, &req.trace_id, &project_api_key.project_id).await?
+            sql::queries::get_top_span_id(
+                clickhouse_ro,
+                query_engine,
+                req.trace_id,
+                project_api_key.project_id,
+            )
+            .await?
         }
         CreateEvaluatorScoreRequest::WithSpanId(req) => {
-            let exists =
-                is_span_in_project(&db.pool, &req.span_id, &project_api_key.project_id).await?;
+            let exists = crate::ch::spans::is_span_in_project(
+                clickhouse.clone(),
+                req.span_id,
+                project_api_key.project_id,
+            )
+            .await?;
             if !exists {
                 return Ok(HttpResponse::NotFound().body("No matching spans found"));
             }
@@ -118,7 +136,7 @@ pub async fn create_evaluator_score(
     .await?;
 
     let _ = insert_evaluator_score_ch(
-        clickhouse.into_inner().as_ref().clone(),
+        clickhouse.clone(),
         score_id,
         project_id,
         name,

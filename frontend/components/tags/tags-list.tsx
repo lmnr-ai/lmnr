@@ -10,13 +10,13 @@ const TagsList = () => {
 
   return (
     <div className="flex flex-wrap w-fit items-center gap-2">
-      {tags.map((l) => (
-        <Badge key={l.id} className="rounded-3xl" variant="outline">
+      {tags.map((t) => (
+        <Badge key={t.id} className="rounded-3xl" variant="outline">
           <div
-            style={{ background: tagClasses?.find((c) => c.id === l.classId)?.color }}
+            style={{ background: tagClasses?.find((c) => c.name === t.name)?.color }}
             className="w-2 h-2 rounded-full"
           />
-          <span className="ml-1.5">{tagClasses?.find((c) => c.id === l.classId)?.name}</span>
+          <span className="ml-1.5">{tagClasses?.find((c) => c.name === t.name)?.name}</span>
         </Badge>
       ))}
     </div>

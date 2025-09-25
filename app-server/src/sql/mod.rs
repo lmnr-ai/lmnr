@@ -1,3 +1,5 @@
+pub mod queries;
+
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
