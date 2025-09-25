@@ -56,11 +56,11 @@ const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult =>
 
   if (startTime) {
     const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
-    const params: QueryParams = { startTime };
+    const params: QueryParams = { startTime: startTime.replace("Z", "") };
 
     if (endTime) {
       conditions.push(`${timeColumn} <= {endTime:String}`);
-      params.endTime = endTime;
+      params.endTime = endTime.replace("Z", "");
     } else {
       conditions.push(`${timeColumn} <= now()`);
     }
