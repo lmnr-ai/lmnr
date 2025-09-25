@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
+import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
@@ -398,12 +398,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   <Button
                     onClick={() => setTab("chat")}
                     variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": tab === "chat",
+                    className={cn("h-6 text-xs text-primary px-1.5", {
+                      "border-primary": tab === "chat",
                     })}
                   >
-                    <MessageCircle size={14} className="mr-1" />
-                    <span>Chat</span>
+                    <Sparkles size={14} className="mr-1" />
+                    <span>Ask AI</span>
                   </Button>
                   {tab === "timeline" && (
                     <>

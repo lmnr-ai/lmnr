@@ -128,6 +128,7 @@ export type TraceRow = {
   outputCost: number;
   totalCost: number;
 
+  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
