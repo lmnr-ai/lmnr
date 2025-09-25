@@ -218,7 +218,7 @@ class TestQueryValidator:
 
         # Subquery should have spans replaced with spans_v0
         assert f"FROM spans_v0(project_id = '{sample_project_id}') AS spans" in result
-        assert "AS span_stats" or ") span_stats" in result
+        assert "AS span_stats" in result or ") span_stats" in result
 
     def test_join_with_allowed_tables(self, query_validator: QueryValidator, sample_project_id: str):
         """Test JOIN between allowed tables"""
