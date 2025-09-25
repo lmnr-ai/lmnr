@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
@@ -8,6 +8,21 @@ export const tagSource = pgEnum("tag_source", ['MANUAL', 'AUTO', 'CODE']);
 export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION', 'PLAYGROUND']);
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner', 'admin']);
 
+
+export const datasetParquets = pgTable("dataset_parquets", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  datasetId: uuid("dataset_id").defaultRandom().notNull(),
+  parquetPath: text("parquet_path").notNull(),
+  jobId: uuid("job_id").defaultRandom().notNull(),
+  name: text(),
+}, (table) => [
+  foreignKey({
+    columns: [table.datasetId],
+    foreignColumns: [datasets.id],
+    name: "dataset_parquets_dataset_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
 
 export const llmPrices = pgTable("llm_prices", {
   id: uuid().defaultRandom().primaryKey().notNull(),
