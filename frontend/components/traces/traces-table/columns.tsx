@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -30,18 +30,32 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
 export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
-      <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() ? (
-          <X className="self-center text-destructive" size={18} />
-        ) : (
-          <Check className="text-success" size={18} />
-        )}
-      </div>
+      <div
+        className={cn("w-1.5 h-8 rounded-sm bg-success", {
+          "bg-destructive": Boolean(row.getValue()),
+        })}
+      />
     ),
     accessorKey: "status",
-    header: "Status",
+    header: () => <div />,
     id: "status",
-    size: 70,
+    size: 33,
+  },
+  {
+    cell: (row) => (
+      <span
+        title={row.row.original.summary}
+        className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
+          "line-clamp-2": Boolean(row.getValue()),
+        })}
+      >
+        {row.row.original.summary}
+      </span>
+    ),
+    accessorKey: "summary",
+    header: "Summary",
+    id: "summary",
+    size: 190,
   },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
