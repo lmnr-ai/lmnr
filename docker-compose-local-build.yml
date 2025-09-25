@@ -97,6 +97,7 @@ services:
       CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:8903
 
   frontend:
     build:
