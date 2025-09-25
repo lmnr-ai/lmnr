@@ -314,17 +314,9 @@ async fn process_batch(
     for span in &spans {
         if span.parent_span_id.is_none() {
             // This is a top-level span, meaning the trace is completed
-            let trace_start_time = trace_attributes_vec
-                .iter()
-                .find(|attrs| attrs.id == span.trace_id)
-                .and_then(|attrs| attrs.start_time)
-                .unwrap_or(span.start_time);
-
-            let trace_end_time = trace_attributes_vec
-                .iter()
-                .find(|attrs| attrs.id == span.trace_id)
-                .and_then(|attrs| attrs.end_time)
-                .unwrap_or(span.end_time);
+            // We're assuming that top level span start and end time are the same as the trace start and end time
+            let trace_start_time = span.start_time;
+            let trace_end_time = span.end_time;
 
             if let Err(e) = push_to_trace_summary_queue(
                 span.trace_id,
@@ -344,7 +336,7 @@ async fn process_batch(
             }
         }
     }
-    // Record spans and traces to database (batch write)
+
     // Send realtime messages directly to SSE connections after successful ClickHouse writes
     send_realtime_messages_to_sse(&spans, &sse_connections).await;
 
