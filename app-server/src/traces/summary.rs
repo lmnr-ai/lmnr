@@ -105,10 +105,6 @@ async fn inner_process_trace_summaries(_db: Arc<DB>, queue: Arc<MessageQueue>) {
 
     log::info!("Started processing trace summaries from queue");
 
-    // Get the internal API base URL - this should be the internal service URL
-    let internal_api_base_url =
-        env::var("INTERNAL_API_BASE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
-
     let client = reqwest::Client::new();
 
     while let Some(delivery) = receiver.receive().await {
@@ -132,14 +128,7 @@ async fn inner_process_trace_summaries(_db: Arc<DB>, queue: Arc<MessageQueue>) {
             };
 
         // Process the trace summary generation
-        if let Err(e) = process_single_trace_summary(
-            &client,
-            &internal_api_base_url,
-            trace_summary_message,
-            acker,
-        )
-        .await
-        {
+        if let Err(e) = process_single_trace_summary(&client, trace_summary_message, acker).await {
             log::error!("Failed to process trace summary: {:?}", e);
         }
     }
@@ -149,10 +138,13 @@ async fn inner_process_trace_summaries(_db: Arc<DB>, queue: Arc<MessageQueue>) {
 
 async fn process_single_trace_summary(
     client: &reqwest::Client,
-    internal_api_base_url: &str,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
+    // Get the internal API base URL - this should be the internal service URL
+    let internal_api_base_url =
+        env::var("NEXT_BACKEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+
     let url = format!("{}/api/traces/summary", internal_api_base_url);
 
     // Use format instead of to_rfc3339 to ensure compatibility with Zod

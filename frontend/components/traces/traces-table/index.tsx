@@ -18,11 +18,11 @@ import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter"
 import DateRangeFilter from "../../ui/date-range-filter";
 
 const presetFilters: DatatableFilter[] = [
-  {
-    value: "error",
-    column: "analysis_status",
-    operator: Operator.Eq,
-  },
+  // {
+  //   value: "error",
+  //   column: "analysis_status",
+  //   operator: Operator.Eq,
+  // },
 ];
 
 export default function TracesTable() {

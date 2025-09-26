@@ -31,8 +31,10 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
-        className={cn("min-h-6 w-1.5 rounded-[2px] bg-success", {
-          "bg-destructive": Boolean(row.getValue()),
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
+          "bg-destructive": row.getValue() === "error",
+          "": row.getValue() === "info", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}
       />
     ),
@@ -41,27 +43,27 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "status",
     size: 32,
   },
-  {
-    cell: (row) => (
-      <span
-        title={row.row.original.summary}
-        className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
-          "line-clamp-4": row.getValue() !== "",
-        })}
-      >
-        {row.row.original.summary}
-      </span>
-    ),
-    accessorFn: (row) => {
-      if (row.analysis_preview !== "") {
-        return row.analysis_preview;
-      }
-      return row.summary;
-    },
-    header: "Summary",
-    id: "summary",
-    size: 190,
-  },
+  // {
+  //   cell: (row) => (
+  //     <span
+  //       title={row.row.original.summary}
+  //       className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
+  //         "line-clamp-4": row.getValue() !== "",
+  //       })}
+  //     >
+  //       {row.row.original.summary}
+  //     </span>
+  //   ),
+  //   accessorFn: (row) => {
+  //     if (row.analysis_preview !== "") {
+  //       return row.analysis_preview;
+  //     }
+  //     return row.summary;
+  //   },
+  //   header: "Summary",
+  //   id: "summary",
+  //   size: 190,
+  // },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "ID",
