@@ -9,12 +9,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY};
-use crate::{
-    db::DB,
-    mq::{
-        MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-        MessageQueueTrait,
-    },
+use crate::mq::{
+    MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
+    MessageQueueTrait,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -60,14 +57,14 @@ pub async fn push_to_trace_summary_queue(
 }
 
 /// Main worker function to process trace summary messages
-pub async fn process_trace_summaries(_db: Arc<DB>, queue: Arc<MessageQueue>) {
+pub async fn process_trace_summaries(queue: Arc<MessageQueue>) {
     loop {
-        inner_process_trace_summaries(_db.clone(), queue.clone()).await;
+        inner_process_trace_summaries(queue.clone()).await;
         log::warn!("Trace summary listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_trace_summaries(_db: Arc<DB>, queue: Arc<MessageQueue>) {
+async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue

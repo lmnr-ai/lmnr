@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   // sleep for 0.5 seconds to account for time it takes to save spans to ClickHouse
   await new Promise((resolve) => setTimeout(resolve, 500));
 
-  const { projectId, traceId } = traceSummaryResult.data;
+  const { projectId, traceId, traceStartTime, traceEndTime } = traceSummaryResult.data;
 
   try {
     // First, check if the trace contains at least one LLM span
@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       FROM spans 
       WHERE trace_id = {traceId: UUID} 
       AND span_type = 'LLM'
+      AND start_time BETWEEN {startTime: DateTime64} AND {endTime: DateTime64}
       LIMIT 1
     `;
 
@@ -40,6 +41,8 @@ export async function POST(req: Request) {
       query: llmSpanCheckQuery,
       parameters: {
         traceId,
+        startTime: traceStartTime,
+        endTime: traceEndTime,
       }
     });
 
