@@ -9,7 +9,7 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
-import { DatatableFilter, Operator } from "@/components/ui/datatable-filter/utils.ts";
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
 
