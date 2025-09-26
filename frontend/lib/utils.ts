@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { v4 as uuidv4 } from "uuid";
 
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 
@@ -336,5 +337,19 @@ export const tryParseJson = (value: string) => {
     return JSON.parse(value);
   } catch (e) {
     return null;
+  }
+};
+
+// Add 1 second to end time to cover case with rounding of end time, because of conversion clickhouse and js date time formats.
+export const formatEndTimeForQuery = (endTime: string): string => {
+  const endTimeWithBuffer = new Date(new Date(endTime).getTime() + 1000).toISOString();
+  return endTimeWithBuffer.replace("Z", "");
+};
+
+export const generateUuid = (): string => {
+  try {
+    return crypto.randomUUID();
+  } catch (e) {
+    return uuidv4();
   }
 };

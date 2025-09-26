@@ -2,16 +2,27 @@ import { and, eq, inArray } from "drizzle-orm";
 import { uniq } from "lodash";
 import { z } from "zod/v4";
 
+import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { tryParseJson } from "@/lib/actions/common/utils";
+import { executeQuery } from "@/lib/actions/sql";
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { sharedPayloads, traces } from "@/lib/db/migrations/schema";
+import { sharedPayloads, sharedTraces } from "@/lib/db/migrations/schema";
 
 export const UpdateTraceVisibilitySchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
   visibility: z.enum(["public", "private"]),
+});
+
+export const GetTraceSchema = z.object({
+  traceId: z.string(),
+  projectId: z.string(),
+});
+
+export const GetSharedTraceSchema = z.object({
+  traceId: z.string(),
 });
 
 interface ClickHouseSpan {
@@ -74,21 +85,22 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
    * 1. Parse span image url's, and extract payload id's
    */
 
-  const parseResult = traceSpans.map((span) => {
-    const inputData = tryParseJson(span.input);
-    const outputData = tryParseJson(span.output);
+  const parseResult = traceSpans
+    .map((span) => {
+      const inputData = tryParseJson(span.input);
+      const outputData = tryParseJson(span.output);
 
-    const input = transformMessages(inputData, projectId, visibility);
-    const output = transformMessages(outputData, projectId, visibility);
+      const input = transformMessages(inputData, projectId, visibility);
+      const output = transformMessages(outputData, projectId, visibility);
 
-    return {
-      id: span.span_id,
-      input: input.messages,
-      output: output.messages,
-      payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
-      existingSpan: span,
-    };
-  })
+      return {
+        id: span.span_id,
+        input: input.messages,
+        output: output.messages,
+        payloadIds: uniq([...Array.from(input.payloads), ...Array.from(output.payloads)]),
+        existingSpan: span,
+      };
+    })
     .filter((p) => p.payloadIds.length > 0);
 
   const payloadIds = parseResult.flatMap((p) => p.payloadIds);
@@ -134,22 +146,111 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
    * 3. Perform PostgreSQL transaction for traces and shared payloads
    */
   return await db.transaction(async (tx) => {
-    await tx
-      .update(traces)
-      .set({ visibility })
-      .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)));
-
-    if (payloadIds.length > 0) {
-      if (visibility === "public") {
+    if (visibility === "public") {
+      await tx.insert(sharedTraces).values({ id: traceId, projectId }).onConflictDoNothing();
+      if (payloadIds.length > 0) {
         await tx
           .insert(sharedPayloads)
           .values(payloadIds.map((payloadId) => ({ payloadId, projectId })))
           .onConflictDoNothing();
-      } else {
+      }
+    } else {
+      await tx.delete(sharedTraces).where(and(eq(sharedTraces.id, traceId), eq(sharedTraces.projectId, projectId)));
+      if (payloadIds.length > 0) {
         await tx
           .delete(sharedPayloads)
           .where(and(inArray(sharedPayloads.payloadId, payloadIds), eq(sharedPayloads.projectId, projectId)));
       }
     }
   });
+}
+
+export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<TraceViewTrace> {
+  const { traceId, projectId } = GetTraceSchema.parse(input);
+
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
+  });
+
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+    query: `
+      SELECT
+        id,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+        input_tokens as inputTokens,
+        output_tokens as outputTokens,
+        total_tokens as totalTokens,
+        input_cost as inputCost,
+        output_cost as outputCost,
+        total_cost as totalCost,
+        metadata,
+        status,
+        trace_type as traceType
+      FROM traces
+      WHERE id = {traceId: UUID}
+      LIMIT 1
+    `,
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
+
+  if (!trace) {
+    throw new Error("Trace not found.");
+  }
+
+  return {
+    ...trace,
+    visibility: sharedTrace ? "public" : "private",
+  };
+}
+
+export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
+  const { traceId } = GetSharedTraceSchema.parse(input);
+
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
+
+  if (!sharedTrace) {
+    return undefined;
+  }
+
+  const projectId = sharedTrace.projectId;
+
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+    query: `
+      SELECT
+        id,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+        input_tokens as inputTokens,
+        output_tokens as outputTokens,
+        total_tokens as totalTokens,
+        input_cost as inputCost,
+        output_cost as outputCost,
+        total_cost as totalCost,
+        metadata,
+        status,
+        trace_type as traceType
+      FROM traces
+      WHERE id = {traceId: UUID}
+      LIMIT 1
+    `,
+    parameters: {
+      traceId,
+    },
+    projectId,
+  });
+
+  if (!trace) {
+    throw new Error("Trace not found.");
+  }
+
+  return {
+    ...trace,
+    visibility: "public",
+  };
 }

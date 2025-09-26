@@ -1,3 +1,4 @@
+import { get } from "lodash";
 import { ChartNoAxesGantt, ListFilter, MessageCircle, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
@@ -12,6 +13,7 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
   TraceViewSpan,
+  TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -25,9 +27,8 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
@@ -42,7 +43,7 @@ interface TraceViewProps {
   traceId: string;
   // Span id here to control span selection by spans table
   spanId?: string;
-  propsTrace?: Trace;
+  propsTrace?: TraceViewTrace;
   onClose: () => void;
 }
 
@@ -90,9 +91,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSession,
     zoom,
     handleZoom,
-    setBrowserSessionTime,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -107,6 +109,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   // Local storage states
@@ -118,7 +122,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }));
 
   const { value: filters } = useFiltersContextProvider();
-  const { supabaseClient: supabase } = useUserContext();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -144,11 +147,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           });
           return;
         }
-        const traceData = (await response.json()) as Trace;
+        const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
-        if (traceData.hasBrowserSession) {
-          setBrowserSession(true);
-        }
       }
     } catch (e) {
       toast({
@@ -199,12 +199,23 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           setSearchEnabled(true);
         }
 
+        if (trace) {
+          params.set("startTime", trace.startTime);
+          params.set("endTime", trace?.endTime);
+        }
+
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
-        const results = await response.json();
-        const spans = enrichSpansWithPending(results);
+        const results = (await response.json()) as TraceViewSpan[];
+
+        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
+
+        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
+          setHasBrowserSession(true);
+          setBrowserSession(true);
+        }
 
         if (spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
@@ -218,7 +229,19 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         setIsSpansLoading(false);
       }
     },
-    [setIsSpansLoading, projectId, traceId, setSpans, setSearch, spanId, searchParams, spanPath, setSelectedSpan]
+    [
+      trace,
+      setIsSpansLoading,
+      search,
+      projectId,
+      traceId,
+      setSpans,
+      setSearch,
+      spanId,
+      searchParams,
+      spanPath,
+      setSelectedSpan,
+    ]
   );
 
   const handleClose = useCallback(() => {
@@ -276,10 +299,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [handleFetchTrace, projectId, traceId]);
 
   useEffect(() => {
-    const search = searchParams.get("search") || "";
+    const searchTerm = searchParams.get("search") || search || "";
     const searchIn = searchParams.getAll("searchIn");
 
-    fetchSpans(search, searchIn, filters);
+    if (trace) {
+      fetchSpans(searchTerm, searchIn, filters);
+    }
 
     return () => {
       setSpans([]);
@@ -287,33 +312,38 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSearch("");
       setSearchEnabled(false);
     };
-  }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
+  }, [traceId, trace, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
 
   useEffect(() => {
-    if (!supabase || !traceId) {
+    if (!traceId || !projectId) {
       return;
     }
-    // Clean up
-    supabase.channel(`trace-updates-${traceId}`).unsubscribe();
 
-    const channel = supabase
-      .channel(`trace-updates-${traceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "spans",
-          filter: `trace_id=eq.${traceId}`,
-        },
-        onRealtimeUpdateSpans(spans, setSpans, setTrace, setBrowserSession, trace)
-      )
-      .subscribe();
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+
+    eventSource.addEventListener("new_spans", (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            if (span.traceId === traceId) {
+              onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error processing SSE message:", error);
+      }
+    });
+
+    eventSource.addEventListener("error", (error) => {
+      console.error("SSE connection error:", error);
+    });
 
     return () => {
-      channel.unsubscribe();
+      eventSource.close();
     };
-  }, [setBrowserSession, setSpans, setTrace, spans, supabase, trace, traceId]);
+  }, [setBrowserSession, setSpans, setTrace, traceId, projectId]);
 
   if (isLoading) {
     return (
@@ -337,7 +367,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           <ResizablePanel className="flex size-full">
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
               <Header handleClose={handleClose} />
-              <div className="flex flex-col gap-1 px-2 py-2 border-b box-border">
+              <div className="flex flex-col gap-2 px-2 py-2 border-b box-border">
                 <div className="flex items-center gap-2">
                   <StatefulFilter columns={filterColumns}>
                     <Button variant="outline" className="h-6 text-xs">
@@ -452,9 +482,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
               ) : selectedSpan ? (
                 selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+                  <HumanEvaluatorSpanView
+                    traceId={selectedSpan.traceId}
+                    spanId={selectedSpan.spanId}
+                    key={selectedSpan.spanId}
+                  />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} trace={trace} />
                 )
               ) : (
                 <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
@@ -471,7 +505,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {!isLoading && (
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={traceId}
                     llmSpanIds={llmSpanIds}
                   />

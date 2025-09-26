@@ -6,46 +6,9 @@ import { useTagsContext } from "@/components/tags/tags-context";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanTag,TagClass } from "@/lib/traces/types";
+import { defaultColors } from "@/lib/tags/colors";
+import { SpanTag, TagClass } from "@/lib/traces/types";
 
-const defaultColors: { color: string; name: string }[] = [
-  {
-    color: "rgb(190, 194, 200)",
-    name: "Grey",
-  },
-  {
-    color: "rgb(149, 162, 179)",
-    name: "Dark Grey",
-  },
-  {
-    color: "lch(48 59.31 288.43)",
-    name: "Purple",
-  },
-  {
-    color: "rgb(38, 181, 206)",
-    name: "Teal",
-  },
-  {
-    color: "rgb(76, 183, 130)",
-    name: "Green",
-  },
-  {
-    color: "lch(80 90 85)",
-    name: "Yellow",
-  },
-  {
-    color: "rgb(242, 153, 74)",
-    name: "Orange",
-  },
-  {
-    color: "rgb(247, 200, 193)",
-    name: "Pink",
-  },
-  {
-    color: "rgb(235, 87, 87)",
-    name: "Red",
-  },
-];
 
 interface CreateTagProps {
   name: string;
@@ -64,10 +27,9 @@ const CreateTag = ({ name }: CreateTagProps) => {
 
   const handleCreateTagClass = async (color: string) => {
     try {
-      const response = await fetch(`/api/projects/${params?.projectId}/tag-classes`, {
+      const response = await fetch(`/api/projects/${params?.projectId}/tag-classes/${name}`, {
         method: "POST",
         body: JSON.stringify({
-          name,
           color,
         }),
       });
@@ -86,7 +48,6 @@ const CreateTag = ({ name }: CreateTagProps) => {
       const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
         method: "POST",
         body: JSON.stringify({
-          classId: data.id,
           name: data.name,
         }),
       });

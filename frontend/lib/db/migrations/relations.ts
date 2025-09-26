@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { apiKeys, dashboardCharts, datapointToSpan, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, spans,sqlTemplates, subscriptionTiers, tagClasses, tags, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
   project: one(projects, {
@@ -21,7 +21,6 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   labelingQueues: many(labelingQueues),
   evaluations: many(evaluations),
   renderTemplates: many(renderTemplates),
-  tagClasses: many(tagClasses),
   playgrounds: many(playgrounds),
   evaluatorScores: many(evaluatorScores),
   evaluators: many(evaluators),
@@ -33,15 +32,16 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   tracesAgentChats: many(tracesAgentChats),
   tracesAgentMessages: many(tracesAgentMessages),
   tracesSummaries: many(tracesSummaries),
+  sharedTraces: many(sharedTraces),
+  tagClasses: many(tagClasses),
   spans: many(spans),
 }));
 
-export const datasetDatapointsRelations = relations(datasetDatapoints, ({one, many}) => ({
+export const datasetDatapointsRelations = relations(datasetDatapoints, ({one}) => ({
   dataset: one(datasets, {
     fields: [datasetDatapoints.datasetId],
     references: [datasets.id]
   }),
-  datapointToSpans: many(datapointToSpan),
 }));
 
 export const workspacesRelations = relations(workspaces, ({one, many}) => ({
@@ -142,21 +142,6 @@ export const renderTemplatesRelations = relations(renderTemplates, ({one}) => ({
   }),
 }));
 
-export const tagClassesRelations = relations(tagClasses, ({one, many}) => ({
-  project: one(projects, {
-    fields: [tagClasses.projectId],
-    references: [projects.id]
-  }),
-  tags: many(tags),
-}));
-
-export const tagsRelations = relations(tags, ({one}) => ({
-  tagClass: one(tagClasses, {
-    fields: [tags.classId],
-    references: [tagClasses.id]
-  }),
-}));
-
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({
   project: one(projects, {
     fields: [playgrounds.projectId],
@@ -225,12 +210,11 @@ export const sqlTemplatesRelations = relations(sqlTemplates, ({one}) => ({
   }),
 }));
 
-export const tracesRelations = relations(traces, ({one, many}) => ({
+export const tracesRelations = relations(traces, ({one}) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id]
   }),
-  tracesSummaries: many(tracesSummaries),
 }));
 
 export const dashboardChartsRelations = relations(dashboardCharts, ({one}) => ({
@@ -259,25 +243,23 @@ export const tracesSummariesRelations = relations(tracesSummaries, ({one}) => ({
     fields: [tracesSummaries.projectId],
     references: [projects.id]
   }),
-  trace: one(traces, {
-    fields: [tracesSummaries.traceId],
-    references: [traces.id]
+}));
+
+export const sharedTracesRelations = relations(sharedTraces, ({one}) => ({
+  project: one(projects, {
+    fields: [sharedTraces.projectId],
+    references: [projects.id]
   }),
 }));
 
-export const datapointToSpanRelations = relations(datapointToSpan, ({one}) => ({
-  datasetDatapoint: one(datasetDatapoints, {
-    fields: [datapointToSpan.datapointId],
-    references: [datasetDatapoints.id]
-  }),
-  span: one(spans, {
-    fields: [datapointToSpan.spanId],
-    references: [spans.spanId]
+export const tagClassesRelations = relations(tagClasses, ({one}) => ({
+  project: one(projects, {
+    fields: [tagClasses.projectId],
+    references: [projects.id]
   }),
 }));
 
-export const spansRelations = relations(spans, ({one, many}) => ({
-  datapointToSpans: many(datapointToSpan),
+export const spansRelations = relations(spans, ({one}) => ({
   project: one(projects, {
     fields: [spans.projectId],
     references: [projects.id]

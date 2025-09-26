@@ -36,19 +36,6 @@ export const llmPrices = pgTable("llm_prices", {
   additionalPrices: jsonb("additional_prices").default({}).notNull(),
 });
 
-export const pipelineTemplates = pgTable("pipeline_templates", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  runnableGraph: jsonb("runnable_graph").default({}).notNull(),
-  displayableGraph: jsonb("displayable_graph").default({}).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  numberOfNodes: bigint("number_of_nodes", { mode: "number" }).notNull(),
-  name: text().default('').notNull(),
-  description: text().default('').notNull(),
-  displayGroup: text("display_group").default('build').notNull(),
-  ordinal: integer().default(500).notNull(),
-});
-
 export const datasets = pgTable("datasets", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -292,44 +279,16 @@ export const renderTemplates = pgTable("render_templates", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const tagClasses = pgTable("tag_classes", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text().notNull(),
-  projectId: uuid("project_id").notNull(),
-  color: text().default('rgb(190, 194, 200)').notNull(),
-  description: text(),
-  evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
-  pipelineVersionId: uuid("pipeline_version_id"),
-}, (table) => [
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "label_classes_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  unique("tag_classes_project_id_id_key").on(table.id, table.projectId),
-  unique("tag_classes_name_project_id_unique").on(table.name, table.projectId),
-]);
-
 export const tags = pgTable("tags", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  classId: uuid("class_id").notNull(),
   spanId: uuid("span_id").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   userId: uuid("user_id").defaultRandom(),
   source: tagSource().default('MANUAL').notNull(),
   projectId: uuid("project_id").notNull(),
   reasoning: text(),
-}, (table) => [
-  foreignKey({
-    columns: [table.classId, table.projectId],
-    foreignColumns: [tagClasses.id, tagClasses.projectId],
-    name: "tags_class_id_project_id_fkey"
-  }),
-  unique("tags_span_id_class_id_key").on(table.classId, table.spanId),
-  unique("tags_span_id_class_id_user_id_key").on(table.classId, table.spanId, table.userId),
-]);
+});
 
 export const playgrounds = pgTable("playgrounds", {
   id: uuid().defaultRandom().primaryKey().notNull(),
@@ -616,30 +575,32 @@ export const tracesSummaries = pgTable("traces_summaries", {
     foreignColumns: [projects.id],
     name: "traces_summaries_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  foreignKey({
-    columns: [table.traceId],
-    foreignColumns: [traces.id],
-    name: "traces_summaries_trace_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const datapointToSpan = pgTable("datapoint_to_span", {
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  datapointId: uuid("datapoint_id").notNull(),
-  spanId: uuid("span_id").notNull(),
+export const sharedTraces = pgTable("shared_traces", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
   projectId: uuid("project_id").notNull(),
 }, (table) => [
   foreignKey({
-    columns: [table.datapointId],
-    foreignColumns: [datasetDatapoints.id],
-    name: "datapoint_to_span_datapoint_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "shared_traces_project_id_fkey"
+  }).onDelete("cascade"),
+]);
+
+export const tagClasses = pgTable("tag_classes", {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  projectId: uuid("project_id").notNull(),
+  color: text().default('rgb(190, 194, 200)').notNull(),
+  description: text(),
+}, (table) => [
   foreignKey({
-    columns: [table.spanId, table.projectId],
-    foreignColumns: [spans.spanId, spans.projectId],
-    name: "datapoint_to_span_span_id_project_id_fkey"
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "label_classes_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
-  primaryKey({ columns: [table.datapointId, table.spanId, table.projectId], name: "datapoint_to_span_pkey" }),
+  primaryKey({ columns: [table.name, table.projectId], name: "tag_classes_pkey" }),
 ]);
 
 export const spans = pgTable("spans", {
@@ -662,9 +623,10 @@ export const spans = pgTable("spans", {
   status: text(),
 }, (table) => [
   index("spans_name_idx").using("btree", table.name.asc().nullsLast().op("text_ops")),
-  index("spans_project_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
-  index("spans_root_project_id_start_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops"), table.traceId.asc().nullsLast().op("uuid_ops")).where(sql`(parent_span_id IS NULL)`),
-  index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops")),
+  index("spans_project_id_start_time_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.startTime.asc().nullsLast().op("timestamptz_ops")),
+  index("spans_project_id_start_time_parent_span_id_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops"), table.parentSpanId.asc().nullsLast().op("uuid_ops"), table.traceId.asc().nullsLast().op("uuid_ops")),
+  index("spans_root_project_id_start_time_trace_id_idx").using("btree", table.projectId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops"), table.traceId.asc().nullsLast().op("timestamptz_ops")).where(sql`(parent_span_id IS NULL)`),
+  index("spans_trace_id_start_time_idx").using("btree", table.traceId.asc().nullsLast().op("timestamptz_ops"), table.startTime.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],

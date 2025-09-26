@@ -16,15 +16,22 @@ import { swrFetcher } from "@/lib/utils";
 
 interface HumanEvaluatorSpanViewProps {
   spanId: string;
+  traceId: string;
 }
 
-export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) {
+export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanViewProps) {
   const { projectId, evaluationId: evaluationIdParams } = useParams();
   const searchParams = useSearchParams();
   const evaluationId = (evaluationIdParams || searchParams.get("evaluationId")) as string | null;
   const datapointId = searchParams.get("datapointId");
-  const { data: span, isLoading } = useSWR<Span>(`/api/projects/${projectId}/spans/${spanId}`, swrFetcher);
-  const { data: events } = useSWR<Event[]>(`/api/projects/${projectId}/spans/${spanId}/events`, swrFetcher);
+  const { data: span, isLoading } = useSWR<Span>(
+    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`,
+    swrFetcher
+  );
+  const { data: events } = useSWR<Event[]>(
+    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
+    swrFetcher
+  );
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
 
   const humanEvaluatorOptions = useMemo(() => {
@@ -76,6 +83,7 @@ export function HumanEvaluatorSpanView({ spanId }: HumanEvaluatorSpanViewProps) 
               <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
                 {datapointId && evaluationId && (
                   <HumanEvaluationScore
+                    traceId={traceId}
                     options={humanEvaluatorOptions}
                     key={`${datapointId}-${spanId}`}
                     evaluationId={evaluationId as string}

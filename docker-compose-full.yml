@@ -59,6 +59,19 @@ services:
       timeout: 5s
       retries: 5
 
+  query-engine:
+    image: ghcr.io/lmnr-ai/query-engine
+    pull_policy: always
+    ports:
+      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
+    environment:
+      PORT: 8903
+    healthcheck:
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
+      timeout: 6s
+      retries: 1
+
   app-server:
     image: ghcr.io/lmnr-ai/app-server
     pull_policy: always
@@ -72,6 +85,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      query-engine:
+        condition: service_started
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -80,9 +95,12 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:8903
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend

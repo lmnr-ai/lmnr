@@ -1,6 +1,7 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { get } from "lodash";
 import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -21,18 +22,19 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
   TraceViewSpan,
+  TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Span, SpanType, Trace } from "@/lib/traces/types";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
-  trace: Trace;
-  spans: Span[];
+  trace: TraceViewTrace;
+  spans: TraceViewSpan[];
 }
 
 const PureTraceView = ({ trace, spans }: TraceViewProps) => {
@@ -51,10 +53,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setBrowserSession,
     zoom,
     handleZoom,
-    setBrowserSessionTime,
     setLangGraph,
     langGraph,
     getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -70,10 +73,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     handleZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
-    setBrowserSessionTime: state.setSessionTime,
     setLangGraph: state.setLangGraph,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
+    hasBrowserSession: state.hasBrowserSession,
+    setHasBrowserSession: state.setHasBrowserSession,
   }));
 
   const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
@@ -128,10 +132,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   );
 
   useEffect(() => {
-    if (trace.hasBrowserSession) {
+    if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+      setHasBrowserSession(true);
       setBrowserSession(true);
     }
-  }, [setBrowserSession, trace.hasBrowserSession]);
+  }, []);
 
   useEffect(() => {
     setSpans(spans);
@@ -229,7 +234,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
               </div>
               {selectedSpan && (
                 <div className="flex-grow overflow-hidden flex-wrap">
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} trace={trace} />
                 </div>
               )}
             </ResizablePanel>
@@ -243,10 +248,9 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 >
                   <SessionPlayer
                     onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={trace.hasBrowserSession}
+                    hasBrowserSession={hasBrowserSession}
                     traceId={trace.id}
                     llmSpanIds={llmSpanIds}
-                    onTimelineChange={setBrowserSessionTime}
                   />
                 </ResizablePanel>
               </>

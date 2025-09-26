@@ -1,4 +1,3 @@
-
 import { CacheSpan } from "./cache";
 
 /**
@@ -14,8 +13,8 @@ interface ChatMessage {
  * Normalizes message content to string for comparison
  */
 const normalizeMessageContent = (content: any): string => {
-  if (typeof content === 'string') return content;
-  if (content === null || content === undefined) return '';
+  if (typeof content === "string") return content;
+  if (content === null || content === undefined) return "";
   if (Array.isArray(content) && content.length == 1 && content[0].type === "text") return content[0].text;
   return JSON.stringify(content);
 };
@@ -23,13 +22,11 @@ const normalizeMessageContent = (content: any): string => {
 /**
  * Checks if an input/output is a chat message array
  */
-const isChatMessageArray = (data: any): data is ChatMessage[] => Array.isArray(data) &&
+const isChatMessageArray = (data: any): data is ChatMessage[] =>
+  Array.isArray(data) &&
   data.length > 0 &&
-  data.every(item =>
-    typeof item === 'object' &&
-    item !== null &&
-    typeof item.role === 'string' &&
-    item.content !== undefined
+  data.every(
+    (item) => typeof item === "object" && item !== null && typeof item.role === "string" && item.content !== undefined
   );
 
 /**
@@ -53,7 +50,7 @@ const getMessagePrefixLength = (shorter: ChatMessage[], longer: ChatMessage[]): 
  */
 const createPlaceholderMessage = (count: number): ChatMessage => ({
   role: "[PLACEHOLDER]",
-  content: `[MESSAGES ARE REPLACED WITH A PLACEHOLDER BECAUSE THEY ARE REPEATED FROM PREVIOUS CONVERSATION TURNS. ${count} message${count !== 1 ? 's' : ''} omitted]`
+  content: `[MESSAGES ARE REPLACED WITH A PLACEHOLDER BECAUSE THEY ARE REPEATED FROM PREVIOUS CONVERSATION TURNS. ${count} message${count !== 1 ? "s" : ""} omitted]`,
 });
 
 /**
@@ -101,15 +98,15 @@ const isBase64Image = (str: string): boolean => {
  * Recursively processes any data structure to replace base64 images with placeholders
  */
 const replaceBase64Images = (data: any): any => {
-  if (typeof data === 'string') {
-    return isBase64Image(data) ? '[base64_image_placeholder]' : data;
+  if (typeof data === "string") {
+    return isBase64Image(data) ? "[base64_image_placeholder]" : data;
   }
 
   if (Array.isArray(data)) {
     return data.map(replaceBase64Images);
   }
 
-  if (data && typeof data === 'object') {
+  if (data && typeof data === "object") {
     const result: any = {};
     for (const [key, value] of Object.entries(data)) {
       result[key] = replaceBase64Images(value);
@@ -123,7 +120,8 @@ const replaceBase64Images = (data: any): any => {
 /**
  * Calculates a simple hash of a message for comparison
  */
-const getMessageString = (message: ChatMessage): string => `${message.role}:${normalizeMessageContent(message.content)}`;
+const getMessageString = (message: ChatMessage): string =>
+  `${message.role}:${normalizeMessageContent(message.content)}`;
 
 /**
  * Checks if messages are likely the same conversation thread
@@ -145,11 +143,12 @@ const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMess
 /**
  * Processes spans to replace base64 images with placeholders
  */
-export const replaceBase64ImagesInSpans = (spans: CacheSpan[]): CacheSpan[] => spans.map(span => ({
-  ...span,
-  input: replaceBase64Images(span.input),
-  output: replaceBase64Images(span.output)
-}));
+export const replaceBase64ImagesInSpans = (spans: CacheSpan[]): CacheSpan[] =>
+  spans.map((span) => ({
+    ...span,
+    input: replaceBase64Images(span.input),
+    output: replaceBase64Images(span.output),
+  }));
 
 /**
  * Removes repetitive inputs and outputs from LLM spans in conversation chains.
@@ -171,7 +170,7 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
   const llmSpanIndices: number[] = [];
   for (let i = 0; i < result.length; i++) {
     const span = result[i];
-    if (span.type === 'LLM' && isChatMessageArray(span.input)) {
+    if (span.type === "LLM" && isChatMessageArray(span.input)) {
       llmSpanIndices.push(i);
       originalInputs.set(i, span.input as ChatMessage[]);
       originalOutputs.set(i, span.output);
@@ -202,9 +201,7 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
       const potentialInput = originalInputs.get(potentialIndex)!;
 
       // Check if this could be the next turn in the conversation
-      if (potentialInput.length > currentInput.length &&
-        areMessagesFromSameThread(currentInput, potentialInput)) {
-
+      if (potentialInput.length > currentInput.length && areMessagesFromSameThread(currentInput, potentialInput)) {
         // Build the expected conversation state after the last span in chain
         const lastIndex = chain[chain.length - 1];
         const lastInput = originalInputs.get(lastIndex)!;
@@ -217,7 +214,8 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
 
         // Check if the potential span's input starts with our expected messages
         const prefixLength = getMessagePrefixLength(expectedMessages, potentialInput);
-        if (prefixLength >= expectedMessages.length - 1) { // Allow some tolerance
+        if (prefixLength >= expectedMessages.length - 1) {
+          // Allow some tolerance
           chain.push(potentialIndex);
           processedIndices.add(potentialIndex);
         }
@@ -260,17 +258,13 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
         if (prefixLength > 0) {
           const removedCount = prefixLength;
           const newMessages = originalInput.slice(prefixLength);
-          console.log(span.spanId, "removed messages", removedCount,);
 
-          newInput = removedCount > 0
-            ? [createPlaceholderMessage(removedCount), ...newMessages]
-            : originalInput;
+          newInput = removedCount > 0 ? [createPlaceholderMessage(removedCount), ...newMessages] : originalInput;
         } else {
           // Fallback: replace entire input with placeholder
           newInput = [createPlaceholderMessage(originalInput.length)];
         }
       } else {
-
         // First span in chain - keep the original input
         newInput = originalInput;
       }
@@ -278,7 +272,7 @@ export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
       // Modify the span in-place
       result[spanIndex] = {
         ...span,
-        input: newInput
+        input: newInput,
       };
     }
   }

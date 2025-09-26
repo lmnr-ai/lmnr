@@ -2,25 +2,11 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::utils::get_string_preview;
-use crate::{traces::spans::SpanAttributes, utils::sanitize_string};
-
-const ATTRIBUTE_KEYS_TO_KEEP: &[&str] = &[
-    "lmnr.span.path",
-    "lmnr.span.ids_path",
-    "gen_ai.usage.input_tokens",
-    "gen_ai.usage.output_tokens",
-    "gen_ai.usage.cost",
-    "gen_ai.usage.input_cost",
-    "gen_ai.usage.output_cost",
-    "lmnr.internal.has_browser_session",
-];
+use crate::traces::spans::SpanAttributes;
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "span_type")]
@@ -74,146 +60,6 @@ pub struct Span {
     pub tags: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
-}
-
-impl Span {
-    fn get_attributes_for_db(&self) -> Value {
-        Value::Object(
-            self.attributes
-                .raw_attributes
-                .iter()
-                .filter_map(|(k, v)| {
-                    if ATTRIBUTE_KEYS_TO_KEEP.contains(&k.as_str()) {
-                        Some((k.clone(), v.clone()))
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        )
-    }
-}
-
-pub async fn record_spans_batch(pool: &PgPool, spans: &[Span]) -> Result<()> {
-    if spans.is_empty() {
-        return Ok(());
-    }
-
-    // Create arrays for each column
-    let span_ids: Vec<Uuid> = spans.par_iter().map(|s| s.span_id).collect();
-    let trace_ids: Vec<Uuid> = spans.par_iter().map(|s| s.trace_id).collect();
-    let parent_span_ids: Vec<Option<Uuid>> = spans.par_iter().map(|s| s.parent_span_id).collect();
-    let start_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.start_time).collect();
-    let end_times: Vec<DateTime<Utc>> = spans.par_iter().map(|s| s.end_time).collect();
-    let names: Vec<String> = spans.par_iter().map(|s| s.name.clone()).collect();
-    let attributes: Vec<Value> = spans
-        .par_iter()
-        .map(|s| s.get_attributes_for_db())
-        .collect();
-    let span_types: Vec<SpanType> = spans.par_iter().map(|s| s.span_type.clone()).collect();
-    let input_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.input_url.clone()).collect();
-    let output_urls: Vec<Option<String>> = spans.par_iter().map(|s| s.output_url.clone()).collect();
-    let statuses: Vec<Option<String>> = spans.par_iter().map(|s| s.status.clone()).collect();
-    let project_ids: Vec<Uuid> = spans.par_iter().map(|s| s.project_id).collect();
-
-    let input_previews: Vec<Option<String>> = spans
-        .par_iter()
-        .map(|s| get_string_preview(&s.input).map(|s| sanitize_string(&s)))
-        .collect();
-    let output_previews: Vec<Option<String>> = spans
-        .par_iter()
-        .map(|s| get_string_preview(&s.output).map(|s| sanitize_string(&s)))
-        .collect();
-
-    // Use UNNEST to insert all spans in a single query
-    sqlx::query(
-        r#"
-        INSERT INTO spans (
-            span_id,
-            trace_id,
-            parent_span_id,
-            start_time,
-            end_time,
-            name,
-            attributes,
-            span_type,
-            input_url,
-            output_url,
-            status,
-            project_id,
-            input_preview,
-            output_preview
-        )
-        SELECT * FROM UNNEST(
-            $1::uuid[],
-            $2::uuid[],
-            $3::uuid[],
-            $4::timestamptz[],
-            $5::timestamptz[],
-            $6::text[],
-            $7::jsonb[],
-            $8::span_type[],
-            $9::text[],
-            $10::text[],
-            $11::text[],
-            $12::uuid[],
-            $13::text[],
-            $14::text[]
-        )
-        ON CONFLICT DO NOTHING
-        "#,
-    )
-    .bind(&span_ids)
-    .bind(&trace_ids)
-    .bind(&parent_span_ids)
-    .bind(&start_times)
-    .bind(&end_times)
-    .bind(&names)
-    .bind(&attributes)
-    .bind(&span_types)
-    .bind(&input_urls)
-    .bind(&output_urls)
-    .bind(&statuses)
-    .bind(&project_ids)
-    .bind(&input_previews)
-    .bind(&output_previews)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn get_root_span_id(
-    pool: &PgPool,
-    trace_id: &Uuid,
-    project_id: &Uuid,
-) -> Result<Option<Uuid>> {
-    let span_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT span_id FROM spans
-        WHERE trace_id = $1
-        AND project_id = $2
-        AND parent_span_id IS NULL
-        ORDER BY start_time ASC
-        LIMIT 1",
-    )
-    .bind(trace_id)
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(span_id)
-}
-
-pub async fn is_span_in_project(pool: &PgPool, span_id: &Uuid, project_id: &Uuid) -> Result<bool> {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM spans WHERE span_id = $1 AND project_id = $2)",
-    )
-    .bind(span_id)
-    .bind(project_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(exists)
 }
 
 #[cfg(test)]

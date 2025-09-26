@@ -10,7 +10,7 @@ import { useTraceViewNavigation } from "@/components/traces/trace-view/navigatio
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span } from "@/lib/traces/types";
+import { SpanRow } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
 
 import { DataTable } from "../../ui/datatable";
@@ -37,7 +37,7 @@ export default function SpansTable() {
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
 
-  const [spans, setSpans] = useState<Span[] | undefined>(undefined);
+  const [spans, setSpans] = useState<SpanRow[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0); // including the filtering
   const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
 
@@ -78,7 +78,7 @@ export default function SpansTable() {
         throw new Error(`Failed to fetch spans: ${res.status} ${res.statusText}`);
       }
 
-      const data = (await res.json()) as PaginatedResponse<Span>;
+      const data = (await res.json()) as PaginatedResponse<SpanRow>;
 
       setSpans(data.items);
       setTotalCount(data.totalCount);
@@ -116,28 +116,45 @@ export default function SpansTable() {
     }
   }, [projectId, pageNumber, pageSize, JSON.stringify(filter), pastHours, startDate, endDate, textSearchFilter]);
 
-  const handleDeleteSpans = async (spanId: string[]) => {
-    const response = await fetch(`/api/projects/${projectId}/spans?spanId=${spanId.join(",")}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-    });
+  const handleDeleteSpans = useCallback(
+    async (spanIds: string[]) => {
+      const params = new URLSearchParams(spanIds.map((id) => ["id", id]));
 
-    if (!response.ok) {
-      toast({
-        title: "Failed to delete Span",
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Span deleted",
-        description: `Successfully deleted ${spanId.length} Span(s).`,
-      });
-      getSpans();
-    }
-  };
+      try {
+        const response = await fetch(`/api/projects/${projectId}/spans?${params.toString()}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          toast({
+            title: "Failed to delete Span",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Spans deleted",
+            description: `Successfully deleted ${spanIds.length} span(s).`,
+          });
+          setSpans((prev) => {
+            if (prev) {
+              return prev.filter((s) => !spanIds.includes(s.spanId));
+            }
+            return prev;
+          });
+          setTotalCount((prev) => Math.max(prev - spanIds.length, 0));
+        }
+      } catch (e) {
+        toast({
+          title: e instanceof Error ? e.message : "Failed to delete spans. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, toast]
+  );
 
   const handleRowClick = useCallback(
-    (row: Span) => {
+    (row: SpanRow) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.traceId);
       params.set("spanId", row.spanId);

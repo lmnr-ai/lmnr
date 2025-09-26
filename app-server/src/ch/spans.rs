@@ -99,17 +99,23 @@ impl CHSpan {
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
 
-        let span_input_string = span
-            .input
-            .as_ref()
-            .map(|input| sanitize_string(&input.to_string()))
-            .unwrap_or(String::new());
+        let span_input_string = if let Some(input_url) = &span.input_url {
+            format!("<lmnr_payload_url>{}</lmnr_payload_url>", input_url)
+        } else {
+            span.input
+                .as_ref()
+                .map(|input| sanitize_string(&input.to_string()))
+                .unwrap_or(String::new())
+        };
 
-        let span_output_string = span
-            .output
-            .as_ref()
-            .map(|output| sanitize_string(&output.to_string()))
-            .unwrap_or(String::new());
+        let span_output_string = if let Some(output_url) = &span.output_url {
+            format!("<lmnr_payload_url>{}</lmnr_payload_url>", output_url)
+        } else {
+            span.output
+                .as_ref()
+                .map(|output| sanitize_string(&output.to_string()))
+                .unwrap_or(String::new())
+        };
 
         let trace_metadata = span.attributes.metadata().map_or(String::new(), |m| {
             serde_json::to_string(&m).unwrap_or_default()
@@ -135,18 +141,15 @@ impl CHSpan {
                 .unwrap_or(String::from("")),
             request_model: usage.request_model.clone().unwrap_or(String::from("")),
             response_model: usage.response_model.clone().unwrap_or(String::from("")),
-            session_id: session_id.unwrap_or(String::from("<null>")),
+            session_id: session_id.unwrap_or(String::from("")),
             project_id: project_id,
             trace_id: span.trace_id,
-            provider: usage
-                .provider_name
-                .clone()
-                .unwrap_or(String::from("<null>")),
-            user_id: user_id.unwrap_or(String::from("<null>")),
-            path: path.unwrap_or(String::from("<null>")),
+            provider: usage.provider_name.clone().unwrap_or(String::from("")),
+            user_id: user_id.unwrap_or(String::from("")),
+            path: path.unwrap_or(String::from("")),
             input: span_input_string,
             output: span_output_string,
-            status: span.status.clone().unwrap_or(String::from("<null>")),
+            status: span.status.clone().unwrap_or(String::from("")),
             size_bytes: size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
@@ -214,4 +217,19 @@ pub async fn append_tags_to_span(
     });
 
     Ok(())
+}
+
+pub async fn is_span_in_project(
+    clickhouse: clickhouse::Client,
+    span_id: Uuid,
+    project_id: Uuid,
+) -> Result<bool> {
+    let result = clickhouse
+        .query("SELECT count(*) FROM spans WHERE span_id = ? AND project_id = ?")
+        .bind(span_id)
+        .bind(project_id)
+        .fetch_one::<u64>()
+        .await?;
+
+    Ok(result > 0)
 }

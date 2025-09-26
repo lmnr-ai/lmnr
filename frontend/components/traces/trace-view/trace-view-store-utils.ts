@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Span, SpanType } from "@/lib/traces/types.ts";
+import { SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
 export interface TreeSpan {
@@ -9,6 +9,7 @@ export interface TreeSpan {
   depth: number;
   yOffset: number;
   parentY: number;
+  pending: boolean;
 }
 
 export interface SegmentEvent {
@@ -39,12 +40,12 @@ export interface MinimapSpan extends TreeSpan {
   spanId: string;
 }
 
-export const getTopLevelSpans = <T extends Span>(spans: T[]): T[] =>
+export const getTopLevelSpans = <T extends TraceViewSpan>(spans: T[]): T[] =>
   spans
     .filter((span) => !span.parentSpanId)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-export const getChildSpansMap = <T extends Span>(spans: T[]): { [key: string]: T[] } => {
+export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: string]: T[] } => {
   const childSpans = {} as { [key: string]: T[] };
 
   for (const span of spans) {
@@ -84,6 +85,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
       depth,
       yOffset,
       parentY,
+      pending: span.pending || false,
     });
 
     maxY.current = maxY.current + 36;
@@ -116,8 +118,6 @@ const traverse = (
 };
 
 export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData => {
-  const childSpans = getChildSpansMap(spans);
-
   if (spans.length === 0) {
     return {
       spans: [],
@@ -126,6 +126,8 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
       timelineWidthInMilliseconds: 0,
     };
   }
+
+  const childSpans = getChildSpansMap(spans);
 
   // Traverse function to get ordered spans respecting collapsed state
   const traverse = (
@@ -147,7 +149,7 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
 
   const orderedSpans: TraceViewSpan[] = [];
   const topLevelSpans = spans
-    .filter((span) => span.parentSpanId === null)
+    .filter((span) => !span.parentSpanId)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   for (const span of topLevelSpans) {

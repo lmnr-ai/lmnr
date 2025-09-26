@@ -6,14 +6,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewTrace, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trace } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
-  trace: Trace;
+  trace: TraceViewTrace;
   onSetSpanId: (spanId: string) => void;
 }
 

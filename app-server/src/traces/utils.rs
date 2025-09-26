@@ -1,33 +1,22 @@
-use std::{
-    collections::HashMap,
-    env,
-    sync::{Arc, LazyLock},
-};
+use std::sync::{Arc, LazyLock};
 
-use backoff::ExponentialBackoffBuilder;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::opentelemetry::opentelemetry_proto_common_v1;
+use crate::{
+    db::{events::Event, spans::SpanType},
+    opentelemetry::opentelemetry_proto_common_v1,
+};
 
 use crate::{
     cache::Cache,
-    db::{
-        self, DB,
-        events::Event,
-        spans::{Span, SpanType},
-        tags::TagSource,
-        trace,
-    },
+    db::{DB, spans::Span, tags::TagSource},
     language_model::costs::estimate_cost_by_provider_name,
 };
 
-use super::{
-    attributes::TraceAttributes,
-    spans::{SpanAttributes, SpanUsage},
-};
+use super::spans::{SpanAttributes, SpanUsage};
 
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
@@ -106,96 +95,7 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-pub async fn record_spans<'a>(
-    db: Arc<DB>,
-    spans: &Vec<Span>,
-    trace_attributes_vec: &Vec<TraceAttributes>,
-) -> anyhow::Result<()> {
-    // batch spans by BATCH_SIZE and record batches in parallel
-    let batch_size = env::var("DB_WRITE_SPAN_BATCH_SIZE")
-        .unwrap_or("20".to_string())
-        .parse::<usize>()
-        .unwrap_or(20);
-
-    if spans.len() != trace_attributes_vec.len() {
-        log::warn!(
-            "Spans and trace attributes vectors have different lengths: {} != {}",
-            spans.len(),
-            trace_attributes_vec.len()
-        );
-    }
-
-    let mut errors = Vec::new();
-
-    for (spans_chunk, trace_attributes_chunk) in spans
-        .chunks(batch_size)
-        .zip(trace_attributes_vec.chunks(batch_size))
-    {
-        if let Err(e) = record_spans_batch(db.clone(), spans_chunk, trace_attributes_chunk).await {
-            log::error!("Failed to record spans: {:?}", e);
-            errors.push(e);
-        }
-    }
-
-    if !errors.is_empty() {
-        return Err(anyhow::anyhow!("Failed to record some spans: {:?}", errors));
-    }
-
-    Ok(())
-}
-
-pub async fn record_spans_batch(
-    db: Arc<DB>,
-    spans: &[Span],
-    trace_attributes_vec: &[TraceAttributes],
-) -> anyhow::Result<()> {
-    let insert_spans = || async {
-        db::spans::record_spans_batch(&db.pool, spans)
-            .await
-            .map_err(|e| {
-                log::error!(
-                    "Failed attempt to record {} spans. Will retry according to backoff policy. Error: {:?}",
-                    spans.len(),
-                    e
-                );
-                backoff::Error::Transient {
-                    err: e,
-                    retry_after: None,
-                }
-            })
-    };
-
-    let exponential_backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_millis(500))
-        .with_multiplier(1.5)
-        .with_randomization_factor(0.5)
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(10)))
-        .build();
-    backoff::future::retry(exponential_backoff, insert_spans)
-        .await
-        .map_err(|e| {
-            log::error!(
-                "Exhausted backoff retries for {} spans: {:?}",
-                spans.len(),
-                e
-            );
-            e
-        })?;
-
-    // Insert or update traces in batch after the spans have been successfully inserted
-    if let Err(e) = trace::update_trace_attributes_batch(&db.pool, &trace_attributes_vec).await {
-        log::error!(
-            "Failed to update trace attributes for {} spans: {:?}",
-            trace_attributes_vec.len(),
-            e
-        );
-    }
-
-    Ok(())
-}
-
-pub async fn record_tags_to_db_and_ch(
-    db: Arc<DB>,
+pub async fn record_tags(
     clickhouse: clickhouse::Client,
     tags: &[String],
     span_id: &Uuid,
@@ -205,26 +105,13 @@ pub async fn record_tags_to_db_and_ch(
         return Ok(());
     }
 
-    let project_tag_class_ids =
-        db::tags::get_tag_classes_by_project_id(&db.pool, *project_id, None)
-            .await?
-            .into_iter()
-            .map(|tag_class| (tag_class.name, tag_class.id))
-            .collect::<HashMap<_, _>>();
-
     for tag_name in tags {
-        let tag_class_id = project_tag_class_ids.get(tag_name).cloned();
-        let id = Uuid::new_v4();
-        crate::tags::insert_or_update_tag(
-            &db.pool,
+        crate::ch::tags::insert_tag(
             clickhouse.clone(),
             *project_id,
-            id,
-            *span_id,
-            tag_class_id,
-            None,
             tag_name.clone(),
             TagSource::CODE,
+            *span_id,
         )
         .await?;
     }
@@ -258,41 +145,15 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     first_in_ids && first_in_path
 }
 
-pub fn prepare_span_for_recording(
-    span: &mut Span,
-    span_usage: &SpanUsage,
-    events: &Vec<Event>,
-) -> TraceAttributes {
-    let mut trace_attributes = TraceAttributes::new(span.trace_id);
-
-    trace_attributes.update_start_time(span.start_time);
-    trace_attributes.update_end_time(span.end_time);
-
+pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, events: &[Event]) -> () {
     events.iter().for_each(|event| {
         // Check if it's an exception event
         if event.name == "exception" {
-            trace_attributes.set_status("error".to_string());
             span.status = Some("error".to_string());
         }
     });
 
-    trace_attributes.update_session_id(span.attributes.session_id());
-    trace_attributes.update_user_id(span.attributes.user_id());
-    trace_attributes.update_trace_type(span.attributes.trace_type());
-    trace_attributes.set_metadata(span.attributes.metadata());
-    trace_attributes.project_id = span.project_id;
-    if let Some(has_browser_session) = span.attributes.has_browser_session() {
-        trace_attributes.set_has_browser_session(has_browser_session);
-    }
-
     if span.span_type == SpanType::LLM {
-        trace_attributes.add_input_cost(span_usage.input_cost);
-        trace_attributes.add_output_cost(span_usage.output_cost);
-        trace_attributes.add_total_cost(span_usage.total_cost);
-
-        trace_attributes.add_input_tokens(span_usage.input_tokens);
-        trace_attributes.add_output_tokens(span_usage.output_tokens);
-        trace_attributes.add_total_tokens(span_usage.total_tokens);
         span.attributes.set_usage(&span_usage);
     }
 
@@ -313,13 +174,7 @@ pub fn prepare_span_for_recording(
         span.parent_span_id = None;
     }
 
-    // Once we've set the parent span id, check if it's the top span
-    if span.parent_span_id.is_none() {
-        trace_attributes.set_top_span_id(span.span_id);
-    }
     span.attributes.update_path();
-
-    trace_attributes
 }
 
 pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>

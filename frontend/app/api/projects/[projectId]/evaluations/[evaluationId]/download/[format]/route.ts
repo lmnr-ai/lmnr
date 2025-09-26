@@ -62,10 +62,10 @@ export async function GET(
 
   const datapoints = chDatapoints.map(datapoint => ({
     ...datapoint,
-    scores: tryParseJson(datapoint.scores) as Record<string, number | null>,
-    data: tryParseJson(datapoint.data),
-    target: tryParseJson(datapoint.target),
-    executorOutput: tryParseJson(datapoint.executorOutput),
+    scores: tryParseJson(datapoint.scores) as Record<string, number | null> ?? datapoint.scores,
+    data: tryParseJson(datapoint.data) ?? datapoint.data,
+    target: tryParseJson(datapoint.target) ?? datapoint.target,
+    executorOutput: tryParseJson(datapoint.executorOutput) ?? datapoint.executorOutput,
   }));
 
   const flattenedResults = datapoints.map(result => {

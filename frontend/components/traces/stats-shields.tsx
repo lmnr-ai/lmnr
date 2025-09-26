@@ -1,8 +1,9 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { compact, get, sortBy, uniq } from "lodash";
+import { compact, get, isNil, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
+import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,16 +13,7 @@ import CodeHighlighter from "../ui/code-highlighter/index";
 import { Label } from "../ui/label";
 
 interface TraceStatsShieldsProps {
-  trace: {
-    startTime: string;
-    endTime: string;
-    totalTokenCount: number;
-    inputTokenCount: number;
-    outputTokenCount: number;
-    inputCost: number | null;
-    outputCost: number | null;
-    cost: number | null;
-  };
+  trace: TraceViewTrace;
   className?: string;
 }
 
@@ -99,8 +91,11 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
 };
 
 const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
-  const aiPromptTools = get(attributes, "ai.prompt.tools");
-  if (aiPromptTools) {
+  if (isNil(attributes)) return [];
+
+  const aiPromptTools = get(attributes, "ai.prompt.tools", []);
+
+  if (aiPromptTools && Array.isArray(aiPromptTools)) {
     try {
       return aiPromptTools.map((tool: any) => ({
         name: get(tool, "name", ""),
@@ -133,23 +128,23 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
 function StatsShieldsContent({
   startTime,
   endTime,
-  totalTokenCount,
-  inputTokenCount,
-  outputTokenCount,
+  totalTokens,
+  inputTokens,
+  outputTokens,
   inputCost,
   outputCost,
-  cost,
+  totalCost,
   className,
   children,
 }: PropsWithChildren<{
   startTime: string;
   endTime: string;
-  totalTokenCount: number;
-  inputTokenCount: number;
-  outputTokenCount: number;
-  inputCost: number | null;
-  outputCost: number | null;
-  cost: number | null;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
   className?: string;
 }>) {
   return (
@@ -165,17 +160,17 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{totalTokenCount}</Label>
+              <Label className="text-xs truncate">{totalTokens}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input tokens</span> {inputTokenCount}
+                  <span className="text-secondary-foreground">Input tokens</span> {inputTokens}
                 </Label>
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output tokens</span> {outputTokenCount}
+                  <span className="text-secondary-foreground">Output tokens</span> {outputTokens}
                 </Label>
               </div>
             </TooltipContent>
@@ -187,14 +182,14 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
               <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{cost?.toFixed(3)}</Label>
+              <Label className="text-xs truncate">{totalCost?.toFixed(3)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Total cost</span> {"$" + cost?.toFixed(5)}
+                  <span className="text-secondary-foreground">Total cost</span> {"$" + totalCost?.toFixed(5)}
                 </Label>
                 <Label className="flex text-xs gap-1">
                   <span className="text-secondary-foreground">Input cost</span> {"$" + inputCost?.toFixed(5)}
@@ -216,12 +211,12 @@ const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren
   <StatsShieldsContent
     startTime={trace.startTime}
     endTime={trace.endTime}
-    totalTokenCount={trace.totalTokenCount}
-    inputTokenCount={trace.inputTokenCount}
-    outputTokenCount={trace.outputTokenCount}
+    totalTokens={trace.totalTokens}
+    inputTokens={trace.inputTokens}
+    outputTokens={trace.outputTokens}
     inputCost={trace.inputCost}
     outputCost={trace.outputCost}
-    cost={trace.cost}
+    totalCost={trace.totalCost}
     className={className}
   >
     {children}
@@ -235,12 +230,12 @@ const SpanStatsShields = ({
   className,
   children,
 }: PropsWithChildren<SpanStatsShieldsProps>) => {
-  const inputTokenCount = attributes["gen_ai.usage.input_tokens"] ?? 0;
-  const outputTokenCount = attributes["gen_ai.usage.output_tokens"] ?? 0;
+  const inputTokenCount = get(attributes, "gen_ai.usage.input_tokens", 0);
+  const outputTokenCount = get(attributes, "gen_ai.usage.output_tokens", 0);
   const totalTokenCount = inputTokenCount + outputTokenCount;
-  const inputCost = attributes["gen_ai.usage.input_cost"] ?? 0;
-  const outputCost = attributes["gen_ai.usage.output_cost"] ?? 0;
-  const cost = attributes["gen_ai.usage.cost"] ?? 0;
+  const inputCost = get(attributes, "gen_ai.usage.input_cost", 0);
+  const outputCost = get(attributes, "gen_ai.usage.output_cost", 0);
+  const cost = get(attributes, "gen_ai.usage.cost", 0);
   const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(attributes);
   const structuredOutputSchema =
@@ -251,12 +246,12 @@ const SpanStatsShields = ({
       <StatsShieldsContent
         startTime={startTime}
         endTime={endTime}
-        totalTokenCount={totalTokenCount}
-        inputTokenCount={inputTokenCount}
-        outputTokenCount={outputTokenCount}
+        totalTokens={totalTokenCount}
+        inputTokens={inputTokenCount}
+        outputTokens={outputTokenCount}
         inputCost={inputCost}
         outputCost={outputCost}
-        cost={cost}
+        totalCost={cost}
         className={className}
       >
         {children}
