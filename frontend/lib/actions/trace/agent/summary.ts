@@ -7,6 +7,7 @@ import { clickhouseClient } from '@/lib/clickhouse/client';
 
 import { getFullTraceForSummary } from './index';
 import { TraceChatPromptSummaryPrompt } from './prompt';
+import { tryParseJson } from '@/lib/utils';
 
 export const TraceSummaryRequestSchema = z.object({
   traceId: z.string().describe('The trace ID to analyze'),
@@ -15,14 +16,22 @@ export const TraceSummaryRequestSchema = z.object({
   projectId: z.string().describe('The project ID'),
 });
 
-const TraceSummarySchema = z.object({
+const TraceSummaryGenerationSchema = z.object({
   summary: z.string().describe('A very concise summary to help user understand what the agent/LLM was tasked to do and what\'s going on in this trace'),
   status: z.string().describe('Either info, warning, or error. info - no need for detailed trace investigation. warning - trace is worth paying attention to, unusual behavior is identified. error - failure to properly follow the original prompt, trace definitely needs detailed investigation'),
   analysis: z.string().describe('Description of things worth investigating: logical failures, suboptimal tool calls, failure to properly follow the prompt, etc. If nothing of substance was detected, simply leave it as an empty string'),
   analysisPreview: z.string().describe('Single sentence to summarize why this trace needs attention. This sentence will be presented to the user to quickly identify traces worth looking at. This should not convey trace specific details, but rather high lever overview of core error or flaw, such: Logical error identified, wrong interpretation of information present on the screen. Empty string if attention is empty.'),
 });
 
-export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> } | undefined> {
+const TraceSummarySchema = z.object({
+  summary: z.string(),
+  status: z.string(),
+  analysis: z.string(),
+  analysisPreview: z.string(),
+  spanIdsMap: z.record(z.string(), z.string()),
+});
+
+export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema> | undefined> {
   const { traceId, projectId } = input;
 
   // Check ClickHouse for existing summary
@@ -48,6 +57,9 @@ export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestS
 
   const data = await result.json<{
     summary: string;
+    status: string;
+    analysis: string;
+    analysisPreview: string;
     spanIdsMap: string;
   }>();
 
@@ -55,14 +67,17 @@ export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestS
     const summaryData = data[0];
     return {
       summary: summaryData.summary || "",
-      spanIdsMap: summaryData.spanIdsMap ? JSON.parse(summaryData.spanIdsMap) : {},
+      status: summaryData.status || "",
+      analysis: summaryData.analysis || "",
+      analysisPreview: summaryData.analysisPreview || "",
+      spanIdsMap: tryParseJson(summaryData.spanIdsMap) || {},
     };
   }
 
   return undefined;
 }
 
-export async function generateTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
+export async function generateTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
   const { traceId, traceStartTime, traceEndTime, projectId } = input;
 
   // Get the full trace data for summary
@@ -78,8 +93,8 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummaryReq
   const result = await generateObject({
     model: google('gemini-2.5-flash'),
     prompt: summaryPrompt,
-    temperature: 0.5,
-    schema: TraceSummarySchema,
+    temperature: 0.75,
+    schema: TraceSummaryGenerationSchema,
     experimental_telemetry: {
       isEnabled: true,
       tracer: getTracer(),
@@ -110,12 +125,15 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummaryReq
 
   return {
     summary,
+    status,
+    analysis,
+    analysisPreview,
     spanIdsMap,
   };
 
 }
 
-export async function generateOrGetTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<{ summary: string, spanIdsMap: Record<string, string> }> {
+export async function generateOrGetTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
 
   const existingSummary = await getTraceSummary(input);
   if (existingSummary) {

@@ -31,28 +31,35 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
-        className={cn("w-1.5 h-8 rounded-sm bg-success", {
+        className={cn("min-h-6 w-1.5 rounded-[2px] bg-success", {
           "bg-destructive": Boolean(row.getValue()),
         })}
       />
     ),
-    accessorKey: "status",
+    accessorFn: (row) => {
+      return row.status === "error" ? "error" : row.analysis_status;
+    },
     header: () => <div />,
     id: "status",
-    size: 33,
+    size: 32,
   },
   {
     cell: (row) => (
       <span
         title={row.row.original.summary}
         className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
-          "line-clamp-2": Boolean(row.getValue()),
+          "line-clamp-4": row.getValue() !== "",
         })}
       >
         {row.row.original.summary}
       </span>
     ),
-    accessorKey: "summary",
+    accessorFn: (row) => {
+      if (row.analysis_preview !== "") {
+        return row.analysis_preview;
+      }
+      return row.summary;
+    },
     header: "Summary",
     id: "summary",
     size: 190,
@@ -311,6 +318,15 @@ export const filters: ColumnFilter[] = [
     dataType: "enum",
     key: "status",
     options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
+  },
+  {
+    name: "Analysis status",
+    dataType: "enum",
+    key: "analysis_status",
+    options: ["info", "warning", "error"].map((v) => ({
       label: capitalize(v),
       value: v,
     })),

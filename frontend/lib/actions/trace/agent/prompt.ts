@@ -13,9 +13,11 @@ For example: \`<span id='29' name='openai.chat' reference_text='Added a new colu
 Please use this format to reference spans in your response.
 </span_reference_format>
 
-Here's the summary of the trace:
+Here's the summary and analysis of the trace:
 <trace_summary>
 {{summary}}
+---
+{{analysis}}
 </trace_summary>
 
 Here's the structure of the trace:

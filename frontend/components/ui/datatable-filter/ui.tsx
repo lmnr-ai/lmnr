@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 interface FilterUIProps {
   columns: ColumnFilter[];
-  quickFilters?: DatatableFilter[];
+  presetFilters?: DatatableFilter[];
   className?: string;
   onAddFilter: (filter: DatatableFilter) => void;
   filters: DatatableFilter[];
@@ -30,7 +30,7 @@ interface FilterUIProps {
 
 const FilterPopover = ({
   columns,
-  quickFilters,
+  presetFilters,
   className,
   onAddFilter,
   filters,
@@ -92,12 +92,12 @@ const FilterPopover = ({
         )}
       </PopoverTrigger>
       <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
-        {!isEmpty(quickFilters) && (
+        {!isEmpty(presetFilters) && (
           <>
             <div className="p-3 border-b bg-muted/30">
               <p className="text-xs font-medium text-muted-foreground mb-2">Quick filters</p>
               <div className="flex flex-wrap gap-2">
-                {map(quickFilters, (presetFilter, index) => {
+                {map(presetFilters, (presetFilter, index) => {
                   const isApplied = filters.some((f) => isEqual(f, presetFilter));
                   const column = find(columns, ["key", presetFilter.column]);
                   const operatorLabel = get(

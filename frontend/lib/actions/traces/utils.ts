@@ -34,6 +34,26 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
         }
       ),
     ],
+    [
+      "analysis_status",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          if (value === "info") {
+            return operator === "eq" ? `analysis_status != 'warning'` : `analysis_status = 'warning'`;
+          } else if (value === "warning") {
+            return operator === "eq" ? `analysis_status = 'warning'` : `analysis_status != 'warning'`;
+          } else if (value === "error") {
+            return operator === "eq" ? `analysis_status = 'error'` : `analysis_status != 'error'`;
+          }
+          return `analysis_status ${OperatorLabelMap[operator]} {${paramKey}:String}`;
+        },
+        (filter, paramKey) => {
+          const { value } = filter;
+          return value === "success" || value === "error" ? {} : { [paramKey]: value };
+        }
+      ),
+    ],
     ["trace_type", createStringFilter],
     [
       "tags",
@@ -101,6 +121,7 @@ const tracesSelectColumns = [
   "total_cost as totalCost",
   "trace_type as traceType",
   "status",
+  "summary",
   "user_id as userId",
 ];
 
@@ -123,11 +144,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -171,11 +192,11 @@ export const buildTracesCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({

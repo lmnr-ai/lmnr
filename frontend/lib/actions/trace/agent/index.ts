@@ -52,8 +52,8 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
 
   const strippedSpans = spans.map((span, index) => ({
     id: index + 1,
-    input: span.input,
-    output: span.output,
+    input: span.type === "LLM" ? span.input : "",
+    output: span.type === "LLM" ? span.output : "",
     parent: spanUuidToId[span.parent],
     status: span.status,
     name: span.name,
@@ -63,9 +63,7 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
   }));
 
   return {
-    stringifiedSpans: YAML.stringify(strippedSpans, {
-
-    }),
+    stringifiedSpans: YAML.stringify(strippedSpans),
     spanIdsMap,
   };
 };

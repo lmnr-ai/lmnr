@@ -25,9 +25,12 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   }
 
   try {
-    const { summary, spanIdsMap } = await observe({ name: "generateTraceSummary" }, async () => await generateOrGetTraceSummary(parseResult.data));
+    const { summary, status, analysis, analysisPreview, spanIdsMap } = await observe({ name: "generateTraceSummary" }, async () => await generateOrGetTraceSummary(parseResult.data));
     return Response.json({
       summary,
+      status,
+      analysis,
+      analysisPreview,
       spanIdsMap,
     });
   } catch (error) {

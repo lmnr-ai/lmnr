@@ -19,9 +19,9 @@ import DateRangeFilter from "../../ui/date-range-filter";
 
 const presetFilters: DatatableFilter[] = [
   {
-    value: "2",
-    column: "duration",
-    operator: Operator.Gt,
+    value: "error",
+    column: "analysis_status",
+    operator: Operator.Eq,
   },
 ];
 
@@ -360,14 +360,14 @@ export default function TracesTable() {
       totalItemsCount={totalCount}
       // enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-      // selectionPanel={(selectedRowIds) => (
-      //   <div className="flex flex-col space-y-2">
-      //     <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
-      //   </div>
-      // )}
+    // selectionPanel={(selectedRowIds) => (
+    //   <div className="flex flex-col space-y-2">
+    //     <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
+    //   </div>
+    // )}
     >
       <div className="flex flex-1 w-full space-x-2">
-        <DataTableFilter quickFilters={presetFilters} columns={filters} />
+        <DataTableFilter presetFilters={presetFilters} columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
         <SearchTracesInput />
