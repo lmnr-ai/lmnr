@@ -1,13 +1,13 @@
 import { google } from '@ai-sdk/google';
 import { getTracer, observe } from '@lmnr-ai/lmnr';
-import { generateObject, generateText } from 'ai';
+import { generateObject } from 'ai';
 import { z } from 'zod';
 
 import { clickhouseClient } from '@/lib/clickhouse/client';
+import { tryParseJson } from '@/lib/utils';
 
 import { getFullTraceForSummary } from './index';
 import { TraceChatPromptSummaryPrompt } from './prompt';
-import { tryParseJson } from '@/lib/utils';
 
 export const TraceSummaryRequestSchema = z.object({
   traceId: z.string().describe('The trace ID to analyze'),

@@ -36,9 +36,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         })}
       />
     ),
-    accessorFn: (row) => {
-      return row.status === "error" ? "error" : row.analysis_status;
-    },
+    accessorFn: (row) => row.status === "error" ? "error" : row.analysis_status,
     header: () => <div />,
     id: "status",
     size: 32,

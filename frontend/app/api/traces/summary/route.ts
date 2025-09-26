@@ -1,10 +1,10 @@
 import { observe } from '@lmnr-ai/lmnr';
 import { prettifyError } from 'zod/v4';
 
-import { executeQuery } from '@/lib/actions/sql';
-import { generateOrGetTraceSummary, TraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
-import { generateTraceSummary } from '@/lib/actions/trace/agent';
 import { checkTraceEligibility } from '@/lib/actions/project/trace-eligibility';
+import { executeQuery } from '@/lib/actions/sql';
+import { generateTraceSummary } from '@/lib/actions/trace/agent';
+import { TraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
 
 /**
  * Internal endpoint for trace summary generation.
