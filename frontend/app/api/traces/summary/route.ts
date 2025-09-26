@@ -46,7 +46,6 @@ export async function POST(req: Request) {
     const hasLlmSpans = llmSpanResult.length > 0 && llmSpanResult[0].llm_span_count > 0;
 
     if (!hasLlmSpans) {
-      console.log(`Skipping trace summary generation for trace ${traceId} - no LLM spans found`);
       return Response.json({
         success: true,
         message: "Skipped - trace contains no LLM spans"
@@ -57,7 +56,6 @@ export async function POST(req: Request) {
     const eligibilityResult = await checkTraceEligibility({ projectId });
 
     if (!eligibilityResult.isEligible) {
-      console.log(`Skipping trace summary generation for trace ${traceId} - ${eligibilityResult.reason}`);
       return Response.json({
         success: true,
         message: `Skipped - ${eligibilityResult.reason}`

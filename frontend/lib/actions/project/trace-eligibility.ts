@@ -1,12 +1,12 @@
-import { and,eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 
 import { cache, PROJECT_CACHE_KEY } from '@/lib/cache';
 import { db } from '@/lib/db/drizzle';
-import { projects,projectSettings } from '@/lib/db/migrations/schema';
+import { projects, projectSettings } from '@/lib/db/migrations/schema';
 
 const CheckTraceEligibilitySchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.uuid(),
 });
 
 export interface TraceEligibilityResult {
