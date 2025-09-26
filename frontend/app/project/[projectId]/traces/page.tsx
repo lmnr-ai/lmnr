@@ -18,12 +18,13 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   const [result] = await executeQuery<{ exists: number }>({
     query: `
         SELECT 1 as exists
-        FROM traces
-        WHERE trace_type = {traceType:String}
+        FROM spans
+        WHERE project_id = {projectId:UUID}
+          AND trace_type = 0
         LIMIT 1
     `,
     parameters: {
-      traceType: "DEFAULT",
+      projectId,
     },
     projectId,
   });
