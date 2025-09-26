@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use crate::{
-    ch::spans::append_tags_to_span,
-    db::{DB, project_api_keys::ProjectApiKey, tags::TagSource},
+    ch::{spans::append_tags_to_span, tags::insert_tag},
+    db::{project_api_keys::ProjectApiKey, tags::TagSource},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
-    tags::create_tag,
 };
 use actix_web::{
     HttpResponse, post,
@@ -41,7 +40,6 @@ pub enum TagRequest {
 #[post("tag")]
 pub async fn tag_trace(
     req: Json<TagRequest>,
-    db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
@@ -90,13 +88,12 @@ pub async fn tag_trace(
     let futures = names
         .iter()
         .map(|name| {
-            create_tag(
-                &db.pool,
+            insert_tag(
                 clickhouse.clone(),
                 project_api_key.project_id,
-                span_id,
                 name.clone(),
                 TagSource::CODE,
+                span_id,
             )
         })
         .collect::<Vec<_>>();

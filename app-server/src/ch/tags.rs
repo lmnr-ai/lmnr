@@ -53,11 +53,11 @@ impl CHTag {
 pub async fn insert_tag(
     client: clickhouse::Client,
     project_id: Uuid,
-    id: Uuid,
     name: String,
     source: TagSource,
     span_id: Uuid,
-) -> Result<()> {
+) -> Result<Uuid> {
+    let id = Uuid::new_v4();
     let tag = CHTag::new(project_id, id, name, source, span_id);
     let ch_insert = client.insert("tags");
     match ch_insert {
@@ -65,7 +65,7 @@ pub async fn insert_tag(
             ch_insert.write(&tag).await?;
             let ch_insert_end_res = ch_insert.end().await;
             match ch_insert_end_res {
-                Ok(_) => Ok(()),
+                Ok(_) => Ok(id),
                 Err(e) => {
                     return Err(anyhow::anyhow!("Clickhouse tag insertion failed: {:?}", e));
                 }

@@ -1,5 +1,7 @@
 import { and, eq } from 'drizzle-orm';
+import { prettifyError, ZodError } from 'zod';
 
+import { createOrUpdateTagClass } from '@/lib/actions/tags';
 import { db } from '@/lib/db/drizzle';
 import { tagClasses } from '@/lib/db/migrations/schema';
 
@@ -11,21 +13,22 @@ export async function POST(
   const params = await props.params;
   const projectId = params.projectId;
   const tagName = params.tagName;
-
   const body = await req.json();
 
-  const result = await db.update(tagClasses).set({
-    name: body.name,
-    color: body.color,
-  }).where(
-    and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId))
-  ).returning();
+  try {
+    const result = await createOrUpdateTagClass({
+      projectId,
+      name: tagName,
+      color: body.color,
+    });
+    return Response.json(result, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
 
-  if (result.length === 0) {
-    return new Response('Tag class not found', { status: 404 });
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return Response.json(result[0], { status: 200 });
 }
 
 export async function DELETE(

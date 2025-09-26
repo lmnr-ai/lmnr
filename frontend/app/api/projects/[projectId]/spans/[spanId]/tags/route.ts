@@ -24,7 +24,7 @@ export async function POST(
   const projectId = params.projectId;
   const spanId = params.spanId;
 
-  const body = (await req.json()) as { classId: string; name: string };
+  const body = (await req.json()) as { name: string };
 
   const res = await addSpanTag({
     spanId,

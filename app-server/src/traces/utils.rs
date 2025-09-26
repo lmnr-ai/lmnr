@@ -95,8 +95,7 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-pub async fn record_tags_to_db_and_ch(
-    db: Arc<DB>,
+pub async fn record_tags(
     clickhouse: clickhouse::Client,
     tags: &[String],
     span_id: &Uuid,
@@ -107,13 +106,12 @@ pub async fn record_tags_to_db_and_ch(
     }
 
     for tag_name in tags {
-        crate::tags::create_tag(
-            &db.pool,
+        crate::ch::tags::insert_tag(
             clickhouse.clone(),
             *project_id,
-            *span_id,
             tag_name.clone(),
             TagSource::CODE,
+            *span_id,
         )
         .await?;
     }
