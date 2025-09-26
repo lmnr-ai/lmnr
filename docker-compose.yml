@@ -9,6 +9,8 @@ services:
   postgres:
     image: postgres:16
     pull_policy: always
+    ports:
+      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
@@ -101,6 +103,8 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUERY_ENGINE_URL: http://query-engine:8903
