@@ -87,10 +87,10 @@ const checkboxColumn = <TData,>(
         }}
       />
     ),
-    size: 24,
+    size: 52,
     cell: ({ row }) => (
       <Checkbox
-        className={cn("border border-secondary mt-1")}
+        className={cn("border border-secondary")}
         checked={row.getIsSelected()}
         onCheckedChange={(checked) => {
           if (!checked) {
@@ -178,7 +178,7 @@ export function DataTable<TData>({
       },
     },
     defaultColumn: {
-      minSize: 54,
+      minSize: 32,
     },
     state: {
       rowSelection:
@@ -220,21 +220,16 @@ export function DataTable<TData>({
     >
       {row.getVisibleCells().map((cell: any, index) => (
         <TableCell
-          className="relative p-0 m-0"
+          className="relative px-4 m-0 truncate h-full my-auto"
           key={cell.id}
           style={{
-            height: "38px",
             width: cell.column.getSize(),
           }}
         >
           {row.getIsSelected() && index === 0 && (
             <div className="border-l-2 border-l-primary absolute h-full left-0 top-0"></div>
           )}
-          <div className="absolute inset-0 items-center h-full flex px-4">
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </div>
-          </div>
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </TableCell>
       ))}
       <TableCell className="flex-1"></TableCell>
@@ -256,11 +251,12 @@ export function DataTable<TData>({
                 colSpan={header.colSpan}
                 style={{
                   width: header.getSize(),
+                  minWidth: header.getSize(),
                 }}
-                className="p-0 m-0 relative"
+                className="m-0 relative text-secondary-foreground truncate"
                 key={header.id}
               >
-                <div className="absolute inset-0 items-center h-full border-r flex px-4 group">
+                <div className="absolute inset-0 items-center h-full border-r flex group px-4">
                   <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
                     {flexRender(header.column.columnDef.header, header.getContext())}
                     <div
@@ -278,7 +274,7 @@ export function DataTable<TData>({
           </TableRow>
         ))}
       </TableHeader>
-      <TableBody className="">
+      <TableBody>
         {table.getRowModel().rows.length > 0 ? (
           table.getRowModel().rows.map(renderRow)
         ) : data !== undefined ? (

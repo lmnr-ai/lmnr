@@ -90,7 +90,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   ]);
 
   return {
-    items: items,
+    items,
     count: count?.count || 0,
   };
 }

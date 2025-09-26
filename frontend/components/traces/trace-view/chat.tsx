@@ -180,8 +180,18 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
 
         if (response.ok) {
           const data = await response.json();
-          setSummary(data.summary);
-          setSpanIdsMap(data.spanIdsMap);
+
+          const { summary, analysis, spanIdsMap } = data;
+
+          const summaryAndAnalysis = `
+${summary}
+
+---
+
+${analysis}`;
+
+          setSummary(summaryAndAnalysis);
+          setSpanIdsMap(spanIdsMap);
         } else {
           console.error("Failed to fetch summary");
         }

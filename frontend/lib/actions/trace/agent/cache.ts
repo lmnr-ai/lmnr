@@ -190,7 +190,7 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
 
   const cacheKey = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
 
-  await cache.set(cacheKey, spansWithEventsParsed, 'EX', 60 * 60 * 24);
+  await cache.set(cacheKey, spansWithEventsParsed, 'EX', 60 * 60);
 
   return spansWithEventsParsed as CacheSpan[];
 };

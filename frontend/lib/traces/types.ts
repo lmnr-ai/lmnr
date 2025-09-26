@@ -124,12 +124,16 @@ export type TraceRow = {
   outputCost: number;
   totalCost: number;
 
+  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
   userId?: string;
   status: string;
   tags: string[];
+  analysis_status?: string;
+  analysis_preview?: string;
+  analysis?: string;
 };
 
 export type RealtimeTracePayload = {

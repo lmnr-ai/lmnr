@@ -9,13 +9,21 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
 
 import { DataTable } from "../../ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "../../ui/datatable-filter";
 import DateRangeFilter from "../../ui/date-range-filter";
+
+const presetFilters: DatatableFilter[] = [
+  // {
+  //   value: "error",
+  //   column: "analysis_status",
+  //   operator: Operator.Eq,
+  // },
+];
 
 export default function TracesTable() {
   const searchParams = useSearchParams();
@@ -256,9 +264,16 @@ export default function TracesTable() {
     if (pastHours || startDate || endDate) {
       getTraces();
     } else {
-      // Set default parameters only once without triggering getTraces again
       const sp = new URLSearchParams(searchParams.toString());
       sp.set("pastHours", "24");
+
+      const currentFilters = searchParams.getAll("filter");
+      if (currentFilters.length === 0 && presetFilters.length > 0) {
+        presetFilters.forEach((filter) => {
+          sp.append("filter", JSON.stringify(filter));
+        });
+      }
+
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [
@@ -343,16 +358,16 @@ export default function TracesTable() {
       defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
-      enableRowSelection
+      // enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-      selectionPanel={(selectedRowIds) => (
-        <div className="flex flex-col space-y-2">
-          <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
-        </div>
-      )}
+    // selectionPanel={(selectedRowIds) => (
+    //   <div className="flex flex-col space-y-2">
+    //     <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
+    //   </div>
+    // )}
     >
       <div className="flex flex-1 w-full space-x-2">
-        <DataTableFilter columns={filters} />
+        <DataTableFilter presetFilters={presetFilters} columns={filters} />
         <DateRangeFilter />
         <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
         <SearchTracesInput />

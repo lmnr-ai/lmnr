@@ -30,7 +30,7 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     parts: userMessage?.parts,
   });
 
-  const { summary } = await generateTraceSummary({
+  const { summary, status, analysis, analysisPreview } = await generateTraceSummary({
     traceId,
     traceStartTime,
     traceEndTime,
@@ -46,7 +46,8 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
 
   const prompt = TraceChatPrompt
     .replace('{{structure}}', traceStructure)
-    .replace('{{summary}}', summary);
+    .replace('{{summary}}', summary)
+    .replace('{{analysis}}', analysis);
 
   const result = streamText({
     model: google('gemini-2.5-flash'),

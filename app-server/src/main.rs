@@ -35,7 +35,8 @@ use storage::{Storage, mock::MockStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, pro
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, consumer::process_queue_spans,
-    grpc_service::ProcessTracesService,
+    grpc_service::ProcessTracesService, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
+    summary::process_trace_summaries,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -298,6 +299,31 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.5 Trace summary message queue ====
+            channel
+                .exchange_declare(
+                    TRACE_SUMMARY_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    TRACE_SUMMARY_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
 
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
@@ -324,11 +350,13 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
         // ==== 3.4 Payloads message queue ====
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
+        // ==== 3.5 Trace summary message queue ====
+        queue.register_queue(TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
 
-    // ==== 3.5 Agent worker message queue ====
+    // ==== 3.6 Agent worker message queue ====
     let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
 
     // ==== 3.6 SSE connections map ====
@@ -505,12 +533,19 @@ fn main() -> anyhow::Result<()> {
                         .parse::<u8>()
                         .unwrap_or(2);
 
+                let num_trace_summary_workers_per_thread =
+                    env::var("NUM_TRACE_SUMMARY_WORKERS_PER_THREAD")
+                        .unwrap_or(String::from("2"))
+                        .parse::<u8>()
+                        .unwrap_or(2);
+
                 log::info!(
-                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}, Payload workers per thread: {}",
+                    "Spans workers per thread: {}, Browser events workers per thread: {}, Evaluators workers per thread: {}, Payload workers per thread: {}, Trace summary workers per thread: {}",
                     num_spans_workers_per_thread,
                     num_browser_events_workers_per_thread,
                     num_evaluators_workers_per_thread,
-                    num_payload_workers_per_thread
+                    num_payload_workers_per_thread,
+                    num_trace_summary_workers_per_thread
                 );
 
                 HttpServer::new(move || {
@@ -547,6 +582,12 @@ fn main() -> anyhow::Result<()> {
                     for _ in 0..num_payload_workers_per_thread {
                         tokio::spawn(process_payloads(
                             storage.clone(),
+                            mq_for_http.clone(),
+                        ));
+                    }
+
+                    for _ in 0..num_trace_summary_workers_per_thread {
+                        tokio::spawn(process_trace_summaries(
                             mq_for_http.clone(),
                         ));
                     }

@@ -8,10 +8,11 @@ import { ColumnFilter, DatatableFilter } from "@/components/ui/datatable-filter/
 
 interface FilterProps {
   columns: ColumnFilter[];
+  presetFilters?: DatatableFilter[];
   className?: string;
 }
 
-const DataTableFilter = ({ columns, className }: FilterProps) => {
+const DataTableFilter = ({ columns, presetFilters, className }: FilterProps) => {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -39,7 +40,15 @@ const DataTableFilter = ({ columns, className }: FilterProps) => {
     [pathName, router, searchParams]
   );
 
-  return <FilterPopover columns={columns} className={className} filters={filters} onAddFilter={handleAddFilter} />;
+  return (
+    <FilterPopover
+      presetFilters={presetFilters}
+      columns={columns}
+      className={className}
+      filters={filters}
+      onAddFilter={handleAddFilter}
+    />
+  );
 };
 
 const PureDataTableFilterList = () => {
@@ -75,7 +84,7 @@ const PureDataTableFilterList = () => {
   return <FilterList filters={filters} onRemoveFilter={handleRemoveFilter} />;
 };
 
-export const PureStatefulFilter = ({ columns, className, children }: PropsWithChildren<FilterProps>) => {
+export const PureStatefulFilter = ({ columns, presetFilters: presetFilters, className, children }: PropsWithChildren<FilterProps>) => {
   const { value: filters, onChange } = useFiltersContextProvider();
 
   const handleAddFilter = useCallback(
@@ -86,7 +95,13 @@ export const PureStatefulFilter = ({ columns, className, children }: PropsWithCh
   );
 
   return (
-    <FilterPopover columns={columns} className={className} filters={filters} onAddFilter={handleAddFilter}>
+    <FilterPopover
+      presetFilters={presetFilters}
+      columns={columns}
+      className={className}
+      filters={filters}
+      onAddFilter={handleAddFilter}
+    >
       {children}
     </FilterPopover>
   );

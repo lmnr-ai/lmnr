@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -30,19 +30,40 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
 export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
-      <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() ? (
-          <X className="self-center text-destructive" size={18} />
-        ) : (
-          <Check className="text-success" size={18} />
-        )}
-      </div>
+      <div
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
+          "bg-destructive": row.getValue() === "error",
+          "": row.getValue() === "info", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning", // temporary color values
+        })}
+      />
     ),
-    accessorKey: "status",
-    header: "Status",
+    accessorFn: (row) => row.status === "error" ? "error" : row.analysis_status,
+    header: () => <div />,
     id: "status",
-    size: 70,
+    size: 32,
   },
+  // {
+  //   cell: (row) => (
+  //     <span
+  //       title={row.row.original.summary}
+  //       className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
+  //         "line-clamp-4": row.getValue() !== "",
+  //       })}
+  //     >
+  //       {row.row.original.summary}
+  //     </span>
+  //   ),
+  //   accessorFn: (row) => {
+  //     if (row.analysis_preview !== "") {
+  //       return row.analysis_preview;
+  //     }
+  //     return row.summary;
+  //   },
+  //   header: "Summary",
+  //   id: "summary",
+  //   size: 190,
+  // },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "ID",
@@ -297,6 +318,15 @@ export const filters: ColumnFilter[] = [
     dataType: "enum",
     key: "status",
     options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
+  },
+  {
+    name: "Analysis status",
+    dataType: "enum",
+    key: "analysis_status",
+    options: ["info", "warning", "error"].map((v) => ({
       label: capitalize(v),
       value: v,
     })),

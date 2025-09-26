@@ -29,6 +29,7 @@ export function CopyButton({
   const copyToClipboard = async (e: MouseEvent<HTMLButtonElement>) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       await navigator.clipboard.writeText(text);
       setCopied(true);
 

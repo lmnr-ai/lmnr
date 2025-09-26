@@ -3,13 +3,17 @@
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use chrono::Duration;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use rayon::prelude::*;
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    summary::push_to_trace_summary_queue,
+};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -227,7 +231,7 @@ async fn process_batch(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
-    evaluators_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     sse_connections: SseConnectionMap,
 ) {
     let mut span_usage_vec = Vec::new();
@@ -298,6 +302,33 @@ async fn process_batch(
                 e
             );
         });
+    }
+
+    // Check for completed traces (top-level spans) and push to trace summary queue
+    for span in &spans {
+        if span.parent_span_id.is_none() {
+            // This is a top-level span, meaning the trace is completed
+            // Add 24-hour buffer to start and end times
+            let trace_start_time = span.start_time - Duration::hours(24);
+            let trace_end_time = span.end_time + Duration::hours(24);
+
+            if let Err(e) = push_to_trace_summary_queue(
+                span.trace_id,
+                span.project_id,
+                trace_start_time,
+                trace_end_time,
+                queue.clone(),
+            )
+            .await
+            {
+                log::error!(
+                    "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
+                    span.trace_id,
+                    span.project_id,
+                    e
+                );
+            }
+        }
     }
 
     // Send realtime messages directly to SSE connections after successful ClickHouse writes
@@ -376,7 +407,7 @@ async fn process_batch(
                             span.project_id,
                             evaluator.id,
                             span_output.clone(),
-                            evaluators_queue.clone(),
+                            queue.clone(),
                         )
                         .await
                         {
