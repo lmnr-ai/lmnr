@@ -20,6 +20,9 @@ jobs:
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
             image: ghcr.io/lmnr-ai/frontend
+          - dockerfile: ./query-engine/Dockerfile
+            context: ./query-engine
+            image: ghcr.io/lmnr-ai/query-engine
     permissions:
       contents: read
       packages: write

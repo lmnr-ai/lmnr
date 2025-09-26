@@ -54,6 +54,20 @@ services:
       timeout: 5s
       retries: 5
 
+  query-engine:
+    build:
+      context: ./query-engine
+    container_name: query-engine
+    ports:
+      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
+    environment:
+      PORT: 8903
+    healthcheck:
+      test: ["CMD", "sleep", "5"]
+      interval: 10s
+      timeout: 6s
+      retries: 1
+
   app-server:
     ports:
       - "${APP_SERVER_HOST_PORT:-8000}:8000"
@@ -68,6 +82,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      query-engine:
+        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -77,8 +93,11 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_RO_USER: ${CLICKHOUSE_RO_USER}
+      CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUERY_ENGINE_URL: http://query-engine:8903
 
   frontend:
     build:
