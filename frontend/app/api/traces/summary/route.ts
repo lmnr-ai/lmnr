@@ -41,8 +41,8 @@ export async function POST(req: Request) {
       query: llmSpanCheckQuery,
       parameters: {
         traceId,
-        startTime: traceStartTime,
-        endTime: traceEndTime,
+        startTime: traceStartTime.replace("Z", ""),
+        endTime: traceEndTime.replace("Z", ""),
       }
     });
 
