@@ -1,7 +1,6 @@
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use uuid::Uuid;
 
 #[derive(sqlx::Type, Serialize, Deserialize, Clone, PartialEq)]
@@ -49,19 +48,4 @@ pub struct SpanTag {
     pub updated_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
     pub user_email: Option<String>,
-}
-
-pub async fn insert_tag_class(pool: &PgPool, project_id: Uuid, tag_name: &String) -> Result<()> {
-    sqlx::query(
-        "
-    INSERT INTO tag_classes (project_id, name)
-    VALUES ($1, $2)
-    ON CONFLICT (project_id, name) DO NOTHING
-    ",
-    )
-    .bind(project_id)
-    .bind(tag_name)
-    .execute(pool)
-    .await?;
-    Ok(())
 }

@@ -1,8 +1,12 @@
 
+import { sample } from "lodash";
 import z from "zod";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { dateToNanoseconds } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { tagClasses } from "@/lib/db/migrations/schema";
+import { defaultColors } from "@/lib/tags/colors";
 import { generateUuid } from "@/lib/utils";
 
 const AddSpanTagSchema = z.object({
@@ -57,7 +61,6 @@ export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promi
       },
     ],
   });
-
   await addTagToCHSpan({ spanId, projectId, tag: name });
   return {
     spanId,
@@ -165,4 +168,39 @@ export const getSpanTags = async (input: z.infer<typeof GetSpanTagsSchema>): Pro
     id: tag.id,
     createdAt: tag.created_at,
   }));
+};
+
+
+const CreateOrUpdateTagClassSchema = z.object({
+  projectId: z.string(),
+  name: z.string(),
+  color: z.string().optional(),
+});
+
+const CreateOrUpdateTagClassReturnSchema = z.object({
+  name: z.string(),
+  color: z.string(),
+});
+
+export const createOrUpdateTagClass = async (input: z.infer<typeof CreateOrUpdateTagClassSchema>): Promise<z.infer<typeof CreateOrUpdateTagClassReturnSchema>> => {
+  const parseResult = CreateOrUpdateTagClassSchema.parse(input);
+  const { projectId, name, color } = parseResult;
+
+  const newColor = color ?? sample(defaultColors)!.color;
+
+  const result = await db.insert(tagClasses).values({
+    projectId,
+    name,
+    color: newColor,
+  }).onConflictDoUpdate({
+    target: [tagClasses.name, tagClasses.projectId],
+    set: {
+      color: newColor,
+    },
+  }).returning();
+
+  return {
+    name: result[0].name,
+    color: result[0].color,
+  };
 };

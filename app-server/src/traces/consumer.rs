@@ -28,7 +28,7 @@ use crate::{
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
-        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags_to_db_and_ch},
+        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags},
     },
 };
 
@@ -346,8 +346,7 @@ async fn process_batch(
     }
 
     for span in &stripped_spans {
-        if let Err(e) = record_tags_to_db_and_ch(
-            db.clone(),
+        if let Err(e) = record_tags(
             clickhouse.clone(),
             &span.tags,
             &span.span_id,
