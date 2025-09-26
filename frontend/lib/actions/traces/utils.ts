@@ -40,7 +40,7 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const { operator, value } = filter;
           if (value === "info") {
-            return operator === "eq" ? `analysis_status != 'warning'` : `analysis_status = 'warning'`;
+            return operator === "eq" ? `analysis_status = 'info'` : `analysis_status != 'info'`;
           } else if (value === "warning") {
             return operator === "eq" ? `analysis_status = 'warning'` : `analysis_status != 'warning'`;
           } else if (value === "error") {
@@ -144,11 +144,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -192,11 +192,11 @@ export const buildTracesCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
