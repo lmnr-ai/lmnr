@@ -340,12 +340,6 @@ export const tryParseJson = (value: string) => {
   }
 };
 
-// Add 1 second to end time to cover case with rounding of end time, because of conversion clickhouse and js date time formats.
-export const formatEndTimeForQuery = (endTime: string): string => {
-  const endTimeWithBuffer = new Date(new Date(endTime).getTime() + 1000).toISOString();
-  return endTimeWithBuffer.replace("Z", "");
-};
-
 export const generateUuid = (): string => {
   try {
     return crypto.randomUUID();

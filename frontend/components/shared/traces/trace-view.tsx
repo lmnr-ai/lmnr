@@ -234,7 +234,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
               </div>
               {selectedSpan && (
                 <div className="flex-grow overflow-hidden flex-wrap">
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} trace={trace} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
                 </div>
               )}
             </ResizablePanel>

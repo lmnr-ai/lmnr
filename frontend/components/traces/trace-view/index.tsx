@@ -488,7 +488,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     key={selectedSpan.spanId}
                   />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} trace={trace} />
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
                 )
               ) : (
                 <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
