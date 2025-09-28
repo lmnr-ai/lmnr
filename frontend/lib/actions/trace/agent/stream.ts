@@ -3,7 +3,7 @@ import { getTracer } from '@lmnr-ai/lmnr';
 import { convertToModelMessages, smoothStream, stepCountIs, streamText, tool, UIMessage } from 'ai';
 import { z } from 'zod';
 
-import { generateTraceSummary, getSpansData, getTraceStructure } from './index';
+import { generateTraceSummary, getSpansDataAsYAML, getTraceStructureAsYAML } from './index';
 import { findOrCreateChatSession, saveChatMessage } from './messages';
 import { TraceChatPrompt } from './prompt';
 
@@ -37,7 +37,7 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     projectId,
   });
 
-  const traceStructure = await getTraceStructure({
+  const traceStructure = await getTraceStructureAsYAML({
     projectId,
     traceId,
     startTime: traceStartTime,
@@ -61,7 +61,7 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
           spanIds: z.array(z.int()).describe('List of span ids to get the data for'),
         }),
         execute: async ({ spanIds }) => {
-          const spansData = await getSpansData({
+          const spansData = await getSpansDataAsYAML({
             projectId,
             traceId,
             startTime: traceStartTime,

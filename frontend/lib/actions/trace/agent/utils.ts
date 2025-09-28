@@ -1,4 +1,4 @@
-import { CacheSpan } from "./cache";
+import { Span } from "./spans";
 
 /**
  * Represents a message in a conversation
@@ -143,7 +143,7 @@ const areMessagesFromSameThread = (messages1: ChatMessage[], messages2: ChatMess
 /**
  * Processes spans to replace base64 images with placeholders
  */
-export const replaceBase64ImagesInSpans = (spans: CacheSpan[]): CacheSpan[] =>
+export const replaceBase64ImagesInSpans = (spans: Span[]): Span[] =>
   spans.map((span) => ({
     ...span,
     input: replaceBase64Images(span.input),
@@ -155,7 +155,7 @@ export const replaceBase64ImagesInSpans = (spans: CacheSpan[]): CacheSpan[] =>
  * Also replaces base64 images with placeholders.
  * Modifies spans in-place to preserve original ordering.
  */
-export const deduplicateSpanContent = (spans: CacheSpan[]): CacheSpan[] => {
+export const deduplicateSpanContent = (spans: Span[]): Span[] => {
   // First replace base64 images in all spans
   const spansWithBase64Replaced = replaceBase64ImagesInSpans(spans);
 
