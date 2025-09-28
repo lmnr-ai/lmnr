@@ -2,13 +2,12 @@ import { groupBy } from "lodash";
 import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
-import { cache, TRACE_CHATS_CACHE_KEY } from "@/lib/cache";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
-import { GetTraceStructureSchema } from ".";
+import { GetTraceStructureSchema } from "./index";
 import { deduplicateSpanContent, replaceBase64ImagesInSpans } from "./utils";
 
-const ClickHouseToCacheSpanSchema = z.object({
+const ClickHouseToSpanSchema = z.object({
   span_id: z.string(),
   start_time: z.string(),
   end_time: z.string(),
@@ -84,7 +83,7 @@ interface SpanEvent {
 
 const isErrorEvent = (event: SpanEvent) => event.name === "exception" && Object.keys(event.attributes).some((key) => key.startsWith("exception."));
 
-export interface CacheSpan {
+export interface Span {
   spanId: string,
   type: string,
   start: string,
@@ -119,7 +118,7 @@ interface SpanStructure {
   status: string;
 };
 
-const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<CacheSpan[]> => {
+const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<Span[]> => {
   const { projectId, traceId, startTime, endTime } = input;
 
   const spans = await executeQuery({
@@ -186,25 +185,13 @@ const fetchFullTraceSpansToCache = async (input: z.infer<typeof GetTraceStructur
     events: eventsMap[span.span_id as string] || [],
   }));
 
-  const spansWithEventsParsed = ClickHouseToCacheSpanSchema.array().parse(spansWithEvents);
+  const spansWithEventsParsed = ClickHouseToSpanSchema.array().parse(spansWithEvents);
 
-  const cacheKey = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
-
-  await cache.set(cacheKey, spansWithEventsParsed, 'EX', 60 * 60);
-
-  return spansWithEventsParsed as CacheSpan[];
+  return spansWithEventsParsed;
 };
 
-export const getTraceStructureFromCache = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<SpanStructure[]> => {
-  const { projectId, traceId } = input;
-
-  const key = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
-
-  let allData = await cache.get<CacheSpan[]>(key);
-
-  if (!allData) {
-    allData = await fetchFullTraceSpansToCache(input);
-  }
+export const getTraceStructure = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<SpanStructure[]> => {
+  const allData = await fetchFullTraceSpans(input);
 
   const spanIdToId = allData.reduce((acc, span, index) => {
     acc[span.spanId] = index + 1;
@@ -228,16 +215,8 @@ interface SpanData {
   errorEvents: SpanEvent[];
 }
 
-export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStructureSchema>, ids: number[]): Promise<SpanData[]> => {
-  const { projectId, traceId, startTime, endTime } = input;
-
-  const key = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
-
-  let allData = await cache.get<CacheSpan[]>(key);
-
-  if (!allData) {
-    allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
-  }
+export const getSpansData = async (input: z.infer<typeof GetTraceStructureSchema>, ids: number[]): Promise<SpanData[]> => {
+  const allData = await fetchFullTraceSpans(input);
 
   const processedData = replaceBase64ImagesInSpans(allData);
 
@@ -250,16 +229,8 @@ export const getSpansDataFromCache = async (input: z.infer<typeof GetTraceStruct
   })).filter((span) => ids.includes(span.id));
 };
 
-export const getFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<CacheSpan[]> => {
-  const { projectId, traceId, startTime, endTime } = input;
-
-  const key = `${TRACE_CHATS_CACHE_KEY}:${projectId}:${traceId}`;
-
-  let allData = await cache.get<CacheSpan[]>(key);
-
-  if (!allData) {
-    allData = await fetchFullTraceSpansToCache({ projectId, traceId, startTime, endTime });
-  }
+export const getFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<Span[]> => {
+  const allData = await fetchFullTraceSpans(input);
 
   return deduplicateSpanContent(allData);
 };
