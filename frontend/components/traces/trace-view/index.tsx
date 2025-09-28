@@ -199,11 +199,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           setSearchEnabled(true);
         }
 
-        if (trace) {
-          params.set("startTime", trace.startTime);
-          params.set("endTime", trace?.endTime);
-        }
-
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
         const results = (await response.json()) as TraceViewSpan[];
@@ -302,9 +297,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     const searchTerm = searchParams.get("search") || search || "";
     const searchIn = searchParams.getAll("searchIn");
 
-    if (trace) {
-      fetchSpans(searchTerm, searchIn, filters);
-    }
+    fetchSpans(searchTerm, searchIn, filters);
 
     return () => {
       setSpans([]);
@@ -312,7 +305,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSearch("");
       setSearchEnabled(false);
     };
-  }, [traceId, trace, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
+  }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
 
   useEffect(() => {
     if (!traceId || !projectId) {
