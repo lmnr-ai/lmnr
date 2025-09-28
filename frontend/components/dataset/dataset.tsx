@@ -4,8 +4,7 @@ import { ColumnDef, Row } from "@tanstack/react-table";
 import { Pen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useEffect, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +12,6 @@ import { DataTable } from "@/components/ui/datatable";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import DownloadButton from "../ui/download-button";
@@ -36,7 +33,7 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorKey: "createdAt",
     header: "Created at",
     size: 150,
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(`${row.getValue()}Z`)} />,
   },
   {
     accessorFn: (row) => row.data,
@@ -60,6 +57,8 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(undefined);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const { toast } = useToast();
 
   const datapointId = searchParams.get("datapointId");
@@ -77,18 +76,28 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   const pageNumber = parseNumericSearchParam("pageNumber", 0);
   const pageSize = Math.max(parseNumericSearchParam("pageSize", 50), 1);
 
-  const { data, mutate } = useSWR<PaginatedResponse<Datapoint>>(
-    `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` + `?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-    swrFetcher
-  );
+  const getDatapoints = async () => {
+    const params = new URLSearchParams();
+    params.set("pageNumber", pageNumber.toString());
+    params.set("pageSize", pageSize.toString());
+    const response = await fetch(
+      `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` + `?${params.toString()}`,
+      {
+        method: "GET",
+      }
+    );
+    const data = await response.json();
 
-  const { datapoints, totalCount } = useMemo<{ datapoints: Datapoint[] | undefined; totalCount: number }>(
-    () => ({
-      datapoints: data?.items || undefined,
-      totalCount: data?.totalCount || 0,
-    }),
-    [data?.items, data?.totalCount]
-  );
+    setDatapoints(data.items || undefined);
+    setTotalCount(data.totalCount || 0);
+  };
+
+  useEffect(() => {
+    getDatapoints();
+    return () => {
+      setDatapoints(undefined);
+    };
+  }, [pageNumber, pageSize]);
 
   const pageCount = Math.ceil(totalCount / pageSize);
 
@@ -129,7 +138,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
             title: "Datapoints deleted",
             description: `Successfully deleted ${datapointIds.length} datapoint(s).`,
           });
-          mutate();
+          getDatapoints();
         }
 
         if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
@@ -142,7 +151,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
         });
       }
     },
-    [dataset.id, handleDatapointSelect, mutate, projectId, selectedDatapoint, toast]
+    [dataset.id, handleDatapointSelect, getDatapoints, projectId, selectedDatapoint, toast]
   );
 
   const onPageChange = useCallback(
@@ -179,8 +188,8 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
             filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, "_")}-${dataset.id}`}
             variant="outline"
           />
-          <AddDatapointsDialog datasetId={dataset.id} onUpdate={mutate} />
-          <ManualAddDatapoint datasetId={dataset.id} onUpdate={mutate} />
+          <AddDatapointsDialog datasetId={dataset.id} onUpdate={getDatapoints} />
+          <ManualAddDatapoint datasetId={dataset.id} onUpdate={getDatapoints} />
           <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
             <Badge className="cursor-pointer py-1 px-2" variant="secondary">
               <Pen className="size-3 min-w-3" />
@@ -239,7 +248,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
                 datapointId={selectedDatapoint.id}
                 onClose={() => {
                   handleDatapointSelect(null);
-                  mutate();
+                  getDatapoints();
                 }}
               />
             </div>
