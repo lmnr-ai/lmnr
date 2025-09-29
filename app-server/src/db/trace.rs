@@ -25,8 +25,14 @@ pub struct Trace {
     start_time: Option<DateTime<Utc>>,
     #[serde(default)]
     end_time: Option<DateTime<Utc>>,
+    #[sqlx(rename = "type")]
+    trace_type: i16,
+    top_span_id: Option<Uuid>,
+    top_span_name: Option<String>,
+    top_span_type: Option<i16>,
     session_id: Option<String>,
     metadata: Option<Value>,
+    user_id: Option<String>,
     input_token_count: i64,
     output_token_count: i64,
     total_token_count: i64,
@@ -50,8 +56,23 @@ impl Trace {
     pub fn end_time(&self) -> Option<DateTime<Utc>> {
         self.end_time
     }
+    pub fn trace_type(&self) -> i16 {
+        self.trace_type
+    }
+    pub fn top_span_id(&self) -> Option<Uuid> {
+        self.top_span_id
+    }
+    pub fn top_span_name(&self) -> Option<String> {
+        self.top_span_name.clone()
+    }
+    pub fn top_span_type(&self) -> Option<i16> {
+        self.top_span_type
+    }
     pub fn session_id(&self) -> Option<String> {
         self.session_id.clone()
+    }
+    pub fn user_id(&self) -> Option<String> {
+        self.user_id.clone()
     }
     pub fn metadata(&self) -> Option<&Value> {
         self.metadata.as_ref()
@@ -88,30 +109,6 @@ impl Trace {
     }
 }
 
-/// Set the trace_type for a specific trace (creates trace if it doesn't exist)
-pub async fn update_trace_type(
-    pool: &PgPool,
-    project_id: &Uuid,
-    trace_id: Uuid,
-    trace_type: TraceType,
-) -> Result<()> {
-    // Use upsert pattern - create trace with EVALUATION type if it doesn't exist,
-    // or update existing trace to EVALUATION type
-    sqlx::query(
-        "INSERT INTO traces (id, project_id, trace_type, input_token_count, output_token_count, total_token_count, input_cost, output_cost, cost)
-         VALUES ($1, $2, $3, 0, 0, 0, 0.0, 0.0, 0.0)
-         ON CONFLICT(id) DO UPDATE
-         SET trace_type = $3"
-    )
-    .bind(trace_id)
-    .bind(project_id)
-    .bind(trace_type)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 /// Upsert trace statistics from aggregated span data
 /// Returns the updated trace statistics
 pub async fn upsert_trace_statistics_batch(
@@ -132,8 +129,13 @@ pub async fn upsert_trace_statistics_batch(
                 project_id, 
                 start_time, 
                 end_time, 
+                type,
+                top_span_id,
+                top_span_name,
+                top_span_type,
                 session_id, 
                 metadata, 
+                user_id,
                 input_token_count, 
                 output_token_count, 
                 total_token_count, 
@@ -144,12 +146,17 @@ pub async fn upsert_trace_statistics_batch(
                 tags,
                 num_spans
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-            ON CONFLICT (id) DO UPDATE SET
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
+                type = COALESCE(EXCLUDED.type, traces.type, 0),
+                top_span_id = COALESCE(EXCLUDED.top_span_id, traces.top_span_id),
+                top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
+                top_span_type = COALESCE(EXCLUDED.top_span_type, traces.top_span_type),
                 session_id = COALESCE(EXCLUDED.session_id, traces.session_id),
                 metadata = COALESCE(EXCLUDED.metadata, traces.metadata),
+                user_id = COALESCE(EXCLUDED.user_id, traces.user_id),
                 input_token_count = traces.input_token_count + EXCLUDED.input_token_count,
                 output_token_count = traces.output_token_count + EXCLUDED.output_token_count,
                 total_token_count = traces.total_token_count + EXCLUDED.total_token_count,
@@ -164,8 +171,13 @@ pub async fn upsert_trace_statistics_batch(
                 project_id, 
                 start_time, 
                 end_time, 
+                type,
+                top_span_id,
+                top_span_name,
+                top_span_type,
                 session_id, 
                 metadata, 
+                user_id,
                 input_token_count, 
                 output_token_count, 
                 total_token_count, 
@@ -181,8 +193,13 @@ pub async fn upsert_trace_statistics_batch(
         .bind(agg.project_id)
         .bind(agg.start_time)
         .bind(agg.end_time)
+        .bind(agg.trace_type as i16)
+        .bind(agg.top_span_id)
+        .bind(&agg.top_span_name)
+        .bind(agg.top_span_type as i16)
         .bind(&agg.session_id)
         .bind(&agg.metadata)
+        .bind(&agg.user_id)
         .bind(agg.input_tokens)
         .bind(agg.output_tokens)
         .bind(agg.total_tokens)

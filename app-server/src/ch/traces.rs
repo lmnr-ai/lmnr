@@ -34,19 +34,12 @@ pub struct CHTrace {
     pub top_span_type: u8,
     pub trace_type: u8,
     pub tags: Vec<String>,
-    pub span_count: u64,
+    pub num_spans: u64,
 }
 
 impl CHTrace {
-    /// Create CHTrace from database Trace with additional fields
-    pub fn from_db_trace(
-        trace: &Trace,
-        user_id: String,
-        top_span_id: Uuid,
-        top_span_name: String,
-        top_span_type: u8,
-        trace_type: u8,
-    ) -> Self {
+    /// Create CHTrace from database Trace
+    pub fn from_db_trace(trace: &Trace) -> Self {
         let start_time_ns = trace.start_time().map(chrono_to_nanoseconds).unwrap_or(0);
         let end_time_ns = trace.end_time().map(chrono_to_nanoseconds).unwrap_or(0);
 
@@ -70,14 +63,14 @@ impl CHTrace {
             total_cost: trace.cost(),
             metadata: trace.metadata().map(|m| m.to_string()).unwrap_or_default(),
             session_id: trace.session_id().unwrap_or_default(),
-            user_id,
+            user_id: trace.user_id().unwrap_or_default(),
             status: trace.status().unwrap_or_default(),
-            top_span_id,
-            top_span_name,
-            top_span_type,
-            trace_type,
+            top_span_id: trace.top_span_id().unwrap_or(Uuid::nil()),
+            top_span_name: trace.top_span_name().unwrap_or_default(),
+            top_span_type: trace.top_span_type().unwrap_or(0) as u8,
+            trace_type: trace.trace_type() as u8,
             tags: trace.tags().clone(),
-            span_count: trace.num_spans() as u64,
+            num_spans: trace.num_spans() as u64,
         }
     }
 }
@@ -176,6 +169,15 @@ impl TraceAggregation {
                 if let Ok(parsed) = serde_json::from_str(&span.trace_metadata) {
                     entry.metadata = Some(parsed);
                 }
+            }
+            if span.trace_type != 0 {
+                entry.trace_type = span.trace_type;
+            }
+
+            if span.parent_span_id == Uuid::nil() {
+                entry.top_span_id = span.span_id;
+                entry.top_span_name = span.name.clone();
+                entry.top_span_type = span.span_type as u8;
             }
 
             // Collect unique tags

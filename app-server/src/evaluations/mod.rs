@@ -27,7 +27,6 @@ pub async fn save_evaluation_scores(
 
     let pool = db.pool.clone();
     let ids_clone = columns.ids.clone();
-    let trace_ids_clone = columns.trace_ids.clone();
 
     let db_task = tokio::spawn(async move {
         db::evaluations::set_evaluation_results(
@@ -68,17 +67,6 @@ pub async fn save_evaluation_scores(
         evaluation_id,
         project_id,
     ));
-
-    // Update trace types synchronously (upsert eliminates race conditions)
-    for trace_id in trace_ids_clone {
-        crate::db::trace::update_trace_type(
-            &db.pool,
-            &project_id,
-            trace_id,
-            crate::db::trace::TraceType::EVALUATION,
-        )
-        .await?;
-    }
 
     let (db_result, ch_result_scores, ch_result_datapoints) =
         tokio::join!(db_task, ch_task_scores, ch_task_datapoints);

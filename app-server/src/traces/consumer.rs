@@ -17,7 +17,11 @@ use super::{
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    ch::{self, spans::CHSpan, traces::{CHTrace, TraceAggregation, upsert_traces_batch}},
+    ch::{
+        self,
+        spans::CHSpan,
+        traces::{CHTrace, TraceAggregation, upsert_traces_batch},
+    },
     db::{DB, events::Event, spans::Span, trace::upsert_trace_statistics_batch},
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
@@ -314,17 +318,7 @@ async fn process_batch(
                 // Convert to ClickHouse traces and upsert
                 let ch_traces: Vec<CHTrace> = updated_traces
                     .iter()
-                    .zip(trace_aggregations.iter())
-                    .map(|(trace, agg)| {
-                        CHTrace::from_db_trace(
-                            trace,
-                            agg.user_id.clone().unwrap_or_default(),
-                            agg.top_span_id,
-                            agg.top_span_name.clone(),
-                            agg.top_span_type,
-                            agg.trace_type,
-                        )
-                    })
+                    .map(|trace| CHTrace::from_db_trace(trace))
                     .collect();
 
                 if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
@@ -336,10 +330,7 @@ async fn process_batch(
                 }
             }
             Err(e) => {
-                log::error!(
-                    "Failed to upsert trace statistics to PostgreSQL: {:?}",
-                    e
-                );
+                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
             }
         }
     }
