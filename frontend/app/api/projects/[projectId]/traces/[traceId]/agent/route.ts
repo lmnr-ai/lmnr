@@ -9,14 +9,12 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const traceId = params.traceId;
 
   try {
-    const { messages, traceStartTime, traceEndTime } = await req.json();
+    const { messages } = await req.json();
 
     const parseResult = ChatMessageSchema.safeParse({
       traceId,
       projectId,
       messages,
-      traceStartTime,
-      traceEndTime,
     });
 
     if (!parseResult.success) {

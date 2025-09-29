@@ -1,22 +1,15 @@
 import { observe } from '@lmnr-ai/lmnr';
 import { prettifyError } from 'zod/v4';
 
-import { generateOrGetTraceSummary, TraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
+import { generateOrGetTraceSummary, GenerateTraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string, traceId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
 
-  const { traceStartTime, traceEndTime }: {
-    traceStartTime: string,
-    traceEndTime: string
-  } = await req.json();
-
-  const parseResult = TraceSummaryRequestSchema.safeParse({
+  const parseResult = GenerateTraceSummaryRequestSchema.safeParse({
     traceId,
-    traceStartTime,
-    traceEndTime,
     projectId,
   });
 

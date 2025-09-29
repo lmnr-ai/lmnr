@@ -18,6 +18,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import DiscordLogo from "@/assets/logo/discord";
 import smallLogo from "@/assets/logo/icon.svg";
 import fullLogo from "@/assets/logo/logo.svg";
 import { Button } from "@/components/ui/button";
@@ -230,9 +231,9 @@ export default function ProjectSidebar({
           </div>
         )}
       </SidebarContent>
-      <SidebarFooter className="bg-background p-4 gap-4">
+      <SidebarFooter className="bg-background p-4 gap-1">
         <Link
-          href="https://docs.lmnr.ai"
+          href="https://discord.gg/nNFUUDAKub"
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
@@ -240,8 +241,20 @@ export default function ProjectSidebar({
             open || openMobile ? "" : "justify-center"
           )}
         >
+          <DiscordLogo className="w-5 h-5" />
+          {open || openMobile ? <span className="text-sm">Support</span> : null}
+        </Link>
+        <Link
+          href="https://docs.lmnr.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "h-8 text-secondary-foreground flex items-center gap-2 mb-4",
+            open || openMobile ? "" : "justify-center"
+          )}
+        >
           <Book size={16} />
-          {open || openMobile ? <span className="text-sm">Docs</span> : null}
+          {open || openMobile ? <span className="text-sm ml-1">Docs</span> : null}
         </Link>
         <AvatarMenu showDetails={open || openMobile} />
       </SidebarFooter>

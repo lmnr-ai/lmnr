@@ -18,23 +18,17 @@ use crate::mq::{
 pub struct TraceSummaryMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    pub trace_start_time: chrono::DateTime<chrono::Utc>,
-    pub trace_end_time: chrono::DateTime<chrono::Utc>,
 }
 
 /// Push a trace completion message to the trace summary queue
 pub async fn push_to_trace_summary_queue(
     trace_id: Uuid,
     project_id: Uuid,
-    trace_start_time: chrono::DateTime<chrono::Utc>,
-    trace_end_time: chrono::DateTime<chrono::Utc>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = TraceSummaryMessage {
         trace_id,
         project_id,
-        trace_start_time,
-        trace_end_time,
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -144,21 +138,9 @@ async fn process_single_trace_summary(
 
     let url = format!("{}/api/traces/summary", internal_api_base_url);
 
-    // Use format instead of to_rfc3339 to ensure compatibility with Zod
-    let start_time_str = message
-        .trace_start_time
-        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-        .to_string();
-    let end_time_str = message
-        .trace_end_time
-        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-        .to_string();
-
     let request_body = serde_json::json!({
         "projectId": message.project_id.to_string(),
         "traceId": message.trace_id.to_string(),
-        "traceStartTime": start_time_str,
-        "traceEndTime": end_time_str
     });
 
     let call_internal_api = || async {

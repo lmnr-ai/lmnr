@@ -9,11 +9,10 @@ import { tryParseJson } from '@/lib/utils';
 import { getFullTraceForSummary } from './index';
 import { TraceChatPromptSummaryPrompt } from './prompt';
 
-export const TraceSummaryRequestSchema = z.object({
-  traceId: z.string().describe('The trace ID to analyze'),
-  traceStartTime: z.iso.datetime().describe('Start time of the trace'),
-  traceEndTime: z.iso.datetime().describe('End time of the trace'),
-  projectId: z.string().describe('The project ID'),
+export const GenerateTraceSummaryRequestSchema = z.object({
+  traceId: z.string(),
+  projectId: z.string(),
+  maxRetries: z.number().optional().default(5),
 });
 
 const TraceSummaryGenerationSchema = z.object({
@@ -31,7 +30,7 @@ const TraceSummarySchema = z.object({
   spanIdsMap: z.record(z.string(), z.string()),
 });
 
-export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema> | undefined> {
+export async function getTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema> | undefined> {
   const { traceId, projectId } = input;
 
   // Check ClickHouse for existing summary
@@ -77,15 +76,13 @@ export async function getTraceSummary(input: z.infer<typeof TraceSummaryRequestS
   return undefined;
 }
 
-export async function generateTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
-  const { traceId, traceStartTime, traceEndTime, projectId } = input;
+export async function generateTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
+  const { traceId, projectId, maxRetries } = input;
 
   // Get the full trace data for summary
   const { stringifiedSpans, spanIdsMap } = await observe({ name: "getFullTraceForSummary" }, async () => await getFullTraceForSummary({
     projectId,
     traceId,
-    startTime: traceStartTime,
-    endTime: traceEndTime
   }));
 
   const summaryPrompt = TraceChatPromptSummaryPrompt.replace('{{fullTraceData}}', stringifiedSpans);
@@ -94,6 +91,7 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummaryReq
     model: google('gemini-2.5-flash'),
     prompt: summaryPrompt,
     temperature: 0.75,
+    maxRetries: maxRetries,
     schema: TraceSummaryGenerationSchema,
     experimental_telemetry: {
       isEnabled: true,
@@ -133,7 +131,7 @@ export async function generateTraceSummary(input: z.infer<typeof TraceSummaryReq
 
 }
 
-export async function generateOrGetTraceSummary(input: z.infer<typeof TraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
+export async function generateOrGetTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
 
   const existingSummary = await getTraceSummary(input);
   if (existingSummary) {

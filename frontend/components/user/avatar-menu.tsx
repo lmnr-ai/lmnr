@@ -19,7 +19,7 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost">
+        <Button variant="ghost" className="justify-start px-0">
           <div className="flex items-center justify-start gap-2">
             {imageUrl && imageUrl !== "" ? (
               <Image
@@ -32,7 +32,7 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
             ) : (
               <div className="w-6 h-6 bg-slate-500 rounded-full cursor-pointer" />
             )}
-            {showDetails && <span className="text-xs truncate text-muted-foreground min-w-0">{email}</span>}
+            {showDetails && <span className="text-xs truncate whitespace-nowrap text-muted-foreground max-w-32">{email}</span>}
           </div>
         </Button>
       </DropdownMenuTrigger>
