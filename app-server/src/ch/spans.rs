@@ -32,6 +32,22 @@ impl Into<u8> for SpanType {
     }
 }
 
+impl From<u8> for SpanType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => SpanType::DEFAULT,
+            1 => SpanType::LLM,
+            2 => SpanType::PIPELINE,
+            3 => SpanType::EXECUTOR,
+            4 => SpanType::EVALUATOR,
+            5 => SpanType::EVALUATION,
+            6 => SpanType::TOOL,
+            7 => SpanType::HUMAN_EVALUATOR,
+            _ => SpanType::DEFAULT,
+        }
+    }
+}
+
 /// for inserting into clickhouse
 ///
 /// Don't change the order of the fields or their values
@@ -39,8 +55,8 @@ impl Into<u8> for TraceType {
     fn into(self) -> u8 {
         match self {
             TraceType::DEFAULT => 0,
-            TraceType::EVENT => 1,
-            TraceType::EVALUATION => 2,
+            TraceType::EVALUATION => 1,
+            TraceType::EVENT => 2,
             TraceType::PLAYGROUND => 3,
         }
     }
