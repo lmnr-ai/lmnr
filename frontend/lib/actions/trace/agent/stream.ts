@@ -10,13 +10,11 @@ import { TraceChatPrompt } from './prompt';
 export const TraceStreamChatSchema = z.object({
   messages: z.array(z.any()).describe('Array of UI messages'),
   traceId: z.string().describe('The trace ID to analyze'),
-  traceStartTime: z.iso.datetime().describe('Start time of the trace'),
-  traceEndTime: z.iso.datetime().describe('End time of the trace'),
   projectId: z.string().describe('The project ID'),
 });
 
 export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchema>) {
-  const { messages: uiMessages, traceId, traceStartTime, traceEndTime, projectId } = input;
+  const { messages: uiMessages, traceId, projectId } = input;
 
   const chatId = await findOrCreateChatSession(traceId, projectId);
 
@@ -32,16 +30,13 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
 
   const { summary, status, analysis, analysisPreview } = await generateTraceSummary({
     traceId,
-    traceStartTime,
-    traceEndTime,
     projectId,
+    maxRetries: 5,
   });
 
   const traceStructure = await getTraceStructureAsYAML({
     projectId,
     traceId,
-    startTime: traceStartTime,
-    endTime: traceEndTime
   });
 
   const prompt = TraceChatPrompt
@@ -50,9 +45,10 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     .replace('{{analysis}}', analysis);
 
   const result = streamText({
-    model: google('gemini-2.5-flash'),
+    model: google('gemini-2.5-pro'),
     messages: convertToModelMessages(uiMessages as UIMessage[]),
     stopWhen: stepCountIs(10),
+    maxRetries: 5,
     system: prompt,
     tools: {
       getSpansData: tool({
@@ -64,8 +60,6 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
           const spansData = await getSpansDataAsYAML({
             projectId,
             traceId,
-            startTime: traceStartTime,
-            endTime: traceEndTime
           }, spanIds);
 
           return spansData;

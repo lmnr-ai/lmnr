@@ -1,5 +1,5 @@
 import { tool } from 'ai';
-import { and, desc,eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db } from '@/lib/db/drizzle';
@@ -20,8 +20,6 @@ export const ChatMessageSchema = z.object({
       callProviderMetadata: z.any().optional(),
     })).optional(),
   })).describe('The conversation messages'),
-  traceStartTime: z.iso.datetime().describe('Start time of the trace'),
-  traceEndTime: z.iso.datetime().describe('End time of the trace'),
 });
 
 export const GetChatMessagesSchema = z.object({

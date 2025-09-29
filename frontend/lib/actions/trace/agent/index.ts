@@ -7,8 +7,6 @@ import { convertToLocalTimeWithMillis } from "@/lib/utils";
 import { getFullTraceSpans, getSpansData, getTraceStructure } from "./spans";
 
 export const GetTraceStructureSchema = z.object({
-  startTime: z.iso.datetime(),
-  endTime: z.iso.datetime(),
   projectId: z.string(),
   traceId: z.string(),
 });
@@ -69,4 +67,4 @@ export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStruc
 };
 
 // Re-export summary functionality
-export { generateOrGetTraceSummary as generateTraceSummary, TraceSummaryRequestSchema as TraceSummarySchema } from './summary';
+export { generateOrGetTraceSummary as generateTraceSummary, GenerateTraceSummaryRequestSchema as TraceSummarySchema } from './summary';

@@ -119,7 +119,7 @@ interface SpanStructure {
 };
 
 const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<Span[]> => {
-  const { projectId, traceId, startTime, endTime } = input;
+  const { projectId, traceId } = input;
 
   const spans = await executeQuery({
     projectId,
@@ -149,13 +149,9 @@ const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema
         parent_span_id
       FROM spans
       WHERE trace_id = {trace_id: UUID}
-      AND start_time >= {start_time:DateTime(3)} - interval '1 second'
-      AND start_time <= {end_time:DateTime(3)} + interval '1 second'
       ORDER BY start_time ASC
     `,
     parameters: {
-      start_time: startTime.replace("Z", ""),
-      end_time: endTime.replace("Z", ""),
       trace_id: traceId,
     },
   });
@@ -167,14 +163,10 @@ const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema
     query: `
       SELECT span_id, timestamp, name, attributes FROM events
       WHERE span_id IN {span_ids:Array(UUID)}
-      AND timestamp >= {start_time:DateTime(3)} - interval '1 second'
-      AND timestamp <= {end_time:DateTime(3)} + interval '1 second'
       ORDER BY timestamp ASC
     `,
     parameters: {
       span_ids: Object.keys(spanIdsMap),
-      start_time: startTime.replace("Z", ""),
-      end_time: endTime.replace("Z", ""),
     },
   });
 
