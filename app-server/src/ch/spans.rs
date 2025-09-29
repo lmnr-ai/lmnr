@@ -55,8 +55,8 @@ impl Into<u8> for TraceType {
     fn into(self) -> u8 {
         match self {
             TraceType::DEFAULT => 0,
-            TraceType::EVENT => 1,
-            TraceType::EVALUATION => 2,
+            TraceType::EVALUATION => 1,
+            TraceType::EVENT => 2,
             TraceType::PLAYGROUND => 3,
         }
     }
