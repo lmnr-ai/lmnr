@@ -63,20 +63,6 @@ services:
       timeout: 5s
       retries: 5
 
-  query-engine:
-    build:
-      context: ./query-engine
-    container_name: query-engine
-    ports:
-      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
-    environment:
-      PORT: 8903
-    healthcheck:
-      test: ["CMD", "sleep", "5"]
-      interval: 10s
-      timeout: 6s
-      retries: 1
-
 volumes:
   clickhouse-data:
   clickhouse-logs:

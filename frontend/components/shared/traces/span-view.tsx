@@ -7,7 +7,6 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanMessages from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import SpanStatsShields from "@/components/traces/stats-shields";
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Formatter from "@/components/ui/formatter";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,12 +18,12 @@ import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
   spanId: string;
-  trace: TraceViewTrace;
+  traceId: string;
 }
 
-export function SpanView({ spanId, trace }: SpanViewProps) {
-  const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${trace.id}/spans/${spanId}`, swrFetcher);
-  const { data: events = [] } = useSWR<Event[]>(`/api/shared/traces/${trace.id}/spans/${spanId}/events`, swrFetcher);
+export function SpanView({ spanId, traceId }: SpanViewProps) {
+  const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  const { data: events = [] } = useSWR<Event[]>(`/api/shared/traces/${traceId}/spans/${spanId}/events`, swrFetcher);
 
   const cleanedEvents = useMemo(
     () =>

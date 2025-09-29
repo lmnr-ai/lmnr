@@ -1,24 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getSpan, updateSpanOutput } from "@/lib/actions/span";
 
 export async function GET(
-  req: NextRequest,
+  _req: Request,
   props: { params: Promise<{ projectId: string; traceId: string; spanId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const { projectId, traceId, spanId } = params;
-  const urlSearchParams = req.nextUrl.searchParams;
 
   try {
-    const span = await getSpan({
-      spanId,
-      traceId,
-      projectId,
-      startTime: urlSearchParams.get("startTime") || undefined,
-      endTime: urlSearchParams.get("endTime") || undefined,
-    });
+    const span = await getSpan({ spanId, traceId, projectId });
 
     return NextResponse.json(span);
   } catch (e) {
