@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::spans::CHSpan;
 use super::utils::{chrono_to_nanoseconds, nanoseconds_to_chrono};
+use crate::db::spans::SpanType;
 use crate::db::trace::Trace;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
@@ -174,6 +175,10 @@ impl TraceAggregation {
                 entry.trace_type = span.trace_type;
             }
 
+            if SpanType::from(span.span_type) == SpanType::EVALUATION {
+                entry.trace_type = 1;
+            }
+
             if span.parent_span_id == Uuid::nil() {
                 entry.top_span_id = span.span_id;
                 entry.top_span_name = span.name.clone();
@@ -188,14 +193,6 @@ impl TraceAggregation {
             }
 
             entry.num_spans += 1;
-
-            // Set top span (parent_span_id is Uuid::nil() for top-level spans)
-            if span.parent_span_id == Uuid::nil() {
-                entry.top_span_id = span.span_id;
-                entry.top_span_name = span.name.clone();
-                entry.top_span_type = span.span_type;
-                entry.trace_type = span.trace_type;
-            }
         }
 
         trace_aggregations.into_values().collect()
