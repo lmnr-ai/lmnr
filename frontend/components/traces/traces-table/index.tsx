@@ -358,13 +358,7 @@ export default function TracesTable() {
       defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
-      // enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-    // selectionPanel={(selectedRowIds) => (
-    //   <div className="flex flex-col space-y-2">
-    //     <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
-    //   </div>
-    // )}
     >
       <div className="flex flex-1 w-full space-x-2">
         <DataTableFilter presetFilters={presetFilters} columns={filters} />
