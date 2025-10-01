@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import TracesPagePlaceholder from "@/components/traces/page-placeholder";
 import TracesDashboard from "@/components/traces/traces";
 import Header from "@/components/ui/header";
 import { executeQuery } from "@/lib/actions/sql";
@@ -32,9 +31,9 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   const traceViewWidthCookie = cookieStore.get(TRACES_TRACE_VIEW_WIDTH);
   const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
 
-  if (!result) {
-    return <TracesPagePlaceholder />;
-  }
+  // if (!result) {
+  //   return <TracesPagePlaceholder />;
+  // }
 
   return (
     <>
