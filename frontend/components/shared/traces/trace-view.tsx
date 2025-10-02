@@ -26,6 +26,7 @@ import TraceViewStoreProvider, {
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
+import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -139,7 +140,8 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   }, []);
 
   useEffect(() => {
-    setSpans(spans);
+    const enrichedSpans = enrichSpansWithPending(spans);
+    setSpans(enrichedSpans);
     setTrace(trace);
 
     const spanId = searchParams.get("spanId");
