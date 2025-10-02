@@ -14,6 +14,7 @@ import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import MonoWithCopy from "../ui/mono-with-copy";
@@ -182,6 +183,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           <MonoWithCopy className="text-secondary-foreground pt-1 text-nowrap truncate">{dataset.id}</MonoWithCopy>
         </div>
         <div className="flex flex-wrap flex-1 items-end justify-end gap-2">
+          <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
             uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
             supportedFormats={["csv", "json"]}
@@ -196,7 +198,9 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
               <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
             </Badge>
           </AddToLabelingQueuePopover>
-          {enableDownloadParquet && <DownloadParquetDialog datasetId={dataset.id} publicApiBaseUrl={publicApiBaseUrl} />}
+          {enableDownloadParquet && (
+            <DownloadParquetDialog datasetId={dataset.id} publicApiBaseUrl={publicApiBaseUrl} />
+          )}
         </div>
       </div>
       <div className="flex-grow">
