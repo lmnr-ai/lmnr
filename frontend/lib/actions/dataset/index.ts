@@ -20,7 +20,7 @@ export async function updateDataset(input: z.infer<typeof UpdateDatasetSchema>) 
     .where(and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)))
     .returning();
 
-  if (result) {
+  if (!result) {
     throw new Error("Dataset not found");
   }
 
