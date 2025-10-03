@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::PROJECT_CACHE_KEY},
-    db::{DB, project_settings::is_project_setting_enabled, projects::get_project_and_workspace_billing_info},
+    db::{
+        DB, project_settings::is_project_setting_enabled,
+        projects::get_project_and_workspace_billing_info,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -25,11 +28,10 @@ pub async fn check_trace_eligibility(
     let project_info = cache.get::<serde_json::Value>(&cache_key).await;
 
     let tier_name = match project_info {
-        Ok(Some(info)) => {
-            info.get("tier_name")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        }
+        Ok(Some(info)) => info
+            .get("tier_name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         _ => {
             // Fallback: query database if not in cache
             match get_project_and_workspace_billing_info(&db.pool, &project_id).await {
