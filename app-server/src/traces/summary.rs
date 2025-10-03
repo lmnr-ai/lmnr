@@ -55,14 +55,14 @@ pub async fn push_to_trace_summary_queue(
 }
 
 /// Main worker function to process trace summary messages
-pub async fn process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
+pub async fn process_trace_summaries(db: Arc<DB>, queue: Arc<MessageQueue>) {
     loop {
-        inner_process_trace_summaries(db.clone(), cache.clone(), queue.clone()).await;
+        inner_process_trace_summaries(db.clone(), queue.clone()).await;
         log::warn!("Trace summary listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
+async fn inner_process_trace_summaries(db: Arc<DB>, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -123,14 +123,8 @@ async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Ar
             };
 
         // Process the trace summary generation
-        if let Err(e) = process_single_trace_summary(
-            &client,
-            db.clone(),
-            cache.clone(),
-            trace_summary_message,
-            acker,
-        )
-        .await
+        if let Err(e) =
+            process_single_trace_summary(&client, db.clone(), trace_summary_message, acker).await
         {
             log::error!("Failed to process trace summary: {:?}", e);
         }
@@ -142,11 +136,10 @@ async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Ar
 async fn process_single_trace_summary(
     client: &reqwest::Client,
     db: Arc<DB>,
-    cache: Arc<Cache>,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
+    let eligibility_result = check_trace_eligibility(db, message.project_id).await?;
 
     if !eligibility_result.is_eligible {
         log::info!(
@@ -182,7 +175,10 @@ async fn process_single_trace_summary(
             .send()
             .await
             .map_err(|e| {
-                log::warn!("Failed to call summarizer service for trace summary: {:?}", e);
+                log::warn!(
+                    "Failed to call summarizer service for trace summary: {:?}",
+                    e
+                );
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
