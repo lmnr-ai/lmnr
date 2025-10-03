@@ -29,7 +29,7 @@ pub async fn check_trace_eligibility(
 
     let tier_name = match project_info {
         Ok(Some(info)) => info
-            .get("tier_name")
+            .get("tierName")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
         _ => {
