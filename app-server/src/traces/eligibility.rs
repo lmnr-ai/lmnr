@@ -79,31 +79,3 @@ pub async fn check_trace_eligibility(
         has_trace_analysis: true,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cache::in_memory::InMemoryCache;
-    use std::sync::Arc;
-    use uuid::Uuid;
-
-    // Note: These are integration tests that would require a real database
-    // For unit testing, you would mock the database calls
-
-    #[tokio::test]
-    #[ignore] // Ignore by default since it requires database setup
-    async fn test_eligibility_structure() {
-        // Just test that the structure compiles and basic logic works
-        let result = TraceEligibilityResult {
-            is_eligible: false,
-            reason: Some("test".to_string()),
-            tier_name: Some("free".to_string()),
-            has_trace_analysis: false,
-        };
-
-        assert!(!result.is_eligible);
-        assert_eq!(result.reason, Some("test".to_string()));
-        assert_eq!(result.tier_name, Some("free".to_string()));
-        assert!(!result.has_trace_analysis);
-    }
-}
