@@ -1,6 +1,3 @@
-//! This module handles trace summary generation
-//! It reads trace completion messages from RabbitMQ and generates summaries via internal API
-
 use std::env;
 use std::sync::Arc;
 
@@ -8,10 +5,17 @@ use backoff::ExponentialBackoffBuilder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY};
-use crate::mq::{
-    MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-    MessageQueueTrait,
+use super::{
+    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY,
+    eligibility::check_trace_eligibility,
+};
+use crate::{
+    cache::Cache,
+    db::DB,
+    mq::{
+        MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
+        MessageQueueTrait,
+    },
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -51,14 +55,14 @@ pub async fn push_to_trace_summary_queue(
 }
 
 /// Main worker function to process trace summary messages
-pub async fn process_trace_summaries(queue: Arc<MessageQueue>) {
+pub async fn process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
     loop {
-        inner_process_trace_summaries(queue.clone()).await;
+        inner_process_trace_summaries(db.clone(), cache.clone(), queue.clone()).await;
         log::warn!("Trace summary listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
+async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -119,7 +123,15 @@ async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
             };
 
         // Process the trace summary generation
-        if let Err(e) = process_single_trace_summary(&client, trace_summary_message, acker).await {
+        if let Err(e) = process_single_trace_summary(
+            &client,
+            db.clone(),
+            cache.clone(),
+            trace_summary_message,
+            acker,
+        )
+        .await
+        {
             log::error!("Failed to process trace summary: {:?}", e);
         }
     }
@@ -129,43 +141,70 @@ async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
 
 async fn process_single_trace_summary(
     client: &reqwest::Client,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    // Get the internal API base URL - this should be the internal service URL
-    let internal_api_base_url =
-        env::var("NEXT_BACKEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
 
-    let url = format!("{}/api/traces/summary", internal_api_base_url);
+    if !eligibility_result.is_eligible {
+        log::info!(
+            "Skipping trace summary generation: trace_id={}, project_id={}, reason={}",
+            message.trace_id,
+            message.project_id,
+            eligibility_result.reason.unwrap_or_default()
+        );
+        if let Err(e) = acker.ack().await {
+            log::error!("Failed to ack trace summary message: {:?}", e);
+        }
+        return Ok(());
+    }
+
+    let summarizer_service_url = env::var("TRACE_SUMMARIZER_URL")
+        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_URL environment variable not set"))?;
+
+    let auth_token = env::var("TRACE_SUMMARIZER_SECRET_KEY")
+        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set"))?;
 
     let request_body = serde_json::json!({
         "projectId": message.project_id.to_string(),
         "traceId": message.trace_id.to_string(),
+        "maxRetries": 5
     });
 
-    let call_internal_api = || async {
+    let call_summarizer_service = || async {
         let response = client
-            .post(&url)
+            .post(&summarizer_service_url)
+            .header("Authorization", format!("Bearer {}", auth_token))
+            .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await
             .map_err(|e| {
-                log::warn!("Failed to call internal API for trace summary: {:?}", e);
+                log::warn!("Failed to call summarizer service for trace summary: {:?}", e);
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
         if response.status().is_success() {
-            Ok(response)
+            let response_text = response.text().await.unwrap_or_default();
+            log::debug!(
+                "Summarizer service response for trace_id={}, project_id={}: {}",
+                message.trace_id,
+                message.project_id,
+                response_text
+            );
+            Ok(())
         } else {
             let status = response.status();
             let response_text = response.text().await.unwrap_or_default();
             log::warn!(
-                "Internal API returned error status for trace summary: {}, Response: {}",
+                "Summarizer service returned error status for trace summary: {}, Response: {}",
                 status,
                 response_text
             );
             Err(backoff::Error::transient(anyhow::anyhow!(
-                "Internal API error: {}, Response: {}",
+                "Summarizer service error: {}, Response: {}",
                 status,
                 response_text
             )))
@@ -178,8 +217,13 @@ async fn process_single_trace_summary(
         .with_max_elapsed_time(Some(std::time::Duration::from_secs(60 * 5))) // 5 minutes max
         .build();
 
-    match backoff::future::retry(backoff, call_internal_api).await {
-        Ok(_response) => {
+    match backoff::future::retry(backoff, call_summarizer_service).await {
+        Ok(_) => {
+            log::info!(
+                "Successfully generated trace summary: trace_id={}, project_id={}",
+                message.trace_id,
+                message.project_id
+            );
             if let Err(e) = acker.ack().await {
                 log::error!("Failed to ack trace summary message: {:?}", e);
             }
