@@ -1,10 +1,9 @@
-import { observe } from '@lmnr-ai/lmnr';
-import { prettifyError } from 'zod/v4';
+import { observe } from "@lmnr-ai/lmnr";
+import { prettifyError } from "zod/v4";
 
-import { checkTraceEligibility } from '@/lib/actions/project/trace-eligibility';
-import { executeQuery } from '@/lib/actions/sql';
-import { generateTraceSummary } from '@/lib/actions/trace/agent';
-import { GenerateTraceSummaryRequestSchema } from '@/lib/actions/trace/agent/summary';
+import { executeQuery } from "@/lib/actions/sql";
+import { generateTraceSummary } from "@/lib/actions/trace/agent";
+import { GenerateTraceSummaryRequestSchema } from "@/lib/actions/trace/agent/summary";
 
 /**
  * Internal endpoint for trace summary generation.
@@ -16,7 +15,7 @@ export async function POST(req: Request) {
   const traceSummaryResult = GenerateTraceSummaryRequestSchema.safeParse(body);
 
   if (!traceSummaryResult.success) {
-    console.error('Validation error for trace summary request:', prettifyError(traceSummaryResult.error));
+    console.error("Validation error for trace summary request:", prettifyError(traceSummaryResult.error));
     return Response.json({ error: prettifyError(traceSummaryResult.error) }, { status: 400 });
   }
 
@@ -26,16 +25,6 @@ export async function POST(req: Request) {
   const { projectId, traceId } = traceSummaryResult.data;
 
   try {
-    // Check if project is eligible for trace summary generation
-    const eligibilityResult = await checkTraceEligibility({ projectId });
-
-    if (!eligibilityResult.isEligible) {
-      return Response.json({
-        success: true,
-        message: `Skipped - ${eligibilityResult.reason}`
-      });
-    }
-
     // check if the trace contains at least one LLM span
     const llmSpanCheckQuery = `
      SELECT COUNT(*) as llm_span_count
@@ -50,7 +39,7 @@ export async function POST(req: Request) {
       query: llmSpanCheckQuery,
       parameters: {
         traceId,
-      }
+      },
     });
 
     const hasLlmSpans = llmSpanResult.length > 0 && llmSpanResult[0].llm_span_count > 0;
@@ -58,20 +47,24 @@ export async function POST(req: Request) {
     if (!hasLlmSpans) {
       return Response.json({
         success: true,
-        message: "Skipped - trace contains no LLM spans"
+        message: "Skipped - trace contains no LLM spans",
       });
     }
 
     // Generate the trace summary since all requirements are met
     // Disable retries for this call since we want to fail fast if the summary generation fails
-    await observe({ name: "generateTraceSummaryIfNeeded" }, async () => await generateTraceSummary({
-      ...traceSummaryResult.data,
-      maxRetries: 0,
-    }));
+    await observe(
+      { name: "generateTraceSummaryIfNeeded" },
+      async () =>
+        await generateTraceSummary({
+          ...traceSummaryResult.data,
+          maxRetries: 0,
+        })
+    );
 
     return Response.json({ success: true });
   } catch (error) {
-    console.error('Failed to generate trace summary:', error);
+    console.error("Failed to generate trace summary:", error);
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to generate trace summary." },
       { status: 500 }

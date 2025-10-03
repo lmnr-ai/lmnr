@@ -1,6 +1,3 @@
-//! This module handles trace summary generation
-//! It reads trace completion messages from RabbitMQ and generates summaries via Modal service
-
 use std::env;
 use std::sync::Arc;
 
@@ -149,7 +146,6 @@ async fn process_single_trace_summary(
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    // Check if project is eligible for trace summary generation
     let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
 
     if !eligibility_result.is_eligible {
@@ -159,18 +155,16 @@ async fn process_single_trace_summary(
             message.project_id,
             eligibility_result.reason.unwrap_or_default()
         );
-        // Ack the message since we processed it (even though we skipped it)
         if let Err(e) = acker.ack().await {
             log::error!("Failed to ack trace summary message: {:?}", e);
         }
         return Ok(());
     }
 
-    // Get the Modal service URL and auth token
-    let modal_service_url = env::var("TRACE_SUMMARIZER_URL")
+    let summarizer_service_url = env::var("TRACE_SUMMARIZER_URL")
         .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_URL environment variable not set"))?;
 
-    let modal_auth_token = env::var("TRACE_SUMMARIZER_SECRET_KEY")
+    let auth_token = env::var("TRACE_SUMMARIZER_SECRET_KEY")
         .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set"))?;
 
     let request_body = serde_json::json!({
@@ -179,23 +173,23 @@ async fn process_single_trace_summary(
         "maxRetries": 5
     });
 
-    let call_modal_service = || async {
+    let call_summarizer_service = || async {
         let response = client
-            .post(&modal_service_url)
-            .header("Authorization", format!("Bearer {}", modal_auth_token))
+            .post(&summarizer_service_url)
+            .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await
             .map_err(|e| {
-                log::warn!("Failed to call Modal service for trace summary: {:?}", e);
+                log::warn!("Failed to call summarizer service for trace summary: {:?}", e);
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
         if response.status().is_success() {
             let response_text = response.text().await.unwrap_or_default();
             log::debug!(
-                "Modal service response for trace_id={}, project_id={}: {}",
+                "Summarizer service response for trace_id={}, project_id={}: {}",
                 message.trace_id,
                 message.project_id,
                 response_text
@@ -205,12 +199,12 @@ async fn process_single_trace_summary(
             let status = response.status();
             let response_text = response.text().await.unwrap_or_default();
             log::warn!(
-                "Modal service returned error status for trace summary: {}, Response: {}",
+                "Summarizer service returned error status for trace summary: {}, Response: {}",
                 status,
                 response_text
             );
             Err(backoff::Error::transient(anyhow::anyhow!(
-                "Modal service error: {}, Response: {}",
+                "Summarizer service error: {}, Response: {}",
                 status,
                 response_text
             )))
@@ -223,7 +217,7 @@ async fn process_single_trace_summary(
         .with_max_elapsed_time(Some(std::time::Duration::from_secs(60 * 5))) // 5 minutes max
         .build();
 
-    match backoff::future::retry(backoff, call_modal_service).await {
+    match backoff::future::retry(backoff, call_summarizer_service).await {
         Ok(_) => {
             log::info!(
                 "Successfully generated trace summary: trace_id={}, project_id={}",

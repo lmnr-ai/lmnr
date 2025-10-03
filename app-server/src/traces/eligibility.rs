@@ -16,14 +16,11 @@ pub struct TraceEligibilityResult {
     pub has_trace_analysis: bool,
 }
 
-/// Check if a project is eligible for trace summary generation.
-/// Checks both workspace tier (must not be "free") and project settings (enable_trace_analysis).
 pub async fn check_trace_eligibility(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<TraceEligibilityResult> {
-    // Check workspace tier using cache (similar to limits.rs)
     let cache_key = format!("{}:{}", PROJECT_CACHE_KEY, project_id);
     let project_info = cache.get::<serde_json::Value>(&cache_key).await;
 
@@ -49,7 +46,6 @@ pub async fn check_trace_eligibility(
         }
     };
 
-    // Check if workspace is on paid tier
     let is_paid_tier = tier_name
         .as_ref()
         .map(|name| name.trim().to_lowercase() != "free")
@@ -64,8 +60,7 @@ pub async fn check_trace_eligibility(
         });
     }
 
-    // Check project settings for trace analysis enablement
-    let is_trace_analysis_enabled = 
+    let is_trace_analysis_enabled =
         is_project_setting_enabled(&db.pool, &project_id, "enable_trace_analysis").await?;
 
     if !is_trace_analysis_enabled {
