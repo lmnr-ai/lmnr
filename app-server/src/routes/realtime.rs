@@ -42,7 +42,12 @@ pub async fn sse_endpoint(
             ))
             .send()
             .await
-            .unwrap();
+            .map_err(|e| {
+                actix_web::error::ErrorInternalServerError(format!(
+                    "Failed to connect to realtime service: {}",
+                    e
+                ))
+            })?;
 
         if !response.status().is_success() {
             return Err(actix_web::error::ErrorInternalServerError(format!(
