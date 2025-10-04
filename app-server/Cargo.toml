@@ -26,7 +26,7 @@ enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
 env_logger = "0.11"
 futures-util = "0.3"
-indexmap = {version = "2.10.0", features = ["serde"]}
+indexmap = {version = "2.11.4", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.0.0"
 log = "0.4.28"
