@@ -53,8 +53,11 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use crate::features::{enable_consumer, enable_producer};
 use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
+use crate::{
+    features::{enable_consumer, enable_producer},
+    routes::realtime::ReStreamClient,
+};
 
 mod agent_manager;
 mod api;
@@ -402,6 +405,18 @@ fn main() -> anyhow::Result<()> {
 
     // ==== 3.6 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
+    let re_stream_client = if enable_producer() {
+        // We're in producer mode, so we'll re-stream the SSE connections from the consumer server
+        match env::var("CONSUMER_URL") {
+            Ok(consumer_url) => Some(ReStreamClient::new(consumer_url)),
+            Err(_) => {
+                log::error!("CONSUMER_URL not set, not re-streaming SSE connections for realtime");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
@@ -665,8 +680,10 @@ fn main() -> anyhow::Result<()> {
                                 .app_data(web::Data::new(connection_for_health_clone.clone()))
                                 .app_data(web::Data::new(worker_tracker_clone.clone()))
                                 .app_data(web::Data::new(expected_counts.clone()))
+                                .app_data(web::Data::new(sse_connections.clone()))
                                 .service(routes::probes::check_ready)
                                 .service(routes::probes::check_health_consumer)
+                                .service(routes::realtime::original_realtime_endpoint)
                         })
                         .bind(("0.0.0.0", consumer_healthcheck_port))?
                         .run()
@@ -736,6 +753,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(browser_agent.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
+                            .app_data(web::Data::new(re_stream_client.clone()))
                             .service(
                                 web::scope("/v1/browser-sessions").service(
                                     web::scope("")
