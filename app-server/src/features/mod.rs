@@ -51,3 +51,17 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
     }
 }
+
+pub fn enable_consumer() -> bool {
+    match env::var("QUEUE_MODE") {
+        Ok(v) => v.trim().to_lowercase() == "consumer",
+        Err(_) => true,
+    }
+}
+
+pub fn enable_producer() -> bool {
+    match env::var("QUEUE_MODE") {
+        Ok(v) => v.trim().to_lowercase() == "producer",
+        Err(_) => true,
+    }
+}
