@@ -1,5 +1,4 @@
 use anyhow::Result;
-use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 
 use uuid::Uuid;
@@ -12,13 +11,6 @@ pub struct SavedApiKey {
     pub nonce_hex: String,
     #[allow(dead_code)]
     pub value: String,
-}
-
-#[derive(FromRow, Serialize)]
-pub struct SavedApiKeyResponse {
-    pub id: Uuid,
-    pub project_id: Uuid,
-    pub name: String,
 }
 
 pub async fn save_api_key(

@@ -15,7 +15,6 @@ pub mod spans;
 pub mod stats;
 pub mod tags;
 pub mod trace;
-pub mod user;
 pub mod user_cookies;
 pub mod utils;
 

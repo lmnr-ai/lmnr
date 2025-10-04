@@ -18,7 +18,6 @@ base64 = "0.22.1"
 bytes = "1.10.1"
 chrono = {version = "0.4.41", features = ["serde"]}
 clickhouse = {version = "0.13.3", features = ["rustls-tls", "uuid"]}
-csv = "1.3.1"
 dashmap = "6.1.0"
 deadpool = "0.12.2"
 dotenv = "0.15"
@@ -40,14 +39,12 @@ regex = "1.11.1"
 reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
 serde = "1.0"
-serde-jsonlines = "0.7.0"
 serde_json = {version = "1.0.140", features = ["preserve_order"]}
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal"]}
 thiserror = "2"
 tikv-jemallocator = "0.6"
-time = "0.3.41"
 tokio = {version = "1.46", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.13", features = ["gzip"]}
