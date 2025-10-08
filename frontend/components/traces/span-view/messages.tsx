@@ -117,6 +117,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
         <div
           style={{
             transform: `translateY(${items[0]?.start ?? 0}px)`,
+            willChange: "transform",
           }}
           className="p-4 absolute top-0 left-0 w-full"
         >
