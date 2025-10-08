@@ -23,19 +23,6 @@ pub struct Evaluation {
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct EvaluationDatapoint {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub evaluation_id: Uuid,
-    pub data: Value,
-    pub target: Value,
-    pub scores: Value, // HashMap<String, f64>
-    pub executor_output: Option<Value>,
-    pub trace_id: Uuid,
-}
-
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointPreview {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,

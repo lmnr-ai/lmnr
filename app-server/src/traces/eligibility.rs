@@ -16,7 +16,9 @@ use crate::{
 pub struct TraceEligibilityResult {
     pub is_eligible: bool,
     pub reason: Option<String>,
+    #[allow(dead_code)]
     pub tier_name: Option<String>,
+    #[allow(dead_code)]
     pub has_trace_analysis: bool,
 }
 

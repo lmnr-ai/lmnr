@@ -4,14 +4,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct Project {
-    pub id: Uuid,
-    pub name: String,
-    pub workspace_id: Uuid,
-}
-
 #[derive(Deserialize, Serialize, FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectWithWorkspaceBillingInfo {
