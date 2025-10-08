@@ -39,6 +39,8 @@ use crate::{
     },
 };
 
+use rand::{Rng, SeedableRng};
+
 pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -334,18 +336,27 @@ async fn process_batch(
         }
     }
 
-    // Check for completed traces (top-level spans) and push to trace summary queue
+    let sample_rate = std::env::var("TRACE_SUMMARY_SAMPLE_RATE")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.25_f64)
+        .clamp(0.0, 1.0);
+
+    let mut rng = rand::rngs::StdRng::from_rng(&mut rand::rng());
+
     for span in &spans {
         if span.parent_span_id.is_none() {
-            if let Err(e) =
-                push_to_trace_summary_queue(span.trace_id, span.project_id, queue.clone()).await
-            {
-                log::error!(
-                    "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
-                    span.trace_id,
-                    span.project_id,
-                    e
-                );
+            if rng.random_range(0.0..1.0) < sample_rate {
+                if let Err(e) =
+                    push_to_trace_summary_queue(span.trace_id, span.project_id, queue.clone()).await
+                {
+                    log::error!(
+                        "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
+                        span.trace_id,
+                        span.project_id,
+                        e
+                    );
+                }
             }
         }
     }
