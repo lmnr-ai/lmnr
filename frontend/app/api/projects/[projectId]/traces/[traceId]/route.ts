@@ -21,7 +21,12 @@ export async function GET(
     return NextResponse.json(trace);
   } catch (error) {
     console.error("Error fetching trace:", error);
-    return NextResponse.json({ error: "Failed to fetch trace" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to fetch trace",
+      },
+      { status: 500 }
+    );
   }
 }
 
