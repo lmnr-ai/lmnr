@@ -27,7 +27,6 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -52,7 +51,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   // Data states
   const {
@@ -167,7 +165,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, propsTrace, setIsTraceLoading, setTrace, setTraceError, toast, traceId]);
+  }, [projectId, propsTrace, setIsTraceLoading, setTrace, setTraceError, traceId]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -251,7 +249,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSearchEnabled,
       projectId,
       traceId,
-      toast,
       setSpans,
       hasBrowserSession,
       setHasBrowserSession,
