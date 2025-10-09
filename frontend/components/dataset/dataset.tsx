@@ -121,12 +121,15 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
     async (datapointIds: string[]) => {
       try {
         const response = await fetch(
-          `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` + `?datapointIds=${datapointIds.join(",")}`,
+          `/api/projects/${projectId}/datasets/${dataset.id}/datapoints`,
           {
             method: "DELETE",
             headers: {
               "Content-Type": "application/json",
             },
+            body: JSON.stringify({
+              datapointIds,
+            }),
           }
         );
         if (!response.ok) {
