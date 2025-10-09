@@ -31,6 +31,7 @@ function QueueInner() {
     currentItem,
     queue: storeQueue,
     setCurrentItem,
+    setCurrentItemTarget,
     isLoading,
     setIsLoading,
     isValid,
@@ -45,6 +46,7 @@ function QueueInner() {
     currentItem: state.currentItem,
     queue: state.queue,
     setCurrentItem: state.setCurrentItem,
+    setCurrentItemTarget: state.setCurrentItemTarget,
     isLoading: state.isLoading,
     setIsLoading: state.setIsLoading,
     isValid: state.isValid,
@@ -95,20 +97,12 @@ function QueueInner() {
       try {
         const parsedValue = JSON.parse(v);
         setIsValid(true);
-        if (currentItem) {
-          setCurrentItem({
-            ...currentItem,
-            payload: {
-              ...currentItem.payload,
-              target: parsedValue,
-            },
-          });
-        }
+        setCurrentItemTarget(parsedValue);
       } catch (e) {
         setIsValid(false);
       }
     },
-    [currentItem, setCurrentItem, setIsValid]
+    [setCurrentItemTarget, setIsValid]
   );
 
   const move = useCallback(
@@ -203,11 +197,11 @@ function QueueInner() {
     useCallback(
       (event: KeyboardEvent) => {
         event.preventDefault();
-        if (currentItem) {
+        if (currentItem && !states.next) {
           move(currentItem.createdAt, "next");
         }
       },
-      [currentItem, move]
+      [currentItem, move, states.next]
     ),
     { enableOnFormTags: true }
   );
@@ -217,11 +211,11 @@ function QueueInner() {
     useCallback(
       (event: KeyboardEvent) => {
         event.preventDefault();
-        if (currentItem) {
+        if (currentItem && !states.prev) {
           move(currentItem.createdAt, "prev");
         }
       },
-      [currentItem, move]
+      [currentItem, move, states.prev]
     ),
     { enableOnFormTags: true }
   );
@@ -278,6 +272,7 @@ function QueueInner() {
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ResizableWrapper height={height} onHeightChange={setHeight}>
                   <CodeHighlighter
+                    presetKey={`labeling-queue-${storeQueue?.id}`}
                     codeEditorClassName="rounded-b"
                     className="rounded"
                     defaultMode="json"

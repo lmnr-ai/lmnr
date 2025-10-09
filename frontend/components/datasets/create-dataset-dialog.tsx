@@ -45,12 +45,13 @@ export default function CreateDatasetDialog({
 
       const newDataset = (await res.json()) as Dataset;
 
+      const newDatasetWithCount = { ...newDataset, datapointsCount: 0 };
       await mutate<PaginatedResponse<Dataset>>(
-        `/api/projects/${projectId}/datasets`,
+        (key) => typeof key === "string" && key.startsWith(`/api/projects/${projectId}/datasets`),
         (currentData) =>
           currentData
-            ? { items: [newDataset, ...currentData.items], totalCount: currentData.totalCount + 1 }
-            : { items: [newDataset], totalCount: 1 },
+            ? { items: [newDatasetWithCount, ...currentData.items], totalCount: currentData.totalCount + 1 }
+            : { items: [newDatasetWithCount], totalCount: 1 },
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 

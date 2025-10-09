@@ -60,6 +60,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   const { projectId } = useParams();
   const [datapoints, setDatapoints] = useState<Datapoint[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [selectedDatapointIds, setSelectedDatapointIds] = useState<string[]>([]);
   const { toast } = useToast();
 
   const datapointId = searchParams.get("datapointId");
@@ -192,12 +193,29 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           />
           <AddDatapointsDialog datasetId={dataset.id} onUpdate={getDatapoints} />
           <ManualAddDatapoint datasetId={dataset.id} onUpdate={getDatapoints} />
-          <AddToLabelingQueuePopover datasetId={dataset.id} datapointIds={datapoints?.map(({ id }) => id) || []}>
-            <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-              <Pen className="size-3 min-w-3" />
-              <span className="ml-2 truncate flex-1">Add all to labeling queue</span>
-            </Badge>
-          </AddToLabelingQueuePopover>
+          <div
+            className={selectedDatapointIds.length === 0 ? "pointer-events-none" : ""}
+            title={selectedDatapointIds.length === 0 ? "Select datapoints to add to labeling queue" : ""}
+          >
+            <AddToLabelingQueuePopover
+              datasetId={dataset.id}
+              datapointIds={
+                selectedDatapointIds.length > 0 ? selectedDatapointIds : datapoints?.map(({ id }) => id) || []
+              }
+            >
+              <Badge
+                className={`cursor-pointer py-1 px-2 ${selectedDatapointIds.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                variant="secondary"
+              >
+                <Pen className="size-3 min-w-3" />
+                <span className="ml-2 truncate flex-1">
+                  {selectedDatapointIds.length > 0
+                    ? `Add to labeling queue (${selectedDatapointIds.length})`
+                    : "Add to labeling queue"}
+                </span>
+              </Badge>
+            </AddToLabelingQueuePopover>
+          </div>
           {enableDownloadParquet && (
             <DownloadParquetDialog datasetId={dataset.id} publicApiBaseUrl={publicApiBaseUrl} />
           )}
@@ -218,6 +236,8 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           onPageChange={onPageChange}
           totalItemsCount={totalCount}
           enableRowSelection
+          selectedRowIds={selectedDatapointIds}
+          onSelectedRowsChange={setSelectedDatapointIds}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows
@@ -252,7 +272,6 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
                 datapointId={selectedDatapoint.id}
                 onClose={() => {
                   handleDatapointSelect(null);
-                  getDatapoints();
                 }}
               />
             </div>
