@@ -25,6 +25,11 @@ export const GetSharedTraceSchema = z.object({
   traceId: z.string(),
 });
 
+export const GetInferredTopSpanSchema = z.object({
+  traceId: z.string(),
+  projectId: z.string(),
+});
+
 interface ClickHouseSpan {
   span_id: string;
   name: string;
@@ -253,4 +258,38 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
     ...trace,
     visibility: "public",
   };
+}
+
+export async function getInferredTopSpan(input: z.infer<typeof GetInferredTopSpanSchema>): Promise<{ inferredTopSpanName: string } | null> {
+  const { traceId, projectId } = GetInferredTopSpanSchema.parse(input);
+
+  // Fetch any span from this trace to get the path
+  const [span] = await executeQuery<{ path: string }>({
+    query: `
+      SELECT simpleJSONExtractRaw(attributes, 'lmnr.span.path') as path
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+      LIMIT 1
+    `,
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
+
+  if (!span) {
+    return null;
+  }
+
+  // Parse the path as a JSON array and get the first element
+  try {
+    const pathArray = JSON.parse(span.path);
+    if (Array.isArray(pathArray) && pathArray.length > 0) {
+      return { inferredTopSpanName: pathArray[0] };
+    }
+  } catch (error) {
+    console.error("Error parsing span path:", error);
+  }
+
+  return null;
 }
