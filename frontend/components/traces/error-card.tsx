@@ -26,9 +26,9 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
           onClick={() => setIsOpen((prev) => !prev)}
           className="flex items-start gap-2 w-full p-2 text-left rounded-md cursor-pointer"
         >
-          <CircleAlert className="w-4 h-4" />
+          <CircleAlert className="w-4 h-4 min-w-4 min-h-4" />
           <div className="flex flex-1 items-start justify-between">
-            <div>
+            <div className="break-all">
               <h3 className="font-medium text-xs">{errorType || "Exception occurred"}</h3>
               {errorMessage && (
                 <p className="text-xs mt-0.5">
@@ -55,18 +55,18 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
             <div className="mb-2">
               <p className="text-muted-foreground text-xs mb-1">Full error details:</p>
               <div className="bg-muted rounded-sm p-2 border">
-                <pre className="text-xs text-foreground whitespace-pre-wrap font-mono">{errorMessage}</pre>
+                <pre className="text-xs text-foreground whitespace-pre-wrap font-mono break-all">{errorMessage}</pre>
               </div>
             </div>
           )}
           {traceLines.length > 0 && (
             <>
               <p className="text-muted-foreground text-xs mb-1">Stack trace:</p>
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 overflow-hidden">
                 {traceLines.map((line, index) => (
                   <div key={index} className="flex items-start gap-1.5">
                     <div className="w-1 h-1 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span className="text-xs font-mono">{line.trim()}</span>
+                    <span className="text-xs font-mono break-all overflow-hidden">{line.trim()}</span>
                   </div>
                 ))}
               </div>

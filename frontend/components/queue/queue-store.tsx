@@ -16,15 +16,15 @@ export interface AnnotationField {
 export type QueueState = {
   queue: LabelingQueue | null;
   currentItem:
-    | (LabelingQueueItem & {
-        count: number;
-        position: number;
-        payload: {
-          data: Record<string, unknown>;
-          target: Record<string, unknown>;
-        };
-      })
-    | null;
+  | (LabelingQueueItem & {
+    count: number;
+    position: number;
+    payload: {
+      data: Record<string, unknown>;
+      target: Record<string, unknown>;
+    };
+  })
+  | null;
   isLoading: "skip" | "move" | "first-load" | false;
   isValid: boolean;
   dataset: string | undefined;
@@ -151,14 +151,14 @@ const createQueueStore = (queue: LabelingQueue) =>
         setCurrentItem: (currentItem) => {
           const { globalTargetSelections } = get();
           if (currentItem) {
-            // Merge global selections with existing target data
+            // Merge global selections with existing target data, prioritizing item-specific data
             currentItem = {
               ...currentItem,
               payload: {
                 ...currentItem.payload,
                 target: {
-                  ...currentItem.payload.target,
                   ...globalTargetSelections,
+                  ...currentItem.payload.target,
                 },
               },
             };

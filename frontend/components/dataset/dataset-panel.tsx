@@ -17,7 +17,7 @@ import { Skeleton } from "../ui/skeleton";
 interface DatasetPanelProps {
   datasetId: string;
   datapointId: string;
-  onClose: () => void;
+  onClose: (updatedDatapoint?: Datapoint) => void;
 }
 
 // Helper function to safely parse JSON strings
@@ -131,6 +131,20 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     originalMetadataRef.current = parsedMetadata;
   }, [datapoint]);
 
+  const handleClose = useCallback(() => {
+    if (datapoint) {
+      const updatedDatapoint: Datapoint = {
+        ...datapoint,
+        data: JSON.stringify(newData),
+        target: JSON.stringify(newTarget),
+        metadata: JSON.stringify(newMetadata),
+      };
+      onClose(updatedDatapoint);
+    } else {
+      onClose();
+    }
+  }, [onClose, datapoint, newData, newTarget, newMetadata]);
+
   // Debounced auto-save effect
   useEffect(() => {
     // Skip if datapoint is not loaded yet or if values are invalid
@@ -182,7 +196,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     return (
       <div className="flex flex-col h-full w-full">
         <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
-          <Button variant="ghost" className="px-1" onClick={onClose}>
+          <Button variant="ghost" className="px-1" onClick={handleClose}>
             <ChevronsRight />
           </Button>
           <div>Row</div>

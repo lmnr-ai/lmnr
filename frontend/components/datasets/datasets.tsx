@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
@@ -28,19 +28,17 @@ export default function Datasets() {
   const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
 
   const swrKey = `/api/projects/${projectId}/datasets?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-  const { data, isLoading } = useSWR<PaginatedResponse<DatasetInfo>>(swrKey, swrFetcher);
+  const { data, mutate } = useSWR<PaginatedResponse<DatasetInfo>>(swrKey, swrFetcher);
 
   const datasets = data?.items;
   const totalCount = data?.totalCount || 0;
   const pageCount = Math.ceil(totalCount / pageSize);
 
   const { toast } = useToast();
-  const { mutate } = useSWRConfig();
 
   const handleDeleteDatasets = async (datasetIds: string[]) => {
     try {
-      await mutate<PaginatedResponse<DatasetInfo>>(
-        swrKey,
+      await mutate(
         async (currentData) => {
           const res = await fetch(`/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(",")}`, {
             method: "DELETE",
