@@ -259,4 +259,4 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   };
 };
 
-export { buildSelectQuery, createNumberFilter, createStringFilter };
+export { buildSelectQuery, createNumberFilter, createStringFilter, createArrayFilter, createCustomFilter };

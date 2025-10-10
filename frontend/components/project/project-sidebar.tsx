@@ -9,6 +9,7 @@ import {
   PlayCircle,
   Rows4,
   Settings,
+  Sparkles,
   SquareFunction,
   SquareTerminal,
   X,
@@ -119,6 +120,11 @@ export default function ProjectSidebar({
         name: "traces",
         href: `/project/${projectId}/traces`,
         icon: Rows4,
+      },
+      {
+        name: "events",
+        href: `/project/${projectId}/events`,
+        icon: Sparkles,
       },
       {
         name: "evaluations",

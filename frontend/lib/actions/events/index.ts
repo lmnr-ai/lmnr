@@ -44,3 +44,5 @@ export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise
     attributes: tryParseJson(event.attributes),
   }));
 }
+
+export * from "./paginated";
