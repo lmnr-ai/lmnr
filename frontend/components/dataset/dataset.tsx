@@ -20,6 +20,7 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
+import JsonTooltip from "../ui/json-tooltip";
 import MonoWithCopy from "../ui/mono-with-copy";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
@@ -53,6 +54,7 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
+    cell: (row) => <JsonTooltip data={row.getValue()} label="Metadata" columnSize={row.column.getSize()} />,
   },
 ];
 
@@ -134,7 +136,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           async (currentData) => {
             const response = await fetch(
               `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
-                `?datapointIds=${datapointIds.join(",")}`,
+              `?datapointIds=${datapointIds.join(",")}`,
               {
                 method: "DELETE",
                 headers: {
