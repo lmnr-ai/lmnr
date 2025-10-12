@@ -153,7 +153,7 @@ async fn process_spans_and_events_batch(
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans in parallel (heavy processing)
-    let processing_results: Vec<_> = messages
+    let mut processing_results: Vec<_> = messages
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
@@ -169,6 +169,14 @@ async fn process_spans_and_events_batch(
             (span, message.events, ingested_bytes)
         })
         .collect();
+
+    // Re-order spans by end_time
+    // This is needed so that concurrent updates to traces table in clickhouse
+    // are ordered same as spans in the batch. Clickhouse table is a replacing
+    // merge tree versioned by the number of spans in the trace so far.
+    processing_results.sort_by_key(|(span, _, _)| span.end_time);
+    // Drop mutability
+    let processing_results = processing_results;
 
     // Collect results from parallel processing
     for (span, events, ingested_bytes) in processing_results {
