@@ -200,6 +200,8 @@ export default function TracesTable() {
         const spanInputCost = spanData.attributes?.["gen_ai.usage.input_cost"] || 0;
         const spanOutputCost = spanData.attributes?.["gen_ai.usage.output_cost"] || 0;
 
+        const newTopSpanName = isTopSpan ? spanData.name : existingTrace.topSpanName;
+
         newTraces[existingTraceIndex] = {
           ...existingTrace,
           startTime:
@@ -216,10 +218,11 @@ export default function TracesTable() {
           inputCost: existingTrace.inputCost + spanInputCost,
           outputCost: existingTrace.outputCost + spanOutputCost,
           totalCost: existingTrace.totalCost + spanInputCost + spanOutputCost,
-          topSpanName: isTopSpan ? spanData.name : existingTrace.topSpanName,
+          topSpanName: newTopSpanName,
           topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
           topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
-          inferredTopSpanName: inferredTopSpanName || existingTrace.inferredTopSpanName,
+          // Only set inferredTopSpanName if we don't have a top span
+          inferredTopSpanName: newTopSpanName ? existingTrace.inferredTopSpanName : (inferredTopSpanName || existingTrace.inferredTopSpanName),
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
           tags: Array.from(
             new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])
@@ -250,7 +253,7 @@ export default function TracesTable() {
           traceType: "DEFAULT",
           topSpanName: isTopSpan ? spanData.name : null,
           topSpanType: isTopSpan ? spanData.spanType : null,
-          inferredTopSpanName: inferredTopSpanName,
+          inferredTopSpanName: isTopSpan ? undefined : inferredTopSpanName,
           status: spanData.status,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,
           tags: spanData.attributes?.["lmnr.association.properties.tags"] || [],
