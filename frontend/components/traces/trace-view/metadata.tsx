@@ -1,7 +1,7 @@
 import React from "react";
 
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store";
+import CodeHighlighter from "@/components/ui/code-highlighter/index";
 
 interface MetadataProps {
   trace: TraceViewTrace;
