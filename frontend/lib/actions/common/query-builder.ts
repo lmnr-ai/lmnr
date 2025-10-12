@@ -109,7 +109,7 @@ const createArrayFilter =
       };
     };
 
-export const createCustomFilter =
+const createCustomFilter =
   (
     conditionBuilder: (filter: FilterDef, paramKey: string) => string,
     paramBuilder?: (filter: FilterDef, paramKey: string) => QueryParams
@@ -259,4 +259,4 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   };
 };
 
-export { buildSelectQuery, createNumberFilter, createStringFilter, createArrayFilter, createCustomFilter };
+export { buildSelectQuery, createArrayFilter, createCustomFilter, createNumberFilter, createStringFilter };

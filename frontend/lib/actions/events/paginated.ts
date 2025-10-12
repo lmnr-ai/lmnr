@@ -1,29 +1,20 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { buildSelectQuery, createStringFilter } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { buildSelectQuery, createStringFilter, QueryParams } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { EventRow } from "@/lib/events/types";
 
-export const GetEventsSchema = TimeRangeSchema.merge(PaginationFiltersSchema).extend({
+export const GetEventsSchema = PaginationFiltersSchema.extend({
+  ...TimeRangeSchema.shape,
   projectId: z.string(),
-  name: z.string().nullable().optional(),
   search: z.string().nullable().optional(),
+  name: z.string().optional(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>) {
-  const {
-    projectId,
-    name,
-    pageSize,
-    pageNumber,
-    pastHours,
-    startDate,
-    endDate,
-    filter,
-    search
-  } = GetEventsSchema.parse(input);
+  const { projectId, name, pageSize, pageNumber, pastHours, startDate, endDate, filter, search } = input;
 
   const urlParamFilters = compact(filter);
 
@@ -31,7 +22,6 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
   const offset = Math.max(0, pageNumber * pageSize);
 
   const customConditions = [];
-  const customParams: QueryParams = { projectId };
 
   if (name) {
     customConditions.push({
@@ -42,7 +32,8 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
 
   if (search && search.trim() !== "") {
     customConditions.push({
-      condition: "(name ILIKE {searchQuery:String} OR user_id ILIKE {searchQuery:String} OR session_id ILIKE {searchQuery:String})",
+      condition:
+        "(name ILIKE {searchQuery:String} OR user_id ILIKE {searchQuery:String} OR session_id ILIKE {searchQuery:String})",
       params: { searchQuery: `%${search.trim()}%` },
     });
   }
@@ -59,7 +50,6 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
     select: {
       columns: [
         "id",
-        "project_id projectId",
         "span_id spanId",
         "trace_id traceId",
         "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
@@ -67,7 +57,6 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
         "attributes",
         "user_id userId",
         "session_id sessionId",
-        "size_bytes sizeBytes",
       ],
       table: "events",
     },
@@ -79,13 +68,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
     },
     filters: urlParamFilters,
     columnFilterConfig,
-    customConditions: [
-      {
-        condition: "project_id = {projectId:UUID}",
-        params: customParams,
-      },
-      ...customConditions,
-    ],
+    customConditions: customConditions,
     orderBy: {
       column: "timestamp",
       direction: "DESC",
@@ -109,13 +92,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsSchema>)
     },
     filters: urlParamFilters,
     columnFilterConfig,
-    customConditions: [
-      {
-        condition: "project_id = {projectId:UUID}",
-        params: customParams,
-      },
-      ...customConditions,
-    ],
+    customConditions: customConditions,
   });
 
   const [items, [countResult]] = await Promise.all([
@@ -136,7 +113,6 @@ export async function getEventNames(projectId: string) {
       count(*) as count,
       max(timestamp) as lastEventTimestamp
     FROM events
-    WHERE project_id = {projectId:UUID}
     GROUP BY name
     ORDER BY lastEventTimestamp DESC
   `;
@@ -147,10 +123,8 @@ export async function getEventNames(projectId: string) {
     lastEventTimestamp: string;
   }>({
     query,
-    parameters: { projectId },
     projectId,
   });
 
   return results;
 }
-

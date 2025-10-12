@@ -3,13 +3,13 @@
 import {
   Book,
   Database,
+  FlagTriangleRight,
   FlaskConical,
   LayoutGrid,
   Pen,
   PlayCircle,
   Rows4,
   Settings,
-  Sparkles,
   SquareFunction,
   SquareTerminal,
   X,
@@ -122,11 +122,6 @@ export default function ProjectSidebar({
         icon: Rows4,
       },
       {
-        name: "events",
-        href: `/project/${projectId}/events`,
-        icon: Sparkles,
-      },
-      {
         name: "evaluations",
         href: `/project/${projectId}/evaluations`,
         icon: FlaskConical,
@@ -135,6 +130,11 @@ export default function ProjectSidebar({
         name: "evaluators",
         href: `/project/${projectId}/evaluators`,
         icon: SquareFunction,
+      },
+      {
+        name: "events",
+        href: `/project/${projectId}/events`,
+        icon: FlagTriangleRight,
       },
       {
         name: "datasets",
