@@ -1,11 +1,12 @@
 import { get } from "lodash";
-import { AlertTriangle, ChartNoAxesGantt, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, ChartNoAxesGantt, ListFilter, Minus, Plus, Search, Sparkles, FileText } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
+import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
 import TraceViewStoreProvider, {
@@ -437,6 +438,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     <span>Timeline</span>
                   </Button>
                   <Button
+                    onClick={() => setTab("metadata")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "metadata",
+                    })}
+                  >
+                    <FileText size={14} className="mr-1" />
+                    <span>Metadata</span>
+                  </Button>
+                  <Button
                     onClick={() => setTab("chat")}
                     variant="outline"
                     className={cn("h-6 text-xs text-primary px-1.5", {
@@ -486,6 +497,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
               ) : (
                 <>
+                  {tab === "metadata" && trace && <Metadata trace={trace} />}
                   {tab === "chat" && trace && (
                     <Chat
                       trace={trace}
