@@ -1,23 +1,11 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { flow } from "lodash";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils.ts";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono.tsx";
 import { EventRow } from "@/lib/events/types.ts";
-
-export const columns: ColumnDef<{ name: string; count: number; lastEventTimestamp: string }>[] = [
-  {
-    header: "Name",
-    accessorFn: (row) => row.name,
-  },
-  {
-    header: "Last Event",
-    accessorFn: (row) => row.lastEventTimestamp,
-    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEventTimestamp} />,
-  },
-];
 
 export const eventsTableColumns: ColumnDef<EventRow>[] = [
   {
@@ -62,11 +50,8 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
   {
     accessorKey: "attributes",
     header: "Attributes",
-    accessorFn: flow(
-      (row: EventRow) => row.attributes,
-      (attributes) => (attributes && attributes !== "{}" ? attributes : "-")
-    ),
-    size: 300,
+    accessorFn: (row) => row.attributes,
+    cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
   },
 ];
 
@@ -90,5 +75,10 @@ export const eventsTableFilters: ColumnFilter[] = [
     name: "Session ID",
     key: "session_id",
     dataType: "string",
+  },
+  {
+    name: "Attributes",
+    key: "attributes",
+    dataType: "json",
   },
 ];

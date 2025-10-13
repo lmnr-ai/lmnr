@@ -2,25 +2,23 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
+import { EventDefinition } from "@/components/event-definitions/event-definitions-store";
+import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog";
 import { EventRow } from "@/lib/events/types";
-import { PaginatedResponse } from "@/lib/types";
 
 export type EventsState = {
-  projectId: string;
   events?: EventRow[];
-  eventNames?: { name: string; count: number; lastEventTimestamp: string }[];
   totalCount: number;
-  isLoadingEvents: boolean;
-  isLoadingEventNames: boolean;
+  eventDefinition: ManageEventDefinitionForm;
 };
 
 export type EventsActions = {
   fetchEvents: (params: URLSearchParams) => Promise<void>;
-  fetchEventNames: () => Promise<void>;
+  setEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
 };
 
 export interface EventsProps {
-  projectId: string;
+  eventDefinition: EventDefinition;
 }
 
 export type EventsStore = EventsState & EventsActions;
@@ -29,46 +27,30 @@ export type EventsStoreApi = ReturnType<typeof createEventsStore>;
 
 export const createEventsStore = (initProps: EventsProps) =>
   createStore<EventsStore>()((set, get) => ({
-    projectId: initProps.projectId,
     totalCount: 0,
-    isLoadingEvents: false,
-    isLoadingEventNames: false,
+    eventDefinition: {
+      ...initProps.eventDefinition,
+      structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput),
+    },
+    setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     fetchEvents: async (params: URLSearchParams) => {
-      const { projectId } = get();
-      set({ isLoadingEvents: true });
+      const { eventDefinition } = get();
+
+      set({ events: undefined });
 
       try {
-        const response = await fetch(`/api/projects/${projectId}/events?${params.toString()}`);
+        const response = await fetch(
+          `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}?${params.toString()}`
+        );
         if (!response.ok) throw new Error("Failed to fetch events");
-
-        const data: PaginatedResponse<EventRow> = await response.json();
+        const data: { items: EventRow[]; count: number } = await response.json();
         set({
           events: data.items,
-          totalCount: data.totalCount,
-          isLoadingEvents: false,
+          totalCount: data.count,
         });
       } catch (error) {
+        set({ events: [], totalCount: 0 });
         console.error("Error fetching events:", error);
-        set({ isLoadingEvents: false });
-      }
-    },
-
-    fetchEventNames: async () => {
-      const { projectId } = get();
-      set({ isLoadingEventNames: true });
-
-      try {
-        const response = await fetch(`/api/projects/${projectId}/events/names`);
-        if (!response.ok) throw new Error("Failed to fetch event names");
-
-        const data = await response.json();
-        set({
-          eventNames: data,
-          isLoadingEventNames: false,
-        });
-      } catch (error) {
-        console.error("Error fetching event names:", error);
-        set({ isLoadingEventNames: false });
       }
     },
   }));

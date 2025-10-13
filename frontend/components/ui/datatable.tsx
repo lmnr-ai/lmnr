@@ -68,44 +68,44 @@ const checkboxColumn = <TData,>(
   setAllRowsAcrossAllPagesSelected: Dispatch<SetStateAction<boolean>>,
   onSelectAllAcrossPages: DataTableProps<TData>["onSelectAllAcrossPages"]
 ): ColumnDef<TData> => ({
-    id: "__row_selection",
-    enableResizing: false,
-    header: ({ table }) => (
-      <Checkbox
-        className="border border-secondary"
-        checked={table.getIsAllRowsSelected()}
-        onCheckedChange={(checked) => {
-          if (!checked) {
-            setAllRowsAcrossAllPagesSelected?.(false);
-            onSelectAllAcrossPages?.(false);
-          }
-        }}
-        onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
-        onClick={(e) => {
-          e.stopPropagation();
-          table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
-        }}
-      />
-    ),
-    size: 52,
-    cell: ({ row }) => (
-      <Checkbox
-        className={cn("border border-secondary")}
-        checked={row.getIsSelected()}
-        onCheckedChange={(checked) => {
-          if (!checked) {
-            setAllRowsAcrossAllPagesSelected?.(false);
-            onSelectAllAcrossPages?.(false);
-          }
-        }}
-        onChange={row.getToggleSelectedHandler()}
-        onClick={(e) => {
-          e.stopPropagation();
-          row.toggleSelected(!row.getIsSelected());
-        }}
-      />
-    ),
-  });
+  id: "__row_selection",
+  enableResizing: false,
+  header: ({ table }) => (
+    <Checkbox
+      className="border border-secondary"
+      checked={table.getIsAllRowsSelected()}
+      onCheckedChange={(checked) => {
+        if (!checked) {
+          setAllRowsAcrossAllPagesSelected?.(false);
+          onSelectAllAcrossPages?.(false);
+        }
+      }}
+      onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+      onClick={(e) => {
+        e.stopPropagation();
+        table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
+      }}
+    />
+  ),
+  size: 52,
+  cell: ({ row }) => (
+    <Checkbox
+      className={cn("border border-secondary")}
+      checked={row.getIsSelected()}
+      onCheckedChange={(checked) => {
+        if (!checked) {
+          setAllRowsAcrossAllPagesSelected?.(false);
+          onSelectAllAcrossPages?.(false);
+        }
+      }}
+      onChange={row.getToggleSelectedHandler()}
+      onClick={(e) => {
+        e.stopPropagation();
+        row.toggleSelected(!row.getIsSelected());
+      }}
+    />
+  ),
+});
 
 export function DataTable<TData>({
   columns,
@@ -207,7 +207,7 @@ export function DataTable<TData>({
   const renderRow = (row: Row<TData>) => (
     <TableRow
       className={cn(
-        "flex min-w-full border-b",
+        "flex min-w-full border-b group/row",
         !!onRowClick && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
         focusedRowId === row.id && "bg-secondary/70"

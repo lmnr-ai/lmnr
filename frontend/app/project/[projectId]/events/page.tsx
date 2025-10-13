@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
-import Events from "@/components/events/events";
-import { EventsStoreProvider } from "@/components/events/events-store";
+import EventDefinitions from "@/components/event-definitions/event-definitions";
+import { EventDefinitionsStoreProvider } from "@/components/event-definitions/event-definitions-store";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -11,8 +11,8 @@ export default async function EventsPage(props: { params: Promise<{ projectId: s
   const { projectId } = await props.params;
 
   return (
-    <EventsStoreProvider projectId={projectId}>
-      <Events />
-    </EventsStoreProvider>
+    <EventDefinitionsStoreProvider projectId={projectId}>
+      <EventDefinitions />
+    </EventDefinitionsStoreProvider>
   );
 }
