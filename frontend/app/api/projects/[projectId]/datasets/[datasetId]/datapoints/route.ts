@@ -66,6 +66,9 @@ export async function POST(
   }
 }
 
+// Note: this endpoint allows a body in a DELETE request, which is not standard
+// but fits our purposes: (1) this is an internal API, (2) passing many
+// datapoint IDs in the URL may break
 export async function DELETE(
   req: NextRequest,
   props: { params: Promise<{ projectId: string; datasetId: string }> }
@@ -73,8 +76,8 @@ export async function DELETE(
   const params = await props.params;
 
   try {
-    const searchParams = req.nextUrl.searchParams;
-    const datapointIds = searchParams.get("datapointIds")?.split(",");
+    const body = await req.json();
+    const datapointIds = body.datapointIds;
 
     if (!datapointIds) {
       return new Response("At least one Datapoint ID is required", { status: 400 });
