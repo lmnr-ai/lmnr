@@ -56,12 +56,14 @@ export default function RenameProject({}: RenameProjectProps) {
   };
 
   return (
-    <div>
-      <div className="flex flex-col items-start space-y-4">
-        <h1 className="text-lg">Rename project</h1>
-        <Label className="text-sm text-secondary-foreground">
-          Update the name of your project. Changes will take effect immediately.
-        </Label>
+    <div className="rounded-lg border">
+      <div className="p-6 space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-base font-semibold">Rename project</h3>
+          <p className="text-sm text-muted-foreground">
+            Update the name of your project. Changes will take effect immediately.
+          </p>
+        </div>
         <Dialog
           open={isRenameDialogOpen}
           onOpenChange={() => {
@@ -75,9 +77,9 @@ export default function RenameProject({}: RenameProjectProps) {
                 setIsRenameDialogOpen(true);
               }}
               variant="outline"
-              className="h-8 max-w-80"
+              className="h-9"
             >
-              <Edit className="w-4 mr-1" />
+              <Edit className="w-4 h-4 mr-2" />
               Rename project
             </Button>
           </DialogTrigger>

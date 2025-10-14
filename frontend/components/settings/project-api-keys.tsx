@@ -53,12 +53,14 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   };
 
   return (
-    <>
-      <div className="flex flex-col items-start space-y-4">
-        <h1 className="text-lg">Project API keys</h1>
-        <Label>
-          Create a Laminar API key to send traces from your AI application. These keys are tied to the project.
-        </Label>
+    <div className="rounded-lg border bg-background">
+      <div className="p-6 space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-base font-semibold">Project API keys</h3>
+          <p className="text-sm text-muted-foreground">
+            Create a Laminar API key to send traces from your AI application. These keys are tied to the project.
+          </p>
+        </div>
         <Dialog
           open={isGenerateKeyDialogOpen}
           onOpenChange={() => {
@@ -69,8 +71,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           }}
         >
           <DialogTrigger asChild>
-            <Button variant="outline" className="h-8 max-w-80">
-              <Plus className="w-4 mr-1 text-gray-500" />
+            <Button variant="outline" className="h-9">
+              <Plus className="w-4 h-4 mr-2" />
               Generate API key
             </Button>
           </DialogTrigger>
@@ -101,25 +103,25 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
             )}
           </DialogContent>
         </Dialog>
-        <table className="w-1/2 border-t">
-          <tbody>
-            {projectApiKeys.map((apiKey, id) => (
-              <tr className="border-b h-14" key={id}>
-                <td className="">{apiKey.name}</td>
-                <td className="ml-4 text-[16px] font-mono text-xs">
-                  <div>{apiKey.shorthand}</div>
-                </td>
-                <td>
-                  <div className="flex justify-end">
-                    <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="border rounded-md">
+          <table className="w-full">
+            <tbody>
+              {projectApiKeys.map((apiKey, id) => (
+                <tr className="border-b last:border-b-0 h-12" key={id}>
+                  <td className="px-4 text-sm font-medium">{apiKey.name}</td>
+                  <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
+                  <td className="px-4">
+                    <div className="flex justify-end">
+                      <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 

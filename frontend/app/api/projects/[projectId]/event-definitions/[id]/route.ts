@@ -5,10 +5,10 @@ import { deleteEventDefinition, getEventDefinition, updateEventDefinition } from
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string; id: string }> }) {
   const params = await props.params;
-  const { id } = params;
+  const { id, projectId } = params;
 
   try {
-    const result = await getEventDefinition({ id });
+    const result = await getEventDefinition({ id, projectId });
 
     if (!result) {
       return NextResponse.json({ error: "Event definition not found" }, { status: 404 });
