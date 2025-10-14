@@ -62,7 +62,7 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
             <CopyButton
               size="icon"
               variant="ghost"
-              className="h-6 w-6 ml-auto absolute right-0.5 top-0.5"
+              className="h-3 w-3 absolute right-0.5 top-0.5"
               iconClassName="h-3 w-3"
               text={jsonString}
             />
