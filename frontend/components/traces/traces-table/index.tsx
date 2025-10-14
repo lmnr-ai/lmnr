@@ -222,7 +222,7 @@ export default function TracesTable() {
           topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
           topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
           // Only set inferredTopSpanName if we don't have a top span
-          inferredTopSpanName: newTopSpanName ? existingTrace.inferredTopSpanName : (inferredTopSpanName || existingTrace.inferredTopSpanName),
+          inferredTopSpanName: newTopSpanName ? undefined : (inferredTopSpanName || existingTrace.inferredTopSpanName),
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
           tags: Array.from(
             new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])
