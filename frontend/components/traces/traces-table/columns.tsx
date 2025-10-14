@@ -7,6 +7,7 @@ import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -38,7 +39,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         })}
       />
     ),
-    accessorFn: (row) => row.status === "error" ? "error" : row.analysis_status,
+    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
     size: 32,
@@ -204,38 +205,10 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "tags",
   },
   {
-    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
+    accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
-    cell: (row) => (
-      <TooltipProvider delayDuration={100}>
-        <Tooltip>
-          <TooltipTrigger className="relative p-0">
-            <div
-              style={{
-                width: row.column.getSize() - 32,
-              }}
-              className="relative"
-            >
-              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{row.getValue()}</div>
-              </div>
-            </div>
-          </TooltipTrigger>
-          {row.getValue() !== undefined && (
-            <TooltipContent
-              side="bottom"
-              className="p-2 border"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <div className="whitespace-pre-wrap">{row.getValue()}</div>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
-    ),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
   {

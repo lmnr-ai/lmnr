@@ -16,19 +16,20 @@ export interface AnnotationField {
 export type QueueState = {
   queue: LabelingQueue | null;
   currentItem:
-    | (LabelingQueueItem & {
-        count: number;
-        position: number;
-        payload: {
-          data: Record<string, unknown>;
-          target: Record<string, unknown>;
-        };
-      })
-    | null;
+  | (LabelingQueueItem & {
+    count: number;
+    position: number;
+    payload: {
+      data: Record<string, unknown>;
+      target: Record<string, unknown>;
+    };
+  })
+  | null;
   isLoading: "skip" | "move" | "first-load" | false;
   isValid: boolean;
   dataset: string | undefined;
 
+  globalTargetSelections: Record<string, unknown>;
   annotationSchema: Record<string, unknown> | null;
   fields: AnnotationField[];
   focusedFieldIndex: number;
@@ -39,6 +40,8 @@ export type QueueState = {
 export type QueueActions = {
   setQueue: (queue: LabelingQueue) => void;
   setCurrentItem: (item: QueueState["currentItem"]) => void;
+  setCurrentItemTarget: (target: Record<string, unknown>) => void;
+  clearGlobalSelections: () => void;
   setIsLoading: (loading: QueueState["isLoading"]) => void;
   setIsValid: (valid: boolean) => void;
   setDataset: (dataset: string | undefined) => void;
@@ -57,6 +60,7 @@ export type QueueStore = QueueState & QueueActions;
 
 interface SerializableQueueState {
   height: number | null;
+  dataset?: string;
 }
 
 function parseAnnotationSchema(annotationSchema: Record<string, unknown> | null): AnnotationField[] {
@@ -134,6 +138,7 @@ const createQueueStore = (queue: LabelingQueue) =>
         isValid: true,
         dataset: undefined,
 
+        globalTargetSelections: {},
         annotationSchema: (queue.annotationSchema as Record<string, unknown>) || null,
         fields: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null),
         focusedFieldIndex:
@@ -144,7 +149,41 @@ const createQueueStore = (queue: LabelingQueue) =>
         setQueue: (queue) => set({ queue }),
 
         setCurrentItem: (currentItem) => {
+          const { globalTargetSelections } = get();
+          if (currentItem) {
+            // Merge global selections with existing target data, prioritizing item-specific data
+            currentItem = {
+              ...currentItem,
+              payload: {
+                ...currentItem.payload,
+                target: {
+                  ...globalTargetSelections,
+                  ...currentItem.payload.target,
+                },
+              },
+            };
+          }
           set({ currentItem });
+        },
+
+        setCurrentItemTarget: (target) => {
+          set((state) => {
+            if (!state.currentItem) return state;
+            return {
+              ...state,
+              currentItem: {
+                ...state.currentItem,
+                payload: {
+                  ...state.currentItem.payload,
+                  target,
+                },
+              },
+            };
+          });
+        },
+
+        clearGlobalSelections: () => {
+          set({ globalTargetSelections: {} });
         },
 
         setIsLoading: (isLoading) => set({ isLoading }),
@@ -169,8 +208,14 @@ const createQueueStore = (queue: LabelingQueue) =>
           set((state) => {
             if (!state.currentItem) return state;
 
+            const newGlobalSelections = {
+              ...state.globalTargetSelections,
+              [key]: value,
+            };
+
             return {
               ...state,
+              globalTargetSelections: newGlobalSelections,
               currentItem: {
                 ...state.currentItem,
                 payload: {
@@ -243,6 +288,7 @@ const createQueueStore = (queue: LabelingQueue) =>
         name: `queue-${queue.id}-state`,
         partialize: (state): SerializableQueueState => ({
           height: state.height,
+          dataset: state.dataset,
         }),
       }
     )

@@ -11,7 +11,6 @@ import {
   createImageDecorationPlugin,
   ImageData,
   languageExtensions,
-  MAX_LINE_WRAPPING_LENGTH,
   modes as defaultModes,
   renderText,
   theme,
@@ -122,10 +121,6 @@ const PureCodeHighlighter = ({
 
   const extensions = useMemo(() => {
     const extensions = [...baseExtensions];
-
-    if (lineWrapping && renderedValue.length < MAX_LINE_WRAPPING_LENGTH) {
-      extensions.push(EditorView.lineWrapping);
-    }
 
     const languageExtension = languageExtensions[mode as keyof typeof languageExtensions];
     if (languageExtension) {
@@ -280,6 +275,7 @@ const PureCodeHighlighter = ({
             !showLineNumbers && "pl-1",
             codeEditorClassName
           )}
+          style={{ overflowX: "hidden" }}
         >
           <CodeMirror
             ref={editorRef}

@@ -17,7 +17,7 @@ import { Skeleton } from "../ui/skeleton";
 interface DatasetPanelProps {
   datasetId: string;
   datapointId: string;
-  onClose: () => void;
+  onClose: (updatedDatapoint?: Datapoint) => void;
 }
 
 // Helper function to safely parse JSON strings
@@ -60,11 +60,13 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
   const originalMetadataRef = useRef<Record<string, any>>({});
 
   // Check if current values differ from original values
-  const hasChanges = useCallback(() => (
-    JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
-    JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
-    JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current)
-  ), [newData, newTarget, newMetadata]);
+  const hasChanges = useCallback(
+    () =>
+      JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
+      JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
+      JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current),
+    [newData, newTarget, newMetadata]
+  );
 
   const saveChanges = useCallback(async () => {
     // don't do anything if no changes or invalid jsons
@@ -97,7 +99,19 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     originalDataRef.current = newData;
     originalTargetRef.current = newTarget;
     originalMetadataRef.current = newMetadata;
-  }, [hasChanges, isValidJsonData, isValidJsonTarget, isValidJsonMetadata, newData, newTarget, newMetadata, projectId, datasetId, datapointId, toast]);
+  }, [
+    hasChanges,
+    isValidJsonData,
+    isValidJsonTarget,
+    isValidJsonMetadata,
+    newData,
+    newTarget,
+    newMetadata,
+    projectId,
+    datasetId,
+    datapointId,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!datapoint) return;
@@ -116,6 +130,20 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     originalTargetRef.current = parsedTarget;
     originalMetadataRef.current = parsedMetadata;
   }, [datapoint]);
+
+  const handleClose = useCallback(() => {
+    if (datapoint) {
+      const updatedDatapoint: Datapoint = {
+        ...datapoint,
+        data: JSON.stringify(newData),
+        target: JSON.stringify(newTarget),
+        metadata: JSON.stringify(newMetadata),
+      };
+      onClose(updatedDatapoint);
+    } else {
+      onClose();
+    }
+  }, [onClose, datapoint, newData, newTarget, newMetadata]);
 
   // Debounced auto-save effect
   useEffect(() => {
@@ -142,7 +170,17 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
         clearTimeout(autoSaveFuncTimeoutId.current);
       }
     };
-  }, [newData, newTarget, newMetadata, hasChanges, saveChanges, datapoint, isValidJsonData, isValidJsonTarget, isValidJsonMetadata]);
+  }, [
+    newData,
+    newTarget,
+    newMetadata,
+    hasChanges,
+    saveChanges,
+    datapoint,
+    isValidJsonData,
+    isValidJsonTarget,
+    isValidJsonMetadata,
+  ]);
 
   if (isLoading) {
     return (
@@ -158,11 +196,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
     return (
       <div className="flex flex-col h-full w-full">
         <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
-          <Button
-            variant="ghost"
-            className="px-1"
-            onClick={onClose}
-          >
+          <Button variant="ghost" className="px-1" onClick={handleClose}>
             <ChevronsRight />
           </Button>
           <div>Row</div>
@@ -181,7 +215,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
                   payload: {
                     data: safeParseJSON(datapoint.data, {}),
                     target: safeParseJSON(datapoint.target, {}),
-                    metadata: safeParseJSON(datapoint.metadata, {})
+                    metadata: safeParseJSON(datapoint.metadata, {}),
                   },
                   metadata: { source: "datapoint", id: datapoint.id, datasetId: datasetId },
                 },
@@ -195,6 +229,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2">
                 <Label className="font-medium">Data</Label>
                 <CodeHighlighter
+                  presetKey={`dataset-data-${datasetId}`}
                   className="max-h-[400px] rounded"
                   value={JSON.stringify(newData, null, 2)}
                   defaultMode="json"
@@ -225,10 +260,10 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2">
                 <Label className="font-medium">Target</Label>
                 <CodeHighlighter
+                  presetKey={`dataset-target-${datasetId}`}
                   className="max-h-[400px] rounded w-full"
                   value={JSON.stringify(newTarget, null, 2)}
                   defaultMode="json"
-                  readOnly={false}
                   onChange={(s) => {
                     try {
                       setNewTarget(JSON.parse(s));
@@ -243,10 +278,10 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               <div className="flex flex-col space-y-2 pb-4">
                 <Label className="font-medium">Metadata</Label>
                 <CodeHighlighter
+                  presetKey={`dataset-metadata-${datasetId}`}
                   className="rounded max-h-[400px]"
                   value={JSON.stringify(newMetadata, null, 2)}
                   defaultMode="json"
-                  readOnly={false}
                   onChange={(s: string) => {
                     try {
                       if (s === "") {
