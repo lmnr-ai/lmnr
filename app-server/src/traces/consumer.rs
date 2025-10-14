@@ -12,6 +12,7 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
+    trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -334,21 +335,8 @@ async fn process_batch(
         }
     }
 
-    // Check for completed traces (top-level spans) and push to trace summary queue
-    for span in &spans {
-        if span.parent_span_id.is_none() {
-            if let Err(e) =
-                push_to_trace_summary_queue(span.trace_id, span.project_id, queue.clone()).await
-            {
-                log::error!(
-                    "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
-                    span.trace_id,
-                    span.project_id,
-                    e
-                );
-            }
-        }
-    }
+    // Check for spans matching trigger conditions and push to trace summary queue
+    check_and_push_trace_summaries(&spans, db.clone(), cache.clone(), queue.clone()).await;
 
     // Send realtime messages directly to SSE connections after successful ClickHouse writes
     send_realtime_messages_to_sse(&spans, &sse_connections).await;
@@ -505,4 +493,66 @@ fn span_to_realtime_span(span: &Span) -> Value {
         "createdAt": span.start_time, // Use start_time as created_at for compatibility
         // Note: input and output fields are intentionally excluded for performance
     })
+}
+
+/// Check spans against trigger conditions and push matching traces to summary queue
+/// This function groups spans by project to minimize database/cache queries
+async fn check_and_push_trace_summaries(
+    spans: &[Span],
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+) {
+    // Group spans by project_id to fetch trigger spans only once per project
+    let mut project_trigger_spans: std::collections::HashMap<
+        Uuid,
+        Vec<crate::db::summary_trigger_spans::SummaryTriggerSpanWithEvent>,
+    > = std::collections::HashMap::new();
+
+    // Get unique project IDs from spans
+    let unique_project_ids: std::collections::HashSet<Uuid> =
+        spans.iter().map(|s| s.project_id).collect();
+
+    // Fetch trigger spans once per project (with caching)
+    for project_id in unique_project_ids {
+        match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
+            Ok(trigger_spans) => {
+                project_trigger_spans.insert(project_id, trigger_spans);
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to get summary trigger spans for project {}: {:?}",
+                    project_id,
+                    e
+                );
+            }
+        }
+    }
+
+    // Check each span against its project's trigger spans
+    for span in spans {
+        if let Some(trigger_spans) = project_trigger_spans.get(&span.project_id) {
+            // Check if this span name matches any trigger
+            // Returns Some(event_definitions) if trigger exists (vec may be empty),
+            // or None if no trigger matches
+            if let Some(event_definitions) = check_span_trigger(&span.name, trigger_spans) {
+                if let Err(e) = push_to_trace_summary_queue(
+                    span.trace_id,
+                    span.project_id,
+                    event_definitions,
+                    queue.clone(),
+                )
+                .await
+                {
+                    log::error!(
+                        "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                        span.trace_id,
+                        span.project_id,
+                        span.name,
+                        e
+                    );
+                }
+            }
+        }
+    }
 }

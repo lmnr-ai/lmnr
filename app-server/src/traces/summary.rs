@@ -22,17 +22,20 @@ use crate::{
 pub struct TraceSummaryMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
+    pub event_definitions: Vec<crate::db::summary_trigger_spans::EventDefinition>,
 }
 
 /// Push a trace completion message to the trace summary queue
 pub async fn push_to_trace_summary_queue(
     trace_id: Uuid,
     project_id: Uuid,
+    event_definitions: Vec<crate::db::summary_trigger_spans::EventDefinition>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = TraceSummaryMessage {
         trace_id,
         project_id,
+        event_definitions,
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -46,9 +49,10 @@ pub async fn push_to_trace_summary_queue(
         .await?;
 
     log::debug!(
-        "Pushed trace summary message to queue: trace_id={}, project_id={}",
+        "Pushed trace summary message to queue: trace_id={}, project_id={}, events={:?}",
         trace_id,
-        project_id
+        project_id,
+        message.event_definitions
     );
 
     Ok(())
@@ -161,16 +165,32 @@ async fn process_single_trace_summary(
         return Ok(());
     }
 
-    let summarizer_service_url = env::var("TRACE_SUMMARIZER_URL")
-        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_URL environment variable not set"))?;
+    let summarizer_service_url = if let Ok(url) = env::var("TRACE_SUMMARIZER_URL") {
+        url
+    } else {
+        log::error!("TRACE_SUMMARIZER_URL environment variable not set");
+        acker.reject(false).await.unwrap();
+        return Ok(());
+    };
 
-    let auth_token = env::var("TRACE_SUMMARIZER_SECRET_KEY")
-        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set"))?;
+    let auth_token = if let Ok(token) = env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        token
+    } else {
+        log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+        acker.reject(false).await.unwrap();
+        return Ok(());
+    };
+
+    let event_defs_json: Vec<serde_json::Value> = message
+        .event_definitions
+        .iter()
+        .map(|ed| serde_json::to_value(ed).unwrap())
+        .collect();
 
     let request_body = serde_json::json!({
-        "projectId": message.project_id.to_string(),
-        "traceId": message.trace_id.to_string(),
-        "maxRetries": 5
+        "project_id": message.project_id.to_string(),
+        "trace_id": message.trace_id.to_string(),
+        "event_definitions": event_defs_json
     });
 
     let call_summarizer_service = || async {
@@ -182,7 +202,10 @@ async fn process_single_trace_summary(
             .send()
             .await
             .map_err(|e| {
-                log::warn!("Failed to call summarizer service for trace summary: {:?}", e);
+                log::warn!(
+                    "Failed to call summarizer service for trace summary: {:?}",
+                    e
+                );
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
