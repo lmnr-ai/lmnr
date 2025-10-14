@@ -157,7 +157,7 @@ export default function TracesTable() {
         const spanInputCost = spanData.attributes?.["gen_ai.usage.input_cost"] || 0;
         const spanOutputCost = spanData.attributes?.["gen_ai.usage.output_cost"] || 0;
 
-        const newTopSpanName = isTopSpan ? spanData.name : existingTrace.topSpanName;
+        const newTopSpanName = isTopSpan ? spanData.name : inferredTopSpanName;
 
         newTraces[existingTraceIndex] = {
           ...existingTrace,
@@ -206,7 +206,7 @@ export default function TracesTable() {
           metadata: spanData.attributes?.["metadata"] || null,
           topSpanId: isTopSpan ? spanData.spanId : null,
           traceType: "DEFAULT",
-          topSpanName: isTopSpan ? spanData.name : null,
+          topSpanName: isTopSpan ? spanData.name : inferredTopSpanName,
           topSpanType: isTopSpan ? spanData.spanType : null,
           status: spanData.status,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,

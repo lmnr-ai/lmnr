@@ -207,9 +207,7 @@ impl TraceAggregation {
 
             // Collect unique tags
             for tag in span.attributes.tags() {
-                if !entry.tags.contains(&tag) {
-                    entry.tags.insert(tag);
-                }
+                entry.tags.insert(tag);
             }
 
             entry.num_spans += 1;
