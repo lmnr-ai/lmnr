@@ -57,7 +57,7 @@ export async function getEventDefinition(input: z.infer<typeof GetEventDefinitio
 }
 
 export async function createEventDefinition(input: z.infer<typeof CreateEventDefinitionSchema>) {
-  const { projectId, name, prompt } = CreateEventDefinitionSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput } = CreateEventDefinitionSchema.parse(input);
 
   const [result] = await db
     .insert(eventDefinitions)
@@ -65,6 +65,7 @@ export async function createEventDefinition(input: z.infer<typeof CreateEventDef
       projectId,
       name,
       prompt,
+      structuredOutput,
     })
     .returning();
 

@@ -30,7 +30,7 @@ export const createEventsStore = (initProps: EventsProps) =>
     totalCount: 0,
     eventDefinition: {
       ...initProps.eventDefinition,
-      structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput),
+      structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2),
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     fetchEvents: async (params: URLSearchParams) => {

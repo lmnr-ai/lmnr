@@ -33,20 +33,6 @@ export default function EventDefinitions() {
     fetchEventDefinitions();
   }, []);
 
-  const handleEdit = useCallback(
-    (eventDefinition: EventDefinition) => {
-      setTargetEventDefinition({
-        id: eventDefinition.id,
-        name: eventDefinition.name,
-        prompt: eventDefinition.prompt,
-        projectId: String(projectId),
-        structuredOutput: JSON.stringify(eventDefinition.structuredOutput),
-      });
-      setIsDialogOpen(true);
-    },
-    [projectId, setTargetEventDefinition]
-  );
-
   const handleRowClick = useCallback(
     (row: Row<EventDefinition>) => {
       router.push(`/project/${projectId}/events/${row.original.id}`);

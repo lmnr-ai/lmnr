@@ -1,6 +1,7 @@
 "use client";
 
 import { json } from "@codemirror/lang-json";
+import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { get } from "lodash";
 import { Loader2 } from "lucide-react";
@@ -124,7 +125,9 @@ function ManageEventDefinitionDialogContent({
             rules={{ required: "Name is required" }}
             name="name"
             control={control}
-            render={({ field }) => <Input disabled id="name" placeholder="Event name" autoFocus {...field} />}
+            render={({ field }) => (
+              <Input disabled={Boolean(id)} id="name" placeholder="Event name" autoFocus {...field} />
+            )}
           />
           {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
         </div>
@@ -138,7 +141,8 @@ function ManageEventDefinitionDialogContent({
               <Textarea
                 id="prompt"
                 placeholder="Enter the prompt for this event..."
-                className="min-h-[120px] resize-none"
+                className="resize-none"
+                rows={3}
                 {...field}
                 value={field.value || ""}
               />
@@ -147,21 +151,40 @@ function ManageEventDefinitionDialogContent({
           {errors.prompt && <p className="text-sm text-red-500">{errors.prompt.message}</p>}
         </div>
 
-        <Controller
-          name="structuredOutput"
-          control={control}
-          render={({ field }) => (
-            <div className="border rounded-md bg-muted/50 overflow-hidden">
-              <CodeMirror
-                placeholder=""
-                value={field.value}
-                onChange={field.onChange}
-                extensions={[json()]}
-                theme={theme}
-              />
-            </div>
-          )}
-        />
+        <div className="grid gap-2">
+          <Label htmlFor="structuredOutput">Structured Output</Label>
+          <Controller
+            name="structuredOutput"
+            control={control}
+            rules={{
+              validate: (value) => {
+                try {
+                  if (!value) {
+                    return true;
+                  }
+                  JSON.parse(value);
+                  return true;
+                } catch (e) {
+                  return "Invalid JSON structure";
+                }
+              },
+            }}
+            render={({ field }) => (
+              <div className="border rounded-md bg-muted/50 overflow-hidden min-h-48 max-h-96">
+                <CodeMirror
+                  height="100%"
+                  className="h-full"
+                  placeholder="Enter structured output for this event..."
+                  value={field.value}
+                  onChange={field.onChange}
+                  extensions={[json(), EditorView.lineWrapping]}
+                  theme={theme}
+                />
+              </div>
+            )}
+          />
+          {errors.structuredOutput && <p className="text-sm text-red-500">{errors.structuredOutput.message}</p>}
+        </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button
@@ -202,18 +225,20 @@ export default function ManageEventDefinitionDialog({
     mode: "onChange",
   });
 
+  const onOpenChange = useCallback(
+    (open: boolean) => {
+      setOpen(open);
+      if (open) {
+        form.reset(initialValues || getDefaultValues(String(projectId)));
+      } else {
+        form.reset(getDefaultValues(String(projectId)));
+      }
+    },
+    [form, initialValues, projectId, setOpen]
+  );
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(open) => {
-        setOpen(open);
-        if (open) {
-          form.reset(initialValues || getDefaultValues(String(projectId)));
-        } else {
-          form.reset(getDefaultValues(String(projectId)));
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <FormProvider {...form}>
         <ManageEventDefinitionDialogContent setOpen={setOpen} onSuccess={onSuccess} />
