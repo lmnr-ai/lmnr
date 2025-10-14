@@ -74,9 +74,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Top level span",
     id: "top_span_type",
     cell: (row) => {
-      const hasTopSpan = !!row.row.original.topSpanName;
-      const inferredTopSpanName = row.row.original.inferredTopSpanName;
-      const hasInferredSpan = !!inferredTopSpanName;
+      const topSpanId = row.row.original.topSpanId;
+      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
       const isOld = isStringDateOld(row.row.original.endTime);
       const shouldAnimate = !hasTopSpan && !isOld;
 
@@ -85,17 +84,15 @@ export const columns: ColumnDef<TraceRow, any>[] = [
           <div className="flex items-center gap-2">
             {hasTopSpan ? (
               <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-            ) : hasInferredSpan ? (
-              <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
             ) : (
-              <Skeleton className="w-6 h-6 bg-secondary rounded-sm" />
+              <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
             )}
           </div>
           {hasTopSpan ? (
             <div className="text-sm truncate">{row.row.original.topSpanName}</div>
-          ) : hasInferredSpan ? (
+          ) : row.row.original.topSpanName ? (
             <div className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}>
-              {inferredTopSpanName}
+              {row.row.original.topSpanName}
             </div>
           ) : (
             <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />

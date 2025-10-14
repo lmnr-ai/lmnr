@@ -115,7 +115,6 @@ export type TraceRow = {
   topSpanName?: string;
   topSpanId?: string;
   topSpanType?: SpanType;
-  inferredTopSpanName?: string;
 
   inputTokens: number;
   outputTokens: number;

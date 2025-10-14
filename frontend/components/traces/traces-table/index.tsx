@@ -65,49 +65,6 @@ export default function TracesTable() {
     tracesRef.current = traces;
   }, [traces]);
 
-  // Fetch inferred top span names for traces that don't have a top span yet
-  useEffect(() => {
-    if (!traces || traces.length === 0) return;
-
-    const tracesNeedingInference = traces.filter(
-      (trace) => !trace.topSpanName && trace.inferredTopSpanName === undefined
-    );
-
-    if (tracesNeedingInference.length === 0) return;
-
-    const fetchInferredTopSpans = async () => {
-      const results = await Promise.all(
-        tracesNeedingInference.map(async (trace) => {
-          try {
-            const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/inferredTopSpan`);
-            if (!response.ok) {
-              return { traceId: trace.id, inferredTopSpanName: null };
-            }
-            const data = await response.json();
-            return { traceId: trace.id, inferredTopSpanName: data.inferredTopSpanName };
-          } catch (error) {
-            console.error(`Failed to fetch inferred top span for trace ${trace.id}:`, error);
-            return { traceId: trace.id, inferredTopSpanName: null };
-          }
-        })
-      );
-
-      // Update traces with inferred top span names (or null to mark as attempted)
-      setTraces((prevTraces) => {
-        if (!prevTraces) return prevTraces;
-        return prevTraces.map((trace) => {
-          const result = results.find((r) => r?.traceId === trace.id);
-          if (result) {
-            return { ...trace, inferredTopSpanName: result.inferredTopSpanName };
-          }
-          return trace;
-        });
-      });
-    };
-
-    fetchInferredTopSpans();
-  }, [traces, projectId]);
-
   const getTraces = useCallback(async () => {
     try {
       setTraces(undefined);
@@ -221,8 +178,6 @@ export default function TracesTable() {
           topSpanName: newTopSpanName,
           topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
           topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
-          // Only set inferredTopSpanName if we don't have a top span
-          inferredTopSpanName: newTopSpanName ? undefined : (inferredTopSpanName || existingTrace.inferredTopSpanName),
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
           tags: Array.from(
             new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])
@@ -253,7 +208,6 @@ export default function TracesTable() {
           traceType: "DEFAULT",
           topSpanName: isTopSpan ? spanData.name : null,
           topSpanType: isTopSpan ? spanData.spanType : null,
-          inferredTopSpanName: isTopSpan ? undefined : inferredTopSpanName,
           status: spanData.status,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,
           tags: spanData.attributes?.["lmnr.association.properties.tags"] || [],
