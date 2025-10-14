@@ -39,7 +39,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         })}
       />
     ),
-    accessorFn: (row) => row.status === "error" ? "error" : row.analysis_status,
+    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
     size: 32,
@@ -208,7 +208,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
-    cell: (row) => <JsonTooltip data={row.getValue()} label="Metadata" columnSize={row.column.getSize()} />,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
   {

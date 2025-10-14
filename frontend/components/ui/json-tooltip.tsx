@@ -2,26 +2,15 @@ import React, { memo, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
-import { CopyButton } from "@/components/ui/copy-button";
+import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface JsonTooltipProps {
   data: Record<string, unknown> | unknown | string | null;
-  label?: string;
-  displayValue?: string;
   columnSize?: number;
-  showCopyButton?: boolean;
-  triggerClassName?: string;
 }
 
-const JsonTooltip = ({
-  data,
-  label,
-  displayValue,
-  columnSize,
-  showCopyButton = true,
-  triggerClassName = "",
-}: JsonTooltipProps) => {
+const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
   const parsedData = useMemo(() => {
     if (!data) return null;
 
@@ -41,12 +30,12 @@ const JsonTooltip = ({
   }
 
   const jsonString = JSON.stringify(parsedData, null, 2);
-  const defaultDisplayValue = JSON.stringify(parsedData);
+  const displayValue = JSON.stringify(parsedData);
 
   return (
     <TooltipProvider delayDuration={100}>
       <Tooltip>
-        <TooltipTrigger className={`relative p-0 ${triggerClassName}`}>
+        <TooltipTrigger className="relative p-0">
           {columnSize ? (
             <div
               style={{
@@ -55,15 +44,11 @@ const JsonTooltip = ({
               className="relative"
             >
               <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs">
-                  {displayValue ?? defaultDisplayValue}
-                </div>
+                <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs">{displayValue}</div>
               </div>
             </div>
           ) : (
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs font-mono">
-              {displayValue ?? defaultDisplayValue}
-            </div>
+            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs font-mono">{displayValue}</div>
           )}
         </TooltipTrigger>
         <TooltipContent
@@ -73,41 +58,32 @@ const JsonTooltip = ({
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <div className="space-y-2">
-            {(label || showCopyButton) && (
-              <div className="flex items-center justify-between gap-2 pb-1 border-b">
-                {label && <span className="text-xs font-medium">{label}</span>}
-                {showCopyButton && (
-                  <CopyButton
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 ml-auto"
-                    iconClassName="h-3 w-3"
-                    text={jsonString}
-                  />
-                )}
-              </div>
-            )}
-            <div>
-              <SyntaxHighlighter
-                language="json"
-                style={oneDark}
-                customStyle={{
+          <div className="relative space-y-2">
+            <CopyButton
+              size="icon"
+              variant="ghost"
+              className="h-3 w-3 absolute right-0.5 top-0.5"
+              iconClassName="h-3 w-3"
+              text={jsonString}
+            />
+            <SyntaxHighlighter
+              language="json"
+              style={oneDark}
+              customStyle={{
+                backgroundColor: "transparent",
+                padding: "0",
+                margin: "0",
+                fontSize: "0.75rem",
+                lineHeight: "1.4",
+              }}
+              codeTagProps={{
+                style: {
                   backgroundColor: "transparent",
-                  padding: "0",
-                  margin: "0",
-                  fontSize: "0.75rem",
-                  lineHeight: "1.4",
-                }}
-                codeTagProps={{
-                  style: {
-                    backgroundColor: "transparent",
-                  },
-                }}
-              >
-                {jsonString}
-              </SyntaxHighlighter>
-            </div>
+                },
+              }}
+            >
+              {jsonString}
+            </SyntaxHighlighter>
           </div>
         </TooltipContent>
       </Tooltip>
