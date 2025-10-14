@@ -10,7 +10,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -20,6 +19,7 @@ import DeleteProject from "./delete-project";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
+import { SettingsSectionHeader } from "./settings-section";
 import TraceSummarySettings from "./trace-summary-settings";
 
 interface SettingsProps {
@@ -30,7 +30,7 @@ type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
-  { id: "project-api-keys", label: "API Keys", icon: <Key /> },
+  { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Provider API Keys", icon: <Cloud /> },
   { id: "trace-summary", label: "Trace Summary", icon: <FileText /> },
 ];
@@ -45,44 +45,19 @@ export default function Settings({ apiKeys }: SettingsProps) {
       case "general":
         return (
           <>
-            <div>
-              <h1 className="text-2xl font-semibold">General Settings</h1>
-              <p className="text-sm text-muted-foreground mt-2">Manage your project settings and preferences</p>
+            <SettingsSectionHeader title="General" description="Manage your project settings and preferences" />
+            <div className="flex flex-col gap-8">
+              <RenameProject />
+              <DeleteProject />
             </div>
-            <RenameProject />
-            <DeleteProject />
           </>
         );
       case "project-api-keys":
-        return (
-          <>
-            <div>
-              <h1 className="text-2xl font-semibold">API Keys</h1>
-              <p className="text-sm text-muted-foreground mt-2">Manage API keys for your project</p>
-            </div>
-            <ProjectApiKeys apiKeys={apiKeys} />
-          </>
-        );
+        return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
-        return (
-          <>
-            <div>
-              <h1 className="text-2xl font-semibold">Provider API Keys</h1>
-              <p className="text-sm text-muted-foreground mt-2">Manage your model provider API keys</p>
-            </div>
-            <ProviderApiKeys />
-          </>
-        );
+        return <ProviderApiKeys />;
       case "trace-summary":
-        return (
-          <>
-            <div>
-              <h1 className="text-2xl font-semibold">Trace Summary</h1>
-              <p className="text-sm text-muted-foreground mt-2">Configure trace summary settings</p>
-            </div>
-            <TraceSummarySettings />
-          </>
-        );
+        return <TraceSummarySettings />;
     }
   };
 
@@ -93,11 +68,10 @@ export default function Settings({ apiKeys }: SettingsProps) {
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
           <Sidebar collapsible="none">
             <SidebarContent className="bg-background">
-              <SidebarGroup>
-                <SidebarGroupLabel>Settings</SidebarGroupLabel>
+              <SidebarGroup className="pt-4">
                 <SidebarMenu>
                   {tabs.map((tab) => (
-                    <SidebarMenuItem key={tab.id}>
+                    <SidebarMenuItem className="h-7" key={tab.id}>
                       <SidebarMenuButton
                         asChild
                         className="text-secondary-foreground flex items-center flex-1"
@@ -117,7 +91,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
             </SidebarContent>
           </Sidebar>
           <main className="flex-1 overflow-y-auto">
-            <div className="flex flex-col max-w-4xl mx-auto p-6 gap-4">{renderContent()}</div>
+            <div className="flex flex-col gap-4 max-w-4xl mx-auto p-6">{renderContent()}</div>
           </main>
         </div>
       </SidebarProvider>

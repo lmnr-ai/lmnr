@@ -11,6 +11,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import RevokeDialog from "./revoke-dialog";
+import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[];
@@ -24,104 +25,102 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [isGenerated, setIsGenerated] = useState(false);
   const { projectId } = useParams();
 
-  const generateNewAPIKey = useCallback(async (newName: string) => {
-    const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: "POST",
-      body: JSON.stringify({ name: newName }),
-    });
-    const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
+  const generateNewAPIKey = useCallback(
+    async (newName: string) => {
+      const res = await fetch(`/api/projects/${projectId}/api-keys`, {
+        method: "POST",
+        body: JSON.stringify({ name: newName }),
+      });
+      const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
 
-    setNewApiKey(newKey);
-  }, []);
+      setNewApiKey(newKey);
+    },
+    [projectId]
+  );
 
-  const deleteApiKey = useCallback(async (id: string) => {
-    const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: "DELETE",
-      body: JSON.stringify({ id: id }),
-    });
-    await res.text();
-
-    getProjectApiKeys();
-  }, []);
-
-  const getProjectApiKeys = async () => {
+  const getProjectApiKeys = useCallback(async () => {
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: "GET",
     });
     const data = await res.json();
     setProjectApiKeys(data);
-  };
+  }, [projectId]);
+
+  const deleteApiKey = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/projects/${projectId}/api-keys`, {
+        method: "DELETE",
+        body: JSON.stringify({ id: id }),
+      });
+      await res.text();
+
+      getProjectApiKeys();
+    },
+    [projectId, getProjectApiKeys]
+  );
 
   return (
-    <div className="rounded-lg border bg-background">
-      <div className="p-6 space-y-4">
-        <div className="space-y-2">
-          <h3 className="text-base font-semibold">Project API keys</h3>
-          <p className="text-sm text-muted-foreground">
-            Create a Laminar API key to send traces from your AI application. These keys are tied to the project.
-          </p>
-        </div>
-        <Dialog
-          open={isGenerateKeyDialogOpen}
-          onOpenChange={() => {
-            setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
-            setNewApiKeyName("");
-            setNewApiKey(null);
-            setIsGenerated(false);
-          }}
+    <SettingsSection>
+      <SettingsSectionHeader
+        title="Project API keys"
+        description="Create a Laminar API key to send traces from your AI application. These keys are tied to the project."
+      />
+      <Dialog
+        open={isGenerateKeyDialogOpen}
+        onOpenChange={() => {
+          setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
+          setNewApiKeyName("");
+          setNewApiKey(null);
+          setIsGenerated(false);
+        }}
+      >
+        <DialogTrigger asChild>
+          <Button variant="outline" className="h-9 w-fit">
+            <Plus className="w-4 h-4 mr-2" />
+            Generate API key
+          </Button>
+        </DialogTrigger>
+        <DialogContent
+          className="sm:max-w-[425px]"
+          // prevent closing dialog when clicking outside when copying api key
+          onInteractOutside={(e) => isGenerated && newApiKey && e.preventDefault()}
         >
-          <DialogTrigger asChild>
-            <Button variant="outline" className="h-9">
-              <Plus className="w-4 h-4 mr-2" />
-              Generate API key
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            className="sm:max-w-[425px]"
-            // prevent closing dialog when clicking outside when copying api key
-            onInteractOutside={(e) => isGenerated && newApiKey && e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>{isGenerated && newApiKey ? "API key generated" : "Generate API key"}</DialogTitle>
-            </DialogHeader>
-            {isGenerated && newApiKey ? (
-              <DisplayKeyDialogContent
-                apiKey={newApiKey}
-                onClose={() => {
-                  setIsGenerateKeyDialogOpen(false);
-                  getProjectApiKeys();
-                }}
-              />
-            ) : (
-              <GenerateKeyDialogContent
-                onClick={() => {
-                  generateNewAPIKey(newApiKeyName);
-                  setIsGenerated(true);
-                }}
-                onNameChange={(name) => setNewApiKeyName(name)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-        <div className="border rounded-md">
-          <table className="w-full">
-            <tbody>
-              {projectApiKeys.map((apiKey, id) => (
-                <tr className="border-b last:border-b-0 h-12" key={id}>
-                  <td className="px-4 text-sm font-medium">{apiKey.name}</td>
-                  <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
-                  <td className="px-4">
-                    <div className="flex justify-end">
-                      <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+          <DialogHeader>
+            <DialogTitle>{isGenerated && newApiKey ? "API key generated" : "Generate API key"}</DialogTitle>
+          </DialogHeader>
+          {isGenerated && newApiKey ? (
+            <DisplayKeyDialogContent
+              apiKey={newApiKey}
+              onClose={() => {
+                setIsGenerateKeyDialogOpen(false);
+                getProjectApiKeys();
+              }}
+            />
+          ) : (
+            <GenerateKeyDialogContent
+              onClick={() => {
+                generateNewAPIKey(newApiKeyName);
+                setIsGenerated(true);
+              }}
+              onNameChange={(name) => setNewApiKeyName(name)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <SettingsTable>
+        {projectApiKeys.map((apiKey, id) => (
+          <SettingsTableRow key={id}>
+            <td className="px-4 text-sm font-medium">{apiKey.name}</td>
+            <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
+            <td className="px-4">
+              <div className="flex justify-end">
+                <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
+              </div>
+            </td>
+          </SettingsTableRow>
+        ))}
+      </SettingsTable>
+    </SettingsSection>
   );
 }
 

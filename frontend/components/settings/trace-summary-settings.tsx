@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
+import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
+
 interface SummaryTriggerSpan {
   id: string;
   spanName: string;
@@ -28,10 +30,7 @@ export default function TraceSummarySettings() {
     data: triggerSpans = [],
     mutate,
     isLoading: isFetching,
-  } = useSWR<SummaryTriggerSpan[]>(
-    `/api/projects/${projectId}/summary-trigger-spans/unassigned`,
-    swrFetcher
-  );
+  } = useSWR<SummaryTriggerSpan[]>(`/api/projects/${projectId}/summary-trigger-spans/unassigned`, swrFetcher);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newSpanName, setNewSpanName] = useState("");
@@ -87,120 +86,109 @@ export default function TraceSummarySettings() {
     }
   }, [newSpanName, projectId, mutate, toast]);
 
-  const deleteSpanName = useCallback(async (id: string) => {
-    try {
-      await mutate(
-        async (currentData) => {
-          const res = await fetch(`/api/projects/${projectId}/summary-trigger-spans/${id}`, {
-            method: "DELETE",
-          });
+  const deleteSpanName = useCallback(
+    async (id: string) => {
+      try {
+        await mutate(
+          async (currentData) => {
+            const res = await fetch(`/api/projects/${projectId}/summary-trigger-spans/${id}`, {
+              method: "DELETE",
+            });
 
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Failed to delete trigger span.");
+            if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(errorData.error || "Failed to delete trigger span.");
+            }
+
+            return (currentData || []).filter((item) => item.id !== id);
+          },
+          {
+            revalidate: false,
+            populateCache: true,
+            rollbackOnError: true,
+            optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
           }
+        );
 
-          return (currentData || []).filter((item) => item.id !== id);
-        },
-        {
-          revalidate: false,
-          populateCache: true,
-          rollbackOnError: true,
-          optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
-        }
-      );
-
-      toast({
-        title: "Success",
-        description: "Trigger span deleted successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete trigger span.",
-        variant: "destructive",
-      });
-    }
-  }, [projectId, mutate, toast]);
+        toast({
+          title: "Success",
+          description: "Trigger span deleted successfully.",
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to delete trigger span.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, mutate, toast]
+  );
 
   return (
-    <div className="rounded-lg border">
-      <div className="p-6 space-y-4">
-        <div className="space-y-2">
-          <h3 className="text-base font-semibold">Trigger spans</h3>
-          <p className="text-sm text-muted-foreground">
-            When we receive a span with one of these names, we'll generate a summary for that trace. For best results,
-            use the last span in your trace.
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="h-9">
-              <Plus className="w-4 h-4 mr-2" />
-              Add span name
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add span name</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label>Span name</Label>
-              <Input
-                autoFocus
-                placeholder="Enter span name"
-                value={newSpanName}
-                onChange={(e) => setNewSpanName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newSpanName.trim() && !isLoading) {
-                    addSpanName();
-                  }
-                }}
-                disabled={isLoading}
-              />
-            </div>
-            <DialogFooter>
-              <Button disabled={!newSpanName.trim() || isLoading} onClick={addSpanName} handleEnter>
-                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Add
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {isFetching ? (
-          <div className="border rounded-md p-4 space-y-3">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+    <SettingsSection>
+      <SettingsSectionHeader
+        title="Trace Summary"
+        description="When we receive a span with one of these names, we'll generate a summary for that trace. For best results, use the last span in your trace."
+      />
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" className="h-9 w-fit">
+            <Plus className="w-4 h-4 mr-2" />
+            Add span name
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add span name</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label>Span name</Label>
+            <Input
+              autoFocus
+              placeholder="Enter span name"
+              value={newSpanName}
+              onChange={(e) => setNewSpanName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newSpanName.trim() && !isLoading) {
+                  addSpanName();
+                }
+              }}
+              disabled={isLoading}
+            />
           </div>
-        ) : (
-          triggerSpans.length > 0 && (
-            <div className="border rounded-md">
-              <table className="w-full">
-                <tbody>
-                  {triggerSpans.map((span) => (
-                    <tr key={span.id} className="border-b last:border-b-0 h-12">
-                      <td className="px-4 text-sm font-medium">{span.spanName}</td>
-                      <td className="px-4">
-                        <div className="flex justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => deleteSpanName(span.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
-      </div>
-    </div>
+          <DialogFooter>
+            <Button disabled={!newSpanName.trim() || isLoading} onClick={addSpanName} handleEnter>
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {isFetching ? (
+        <div className="flex flex-col gap-3 border rounded-md p-4">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : (
+        triggerSpans.length > 0 && (
+          <SettingsTable>
+            {triggerSpans.map((span) => (
+              <SettingsTableRow key={span.id}>
+                <td className="px-4 text-sm font-medium">{span.spanName}</td>
+                <td className="px-4">
+                  <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteSpanName(span.id)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </td>
+              </SettingsTableRow>
+            ))}
+          </SettingsTable>
+        )
+      )}
+    </SettingsSection>
   );
 }

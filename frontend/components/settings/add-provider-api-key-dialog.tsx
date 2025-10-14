@@ -37,7 +37,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-9">
+        <Button variant="outline" className="h-9 w-fit">
           <Plus className="w-4 h-4 mr-2" />
           Add API key
         </Button>
