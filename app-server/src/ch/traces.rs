@@ -94,8 +94,8 @@ pub struct TraceAggregation {
     pub metadata: Option<serde_json::Value>,
     pub tags: Vec<String>,
     pub num_spans: i32,
-    pub top_span_id: Uuid,
-    pub top_span_name: String,
+    pub top_span_id: Option<Uuid>,
+    pub top_span_name: Option<String>,
     pub top_span_type: u8,
     pub trace_type: u8,
 }
@@ -128,8 +128,8 @@ impl TraceAggregation {
                         metadata: None,
                         tags: Vec::new(),
                         num_spans: 0,
-                        top_span_id: Uuid::nil(),
-                        top_span_name: String::new(),
+                        top_span_id: None,
+                        top_span_name: None,
                         top_span_type: 0,
                         trace_type: 0,
                     });
@@ -180,8 +180,8 @@ impl TraceAggregation {
             }
 
             if span.parent_span_id == Uuid::nil() {
-                entry.top_span_id = span.span_id;
-                entry.top_span_name = span.name.clone();
+                entry.top_span_id = Some(span.span_id);
+                entry.top_span_name = Some(span.name.clone());
                 entry.top_span_type = span.span_type as u8;
             }
 

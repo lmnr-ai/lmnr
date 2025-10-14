@@ -1,11 +1,12 @@
 import { get } from "lodash";
-import { ChartNoAxesGantt, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, ChartNoAxesGantt, FileText,ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
+import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
 import TraceViewStoreProvider, {
@@ -27,7 +28,6 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-fi
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -52,7 +52,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   // Data states
   const {
@@ -66,6 +65,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     isTraceLoading,
     setIsTraceLoading,
     setIsSpansLoading,
+    traceError,
+    setTraceError,
+    spansError,
+    setSpansError,
   } = useTraceViewStoreContext((state) => ({
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
@@ -77,6 +80,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     isSpansLoading: state.isSpansLoading,
     setIsSpansLoading: state.setIsSpansLoading,
     setIsTraceLoading: state.setIsTraceLoading,
+    traceError: state.traceError,
+    setTraceError: state.setTraceError,
+    spansError: state.spansError,
+    setSpansError: state.setSpansError,
   }));
 
   // UI states
@@ -135,31 +142,31 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const handleFetchTrace = useCallback(async () => {
     try {
       setIsTraceLoading(true);
+      setTraceError(undefined);
+
       if (propsTrace) {
         setTrace(propsTrace);
       } else {
         const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+
         if (!response.ok) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to load trace. Please try again.",
-          });
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          const errorMessage = errorData.error || "Failed to load trace";
+
+          setTraceError(errorMessage);
           return;
         }
+
         const traceData = (await response.json()) as TraceViewTrace;
         setTrace(traceData);
       }
     } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load trace. Please try again.",
-      });
+      const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
+      setTraceError(errorMessage);
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, propsTrace, setBrowserSession, setIsTraceLoading, setTrace, toast, traceId]);
+  }, [projectId, propsTrace, setIsTraceLoading, setTrace, setTraceError, traceId]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -186,6 +193,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     async (search: string, searchIn: string[], filters: DatatableFilter[]) => {
       try {
         setIsSpansLoading(true);
+        setSpansError(undefined);
 
         const params = new URLSearchParams();
         if (search) {
@@ -201,8 +209,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
         const response = await fetch(url);
-        const results = (await response.json()) as TraceViewSpan[];
 
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          const errorMessage = errorData.error || "Failed to load spans";
+
+          setSpansError(errorMessage);
+          return;
+        }
+
+        const results = (await response.json()) as TraceViewSpan[];
         const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
@@ -219,19 +235,25 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           setSelectedSpan(undefined);
         }
       } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
+        setSpansError(errorMessage);
+
         console.error(e);
       } finally {
         setIsSpansLoading(false);
       }
     },
     [
-      trace,
       setIsSpansLoading,
-      search,
+      setSpansError,
+      setSearch,
+      setSearchEnabled,
       projectId,
       traceId,
       setSpans,
-      setSearch,
+      hasBrowserSession,
+      setHasBrowserSession,
+      setBrowserSession,
       spanId,
       searchParams,
       spanPath,
@@ -278,7 +300,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSearchEnabled(!searchEnabled);
   }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
 
-  const isLoading = !trace || (isSpansLoading && isTraceLoading);
+  const isLoading = isTraceLoading || (isSpansLoading && !traceError && !spansError);
 
   useEffect(() => {
     if (!isSpansLoading) {
@@ -304,8 +326,20 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setBrowserSession(false);
       setSearch("");
       setSearchEnabled(false);
+      setTraceError(undefined);
+      setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, setSpans, setBrowserSession, setSearch, setSearchEnabled]);
+  }, [
+    traceId,
+    projectId,
+    filters,
+    setSpans,
+    setBrowserSession,
+    setSearch,
+    setSearchEnabled,
+    setTraceError,
+    setSpansError,
+  ]);
 
   useEffect(() => {
     if (!traceId || !projectId) {
@@ -353,6 +387,21 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     );
   }
 
+  if (traceError) {
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden">
+        <Header handleClose={handleClose} />
+        <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
+          <div className="max-w-md mx-auto">
+            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-destructive mb-4">Error Loading Trace</h3>
+            <p className="text-sm text-muted-foreground">{traceError}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ScrollContextProvider>
       <div className="flex flex-col h-full w-full overflow-hidden">
@@ -387,6 +436,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   >
                     <ChartNoAxesGantt size={14} className="mr-1" />
                     <span>Timeline</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("metadata")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "metadata",
+                    })}
+                  >
+                    <FileText size={14} className="mr-1" />
+                    <span>Metadata</span>
                   </Button>
                   <Button
                     onClick={() => setTab("chat")}
@@ -430,35 +489,44 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   className="rounded-none w-full border-0 border-b ring-0 bg-background"
                 />
               )}
-              <>
-                {tab === "chat" && (
-                  <Chat
-                    trace={trace}
-                    onSetSpanId={(spanId) => {
-                      const span = spans.find((span) => span.spanId === spanId);
-                      if (span) {
-                        handleSpanSelect(span);
-                      }
-                    }}
-                  />
-                )}
+              {spansError ? (
+                <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
+                  <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+                  <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+                  <p className="text-xs text-muted-foreground">{spansError}</p>
+                </div>
+              ) : (
                 <>
-                  {tab === "timeline" && <Timeline />}
-                  {tab === "tree" &&
-                    (isSpansLoading ? (
-                      <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-1 overflow-hidden relative">
-                        <Tree onSpanSelect={handleSpanSelect} />
-                        <Minimap onSpanSelect={handleSpanSelect} />
-                      </div>
-                    ))}
+                  {tab === "metadata" && trace && <Metadata trace={trace} />}
+                  {tab === "chat" && trace && (
+                    <Chat
+                      trace={trace}
+                      onSetSpanId={(spanId) => {
+                        const span = spans.find((span) => span.spanId === spanId);
+                        if (span) {
+                          handleSpanSelect(span);
+                        }
+                      }}
+                    />
+                  )}
+                  <>
+                    {tab === "timeline" && <Timeline />}
+                    {tab === "tree" &&
+                      (isSpansLoading ? (
+                        <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-1 overflow-hidden relative">
+                          <Tree onSpanSelect={handleSpanSelect} />
+                          <Minimap onSpanSelect={handleSpanSelect} />
+                        </div>
+                      ))}
+                  </>
                 </>
-              </>
+              )}
               <div
                 className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                 onMouseDown={handleResizeTreeView}

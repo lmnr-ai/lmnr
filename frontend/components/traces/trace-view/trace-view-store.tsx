@@ -56,15 +56,17 @@ export type TraceViewTrace = {
 interface TraceViewStoreState {
   trace?: TraceViewTrace;
   isTraceLoading: boolean;
+  traceError?: string;
   spans: TraceViewSpan[];
   spanPath: string[] | null;
   isSpansLoading: boolean;
+  spansError?: string;
   searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat";
+  tab: "tree" | "timeline" | "chat" | "metadata";
   search: string;
   zoom: number;
   treeWidth: number;
@@ -73,7 +75,9 @@ interface TraceViewStoreState {
 
 interface TraceViewStoreActions {
   setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void;
+  setTraceError: (error?: string) => void;
   setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void;
+  setSpansError: (error?: string) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
@@ -106,8 +110,10 @@ const createTraceViewStore = () =>
       (set, get) => ({
         trace: undefined,
         isTraceLoading: false,
+        traceError: undefined,
         spans: [],
         isSpansLoading: false,
+        spansError: undefined,
         selectedSpan: undefined,
         browserSession: false,
         sessionTime: undefined,
@@ -130,6 +136,8 @@ const createTraceViewStore = () =>
             set({ trace });
           }
         },
+        setTraceError: (traceError) => set({ traceError }),
+        setSpansError: (spansError) => set({ spansError }),
         updateTraceVisibility: (visibility) => {
           get().setTrace((trace) => {
             if (trace) {
