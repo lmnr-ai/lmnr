@@ -5,13 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { columns } from "@/components/event-definitions/columns.tsx";
-import {
-  EventDefinition,
-  useEventDefinitionsStoreContext,
-} from "@/components/event-definitions/event-definitions-store";
+import { useEventDefinitionsStoreContext } from "@/components/event-definitions/event-definitions-store";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
 import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
@@ -21,29 +19,21 @@ export default function EventDefinitions() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const { eventDefinitions, fetchEventDefinitions, targetEventDefinition, setTargetEventDefinition } =
-    useEventDefinitionsStoreContext((state) => ({
-      eventDefinitions: state.eventDefinitions,
-      fetchEventDefinitions: state.fetchEventDefinitions,
-      targetEventDefinition: state.targetEventDefinition,
-      setTargetEventDefinition: state.setTargetEventDefinition,
-    }));
+  const { eventDefinitions, fetchEventDefinitions } = useEventDefinitionsStoreContext((state) => ({
+    eventDefinitions: state.eventDefinitions,
+    fetchEventDefinitions: state.fetchEventDefinitions,
+  }));
 
   useEffect(() => {
     fetchEventDefinitions();
   }, []);
 
   const handleRowClick = useCallback(
-    (row: Row<EventDefinition>) => {
+    (row: Row<EventDefinitionRow>) => {
       router.push(`/project/${projectId}/events/${row.original.id}`);
     },
     [projectId, router]
   );
-
-  const handleCreateNew = useCallback(() => {
-    setTargetEventDefinition(undefined);
-    setIsDialogOpen(true);
-  }, [setTargetEventDefinition]);
 
   const handleSuccess = useCallback(async () => {
     await fetchEventDefinitions();
@@ -54,15 +44,9 @@ export default function EventDefinitions() {
       <Header path="events" />
       <div className="flex flex-col flex-1 overflow-auto">
         <div className="flex gap-4 p-4 items-center justify-between">
-          <div className="text-primary-foreground text-2xl font-medium">Event Definitions</div>
-          <ManageEventDefinitionDialog
-            open={isDialogOpen}
-            setOpen={setIsDialogOpen}
-            defaultValues={targetEventDefinition}
-            onSuccess={handleSuccess}
-            key={targetEventDefinition?.id || "new"}
-          >
-            <Button variant="outline" onClick={handleCreateNew}>
+          <div className="text-2xl font-medium">Event Definitions</div>
+          <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+            <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
               New Event Definition
             </Button>
           </ManageEventDefinitionDialog>

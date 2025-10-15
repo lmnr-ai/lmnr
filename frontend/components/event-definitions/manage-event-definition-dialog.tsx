@@ -17,13 +17,13 @@ import {
   useFormContext,
 } from "react-hook-form";
 
-import { EventDefinition } from "@/components/event-definitions/event-definitions-store";
 import { Button } from "@/components/ui/button";
 import { theme } from "@/components/ui/code-highlighter/utils.ts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { EventDefinition } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export type ManageEventDefinitionForm = Omit<
 > & {
   id?: string;
   structuredOutput: string;
-  triggerSpans: { spanName: string }[];
+  triggerSpans: { name: string }[];
 };
 
 export const getDefaultValues = (projectId: string): ManageEventDefinitionForm => ({
@@ -59,8 +59,11 @@ const TriggerSpansField = ({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <Label>Trigger Spans</Label>
-        <Button type="button" variant="outline" size="sm" onClick={() => append({ spanName: "" })} className="h-8">
+        <div>
+          <Label>Trigger Spans</Label>
+          <p className="text-xs text-muted-foreground mt-1">Span names that will trigger this event.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => append({ name: "" })} className="h-8">
           <Plus className="w-4 h-4 mr-1" />
           Add Span
         </Button>
@@ -72,21 +75,24 @@ const TriggerSpansField = ({
           </div>
         )}
         {fields.map((field, index) => (
-          <div key={field.id} className="flex gap-2 items-start">
-            <Controller
-              name={`triggerSpans.${index}.spanName`}
-              control={control}
-              rules={{ required: "Span name is required" }}
-              render={({ field }) => <Input {...field} placeholder="Enter span name" className="flex-1" />}
-            />
-            <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="h-10 px-3">
-              <X className="w-4 h-4" />
-            </Button>
+          <div key={field.id}>
+            <div className="flex gap-2 items-start">
+              <Controller
+                name={`triggerSpans.${index}.name`}
+                control={control}
+                rules={{ required: "Span name is required" }}
+                render={({ field }) => <Input {...field} placeholder="Enter span name" className="flex-1" />}
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="h-10 px-3">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            {errors.triggerSpans?.[index] && (
+              <p className="text-red-500 text-xs">{errors.triggerSpans?.[index]?.name?.message}</p>
+            )}
           </div>
         ))}
       </div>
-      <p className="text-sm text-muted-foreground">Span names that will trigger this event when they complete.</p>
-      {errors.triggerSpans && <p className="text-sm text-red-500">{errors.triggerSpans.message}</p>}
     </div>
   );
 };
@@ -122,7 +128,7 @@ function ManageEventDefinitionDialogContent({
           name: data.name,
           prompt: data.prompt || null,
           structuredOutput: JSON.parse(data.structuredOutput) || null,
-          triggerSpans: data.triggerSpans.map((ts) => ts.spanName).filter((name) => name.trim().length > 0),
+          triggerSpans: data.triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
         };
 
         const isUpdate = !!data.id;
@@ -170,7 +176,7 @@ function ManageEventDefinitionDialogContent({
   );
 
   return (
-    <DialogContent className="max-w-2xl">
+    <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
       <DialogHeader>
         <DialogTitle>{id ? watch("name") : "Create new event definition"}</DialogTitle>
       </DialogHeader>
@@ -199,8 +205,7 @@ function ManageEventDefinitionDialogContent({
               <Textarea
                 id="prompt"
                 placeholder="Enter the prompt for this event..."
-                className="resize-none"
-                rows={3}
+                rows={5}
                 {...field}
                 value={field.value || ""}
               />
@@ -275,35 +280,18 @@ export default function ManageEventDefinitionDialog({
 }: PropsWithChildren<{
   open: boolean;
   setOpen: (open: boolean) => void;
-  defaultValues?: ManageEventDefinitionForm | EventDefinition;
+  defaultValues?: ManageEventDefinitionForm;
   onSuccess?: (eventDefinition: ManageEventDefinitionForm) => Promise<void>;
 }>) {
   const { projectId } = useParams();
 
-  // Convert EventDefinition to ManageEventDefinitionForm if needed
   const convertToFormValues = useCallback(
-    (values: ManageEventDefinitionForm | EventDefinition | undefined): ManageEventDefinitionForm => {
+    (values: ManageEventDefinitionForm | undefined): ManageEventDefinitionForm => {
       if (!values) {
         return getDefaultValues(String(projectId));
       }
 
-      // Check if triggerSpans is already in the correct format
-      const triggerSpans = values.triggerSpans
-        ? Array.isArray(values.triggerSpans) &&
-          (values.triggerSpans.length === 0 || typeof values.triggerSpans[0] === "string")
-          ? (values.triggerSpans as string[]).map((spanName) => ({ spanName }))
-          : (values.triggerSpans as { spanName: string }[])
-        : [];
-
-      return {
-        ...values,
-        id: (values as any).id,
-        structuredOutput:
-          typeof (values as any).structuredOutput === "string"
-            ? (values as any).structuredOutput
-            : JSON.stringify((values as any).structuredOutput || {}, null, 2),
-        triggerSpans,
-      } as ManageEventDefinitionForm;
+      return values;
     },
     [projectId]
   );

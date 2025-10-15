@@ -44,11 +44,11 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
               className="relative"
             >
               <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs">{displayValue}</div>
+                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{displayValue}</div>
               </div>
             </div>
           ) : (
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs font-mono">{displayValue}</div>
+            <div className="text-ellipsis overflow-hidden whitespace-nowrap font-mono">{displayValue}</div>
           )}
         </TooltipTrigger>
         <TooltipContent

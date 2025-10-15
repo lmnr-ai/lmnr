@@ -2,28 +2,15 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog.tsx";
-
-export type EventDefinition = {
-  id: string;
-  name: string;
-  createdAt: string;
-  projectId: string;
-  prompt: string | null;
-  structuredOutput: Record<string, unknown> | null;
-  isSemantic: boolean;
-  triggerSpans: string[];
-};
+import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
 export type EventDefinitionsState = {
   projectId: string;
-  eventDefinitions?: EventDefinition[];
-  targetEventDefinition?: ManageEventDefinitionForm;
+  eventDefinitions?: EventDefinitionRow[];
 };
 
 export type EventDefinitionsActions = {
   fetchEventDefinitions: () => Promise<void>;
-  setTargetEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
 };
 
 export interface EventDefinitionsProps {
@@ -37,8 +24,6 @@ export type EventDefinitionsStoreApi = ReturnType<typeof createEventDefinitionsS
 export const createEventDefinitionsStore = (initProps: EventDefinitionsProps) =>
   createStore<EventDefinitionsStore>()((set, get) => ({
     projectId: initProps.projectId,
-    targetEventDefinition: undefined,
-    setTargetEventDefinition: (targetEventDefinition) => set({ targetEventDefinition }),
     fetchEventDefinitions: async () => {
       const { projectId } = get();
       set({ eventDefinitions: undefined });

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatRelative } from "date-fns";
+import { isEmpty } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -8,15 +10,16 @@ import ManageEventDefinitionDialog, {
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import { useEventsStoreContext } from "@/components/events/events-store";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { EventRow } from "@/lib/events/types";
-import { pluralize } from "@/lib/utils.ts";
 
 import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
 
-export default function Events() {
+export default function Events({ lastEvent }: { lastEvent?: { id: string; name: string; timestamp: string } }) {
   const pathName = usePathname();
   const { push } = useRouter();
   const searchParams = useSearchParams();
@@ -104,24 +107,58 @@ export default function Events() {
     <div className="flex flex-col flex-1">
       <Header path={`events/${eventDefinition.name}`} />
       <div className="flex flex-col flex-1 overflow-auto">
-        <div className="flex gap-4 p-4 items-center justify-between">
-          <div className="flex flex-col gap-2">
-            <div className="text-primary-foreground text-2xl font-medium">{eventDefinition.name}</div>
-            <div className="text-sm text-muted-foreground">
-              {pluralize(eventDefinition.triggerSpans.length, "trigger span", "trigger spans")}
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-medium">{eventDefinition.name}</h1>
+            <ManageEventDefinitionDialog
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={eventDefinition}
+              key={eventDefinition.id}
+              onSuccess={handleSuccess}
+            >
+              <Button variant="outline" onClick={handleEditEvent}>
+                Edit Event Definition
+              </Button>
+            </ManageEventDefinitionDialog>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-muted-foreground font-medium">Prompt</span>
+              {eventDefinition.prompt ? (
+                <div className="rounded-md">
+                  <p className="text-sm font-mono line-clamp-3">{eventDefinition.prompt}</p>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-muted-foreground font-medium">Trigger Spans</span>
+              {!isEmpty(eventDefinition.triggerSpans) ? (
+                <ScrollArea>
+                  <div className="flex flex-wrap gap-1.5 max-h-24">
+                    {eventDefinition.triggerSpans.map((span) => (
+                      <Badge key={span.name} variant="secondary" className="font-mono text-xs">
+                        {span.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-muted-foreground font-medium">Last Event</span>
+              {lastEvent ? (
+                <span className="text-sm">{formatRelative(new Date(lastEvent.timestamp), new Date())}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
             </div>
           </div>
-          <ManageEventDefinitionDialog
-            open={isDialogOpen}
-            setOpen={setIsDialogOpen}
-            defaultValues={eventDefinition}
-            key={eventDefinition.id}
-            onSuccess={handleSuccess}
-          >
-            <Button variant="outline" onClick={handleEditEvent}>
-              Edit Event Definition
-            </Button>
-          </ManageEventDefinitionDialog>
         </div>
         <DataTable
           columns={eventsTableColumns}

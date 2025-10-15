@@ -2,10 +2,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { EventDefinition } from "@/components/event-definitions/event-definitions-store.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
+import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
-export const columns: ColumnDef<EventDefinition & { triggerSpansCount: number }>[] = [
+export const columns: ColumnDef<EventDefinitionRow>[] = [
   {
     header: "Name",
     accessorFn: (row) => row.name,

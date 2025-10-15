@@ -5,6 +5,28 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
+export type EventDefinitionRow = {
+  id: string;
+  name: string;
+  createdAt: string;
+  projectId: string;
+  prompt: string | null;
+  structuredOutput: Record<string, unknown> | null;
+  isSemantic: boolean;
+  triggerSpansCount: number;
+};
+
+export type EventDefinition = {
+  id: string;
+  name: string;
+  createdAt: string;
+  projectId: string;
+  prompt: string | null;
+  structuredOutput: Record<string, unknown> | null;
+  isSemantic: boolean;
+  triggerSpans: string[];
+};
+
 export const GetEventDefinitionsSchema = z.object({
   projectId: z.string(),
 });
@@ -148,14 +170,14 @@ const syncTriggerSpans = async (
   const deletions =
     toRemove.length > 0
       ? tx
-          .delete(summaryTriggerSpans)
-          .where(
-            and(
-              eq(summaryTriggerSpans.projectId, projectId),
-              eq(summaryTriggerSpans.eventName, eventName),
-              inArray(summaryTriggerSpans.spanName, toRemove)
-            )
+        .delete(summaryTriggerSpans)
+        .where(
+          and(
+            eq(summaryTriggerSpans.projectId, projectId),
+            eq(summaryTriggerSpans.eventName, eventName),
+            inArray(summaryTriggerSpans.spanName, toRemove)
           )
+        )
       : Promise.resolve();
 
   const insertions =

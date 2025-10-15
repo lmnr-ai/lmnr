@@ -2,8 +2,8 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { EventDefinition } from "@/components/event-definitions/event-definitions-store";
 import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog";
+import { EventDefinition } from "@/lib/actions/event-definitions";
 import { EventRow } from "@/lib/events/types";
 
 export type EventsState = {
@@ -31,7 +31,7 @@ export const createEventsStore = (initProps: EventsProps) =>
     eventDefinition: {
       ...initProps.eventDefinition,
       structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2),
-      triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((spanName) => ({ spanName })),
+      triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((name) => ({ name })),
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     fetchEvents: async (params: URLSearchParams) => {
