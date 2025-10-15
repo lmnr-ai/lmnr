@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EventDefinition } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, tryParseJson } from "@/lib/utils";
 
 export type ManageEventDefinitionForm = Omit<
   EventDefinition,
@@ -127,7 +127,7 @@ function ManageEventDefinitionDialogContent({
         const eventDefinition = {
           name: data.name,
           prompt: data.prompt || null,
-          structuredOutput: JSON.parse(data.structuredOutput) || null,
+          structuredOutput: tryParseJson(data.structuredOutput),
           triggerSpans: data.triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
         };
 
