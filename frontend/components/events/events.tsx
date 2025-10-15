@@ -11,6 +11,7 @@ import { useEventsStoreContext } from "@/components/events/events-store";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { EventRow } from "@/lib/events/types";
+import { pluralize } from "@/lib/utils.ts";
 
 import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
@@ -89,7 +90,12 @@ export default function Events() {
 
   const handleSuccess = useCallback(
     async (form: ManageEventDefinitionForm) => {
-      setEventDefinition({ ...eventDefinition, prompt: form.prompt, structuredOutput: form.structuredOutput });
+      setEventDefinition({
+        ...eventDefinition,
+        prompt: form.prompt,
+        structuredOutput: form.structuredOutput,
+        triggerSpans: form.triggerSpans,
+      });
     },
     [eventDefinition, setEventDefinition]
   );
@@ -99,7 +105,12 @@ export default function Events() {
       <Header path={`events/${eventDefinition.name}`} />
       <div className="flex flex-col flex-1 overflow-auto">
         <div className="flex gap-4 p-4 items-center justify-between">
-          <div className="text-primary-foreground text-2xl font-medium">{eventDefinition.name}</div>
+          <div className="flex flex-col gap-2">
+            <div className="text-primary-foreground text-2xl font-medium">{eventDefinition.name}</div>
+            <div className="text-sm text-muted-foreground">
+              {pluralize(eventDefinition.triggerSpans.length, "trigger span", "trigger spans")}
+            </div>
+          </div>
           <ManageEventDefinitionDialog
             open={isDialogOpen}
             setOpen={setIsDialogOpen}

@@ -5,7 +5,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter.ts
 import { EventDefinition } from "@/components/event-definitions/event-definitions-store.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 
-export const columns: ColumnDef<EventDefinition>[] = [
+export const columns: ColumnDef<EventDefinition & { triggerSpansCount: number }>[] = [
   {
     header: "Name",
     accessorFn: (row) => row.name,
@@ -26,6 +26,12 @@ export const columns: ColumnDef<EventDefinition>[] = [
     id: "structuredOutput",
     accessorFn: (row) => row.structuredOutput,
     cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
+  },
+  {
+    header: "Trigger Spans",
+    id: "triggerSpans",
+    accessorFn: (row) => row.triggerSpansCount,
+    cell: ({ row }) => <span className="truncate">{row.original.triggerSpansCount}</span>,
   },
   {
     header: "Semantic",

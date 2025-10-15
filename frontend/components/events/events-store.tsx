@@ -31,6 +31,7 @@ export const createEventsStore = (initProps: EventsProps) =>
     eventDefinition: {
       ...initProps.eventDefinition,
       structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2),
+      triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((spanName) => ({ spanName })),
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     fetchEvents: async (params: URLSearchParams) => {

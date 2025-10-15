@@ -4,10 +4,18 @@ import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { get } from "lodash";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
-import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
+import {
+  Control,
+  Controller,
+  FieldErrors,
+  FormProvider,
+  useFieldArray,
+  useForm,
+  useFormContext,
+} from "react-hook-form";
 
 import { EventDefinition } from "@/components/event-definitions/event-definitions-store";
 import { Button } from "@/components/ui/button";
@@ -21,10 +29,11 @@ import { cn } from "@/lib/utils";
 
 export type ManageEventDefinitionForm = Omit<
   EventDefinition,
-  "isSemantic" | "createdAt" | "id" | "structuredOutput"
+  "isSemantic" | "createdAt" | "id" | "structuredOutput" | "triggerSpans"
 > & {
   id?: string;
   structuredOutput: string;
+  triggerSpans: { spanName: string }[];
 };
 
 export const getDefaultValues = (projectId: string): ManageEventDefinitionForm => ({
@@ -32,7 +41,55 @@ export const getDefaultValues = (projectId: string): ManageEventDefinitionForm =
   prompt: "",
   structuredOutput: "{}",
   projectId,
+  triggerSpans: [],
 });
+
+const TriggerSpansField = ({
+  control,
+  errors,
+}: {
+  control: Control<ManageEventDefinitionForm, any, ManageEventDefinitionForm>;
+  errors: FieldErrors<ManageEventDefinitionForm>;
+}) => {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "triggerSpans",
+  });
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between">
+        <Label>Trigger Spans</Label>
+        <Button type="button" variant="outline" size="sm" onClick={() => append({ spanName: "" })} className="h-8">
+          <Plus className="w-4 h-4 mr-1" />
+          Add Span
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {fields.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
+            No trigger spans configured. Click "Add Span" to add one.
+          </div>
+        )}
+        {fields.map((field, index) => (
+          <div key={field.id} className="flex gap-2 items-start">
+            <Controller
+              name={`triggerSpans.${index}.spanName`}
+              control={control}
+              rules={{ required: "Span name is required" }}
+              render={({ field }) => <Input {...field} placeholder="Enter span name" className="flex-1" />}
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="h-10 px-3">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <p className="text-sm text-muted-foreground">Span names that will trigger this event when they complete.</p>
+      {errors.triggerSpans && <p className="text-sm text-red-500">{errors.triggerSpans.message}</p>}
+    </div>
+  );
+};
 
 function ManageEventDefinitionDialogContent({
   setOpen,
@@ -65,6 +122,7 @@ function ManageEventDefinitionDialogContent({
           name: data.name,
           prompt: data.prompt || null,
           structuredOutput: JSON.parse(data.structuredOutput) || null,
+          triggerSpans: data.triggerSpans.map((ts) => ts.spanName).filter((name) => name.trim().length > 0),
         };
 
         const isUpdate = !!data.id;
@@ -151,6 +209,7 @@ function ManageEventDefinitionDialogContent({
           {errors.prompt && <p className="text-sm text-red-500">{errors.prompt.message}</p>}
         </div>
 
+        <TriggerSpansField control={control} errors={errors} />
         <div className="grid gap-2">
           <Label htmlFor="structuredOutput">Structured Output</Label>
           <Controller
@@ -216,12 +275,41 @@ export default function ManageEventDefinitionDialog({
 }: PropsWithChildren<{
   open: boolean;
   setOpen: (open: boolean) => void;
-  defaultValues?: ManageEventDefinitionForm;
+  defaultValues?: ManageEventDefinitionForm | EventDefinition;
   onSuccess?: (eventDefinition: ManageEventDefinitionForm) => Promise<void>;
 }>) {
   const { projectId } = useParams();
+
+  // Convert EventDefinition to ManageEventDefinitionForm if needed
+  const convertToFormValues = useCallback(
+    (values: ManageEventDefinitionForm | EventDefinition | undefined): ManageEventDefinitionForm => {
+      if (!values) {
+        return getDefaultValues(String(projectId));
+      }
+
+      // Check if triggerSpans is already in the correct format
+      const triggerSpans = values.triggerSpans
+        ? Array.isArray(values.triggerSpans) &&
+          (values.triggerSpans.length === 0 || typeof values.triggerSpans[0] === "string")
+          ? (values.triggerSpans as string[]).map((spanName) => ({ spanName }))
+          : (values.triggerSpans as { spanName: string }[])
+        : [];
+
+      return {
+        ...values,
+        id: (values as any).id,
+        structuredOutput:
+          typeof (values as any).structuredOutput === "string"
+            ? (values as any).structuredOutput
+            : JSON.stringify((values as any).structuredOutput || {}, null, 2),
+        triggerSpans,
+      } as ManageEventDefinitionForm;
+    },
+    [projectId]
+  );
+
   const form = useForm<ManageEventDefinitionForm>({
-    defaultValues: initialValues || getDefaultValues(String(projectId)),
+    defaultValues: convertToFormValues(initialValues),
     mode: "onChange",
   });
 
@@ -229,12 +317,12 @@ export default function ManageEventDefinitionDialog({
     (open: boolean) => {
       setOpen(open);
       if (open) {
-        form.reset(initialValues || getDefaultValues(String(projectId)));
+        form.reset(convertToFormValues(initialValues));
       } else {
         form.reset(getDefaultValues(String(projectId)));
       }
     },
-    [form, initialValues, projectId, setOpen]
+    [form, initialValues, projectId, setOpen, convertToFormValues]
   );
 
   return (

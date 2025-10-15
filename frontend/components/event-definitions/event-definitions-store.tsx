@@ -12,6 +12,7 @@ export type EventDefinition = {
   prompt: string | null;
   structuredOutput: Record<string, unknown> | null;
   isSemantic: boolean;
+  triggerSpans: string[];
 };
 
 export type EventDefinitionsState = {
