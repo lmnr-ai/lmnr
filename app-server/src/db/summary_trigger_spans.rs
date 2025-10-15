@@ -20,8 +20,9 @@ pub struct SummaryTriggerSpanWithEvent {
 }
 
 /// Get summary trigger spans for a project with their associated semantic event definitions
-/// Returns all trigger spans, but only includes semantic event definitions (where is_semantic = true)
-/// Triggers without event definitions or with non-semantic events are included but without the event_definition
+/// Returns all trigger spans for the project
+/// Only joins semantic event definitions (is_semantic = true) via the LEFT JOIN condition
+/// Triggers without event definitions will have event_definition = None
 pub async fn get_summary_trigger_spans_with_events(
     pool: &PgPool,
     project_id: Uuid,
@@ -49,9 +50,9 @@ pub async fn get_summary_trigger_spans_with_events(
             event_definitions ed 
             ON sts.event_name = ed.name 
             AND sts.project_id = ed.project_id
+            AND ed.is_semantic = true
         WHERE 
             sts.project_id = $1
-            AND ed.is_semantic = true
         "#,
     )
     .bind(project_id)

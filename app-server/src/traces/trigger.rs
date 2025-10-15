@@ -8,7 +8,7 @@ use crate::{
     db::{
         DB,
         summary_trigger_spans::{
-            EventDefinition, SummaryTriggerSpanWithEvent, get_summary_trigger_spans_with_events,
+            SummaryTriggerSpanWithEvent, get_summary_trigger_spans_with_events,
         },
     },
 };
@@ -49,26 +49,15 @@ pub async fn get_summary_trigger_spans_cached(
     }
 }
 
-/// Check if a span name matches any trigger and return the associated semantic event definitions
-/// Returns None if span doesn't match any trigger, or Some(Vec<EventDefinition>) if it does
-/// (the Vec can be empty if trigger exists but has no event definitions)
+/// Check if a span name matches any trigger and return all matching trigger configurations
+/// Returns a vector of matching triggers (can be empty if no match)
 pub fn check_span_trigger(
     span_name: &str,
     trigger_spans: &[SummaryTriggerSpanWithEvent],
-) -> Option<Vec<EventDefinition>> {
-    let matching_triggers: Vec<_> = trigger_spans
+) -> Vec<SummaryTriggerSpanWithEvent> {
+    trigger_spans
         .iter()
         .filter(|trigger| trigger.span_name == span_name)
-        .collect();
-
-    if matching_triggers.is_empty() {
-        None
-    } else {
-        Some(
-            matching_triggers
-                .into_iter()
-                .filter_map(|trigger| trigger.event_definition.clone())
-                .collect(),
-        )
-    }
+        .cloned()
+        .collect()
 }

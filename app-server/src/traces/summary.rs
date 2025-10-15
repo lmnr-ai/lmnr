@@ -22,20 +22,20 @@ use crate::{
 pub struct TraceSummaryMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    pub event_definitions: Vec<crate::db::summary_trigger_spans::EventDefinition>,
+    pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
 }
 
 /// Push a trace completion message to the trace summary queue
 pub async fn push_to_trace_summary_queue(
     trace_id: Uuid,
     project_id: Uuid,
-    event_definitions: Vec<crate::db::summary_trigger_spans::EventDefinition>,
+    event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = TraceSummaryMessage {
         trace_id,
         project_id,
-        event_definitions,
+        event_definition: event_definition.clone(),
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -49,10 +49,10 @@ pub async fn push_to_trace_summary_queue(
         .await?;
 
     log::debug!(
-        "Pushed trace summary message to queue: trace_id={}, project_id={}, events={:?}",
+        "Pushed trace summary message to queue: trace_id={}, project_id={}, event={:?}",
         trace_id,
         project_id,
-        message.event_definitions
+        event_definition.as_ref().map(|e| &e.name)
     );
 
     Ok(())
@@ -177,20 +177,16 @@ async fn process_single_trace_summary(
         token
     } else {
         log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
-        acker.reject(false).await.unwrap();
+        if let Err(e) = acker.reject(false).await {
+            log::error!("Failed to reject trace summary message: {:?}", e);
+        }
         return Ok(());
     };
-
-    let event_defs_json: Vec<serde_json::Value> = message
-        .event_definitions
-        .iter()
-        .map(|ed| serde_json::to_value(ed).unwrap())
-        .collect();
 
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
-        "event_definitions": event_defs_json
+        "event_definition": message.event_definition.as_ref().map(|ed| serde_json::to_value(ed).unwrap())
     });
 
     let call_summarizer_service = || async {

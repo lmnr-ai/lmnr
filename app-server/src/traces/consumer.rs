@@ -533,13 +533,14 @@ async fn check_and_push_trace_summaries(
     for span in spans {
         if let Some(trigger_spans) = project_trigger_spans.get(&span.project_id) {
             // Check if this span name matches any trigger
-            // Returns Some(event_definitions) if trigger exists (vec may be empty),
-            // or None if no trigger matches
-            if let Some(event_definitions) = check_span_trigger(&span.name, trigger_spans) {
+            let matching_triggers = check_span_trigger(&span.name, trigger_spans);
+
+            // Send one message per matching trigger
+            for trigger in matching_triggers {
                 if let Err(e) = push_to_trace_summary_queue(
                     span.trace_id,
                     span.project_id,
-                    event_definitions,
+                    trigger.event_definition,
                     queue.clone(),
                 )
                 .await
