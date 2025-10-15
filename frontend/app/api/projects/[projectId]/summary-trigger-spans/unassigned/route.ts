@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ proj
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch unassigned summary trigger spans." },
@@ -20,4 +20,3 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ proj
     );
   }
 }
-

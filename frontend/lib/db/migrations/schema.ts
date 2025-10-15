@@ -1045,7 +1045,7 @@ export const eventDefinitions = pgTable(
       foreignColumns: [projects.id],
       name: "event_definitions_project_id_fkey",
     }).onDelete("cascade"),
-    unique("event_definitions_name_key").on(table.name),
+    unique("event_definitions_project_id_name_key").on(table.name, table.projectId),
   ]
 );
 

@@ -1,5 +1,5 @@
 {
-  "id": "32a60164-f507-4b77-8303-968f360a9f57",
+  "id": "6384a015-bbb4-4fe5-90a5-1d49a2854546",
   "prevId": "24a5104d-713e-4cce-8dff-658df8da9e92",
   "version": "7",
   "dialect": "postgresql",
@@ -1300,11 +1300,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "event_definitions_name_key": {
-          "name": "event_definitions_name_key",
+        "event_definitions_project_id_name_key": {
+          "name": "event_definitions_project_id_name_key",
           "nullsNotDistinct": false,
           "columns": [
-            "name"
+            "name",
+            "project_id"
           ]
         }
       },

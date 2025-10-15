@@ -6,7 +6,7 @@ CREATE TABLE "event_definitions" (
 	"project_id" uuid NOT NULL,
 	"is_semantic" boolean DEFAULT false NOT NULL,
 	"structured_output" jsonb,
-	CONSTRAINT "event_definitions_name_key" UNIQUE("name")
+	CONSTRAINT "event_definitions_project_id_name_key" UNIQUE("name","project_id")
 );
 --> statement-breakpoint
 CREATE TABLE "summary_trigger_spans" (
