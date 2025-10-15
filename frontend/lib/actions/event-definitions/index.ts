@@ -38,7 +38,7 @@ export const GetEventDefinitionSchema = z.object({
 
 export const CreateEventDefinitionSchema = z.object({
   projectId: z.string(),
-  name: z.string().min(1, { error: "Name is required" }).max(255, { error: "Name must be less than 255 characters" }),
+  name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string().nullable(),
   structuredOutput: z.record(z.string(), z.unknown()).nullable(),
   triggerSpans: z.array(z.string()).optional().default([]),

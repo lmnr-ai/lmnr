@@ -15,7 +15,10 @@ export const GetSummaryTriggerSpanSchema = z.object({
 
 export const CreateSummaryTriggerSpanSchema = z.object({
   projectId: z.string(),
-  spanName: z.string().min(1, { error: "Span name is required" }).max(255, { error: "Span name must be less than 255 characters" }),
+  spanName: z
+    .string()
+    .min(1, "Span name is required")
+    .max(255, { error: "Span name must be less than 255 characters" }),
   eventName: z.string().nullable(),
 });
 
@@ -27,10 +30,7 @@ export const DeleteSummaryTriggerSpanSchema = z.object({
 export async function getSummaryTriggerSpans(input: z.infer<typeof GetSummaryTriggerSpansSchema>) {
   const { projectId } = GetSummaryTriggerSpansSchema.parse(input);
 
-  const results = await db
-    .select()
-    .from(summaryTriggerSpans)
-    .where(eq(summaryTriggerSpans.projectId, projectId));
+  const results = await db.select().from(summaryTriggerSpans).where(eq(summaryTriggerSpans.projectId, projectId));
 
   return results;
 }
@@ -41,12 +41,7 @@ export async function getUnassignedSummaryTriggerSpans(input: z.infer<typeof Get
   const results = await db
     .select()
     .from(summaryTriggerSpans)
-    .where(
-      and(
-        eq(summaryTriggerSpans.projectId, projectId),
-        isNull(summaryTriggerSpans.eventName)
-      )
-    );
+    .where(and(eq(summaryTriggerSpans.projectId, projectId), isNull(summaryTriggerSpans.eventName)));
 
   return results;
 }
@@ -88,4 +83,3 @@ export async function deleteSummaryTriggerSpan(input: z.infer<typeof DeleteSumma
 
   return result;
 }
-
