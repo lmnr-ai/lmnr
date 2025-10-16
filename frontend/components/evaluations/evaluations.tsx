@@ -1,7 +1,6 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { flow } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useMemo, useState } from "react";
@@ -12,6 +11,7 @@ import ProgressionChart from "@/components/evaluations/progression-chart";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { Evaluation } from "@/lib/evaluation/types";
@@ -47,10 +47,8 @@ const columns: ColumnDef<Evaluation>[] = [
   {
     accessorKey: "metadata",
     header: "Metadata",
-    accessorFn: flow(
-      (row: Evaluation) => row.metadata,
-      (metadata) => (metadata ? JSON.stringify(metadata) : "-")
-    ),
+    accessorFn: (row) => row.metadata,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
   },
   {
     header: "Created at",
