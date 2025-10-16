@@ -77,13 +77,13 @@ const nextConfig = {
   },
 };
 
-if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.SENTRY_DSN) {
+if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN) {
   module.exports = withSentryConfig(nextConfig, {
     // For all available options, see:
     // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
     org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
+    project: process.env.FRONTEND_SENTRY_PROJECT,
 
     // Only print logs for uploading source maps in CI
     silent: !process.env.CI,

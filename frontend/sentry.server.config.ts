@@ -4,9 +4,9 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.SENTRY_DSN) {
+if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN) {
   Sentry.init({
-    dsn: process.env.SENTRY_DSN,
+    dsn: process.env.FRONTEND_SENTRY_DSN,
 
     // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
     tracesSampleRate: 1,
