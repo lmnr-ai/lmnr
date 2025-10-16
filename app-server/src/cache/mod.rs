@@ -32,4 +32,10 @@ pub trait CacheTrait {
         T: Serialize + Send;
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError>;
+    /// Atomically increment a numeric value by the given amount.
+    /// If the key doesn't exist, it will be created with value 0 before incrementing.
+    /// Returns the new value after incrementing.
+    /// Callers should use get() first if they need to distinguish between missing keys
+    /// and existing keys (to trigger recomputation logic, for example).
+    async fn increment(&self, key: &str, amount: i64) -> Result<Option<i64>, CacheError>;
 }

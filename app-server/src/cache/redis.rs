@@ -100,4 +100,18 @@ impl CacheTrait for RedisCache {
             Ok(())
         }
     }
+
+    async fn increment(&self, key: &str, amount: i64) -> Result<Option<i64>, CacheError> {
+        // Use atomic INCRBY command
+        // Note: Redis INCRBY will create the key if it doesn't exist, starting from 0
+        // The caller should check with get() first if they want to handle missing keys differently
+        let result: RedisResult<i64> = self.connection.clone().incr(key, amount).await;
+        match result {
+            Ok(new_value) => Ok(Some(new_value)),
+            Err(e) => {
+                log::error!("Redis increment error: {}", e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
+        }
+    }
 }

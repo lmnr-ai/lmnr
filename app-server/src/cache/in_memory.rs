@@ -52,4 +52,20 @@ impl CacheTrait for InMemoryCache {
         });
         Ok(())
     }
+
+    async fn increment(&self, key: &str, amount: i64) -> Result<Option<i64>, CacheError> {
+        // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
+        // Production should use Redis where increment is atomic.
+        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
+        let current_value: i64 = match self.cache.get(key).await {
+            Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
+            None => 0,
+        };
+
+        let new_value = current_value + amount;
+        let new_bytes = serde_json::to_vec(&new_value).map_err(|e| CacheError::SerDeError(e))?;
+
+        self.cache.insert(String::from(key), new_bytes).await;
+        Ok(Some(new_value))
+    }
 }
