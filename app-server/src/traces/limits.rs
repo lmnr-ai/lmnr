@@ -13,6 +13,12 @@ use crate::{
     ch::limits::get_workspace_bytes_ingested_by_project_ids,
     db::{self, DB, projects::ProjectWithWorkspaceBillingInfo, stats::WorkspaceLimitsExceeded},
 };
+// For workspaces over the limit, expire the cache after 24 hours,
+// so that it resets in the next billing period (+/- 1 day).
+const WORKSPACE_LIMITS_EXCEEDED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+// For project info, expire the cache after 7 days,
+// so that reset time and other info is updated in cache.
+const PROJECT_INFO_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
     db: Arc<DB>,
@@ -176,6 +182,7 @@ async fn get_workspace_info_for_project_id(
             let _ = cache
                 .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
                 .await;
+            let _ = cache.set_ttl(&cache_key, PROJECT_INFO_TTL_SECONDS).await;
             Ok(info)
         }
     }

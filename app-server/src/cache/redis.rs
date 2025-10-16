@@ -60,45 +60,39 @@ impl CacheTrait for RedisCache {
             }
         };
 
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .set::<_, Vec<u8>, ()>(String::from(key), bytes)
             .await
-        {
-            log::error!("Redis set error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
-        }
+            .map_err(|e| {
+                log::error!("Redis set error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
     }
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .del::<_, ()>(String::from(key))
             .await
-        {
-            log::error!("Redis delete error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
-        }
+            .map_err(|e| {
+                log::error!("Redis delete error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
     }
 
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .expire::<_, ()>(String::from(key), seconds as i64)
             .await
-        {
-            log::error!("Redis set ttl error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
-        }
+            .map_err(|e| {
+                log::error!("Redis set ttl error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<Option<i64>, CacheError> {
