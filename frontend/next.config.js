@@ -86,7 +86,7 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
     project: process.env.FRONTEND_SENTRY_PROJECT,
 
     // Only print logs for uploading source maps in CI
-    silent: !process.env.CI,
+    silent: true,
 
     // For all available options, see:
     // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
