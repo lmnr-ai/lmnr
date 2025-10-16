@@ -1,8 +1,13 @@
 // Yes, this file is called instrumentation.ts, but it's not actually used to instrument the app.
 // Apparently, this is the suggested way to run startup hooks in Next.js:
 // https://github.com/vercel/next.js/discussions/15341#discussioncomment-7091594
+import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config.ts");
+  }
+
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");
@@ -61,10 +66,18 @@ export async function register() {
                 await clickhouseClient.exec({ query: statement });
               } catch (error) {
                 if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
-                  console.warn("[WARNING] Failed to apply ClickHouse statement:", statement, "because column already exists");
+                  console.warn(
+                    "[WARNING] Failed to apply ClickHouse statement:",
+                    statement,
+                    "because column already exists"
+                  );
                   continue;
                 } else if ((error as { type: string }).type === "TABLE_ALREADY_EXISTS") {
-                  console.warn("[WARNING] Failed to apply ClickHouse statement:", statement, "because table already exists");
+                  console.warn(
+                    "[WARNING] Failed to apply ClickHouse statement:",
+                    statement,
+                    "because table already exists"
+                  );
                   continue;
                 } else {
                   throw error;
@@ -97,3 +110,5 @@ export async function register() {
     }
   }
 }
+
+export const onRequestError = Sentry.captureRequestError;
