@@ -26,7 +26,7 @@ pub async fn insert_browser_events(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     event_batch: &EventBatch,
-) -> Result<(), clickhouse::error::Error> {
+) -> Result<usize, clickhouse::error::Error> {
     let mut insert = clickhouse
         .insert("browser_session_events")
         .map_err(|e| {
@@ -41,8 +41,10 @@ pub async fn insert_browser_events(
         })?
         .with_option("async_insert", "1");
 
+    let mut total_bytes = 0;
     for event in event_batch.events.iter() {
         let size_bytes = event.estimate_size_bytes();
+        total_bytes += size_bytes;
         insert
             .write(&BrowserEventCHRow {
                 event_id: Uuid::new_v4(),
@@ -72,5 +74,5 @@ pub async fn insert_browser_events(
         e
     })?;
 
-    Ok(())
+    Ok(total_bytes)
 }

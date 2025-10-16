@@ -562,7 +562,9 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_browser_events_workers_per_thread {
                         tokio::spawn(process_browser_events(
+                            db_for_http.clone(),
                             clickhouse.clone(),
+                            cache_for_http.clone(),
                             mq_for_http.clone(),
                         ));
                     }
