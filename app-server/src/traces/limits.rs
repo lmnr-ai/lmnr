@@ -3,15 +3,14 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::{
     cache::{
         Cache, CacheTrait,
-        keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY, WORKSPACE_PARTIAL_USAGE_CACHE_KEY},
+        keys::{PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
     },
-    ch,
+    ch::limits::get_workspace_bytes_ingested_by_project_ids,
     db::{self, DB, projects::ProjectWithWorkspaceBillingInfo, stats::WorkspaceLimitsExceeded},
 };
 
@@ -36,13 +35,29 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
     match cache_res {
         Ok(Some(workspace_limits_exceeded)) => Ok(workspace_limits_exceeded),
         Ok(None) | Err(_) => {
-            let workspace_limits_exceeded = is_workspace_over_limit(
-                clickhouse,
+            let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
+                clickhouse.clone(),
                 project_info.workspace_project_ids,
-                project_info.bytes_limit,
                 project_info.reset_time,
             )
-            .await?;
+            .await
+            {
+                Ok(bytes_ingested) => bytes_ingested as i64,
+                Err(e) => {
+                    log::error!(
+                        "Failed to get workspace bytes ingested for project [{}]: {:?}",
+                        project_id,
+                        e
+                    );
+                    0 as i64
+                }
+            };
+
+            let workspace_limits_exceeded = WorkspaceLimitsExceeded {
+                steps: false,
+                bytes_ingested: bytes_ingested >= project_info.bytes_limit,
+            };
+
             let _ = cache
                 .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
                 .await;
@@ -59,64 +74,84 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
     written_bytes: usize,
 ) -> Result<()> {
     tokio::spawn(async move {
-        let project_info = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id)
-            .await
-            .map_err(|e| {
-                log::error!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-            })
-            .unwrap();
+        let project_info =
+            match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
+                Ok(info) => info,
+                Err(e) => {
+                    log::error!(
+                        "Failed to get workspace info for project [{}]: {:?}",
+                        project_id,
+                        e
+                    );
+                    return;
+                }
+            };
         let workspace_id = project_info.workspace_id;
         if project_info.tier_name.trim().to_lowercase() != "free" {
             // We don't need to update the workspace limits cache for non-free tiers
             return;
         }
 
-        let partial_usage_cache_key = format!("{WORKSPACE_PARTIAL_USAGE_CACHE_KEY}:{workspace_id}");
+        let bytes_usage_cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
         let limits_cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
 
         // First, try to read from cache to check if it exists
-        let cache_result = cache.get::<i64>(&partial_usage_cache_key).await;
+        let cache_result = cache.get::<i64>(&bytes_usage_cache_key).await;
 
         match cache_result {
             Ok(Some(_)) => {
                 // Cache exists - atomically increment it
-                let _ = cache
-                    .increment(&partial_usage_cache_key, written_bytes as i64)
+                let increment_result = cache
+                    .increment(&bytes_usage_cache_key, written_bytes as i64)
                     .await;
+
+                // Check if we've accumulated enough to trigger a recomputation
+                if let Ok(Some(new_partial_usage)) = increment_result {
+                    let workspace_limits_exceeded = WorkspaceLimitsExceeded {
+                        steps: false,
+                        bytes_ingested: new_partial_usage >= project_info.bytes_limit,
+                    };
+
+                    // Update the limits cache
+                    let _ = cache
+                        .insert::<WorkspaceLimitsExceeded>(
+                            &limits_cache_key,
+                            workspace_limits_exceeded,
+                        )
+                        .await;
+                }
             }
             Ok(None) | Err(_) => {
                 // Cache miss or error - perform full recomputation
-                let workspace_limits_exceeded = is_workspace_over_limit(
-                    clickhouse,
+                let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
+                    clickhouse.clone(),
                     project_info.workspace_project_ids,
-                    project_info.bytes_limit,
                     project_info.reset_time,
                 )
                 .await
-                .map_err(|e| {
-                    log::error!(
-                        "Failed to update workspace limit exceeded for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                })
-                .unwrap();
+                {
+                    Ok(bytes_ingested) => bytes_ingested as i64,
+                    Err(e) => {
+                        log::error!(
+                            "Failed to get workspace bytes ingested for project [{}]: {:?}",
+                            project_id,
+                            e
+                        );
+                        0 as i64
+                    }
+                };
 
-                // Update the limits cache
+                let workspace_limits_exceeded = WorkspaceLimitsExceeded {
+                    steps: false,
+                    bytes_ingested: bytes_ingested >= project_info.bytes_limit,
+                };
+
                 let _ = cache
-                    .insert::<WorkspaceLimitsExceeded>(
-                        &limits_cache_key,
-                        workspace_limits_exceeded.clone(),
-                    )
+                    .insert::<WorkspaceLimitsExceeded>(&limits_cache_key, workspace_limits_exceeded)
                     .await;
 
-                // Initialize the partial usage counter with current write
                 let _ = cache
-                    .insert::<i64>(&partial_usage_cache_key, written_bytes as i64)
+                    .insert::<i64>(&bytes_usage_cache_key, bytes_ingested as i64)
                     .await;
             }
         }
@@ -145,17 +180,4 @@ async fn get_workspace_info_for_project_id(
             Ok(info)
         }
     }
-}
-
-async fn is_workspace_over_limit(
-    clickhouse: clickhouse::Client,
-    project_ids: Vec<Uuid>,
-    bytes_limit: i64,
-    reset_time: DateTime<Utc>,
-) -> Result<WorkspaceLimitsExceeded> {
-    let workspace_limits_exceeded =
-        ch::limits::is_workspace_over_limit(clickhouse, project_ids, reset_time, bytes_limit)
-            .await?;
-
-    Ok(workspace_limits_exceeded)
 }

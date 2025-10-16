@@ -3,8 +3,6 @@ use chrono::{DateTime, Months, Utc};
 use clickhouse::Client;
 use uuid::Uuid;
 
-use crate::db::stats::WorkspaceLimitsExceeded;
-
 /// Calculate how many complete months have elapsed from start_date to end_date
 /// This mimics Python's dateutil.relativedelta behavior
 fn complete_months_elapsed(start_date: DateTime<Utc>, end_date: DateTime<Utc>) -> u32 {
@@ -23,12 +21,11 @@ fn complete_months_elapsed(start_date: DateTime<Utc>, end_date: DateTime<Utc>) -
     months_elapsed
 }
 
-pub async fn is_workspace_over_limit(
+pub async fn get_workspace_bytes_ingested_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
     reset_time: DateTime<Utc>,
-    bytes_limit: i64,
-) -> Result<WorkspaceLimitsExceeded> {
+) -> Result<usize> {
     let now = Utc::now();
     let months_elapsed = complete_months_elapsed(reset_time, now);
 
@@ -41,6 +38,7 @@ pub async fn is_workspace_over_limit(
     } else {
         reset_time
     };
+
     let query = "WITH spans_bytes_ingested AS (
       SELECT
         SUM(spans.size_bytes) as spans_bytes_ingested
@@ -67,25 +65,14 @@ pub async fn is_workspace_over_limit(
     FROM spans_bytes_ingested, browser_session_events_bytes_ingested, events_bytes_ingested
     ";
 
-    let total_bytes_ingested = clickhouse
+    let result = clickhouse
         .query(&query)
         .param("project_ids", project_ids)
         .param("latest_reset_time", latest_reset_time.naive_utc())
         .fetch_optional::<usize>()
         .await?;
 
-    let Some(bytes_ingested) = total_bytes_ingested else {
-        log::error!("No bytes ingested found for workspace in ClickHouse");
-        return Ok(WorkspaceLimitsExceeded {
-            steps: false,
-            bytes_ingested: false,
-        });
-    };
-
-    Ok(WorkspaceLimitsExceeded {
-        bytes_ingested: bytes_ingested > (bytes_limit.abs() as usize),
-        steps: false,
-    })
+    Ok(result.unwrap_or(0))
 }
 
 #[cfg(test)]
