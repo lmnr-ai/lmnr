@@ -105,7 +105,6 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
                     .increment(&bytes_usage_cache_key, written_bytes as i64)
                     .await;
 
-                // Check if we've accumulated enough to trigger a recomputation
                 if let Ok(Some(new_partial_usage)) = increment_result {
                     let workspace_limits_exceeded = WorkspaceLimitsExceeded {
                         steps: false,
