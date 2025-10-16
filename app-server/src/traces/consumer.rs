@@ -149,7 +149,6 @@ async fn process_spans_and_events_batch(
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
-    let mut project_ids = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans in parallel (heavy processing)
@@ -173,7 +172,6 @@ async fn process_spans_and_events_batch(
     // Collect results from parallel processing
     for (span, events, ingested_bytes) in processing_results {
         spans_ingested_bytes.push(ingested_bytes.clone());
-        project_ids.push(span.project_id);
         all_spans.push(span);
         all_events.extend(events.into_iter());
     }
@@ -206,7 +204,6 @@ async fn process_spans_and_events_batch(
         all_spans,
         spans_ingested_bytes,
         all_events,
-        project_ids,
         db,
         clickhouse,
         cache,
@@ -229,7 +226,6 @@ async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,
     events: Vec<Event>,
-    project_ids: Vec<Uuid>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -383,7 +379,7 @@ async fn process_batch(
         .sum::<usize>()
         + total_events_ingested_bytes;
 
-    for project_id in project_ids {
+    if let Some(project_id) = stripped_spans.first().map(|s| s.project_id) {
         if is_feature_enabled(Feature::UsageLimit) {
             if let Err(e) = update_workspace_limit_exceeded_by_project_id(
                 db.clone(),
