@@ -29,7 +29,7 @@ use lapin::{
 };
 use mq::MessageQueue;
 use names::NameGenerator;
-use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
+use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{Storage, mock::MockStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, process_payloads};
 use tonic::transport::Server;
@@ -41,13 +41,17 @@ use traces::{
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use realtime::{SseConnectionMap, cleanup_closed_connections};
+use sentry::integrations::opentelemetry as sentry_opentelemetry;
 use sodiumoxide;
 use std::{
-    env,
-    io::{self, Error},
-    sync::Arc,
-    thread::{self, JoinHandle},
+    borrow::Cow, env, io::{self, Error}, sync::Arc, thread::{self, JoinHandle}
+};
+use tracing_subscriber::{
+    layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
 };
 
 mod agent_manager;
@@ -64,7 +68,7 @@ mod features;
 mod language_model;
 mod mq;
 mod names;
-mod opentelemetry;
+mod opentelemetry_proto;
 mod project_api_keys;
 mod provider_api_keys;
 mod query_engine;
@@ -97,13 +101,57 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
-    if env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
-        env_logger::init();
-    } else {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .init();
+    // == Sentry ==
+    let sentry_dsn = env::var("SENTRY_DSN").unwrap_or(
+        "https://1234567890@sentry.io/1234567890".to_string()
+    );
+    let _sentry_guard = sentry::init((sentry_dsn, sentry::ClientOptions {
+        release: sentry::release_name!(),
+        traces_sample_rate: 1.0,
+        environment: Some(Cow::Owned(env::var("ENVIRONMENT").unwrap_or("development".to_string()))),
+        before_send: Some(Arc::new(|event| {
+            dbg!(&event);
+            if event.extra.get("sql_query").is_some() {
+                dbg!(&event);
+                Some(event)
+            } else {
+                None
+            }
+        })),
+        ..Default::default()
+    }));
+
+    if !is_feature_enabled(Feature::Tracing) {
+        drop(_sentry_guard);
     }
+
+    // == OpenTelemetry Tracer Provider ==
+    let tracer_provider = SdkTracerProvider::builder()
+        // Register the Sentry span processor to send OpenTelemetry spans to Sentry
+        .with_span_processor(sentry_opentelemetry::SentrySpanProcessor::new())
+        .build();
+
+    // == Tracing Subscriber with OpenTelemetry ==
+    // Create the tracer from the provider BEFORE setting it globally
+    // This ensures we have a concrete SdkTracer type, not a BoxedTracer
+    let tracer = tracer_provider.tracer("app-server");
+    
+    // Now set the global tracer provider
+    global::set_tracer_provider(tracer_provider);
+    
+    // Create environment filter (respects RUST_LOG env var)
+    let env_filter = if env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
+        EnvFilter::from_default_env()
+    } else {
+        EnvFilter::new("info")
+    };
+
+    // Set up the tracing subscriber with both OpenTelemetry and console output
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_opentelemetry::layer().with_tracer(tracer))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB

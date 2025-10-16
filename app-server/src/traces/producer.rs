@@ -11,7 +11,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::{events::Event, spans::Span, utils::span_id_to_uuid},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    opentelemetry::opentelemetry::proto::collector::trace::v1::{
+    opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };

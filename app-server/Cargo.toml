@@ -23,7 +23,6 @@ deadpool = "0.12.2"
 dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
-env_logger = "0.11"
 futures-util = "0.3"
 indexmap = {version = "2.11.4", features = ["serde"]}
 itertools = "0.14.0"
@@ -31,6 +30,8 @@ lapin = "3.0.0"
 log = "0.4.28"
 moka = {version = "0.12.10", features = ["sync", "future"]}
 num_cpus = "1.16.0"
+opentelemetry = {version = "0.29.1", features = ["trace"]}
+opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
 prost = "0.13"
 rand = "0.9.1"
 rayon = "1.10.0"
@@ -38,6 +39,7 @@ redis = {version = "0.32.4", features = ["tokio-comp"]}
 regex = "1.11.1"
 reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
+sentry = {version = "0.45.0", features = ["opentelemetry"]}
 serde = "1.0"
 serde_json = {version = "1.0.140", features = ["preserve_order"]}
 sha3 = "0.10.8"
@@ -48,6 +50,9 @@ tikv-jemallocator = "0.6"
 tokio = {version = "1.46", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.13", features = ["gzip"]}
+tracing = {version = "0.1.41", features = ["attributes"]}
+tracing-opentelemetry = "0.30.0"
+tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 url = "2.5.4"
 uuid = {version = "1.18.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
 

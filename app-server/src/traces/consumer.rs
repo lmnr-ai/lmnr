@@ -5,8 +5,10 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use itertools::Itertools;
+use opentelemetry::{Context, trace::FutureExt};
 use rayon::prelude::*;
 use serde_json::Value;
+use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
@@ -138,6 +140,16 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    storage,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -197,7 +209,9 @@ async fn process_spans_and_events_batch(
             })
             .collect::<Vec<_>>();
 
-        join_all(storage_futures).await;
+        join_all(storage_futures)
+            .with_context(Context::current())
+            .await;
     }
 
     // Process spans and events in batches
@@ -223,6 +237,17 @@ struct StrippedSpan {
     output: Option<Value>,
 }
 
+#[instrument(skip(
+    spans,
+    spans_ingested_bytes,
+    events,
+    db,
+    clickhouse,
+    cache,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,

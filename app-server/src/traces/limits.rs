@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -73,6 +74,7 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
     }
 }
 
+#[instrument(skip(db, clickhouse, cache, project_id, written_bytes))]
 pub async fn update_workspace_limit_exceeded_by_project_id(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,

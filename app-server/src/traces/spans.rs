@@ -10,6 +10,7 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -23,7 +24,7 @@ use crate::{
         ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
     mq::utils::mq_max_payload,
-    opentelemetry::opentelemetry_proto_trace_v1::Span as OtelSpan,
+    opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
     storage::{Storage, StorageTrait},
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
@@ -254,7 +255,7 @@ impl SpanAttributes {
                 let ls_provider = self
                     .raw_attributes
                     .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.ls_provider").as_str())
-                    .and_then(|s| serde_json::from_value(s.clone()).ok());
+                    .and_then(|s: &Value| serde_json::from_value(s.clone()).ok());
                 if let Some(ls_provider) = ls_provider {
                     ls_provider
                 } else if span_name.contains(".")
@@ -753,6 +754,7 @@ impl Span {
         }
     }
 
+    #[instrument(skip(self, project_id, storage))]
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()

@@ -1,5 +1,9 @@
 pub mod queries;
 
+use opentelemetry::{
+    KeyValue, global,
+    trace::{Span, Tracer},
+};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -87,6 +91,11 @@ pub async fn execute_sql_query(
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
 ) -> Result<Vec<Value>, SqlQueryError> {
+    let tracer = global::tracer("tracer");
+
+    let mut span = tracer.start("call_query_engine");
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     let validation_result = query_engine.validate_query(query, project_id).await;
 
     let validated_query = match validation_result {
@@ -98,7 +107,11 @@ pub async fn execute_sql_query(
             return Err(SqlQueryError::ValidationError(e.to_string()));
         }
     };
+    span.end();
 
+    let mut span = tracer.start("execute_sql_query");
+    span.set_attribute(KeyValue::new("sql.query", validated_query.clone()));
+    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     let mut clickhouse_query = clickhouse_ro
         .query(&validated_query)
         .with_option("default_format", "JSON")
@@ -119,10 +132,16 @@ pub async fn execute_sql_query(
         );
 
     for (key, value) in parameters {
+        span.set_attribute(KeyValue::new(
+            format!("sql.parameters.{key}"),
+            value.to_string(),
+        ));
         clickhouse_query = clickhouse_query.param(&key, value);
     }
 
     let mut rows = clickhouse_query.fetch_bytes("JSON").map_err(|e| {
+        span.record_error(&e);
+        span.end();
         SqlQueryError::InternalError(format!("Failed to execute ClickHouse query: {}", e))
     })?;
 
@@ -135,29 +154,46 @@ pub async fn execute_sql_query(
                 ));
             };
             let msg = error.exception.unwrap_or_default();
+            span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
+            span.end();
             log::warn!("Error executing user SQL query: {}", &msg);
             SqlQueryError::BadResponseError(msg)
         }
         _ => {
+            span.record_error(&e);
+            span.end();
             log::error!("Failed to collect query response data: {}", e);
             SqlQueryError::InternalError(e.to_string())
         }
     })?;
+    span.end();
+
+    let mut processing_span = tracer.start("process_query_response");
 
     let results: Value = serde_json::from_slice(&data).map_err(|e| {
         log::error!("Failed to parse ClickHouse response as JSON: {}", e);
+        processing_span.record_error(&e);
+        processing_span.end();
         SqlQueryError::InternalError(e.to_string())
     })?;
 
     let data_array = results
         .get("data")
-        .ok_or(SqlQueryError::InternalError(
-            "Response missing 'data' field".to_string(),
-        ))?
+        .ok_or_else(|| {
+            let msg = "Response missing 'data' field".to_string();
+            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
+            processing_span.end();
+            SqlQueryError::InternalError(msg)
+        })?
         .as_array()
-        .ok_or(SqlQueryError::InternalError(
-            "Response 'data' field is not an array".to_string(),
-        ))?;
+        .ok_or_else(|| {
+            let msg = "Response 'data' field is not an array".to_string();
+            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
+            processing_span.end();
+            SqlQueryError::InternalError(msg)
+        })?;
+
+    processing_span.end();
 
     Ok(data_array.clone())
 }

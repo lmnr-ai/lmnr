@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -175,6 +176,7 @@ impl CHSpan {
     }
 }
 
+#[instrument(skip(clickhouse, spans))]
 pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]) -> Result<()> {
     if spans.is_empty() {
         return Ok(());
