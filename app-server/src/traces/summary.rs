@@ -169,7 +169,9 @@ async fn process_single_trace_summary(
         url
     } else {
         log::error!("TRACE_SUMMARIZER_URL environment variable not set");
-        acker.reject(false).await.unwrap();
+        if let Err(e) = acker.reject(false).await {
+            log::error!("Failed to reject trace summary message: {:?}", e);
+        }
         return Ok(());
     };
 
@@ -238,7 +240,7 @@ async fn process_single_trace_summary(
 
     match backoff::future::retry(backoff, call_summarizer_service).await {
         Ok(_) => {
-            log::info!(
+            log::debug!(
                 "Successfully generated trace summary: trace_id={}, project_id={}",
                 message.trace_id,
                 message.project_id
