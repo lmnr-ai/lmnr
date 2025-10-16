@@ -22,6 +22,7 @@ pub const PAYLOADS_ROUTING_KEY: &str = "payloads_routing_key";
 pub struct QueuePayloadMessage {
     pub key: String,
     pub data: Vec<u8>,
+    pub bucket: String,
 }
 
 use mock::MockStorage;
@@ -61,17 +62,13 @@ pub fn base64_to_bytes(base64: &str) -> Result<Vec<u8>> {
 }
 
 pub async fn process_payloads(storage: Arc<Storage>, payloads_message_queue: Arc<MessageQueue>) {
-    let Ok(bucket) = std::env::var("S3_TRACE_PAYLOADS_BUCKET") else {
-        log::error!("S3_TRACE_PAYLOADS_BUCKET is not set");
-        return;
-    };
     loop {
-        inner_process_payloads(storage.clone(), payloads_message_queue.clone(), &bucket).await;
+        inner_process_payloads(storage.clone(), payloads_message_queue.clone()).await;
         log::warn!("Payload listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>, bucket: &String) {
+async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -118,7 +115,7 @@ async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>,
         };
 
         let store_payload = || async {
-            storage.store_direct(&bucket, &message.key, message.data.clone()).await.map_err(|e| {
+            storage.store_direct(&message.bucket, &message.key, message.data.clone()).await.map_err(|e| {
                 log::error!("Failed attempt to store payload. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
             })

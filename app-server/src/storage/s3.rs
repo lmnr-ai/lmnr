@@ -33,11 +33,12 @@ impl S3Storage {
 impl super::StorageTrait for S3Storage {
     type StorageBytesStream =
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-    async fn store(&self, _bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Push to queue instead of storing directly
         let message = QueuePayloadMessage {
             key: key.to_string(),
             data,
+            bucket: bucket.to_string(),
         };
 
         self.queue
