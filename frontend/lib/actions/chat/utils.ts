@@ -103,10 +103,12 @@ export interface SpanData {
   playgroundId?: string;
   startTime: Date;
   endTime: Date;
+  structuredOutput?: string;
 }
 
 export function createSpanAttributes(spanData: SpanData): Record<string, unknown> {
-  const { provider, model, result, messages, maxTokens, temperature, topP, topK, playgroundId } = spanData;
+  const { provider, model, result, messages, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+    spanData;
 
   const openAIMessages = messages.map(convertToOpenAIFormat);
 
@@ -129,6 +131,7 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
     "lmnr.association.properties.trace_type": "PLAYGROUND",
     "ai.prompt.messages": JSON.stringify(openAIMessages),
     "lmnr.association.properties.metadata.playgroundId": playgroundId,
+    "gen_ai.request.structured_output_schema": structuredOutput,
   };
 
   openAIMessages.forEach((message: any, index: number) => {

@@ -1,4 +1,4 @@
-import { generateText, GenerateTextResult, modelMessageSchema, ToolSet } from "ai";
+import { generateObject, generateText, GenerateTextResult, jsonSchema, modelMessageSchema, ToolSet } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -22,6 +22,7 @@ export const PlaygroundParamsSchema = z.object({
   topK: z.number().positive().optional(),
   tools: z.string().optional(),
   toolChoice: z.any().optional(),
+  structuredOutput: z.string().optional(),
   playgroundId: z.string().optional(),
   abortSignal: z.any().optional(),
 });
@@ -66,6 +67,7 @@ export async function generateChatResponse(
     topK,
     tools,
     toolChoice,
+    structuredOutput,
     abortSignal,
   } = params;
 
@@ -73,20 +75,59 @@ export async function generateChatResponse(
   const decodedKey = await getProviderApiKey(projectId, provider);
   const parsedTools = parseTools(tools);
 
+  // Parse structured output JSON schema
+  let parsedJsonSchema: any = undefined;
+  if (structuredOutput && structuredOutput.trim() !== "") {
+    try {
+      parsedJsonSchema = JSON.parse(structuredOutput);
+    } catch (e) {
+      throw new Error("Invalid structured output JSON schema");
+    }
+  }
+
   const startTime = new Date();
 
-  const result = await generateText({
-    abortSignal,
-    model: getModel(model as `${Provider}:${string}`, decodedKey),
-    messages,
-    maxOutputTokens: maxTokens,
-    temperature,
-    topK,
-    topP,
-    providerOptions,
-    tools: parsedTools,
-    toolChoice,
-  });
+  let result: any;
+
+  // Use generateObject if structured output is provided, otherwise use generateText
+  if (parsedJsonSchema) {
+    const objectResult = await generateObject({
+      abortSignal,
+      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      messages,
+      maxOutputTokens: maxTokens,
+      temperature,
+      topK,
+      topP,
+      providerOptions,
+      schema: jsonSchema(parsedJsonSchema),
+    });
+
+    // Convert generateObject result to match generateText result structure
+    result = {
+      ...objectResult,
+      text: JSON.stringify(objectResult.object, null, 2),
+      reasoning: [],
+      toolCalls: [],
+      content: [],
+      files: [],
+      sources: [],
+      reasoningText: "",
+    };
+  } else {
+    result = await generateText({
+      abortSignal,
+      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      messages,
+      maxOutputTokens: maxTokens,
+      temperature,
+      topK,
+      topP,
+      providerOptions,
+      tools: parsedTools,
+      toolChoice,
+    });
+  }
 
   const endTime = new Date();
 
@@ -100,7 +141,7 @@ export async function generateChatResponse(
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
 ): Promise<GenerateTextResult<ToolSet, {}>> {
-  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId } = params;
+  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } = params;
 
   const { result, startTime, endTime } = await generateChatResponse(params);
 
@@ -145,6 +186,7 @@ export async function handleChatGeneration(
       playgroundId,
       startTime,
       endTime,
+      structuredOutput,
     };
     const attributes = createSpanAttributes(spanData);
     await sendSpanData(projectId, provider, spanData, attributes);

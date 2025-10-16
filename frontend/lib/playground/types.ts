@@ -28,40 +28,40 @@ export interface ToolResultPart {
   toolCallId: string;
   toolName: string;
   output:
-    | {
+  | {
+    type: "text";
+    value: string;
+  }
+  | {
+    type: "json";
+    value: string;
+  }
+  | {
+    type: "error-text";
+    value: string;
+  }
+  | {
+    type: "error-json";
+    value: string;
+  }
+  | {
+    type: "content";
+    value: Array<
+      | {
         type: "text";
-        value: string;
+        text: string;
       }
-    | {
-        type: "json";
-        value: string;
+      | {
+        type: "media";
+        data: string;
+        /**
+ IANA media type.
+ @see https://www.iana.org/assignments/media-types/media-types.xhtml
+ */
+        mediaType: string;
       }
-    | {
-        type: "error-text";
-        value: string;
-      }
-    | {
-        type: "error-json";
-        value: string;
-      }
-    | {
-        type: "content";
-        value: Array<
-          | {
-              type: "text";
-              text: string;
-            }
-          | {
-              type: "media";
-              data: string;
-              /**
-       IANA media type.
-       @see https://www.iana.org/assignments/media-types/media-types.xhtml
-       */
-              mediaType: string;
-            }
-        >;
-      };
+    >;
+  };
 }
 
 export interface ToolCallPart {
@@ -98,4 +98,5 @@ export interface PlaygroundForm<T extends ToolSet = ToolSet> {
   messages: Message[];
   tools?: string;
   toolChoice?: ToolChoice<T>;
+  structuredOutput?: string;
 }

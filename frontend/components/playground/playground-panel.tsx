@@ -11,6 +11,7 @@ import { prettifyError } from "zod/v4";
 import Messages from "@/components/playground/messages";
 import LlmSelect from "@/components/playground/messages/llm-select";
 import ParamsPopover from "@/components/playground/messages/params-popover";
+import StructuredOutputSheet from "@/components/playground/messages/structured-output-sheet";
 import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
@@ -85,6 +86,7 @@ export default function PlaygroundPanel({
             providerOptions: form.providerOptions,
             tools: form.tools,
             toolChoice: form.toolChoice,
+            structuredOutput: form.structuredOutput,
           }),
         });
 
@@ -161,6 +163,7 @@ export default function PlaygroundPanel({
         />
         <ParamsPopover />
         <ToolsSheet />
+        <StructuredOutputSheet />
         <Button
           variant={history ? "outlinePrimary" : "outline"}
           size="sm"
