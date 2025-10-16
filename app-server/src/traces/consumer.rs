@@ -379,6 +379,9 @@ async fn process_batch(
         .sum::<usize>()
         + total_events_ingested_bytes;
 
+    // we get project id from the first span in the batch
+    // because all spans in the batch have the same project id
+    // batching is happening on the Otel SpanProcessor level
     if let Some(project_id) = stripped_spans.first().map(|s| s.project_id) {
         if is_feature_enabled(Feature::UsageLimit) {
             if let Err(e) = update_workspace_limit_exceeded_by_project_id(
