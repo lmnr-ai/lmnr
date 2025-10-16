@@ -142,6 +142,10 @@ export default function TracesTable() {
 
       const isTopSpan = spanData.parentSpanId === null;
 
+      // Extract inferred top span name from lmnr.span.path (first element)
+      const spanPath = spanData.attributes?.["lmnr.span.path"];
+      const inferredTopSpanName = Array.isArray(spanPath) && spanPath.length > 0 ? spanPath[0] : undefined;
+
       if (existingTraceIndex !== -1) {
         // Update existing trace
         const newTraces = [...currentTraces];
@@ -152,6 +156,8 @@ export default function TracesTable() {
         const spanOutputTokens = spanData.attributes?.["gen_ai.usage.output_tokens"] || 0;
         const spanInputCost = spanData.attributes?.["gen_ai.usage.input_cost"] || 0;
         const spanOutputCost = spanData.attributes?.["gen_ai.usage.output_cost"] || 0;
+
+        const newTopSpanName = isTopSpan ? spanData.name : (inferredTopSpanName ?? existingTrace.topSpanName);
 
         newTraces[existingTraceIndex] = {
           ...existingTrace,
@@ -169,7 +175,7 @@ export default function TracesTable() {
           inputCost: existingTrace.inputCost + spanInputCost,
           outputCost: existingTrace.outputCost + spanOutputCost,
           totalCost: existingTrace.totalCost + spanInputCost + spanOutputCost,
-          topSpanName: isTopSpan ? spanData.name : existingTrace.topSpanName,
+          topSpanName: newTopSpanName,
           topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
           topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
@@ -200,7 +206,7 @@ export default function TracesTable() {
           metadata: spanData.attributes?.["metadata"] || null,
           topSpanId: isTopSpan ? spanData.spanId : null,
           traceType: "DEFAULT",
-          topSpanName: isTopSpan ? spanData.name : null,
+          topSpanName: isTopSpan ? spanData.name : inferredTopSpanName,
           topSpanType: isTopSpan ? spanData.spanType : null,
           status: spanData.status,
           userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,

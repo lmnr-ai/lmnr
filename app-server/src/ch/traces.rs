@@ -1,12 +1,14 @@
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::spans::CHSpan;
-use super::utils::{chrono_to_nanoseconds, nanoseconds_to_chrono};
-use crate::db::spans::SpanType;
+use super::utils::chrono_to_nanoseconds;
+use crate::db::spans::{Span, SpanType};
 use crate::db::trace::Trace;
+use crate::traces::spans::SpanUsage;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTrace {
@@ -92,7 +94,7 @@ pub struct TraceAggregation {
     pub user_id: Option<String>,
     pub status: Option<String>,
     pub metadata: Option<serde_json::Value>,
-    pub tags: Vec<String>,
+    pub tags: HashSet<String>,
     pub num_spans: i32,
     pub top_span_id: Option<Uuid>,
     pub top_span_name: Option<String>,
@@ -101,13 +103,13 @@ pub struct TraceAggregation {
 }
 
 impl TraceAggregation {
-    /// Aggregate statistics from a batch of CHSpans grouped by trace_id
-    pub fn from_ch_spans(spans: &[CHSpan]) -> Vec<Self> {
+    /// Aggregate statistics from a batch of Spans and SpanUsage grouped by trace_id
+    pub fn from_spans(spans: &[Span], span_usage_vec: &[SpanUsage]) -> Vec<Self> {
         use std::collections::HashMap;
 
         let mut trace_aggregations: HashMap<Uuid, TraceAggregation> = HashMap::new();
 
-        for span in spans {
+        for (span, span_usage) in spans.iter().zip(span_usage_vec.iter()) {
             let entry =
                 trace_aggregations
                     .entry(span.trace_id)
@@ -126,7 +128,7 @@ impl TraceAggregation {
                         user_id: None,
                         status: None,
                         metadata: None,
-                        tags: Vec::new(),
+                        tags: HashSet::new(),
                         num_spans: 0,
                         top_span_id: None,
                         top_span_name: None,
@@ -134,62 +136,78 @@ impl TraceAggregation {
                         trace_type: 0,
                     });
 
-            // Convert nanoseconds to DateTime<Utc>
-            let start_dt = nanoseconds_to_chrono(span.start_time);
+            // Aggregate min start_time
             entry.start_time = Some(match entry.start_time {
-                Some(existing) => existing.min(start_dt),
-                None => start_dt,
+                Some(existing) => existing.min(span.start_time),
+                None => span.start_time,
             });
 
             // Aggregate max end_time
-            let end_dt = nanoseconds_to_chrono(span.end_time);
             entry.end_time = Some(match entry.end_time {
-                Some(existing) => existing.max(end_dt),
-                None => end_dt,
+                Some(existing) => existing.max(span.end_time),
+                None => span.end_time,
             });
 
-            // Sum tokens and costs
-            entry.input_tokens += span.input_tokens;
-            entry.output_tokens += span.output_tokens;
-            entry.total_tokens += span.total_tokens;
-            entry.input_cost += span.input_cost;
-            entry.output_cost += span.output_cost;
-            entry.total_cost += span.total_cost;
+            // Sum tokens and costs from SpanUsage
+            entry.input_tokens += span_usage.input_tokens;
+            entry.output_tokens += span_usage.output_tokens;
+            entry.total_tokens += span_usage.total_tokens;
+            entry.input_cost += span_usage.input_cost;
+            entry.output_cost += span_usage.output_cost;
+            entry.total_cost += span_usage.total_cost;
 
             // Use "any" strategy for these fields (take first non-empty value)
-            if entry.session_id.is_none() && !span.session_id.is_empty() {
-                entry.session_id = Some(span.session_id.clone());
-            }
-            if entry.user_id.is_none() && !span.user_id.is_empty() {
-                entry.user_id = Some(span.user_id.clone());
-            }
-            if entry.status.is_none() && !span.status.is_empty() {
-                entry.status = Some(span.status.clone());
-            }
-            if entry.metadata.is_none() && !span.trace_metadata.is_empty() {
-                if let Ok(parsed) = serde_json::from_str(&span.trace_metadata) {
-                    entry.metadata = Some(parsed);
+            if entry.session_id.is_none() {
+                if let Some(session_id) = span.attributes.session_id() {
+                    if !session_id.is_empty() {
+                        entry.session_id = Some(session_id);
+                    }
                 }
             }
-            if span.trace_type != 0 {
-                entry.trace_type = span.trace_type;
+            if entry.user_id.is_none() {
+                if let Some(user_id) = span.attributes.user_id() {
+                    if !user_id.is_empty() {
+                        entry.user_id = Some(user_id);
+                    }
+                }
+            }
+            if entry.status.is_none() {
+                if let Some(status) = &span.status {
+                    if !status.is_empty() {
+                        entry.status = Some(status.clone());
+                    }
+                }
+            }
+            if entry.metadata.is_none() {
+                if let Some(metadata) = span.attributes.metadata() {
+                    if let Ok(metadata_value) = serde_json::to_value(&metadata) {
+                        entry.metadata = Some(metadata_value);
+                    }
+                }
+            }
+            if let Some(trace_type) = span.attributes.trace_type() {
+                entry.trace_type = trace_type.clone().into();
             }
 
-            if SpanType::from(span.span_type) == SpanType::EVALUATION {
+            if span.span_type == SpanType::EVALUATION {
                 entry.trace_type = 1;
             }
 
-            if span.parent_span_id == Uuid::nil() {
+            if span.parent_span_id.is_none() {
                 entry.top_span_id = Some(span.span_id);
                 entry.top_span_name = Some(span.name.clone());
-                entry.top_span_type = span.span_type as u8;
+                entry.top_span_type = span.span_type.clone().into();
+            }
+
+            if entry.top_span_name.is_none() {
+                let path = span.attributes.path().unwrap_or_default();
+                path.first()
+                    .map(|name| entry.top_span_name = Some(name.clone()));
             }
 
             // Collect unique tags
-            for tag in &span.tags_array {
-                if !entry.tags.contains(tag) {
-                    entry.tags.push(tag.clone());
-                }
+            for tag in span.attributes.tags() {
+                entry.tags.insert(tag);
             }
 
             entry.num_spans += 1;

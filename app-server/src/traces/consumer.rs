@@ -309,7 +309,7 @@ async fn process_batch(
     }
 
     // Process trace aggregations and update trace statistics
-    let trace_aggregations = TraceAggregation::from_ch_spans(&ch_spans);
+    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
     if !trace_aggregations.is_empty() {
         // Upsert trace statistics in PostgreSQL
         match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {

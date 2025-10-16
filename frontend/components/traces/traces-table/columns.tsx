@@ -1,9 +1,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
-import { X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
@@ -75,32 +73,33 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "topSpanType",
     header: "Top level span",
     id: "top_span_type",
-    cell: (row) => (
-      <div className="cursor-pointer flex gap-2 items-center">
-        <div className="flex items-center gap-2">
-          {row.row.original.topSpanName ? (
-            <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-          ) : isStringDateOld(row.row.original.endTime) ? (
-            <NoSpanTooltip>
-              <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
-                <X className="w-4 h-4" />
-              </div>
-            </NoSpanTooltip>
+    cell: (row) => {
+      const topSpanId = row.row.original.topSpanId;
+      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
+      const isOld = isStringDateOld(row.row.original.endTime);
+      const shouldAnimate = !hasTopSpan && !isOld;
+
+      return (
+        <div className="cursor-pointer flex gap-2 items-center">
+          <div className="flex items-center gap-2">
+            {hasTopSpan ? (
+              <SpanTypeIcon className="z-10" spanType={row.getValue()} />
+            ) : (
+              <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
+            )}
+          </div>
+          {hasTopSpan ? (
+            <div className="text-sm truncate">{row.row.original.topSpanName}</div>
+          ) : row.row.original.topSpanName ? (
+            <div className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}>
+              {row.row.original.topSpanName}
+            </div>
           ) : (
-            <Skeleton className="w-6 h-6 bg-secondary rounded-sm" />
+            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
           )}
         </div>
-        {row.row.original.topSpanName ? (
-          <div className="text-sm truncate">{row.row.original.topSpanName}</div>
-        ) : isStringDateOld(row.row.original.endTime) ? (
-          <NoSpanTooltip>
-            <div className="flex text-muted-foreground">None</div>
-          </NoSpanTooltip>
-        ) : (
-          <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
-        )}
-      </div>
-    ),
+      );
+    },
     size: 150,
   },
   {
