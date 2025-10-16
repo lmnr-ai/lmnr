@@ -1,49 +1,108 @@
 "use client";
 
+import { Row } from "@tanstack/react-table";
 import { formatRelative } from "date-fns";
 import { isEmpty } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Resizable, ResizeCallback } from "re-resizable";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import { useEventsStoreContext } from "@/components/events/events-store";
+import TraceView from "@/components/traces/trace-view";
+import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
+import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
+import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
 
+import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
 import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
 
-export default function Events({ lastEvent }: { lastEvent?: { id: string; name: string; timestamp: string } }) {
+type EventNavigationItem = {
+  traceId: string;
+  spanId: string;
+};
+
+const getEventsConfig = (): NavigationConfig<EventNavigationItem> => ({
+  getItemId: (item) => `${item.traceId}-${item.spanId}`,
+  updateSearchParams: (item, params) => {
+    params.set("traceId", item.traceId);
+    params.set("spanId", item.spanId);
+  },
+  getCurrentItem: (list, searchParams) => {
+    const traceId = searchParams.get("traceId");
+    const spanId = searchParams.get("spanId");
+    if (!traceId || !spanId) return null;
+
+    return list.find((item) => item.traceId === traceId && item.spanId === spanId) || null;
+  },
+});
+
+function EventsContent({
+  lastEvent,
+  initialTraceViewWidth,
+}: {
+  lastEvent?: { id: string; name: string; timestamp: string };
+  initialTraceViewWidth?: number;
+}) {
   const pathName = usePathname();
   const { push } = useRouter();
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const ref = useRef<Resizable>(null);
 
-  const { events, totalCount, fetchEvents, eventDefinition, setEventDefinition } = useEventsStoreContext((state) => ({
+  const {
+    events,
+    totalCount,
+    fetchEvents,
+    eventDefinition,
+    setEventDefinition,
+    traceId,
+    spanId,
+    setTraceId,
+    setSpanId,
+  } = useEventsStoreContext((state) => ({
     events: state.events,
     totalCount: state.totalCount,
     fetchEvents: state.fetchEvents,
     eventDefinition: state.eventDefinition,
     setEventDefinition: state.setEventDefinition,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
   }));
+
+  const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+
+  useEffect(() => {
+    if (!initialTraceViewWidth) {
+      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+    }
+  }, [initialTraceViewWidth]);
+
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const filter = searchParams.getAll("filter");
+  const pageNumber = searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0;
+  const pageSize = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 50;
 
   const eventsParams = useMemo(() => {
     const sp = new URLSearchParams();
 
     sp.set("name", eventDefinition?.name);
-
-    const pastHours = searchParams.get("pastHours");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
-    const filter = searchParams.getAll("filter");
-    const pageNumber = searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0;
-    const pageSize = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 50;
 
     if (pastHours) {
       sp.set("pastHours", pastHours);
@@ -63,19 +122,30 @@ export default function Events({ lastEvent }: { lastEvent?: { id: string; name: 
     sp.append("pageSize", String(pageSize));
 
     return sp;
-  }, [eventDefinition?.name, searchParams]);
+  }, [eventDefinition?.name, pastHours, startDate, endDate, JSON.stringify(filter), pageNumber, pageSize]);
 
-  const page = useMemo<{ number: number; size: number }>(() => {
-    const size = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 50;
-    return {
-      number: searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0,
-      size,
-    };
-  }, [searchParams]);
+  const page = useMemo<{ number: number; size: number }>(
+    () => ({
+      number: pageNumber,
+      size: pageSize,
+    }),
+    [pageNumber, pageSize]
+  );
 
   useEffect(() => {
     fetchEvents(eventsParams);
   }, [eventsParams]);
+
+  useEffect(() => {
+    if (events) {
+      setNavigationRefList(
+        events.map((event) => ({
+          traceId: event.traceId,
+          spanId: event.spanId,
+        }))
+      );
+    }
+  }, [events, setNavigationRefList]);
 
   const handlePageChange = useCallback(
     (pageNumber: number, pageSize: number) => {
@@ -102,6 +172,40 @@ export default function Events({ lastEvent }: { lastEvent?: { id: string; name: 
     },
     [eventDefinition, setEventDefinition]
   );
+
+  const handleRowClick = useCallback(
+    (row: Row<EventRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("spanId", row.original.spanId);
+      push(`${pathName}?${params.toString()}`);
+      setTraceId(row.original.traceId);
+      setSpanId(row.original.spanId);
+    },
+    [pathName, push, searchParams, setTraceId, setSpanId]
+  );
+
+  const focusedRowId = useMemo(() => {
+    if (!traceId || !spanId) return undefined;
+    return events?.find((event) => event.traceId === traceId && event.spanId === spanId)?.id;
+  }, [events, traceId, spanId]);
+
+  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
+    const newWidth = defaultTraceViewWidth + delta.width;
+    setDefaultTraceViewWidth(newWidth);
+    setEventsTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        setEventsTraceViewWidthCookie(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
+    }
+  }, [defaultTraceViewWidth]);
 
   return (
     <div className="flex flex-col flex-1">
@@ -168,7 +272,9 @@ export default function Events({ lastEvent }: { lastEvent?: { id: string; name: 
           pageCount={Math.ceil(Number(totalCount || 0) / page.size)}
           totalItemsCount={Number(totalCount || 0)}
           onPageChange={handlePageChange}
+          onRowClick={handleRowClick}
           getRowId={(row: EventRow) => row.id}
+          focusedRowId={focusedRowId}
           paginated
           manualPagination
           pageSizeOptions={[25, 50, 100]}
@@ -180,6 +286,65 @@ export default function Events({ lastEvent }: { lastEvent?: { id: string; name: 
           <DataTableFilterList />
         </DataTable>
       </div>
+      {traceId && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+          <Resizable
+            ref={ref}
+            onResizeStop={handleResizeStop}
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: defaultTraceViewWidth,
+            }}
+          >
+            <FiltersContextProvider columns={filterColumns}>
+              <TraceView
+                spanId={spanId || undefined}
+                key={traceId}
+                onClose={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete("traceId");
+                  params.delete("spanId");
+                  push(`${pathName}?${params.toString()}`);
+                  setTraceId(null);
+                  setSpanId(null);
+                }}
+                traceId={traceId}
+              />
+            </FiltersContextProvider>
+          </Resizable>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function Events({
+  lastEvent,
+  initialTraceViewWidth,
+}: {
+  lastEvent?: { id: string; name: string; timestamp: string };
+  initialTraceViewWidth?: number;
+}) {
+  const { setTraceId, setSpanId } = useEventsStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
+
+  const handleNavigate = useCallback(
+    (item: EventNavigationItem | null) => {
+      if (item) {
+        setTraceId(item.traceId);
+        setSpanId(item.spanId);
+      }
+    },
+    [setTraceId, setSpanId]
+  );
+
+  return (
+    <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
+      <EventsContent lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+    </TraceViewNavigationProvider>
   );
 }

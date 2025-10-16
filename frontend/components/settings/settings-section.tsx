@@ -1,4 +1,7 @@
-import { PropsWithChildren } from "react";
+import { times } from "lodash";
+import { PropsWithChildren, ReactNode } from "react";
+
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SettingsSectionHeaderProps {
   title: string;
@@ -19,11 +22,43 @@ export function SettingsSection({ children }: PropsWithChildren) {
   return <div className="flex flex-col gap-4">{children}</div>;
 }
 
-export function SettingsTable({ children }: PropsWithChildren) {
+interface SettingsTableProps {
+  children: ReactNode;
+  isLoading?: boolean;
+  isEmpty?: boolean;
+  emptyMessage?: string;
+  loadingRowCount?: number;
+}
+
+export function SettingsTable({
+  children,
+  isLoading = false,
+  isEmpty = false,
+  emptyMessage = "No items found.",
+  loadingRowCount = 5,
+}: SettingsTableProps) {
   return (
     <div className="border rounded-md">
       <table className="w-full">
-        <tbody>{children}</tbody>
+        <tbody>
+          {isLoading
+            ? times(loadingRowCount, (i) => (
+              <SettingsTableRow key={i}>
+                <td className="p-2">
+                  <Skeleton className="h-8 w-full" />
+                </td>
+              </SettingsTableRow>
+            ))
+            : isEmpty
+              ? (
+                <SettingsTableRow>
+                  <td align="center" className="p-2">
+                    <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
+                  </td>
+                </SettingsTableRow>
+              )
+              : children}
+        </tbody>
       </table>
     </div>
   );

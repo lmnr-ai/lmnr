@@ -10,15 +10,21 @@ export type EventsState = {
   events?: EventRow[];
   totalCount: number;
   eventDefinition: ManageEventDefinitionForm;
+  traceId: string | null;
+  spanId: string | null;
 };
 
 export type EventsActions = {
+  setTraceId: (traceId: string | null) => void;
+  setSpanId: (spanId: string | null) => void;
   fetchEvents: (params: URLSearchParams) => Promise<void>;
   setEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
 };
 
 export interface EventsProps {
   eventDefinition: EventDefinition;
+  traceId?: string | null;
+  spanId?: string | null;
 }
 
 export type EventsStore = EventsState & EventsActions;
@@ -28,12 +34,16 @@ export type EventsStoreApi = ReturnType<typeof createEventsStore>;
 export const createEventsStore = (initProps: EventsProps) =>
   createStore<EventsStore>()((set, get) => ({
     totalCount: 0,
+    traceId: initProps.traceId || null,
+    spanId: initProps.spanId || null,
     eventDefinition: {
       ...initProps.eventDefinition,
       structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2),
       triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((name) => ({ name })),
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
+    setTraceId: (traceId) => set({ traceId }),
+    setSpanId: (spanId) => set({ spanId }),
     fetchEvents: async (params: URLSearchParams) => {
       const { eventDefinition } = get();
 

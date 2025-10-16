@@ -1,5 +1,6 @@
 "use client";
 
+import { isEmpty } from "lodash";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -9,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
@@ -129,7 +129,7 @@ export default function TraceSummarySettings() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Trace Summary"
-        description="When we receive a span with one of these names, we'll generate a summary for that trace. For best results, use the last span in your trace."
+        description="Add span names that should trigger trace summary generation when they complete. The last span we receive will trigger the event, so use the span that ends last in your trace."
       />
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
@@ -165,30 +165,20 @@ export default function TraceSummarySettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {isFetching ? (
-        <div className="flex flex-col gap-3 border rounded-md p-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : (
-        triggerSpans.length > 0 && (
-          <SettingsTable>
-            {triggerSpans.map((span) => (
-              <SettingsTableRow key={span.id}>
-                <td className="px-4 text-sm font-medium">{span.spanName}</td>
-                <td className="px-4">
-                  <div className="flex justify-end">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteSpanName(span.id)}>
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                </td>
-              </SettingsTableRow>
-            ))}
-          </SettingsTable>
-        )
-      )}
+      <SettingsTable isLoading={isFetching} isEmpty={isEmpty(triggerSpans)} emptyMessage="No trigger spans found.">
+        {triggerSpans.map((span) => (
+          <SettingsTableRow key={span.id}>
+            <td className="px-4 text-sm font-medium">{span.spanName}</td>
+            <td className="px-4">
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteSpanName(span.id)}>
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            </td>
+          </SettingsTableRow>
+        ))}
+      </SettingsTable>
     </SettingsSection>
   );
 }

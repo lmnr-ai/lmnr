@@ -90,9 +90,9 @@ export default function Settings({ apiKeys }: SettingsProps) {
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <main className="flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-4 max-w-4xl mx-auto p-6">{renderContent()}</div>
-          </main>
+          <div className="flex-1 overflow-y-auto">
+            <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">{renderContent()}</div>
+          </div>
         </div>
       </SidebarProvider>
     </div>

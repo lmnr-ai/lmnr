@@ -22,6 +22,7 @@ import { theme } from "@/components/ui/code-highlighter/utils.ts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { EventDefinition } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -39,7 +40,7 @@ export type ManageEventDefinitionForm = Omit<
 export const getDefaultValues = (projectId: string): ManageEventDefinitionForm => ({
   name: "",
   prompt: "",
-  structuredOutput: "{}",
+  structuredOutput: "",
   projectId,
   triggerSpans: [],
 });
@@ -114,10 +115,12 @@ function ManageEventDefinitionDialogContent({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isValid },
   } = useFormContext<ManageEventDefinitionForm>();
 
   const id = watch("id");
+  const structuredOutput = watch("structuredOutput");
 
   const submit = useCallback(
     async (data: ManageEventDefinitionForm) => {
@@ -127,7 +130,7 @@ function ManageEventDefinitionDialogContent({
         const eventDefinition = {
           name: data.name,
           prompt: data.prompt || null,
-          structuredOutput: tryParseJson(data.structuredOutput),
+          structuredOutput: data.structuredOutput ? tryParseJson(data.structuredOutput) : null,
           triggerSpans: data.triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
         };
 
@@ -216,37 +219,54 @@ function ManageEventDefinitionDialogContent({
 
         <TriggerSpansField control={control} errors={errors} />
         <div className="grid gap-2">
-          <Label htmlFor="structuredOutput">Structured Output</Label>
-          <Controller
-            name="structuredOutput"
-            control={control}
-            rules={{
-              validate: (value) => {
-                try {
-                  if (!value) {
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="structuredOutput">Structured Output</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Define a JSON schema for the structured output of this event.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!structuredOutput}
+                onCheckedChange={(checked) => {
+                  setValue("structuredOutput", checked ? "{}" : "", { shouldValidate: true });
+                }}
+              />
+            </div>
+          </div>
+          {structuredOutput && (
+            <Controller
+              name="structuredOutput"
+              control={control}
+              rules={{
+                validate: (value) => {
+                  try {
+                    if (!value) {
+                      return true;
+                    }
+                    JSON.parse(value);
                     return true;
+                  } catch (e) {
+                    return "Invalid JSON structure";
                   }
-                  JSON.parse(value);
-                  return true;
-                } catch (e) {
-                  return "Invalid JSON structure";
-                }
-              },
-            }}
-            render={({ field }) => (
-              <div className="border rounded-md bg-muted/50 overflow-hidden min-h-48 max-h-96">
-                <CodeMirror
-                  height="100%"
-                  className="h-full"
-                  placeholder="Enter structured output for this event..."
-                  value={field.value}
-                  onChange={field.onChange}
-                  extensions={[json(), EditorView.lineWrapping]}
-                  theme={theme}
-                />
-              </div>
-            )}
-          />
+                },
+              }}
+              render={({ field }) => (
+                <div className="border rounded-md bg-muted/50 overflow-hidden min-h-48 max-h-96">
+                  <CodeMirror
+                    height="100%"
+                    className="h-full"
+                    placeholder="Enter structured output for this event..."
+                    value={field.value}
+                    onChange={field.onChange}
+                    extensions={[json(), EditorView.lineWrapping]}
+                    theme={theme}
+                  />
+                </div>
+              )}
+            />
+          )}
           {errors.structuredOutput && <p className="text-sm text-red-500">{errors.structuredOutput.message}</p>}
         </div>
 

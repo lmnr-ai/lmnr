@@ -12,6 +12,7 @@ import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
+const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
 
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -147,4 +148,4 @@ export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   });
 }
 
-export { TRACES_TRACE_VIEW_WIDTH };
+export { EVENTS_TRACE_VIEW_WIDTH,TRACES_TRACE_VIEW_WIDTH };
