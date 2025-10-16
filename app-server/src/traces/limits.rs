@@ -9,11 +9,14 @@ use uuid::Uuid;
 use crate::{
     cache::{
         Cache, CacheTrait,
-        keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY},
+        keys::{PROJECT_CACHE_KEY, WORKSPACE_LIMITS_CACHE_KEY, WORKSPACE_PARTIAL_USAGE_CACHE_KEY},
     },
     ch,
     db::{self, DB, projects::ProjectWithWorkspaceBillingInfo, stats::WorkspaceLimitsExceeded},
 };
+
+// Threshold in bytes (16MB) - only recompute workspace limits after this much data is written
+const RECOMPUTE_THRESHOLD_BYTES: usize = 16 * 1024 * 1024; // 16MB
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
     db: Arc<DB>,
@@ -56,6 +59,7 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     project_id: Uuid,
+    written_bytes: usize,
 ) -> Result<()> {
     tokio::spawn(async move {
         let project_info = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id)
@@ -74,26 +78,57 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
             return;
         }
 
-        let cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
-        let workspace_limits_exceeded = is_workspace_over_limit(
-            clickhouse,
-            project_info.workspace_project_ids,
-            project_info.bytes_limit,
-            project_info.reset_time,
-        )
-        .await
-        .map_err(|e| {
-            log::error!(
-                "Failed to update workspace limit exceeded for project [{}]: {:?}",
-                project_id,
-                e
-            );
-        })
-        .unwrap();
-        cache
-            .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
+        let partial_usage_cache_key = format!("{WORKSPACE_PARTIAL_USAGE_CACHE_KEY}:{workspace_id}");
+        let limits_cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
+
+        // Get current partial usage from cache
+        let cache_result = cache.get::<usize>(&partial_usage_cache_key).await;
+
+        // If cache is missing or errored, we should recompute
+        let (current_partial_usage, cache_available) = match cache_result {
+            Ok(Some(value)) => (value, true),
+            Ok(None) | Err(_) => (0, false),
+        };
+
+        let new_partial_usage = current_partial_usage + written_bytes;
+
+        // Recompute if: cache was unavailable, or we've accumulated at least RECOMPUTE_THRESHOLD_BYTES
+        let should_recompute = !cache_available || new_partial_usage >= RECOMPUTE_THRESHOLD_BYTES;
+
+        if should_recompute {
+            // Perform the heavy computation
+            let workspace_limits_exceeded = is_workspace_over_limit(
+                clickhouse,
+                project_info.workspace_project_ids,
+                project_info.bytes_limit,
+                project_info.reset_time,
+            )
             .await
+            .map_err(|e| {
+                log::error!(
+                    "Failed to update workspace limit exceeded for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            })
             .unwrap();
+
+            // Update the limits cache
+            let _ = cache
+                .insert::<WorkspaceLimitsExceeded>(
+                    &limits_cache_key,
+                    workspace_limits_exceeded.clone(),
+                )
+                .await;
+
+            // Reset the partial usage counter
+            let _ = cache.insert::<usize>(&partial_usage_cache_key, 0).await;
+        } else {
+            // Just update the partial usage counter
+            let _ = cache
+                .insert::<usize>(&partial_usage_cache_key, new_partial_usage)
+                .await;
+        }
     });
 
     Ok(())

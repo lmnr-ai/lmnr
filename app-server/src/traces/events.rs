@@ -5,10 +5,11 @@ use crate::{
     db::events::Event,
 };
 
+///
 pub async fn record_events(
     clickhouse: clickhouse::Client,
     event_payloads: &Vec<Event>,
-) -> Result<()> {
+) -> Result<usize> {
     let ch_events = event_payloads
         .iter()
         .map(|e| CHEvent::from_db_event(e))

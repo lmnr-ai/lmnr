@@ -369,12 +369,19 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(clickhouse.clone(), &all_events).await {
-        Ok(_) => {}
+    let total_events_ingested_bytes = match record_events(clickhouse.clone(), &all_events).await {
+        Ok(bytes) => bytes,
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
+            0
         }
     };
+
+    let total_ingested_bytes = spans_ingested_bytes
+        .iter()
+        .map(|b| b.span_bytes)
+        .sum::<usize>()
+        + total_events_ingested_bytes;
 
     for project_id in project_ids {
         if is_feature_enabled(Feature::UsageLimit) {
@@ -383,6 +390,7 @@ async fn process_batch(
                 clickhouse.clone(),
                 cache.clone(),
                 project_id,
+                total_ingested_bytes,
             )
             .await
             {
