@@ -148,7 +148,6 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   try {
     const cachedUsage = await cache.get<number>(cacheKey);
     if (cachedUsage !== null) {
-      console.log("cached usage", cachedUsage);
       return {
         totalBytesIngested: Number(cachedUsage),
         resetTime: latestResetTime,
