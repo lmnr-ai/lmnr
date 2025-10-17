@@ -11,7 +11,7 @@ import { getModel } from "@/lib/playground/providersRegistry";
 
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
-export type JsonObject = { [key: PropertyKey]: JsonObject | string } | null;
+export type JsonObject = { [key: PropertyKey]: JsonObject | string | number | boolean | null | JsonObject[] } | null;
 
 export const zJsonObject = z
   .string()
