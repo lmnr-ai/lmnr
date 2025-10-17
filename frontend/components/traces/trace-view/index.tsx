@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { AlertTriangle, ChartNoAxesGantt, FileText,ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, ChartNoAxesGantt, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
@@ -300,7 +300,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSearchEnabled(!searchEnabled);
   }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
 
-  const isLoading = isTraceLoading || (isSpansLoading && !traceError && !spansError);
+  const isLoading = isTraceLoading && !trace;
 
   useEffect(() => {
     if (!isSpansLoading) {
