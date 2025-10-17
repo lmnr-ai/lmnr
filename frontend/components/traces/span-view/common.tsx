@@ -43,7 +43,7 @@ export const ResizableWrapper = ({
       }}
       handleComponent={{
         bottom: (
-          <div className="flex items-center justify-center w-full h-2 cursor-ns-resize hover:bg-accent/50 transition-colors group">
+          <div className="flex items-center justify-center w-full h-2">
             <GripHorizontal className="w-4 h-4 text-muted-foreground" />
           </div>
         ),
@@ -51,7 +51,7 @@ export const ResizableWrapper = ({
       handleStyles={{
         bottom: {
           bottom: 0,
-          height: "8px",
+          height: "4px",
           cursor: "ns-resize",
         },
       }}
