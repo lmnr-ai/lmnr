@@ -15,10 +15,7 @@ use crate::{
 };
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
-const WORKSPACE_LIMITS_EXCEEDED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
-// For project info, expire the cache after 7 days,
-// so that reset time and other info is updated in cache.
-const PROJECT_INFO_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
+const WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 pub async fn get_workspace_limit_exceeded_by_project_id(
     db: Arc<DB>,
@@ -55,7 +52,7 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
                         project_id,
                         e
                     );
-                    0 as i64
+                    0
                 }
             };
 
@@ -65,7 +62,11 @@ pub async fn get_workspace_limit_exceeded_by_project_id(
             };
 
             let _ = cache
-                .insert::<WorkspaceLimitsExceeded>(&cache_key, workspace_limits_exceeded.clone())
+                .insert_with_ttl::<WorkspaceLimitsExceeded>(
+                    &cache_key,
+                    workspace_limits_exceeded.clone(),
+                    WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
+                )
                 .await;
             Ok(workspace_limits_exceeded)
         }
@@ -111,7 +112,7 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
                     .increment(&bytes_usage_cache_key, written_bytes as i64)
                     .await;
 
-                if let Ok(Some(new_partial_usage)) = increment_result {
+                if let Ok(new_partial_usage) = increment_result {
                     let workspace_limits_exceeded = WorkspaceLimitsExceeded {
                         steps: false,
                         bytes_ingested: new_partial_usage >= project_info.bytes_limit,
@@ -119,9 +120,10 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
 
                     // Update the limits cache
                     let _ = cache
-                        .insert::<WorkspaceLimitsExceeded>(
+                        .insert_with_ttl::<WorkspaceLimitsExceeded>(
                             &limits_cache_key,
                             workspace_limits_exceeded,
+                            WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
                         )
                         .await;
                 }
@@ -152,11 +154,19 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
                 };
 
                 let _ = cache
-                    .insert::<WorkspaceLimitsExceeded>(&limits_cache_key, workspace_limits_exceeded)
+                    .insert_with_ttl::<WorkspaceLimitsExceeded>(
+                        &limits_cache_key,
+                        workspace_limits_exceeded,
+                        WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
+                    )
                     .await;
 
                 let _ = cache
-                    .insert::<i64>(&bytes_usage_cache_key, bytes_ingested as i64)
+                    .insert_with_ttl::<i64>(
+                        &bytes_usage_cache_key,
+                        bytes_ingested as i64,
+                        WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
+                    )
                     .await;
             }
         }
@@ -179,10 +189,9 @@ async fn get_workspace_info_for_project_id(
         Ok(None) | Err(_) => {
             let info =
                 db::projects::get_project_and_workspace_billing_info(&db.pool, &project_id).await?;
-            let _ = cache
+            cache
                 .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
-                .await;
-            let _ = cache.set_ttl(&cache_key, PROJECT_INFO_TTL_SECONDS).await;
+                .await?;
             Ok(info)
         }
     }

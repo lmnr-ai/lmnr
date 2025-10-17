@@ -44,9 +44,12 @@ pub async fn process_traces(
             cache.clone(),
             project_api_key.project_id,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            log::error!("Failed to get workspace limits: {:?}", e);
+        });
 
-        if limits_exceeded.bytes_ingested {
+        if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
             return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
         }
     }
