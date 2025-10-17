@@ -495,7 +495,7 @@ fn main() -> anyhow::Result<()> {
 
     if !enable_producer() && !enable_consumer() {
         log::error!(
-            "Neither producer nor consumer mode is enabled. Set QUEUE_MODE to 'producer' or 'consumer', or unset to run both"
+            "Neither producer nor consumer mode is enabled. Set OPERATION_MODE to 'producer' or 'consumer', or unset to run both"
         );
         return Err(anyhow::anyhow!(
             "Neither producer nor consumer mode is enabled"
@@ -598,6 +598,8 @@ fn main() -> anyhow::Result<()> {
                         num_spans_workers as usize,
                         num_browser_events_workers as usize,
                         num_evaluators_workers as usize,
+                        num_payload_workers as usize,
+                        num_trace_summary_workers as usize,
                     );
                     for _ in 0..num_spans_workers {
                         let worker_handle = worker_tracker_clone.register_worker(WorkerType::Spans);
@@ -657,11 +659,26 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     for _ in 0..num_payload_workers {
-                        tokio::spawn(process_payloads(storage.clone(), mq_for_consumer.clone()));
+                        let worker_handle =
+                            worker_tracker_clone.register_worker(WorkerType::Payloads);
+                        let storage_clone = storage.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
+                            process_payloads(storage_clone, mq_clone).await;
+                        });
                     }
 
                     for _ in 0..num_trace_summary_workers {
-                        tokio::spawn(process_trace_summaries(mq_for_consumer.clone()));
+                        let worker_handle =
+                            worker_tracker_clone.register_worker(WorkerType::TraceSummaries);
+                        let db_clone = db_for_consumer.clone();
+                        let cache_clone = cache_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
+                            process_trace_summaries(mq_clone).await;
+                        });
                     }
 
                     HttpServer::new(move || {
@@ -784,8 +801,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::provider_api_keys::save_api_key)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
-                                    .service(routes::sql::validate_sql_query)
-                                    .service(routes::realtime::sse_endpoint),
+                                    .service(routes::sql::validate_sql_query),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

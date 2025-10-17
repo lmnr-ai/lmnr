@@ -7,14 +7,24 @@ pub struct ExpectedWorkerCounts {
     pub spans: usize,
     pub browser_events: usize,
     pub evaluators: usize,
+    pub payloads: usize,
+    pub trace_summaries: usize,
 }
 
 impl ExpectedWorkerCounts {
-    pub fn new(spans: usize, browser_events: usize, evaluators: usize) -> Self {
+    pub fn new(
+        spans: usize,
+        browser_events: usize,
+        evaluators: usize,
+        payloads: usize,
+        trace_summaries: usize,
+    ) -> Self {
         Self {
             spans,
             browser_events,
             evaluators,
+            payloads,
+            trace_summaries,
         }
     }
 }
@@ -24,6 +34,8 @@ pub enum WorkerType {
     Spans,
     BrowserEvents,
     Evaluators,
+    Payloads,
+    TraceSummaries,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -32,6 +44,8 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Spans => write!(f, "spans"),
             WorkerType::BrowserEvents => write!(f, "browser_events"),
             WorkerType::Evaluators => write!(f, "evaluators"),
+            WorkerType::Payloads => write!(f, "payloads"),
+            WorkerType::TraceSummaries => write!(f, "trace_summaries"),
         }
     }
 }
@@ -102,7 +116,7 @@ pub struct WorkerHandle {
 
 impl Drop for WorkerHandle {
     fn drop(&mut self) {
-        log::debug!("Dropping worker handle for worker {}", self.id);
+        log::error!("Dropping worker handle for worker {}", self.id);
         self.tracker.unregister_worker(self.id);
     }
 }

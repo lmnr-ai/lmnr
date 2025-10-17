@@ -2,6 +2,11 @@
 // TODO: consider https://doc.rust-lang.org/reference/conditional-compilation.html instead
 use std::env;
 
+const OPERATION_MODE: &str = "OPERATION_MODE";
+
+const PRODUCER: &str = "producer";
+const CONSUMER: &str = "consumer";
+
 pub enum Feature {
     UsageLimit,
     /// Remote storage, such as S3
@@ -53,15 +58,15 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
 }
 
 pub fn enable_consumer() -> bool {
-    match env::var("QUEUE_MODE") {
-        Ok(v) => v.trim().to_lowercase() == "consumer",
+    match env::var(OPERATION_MODE) {
+        Ok(v) => v.trim().to_lowercase() == CONSUMER,
         Err(_) => true,
     }
 }
 
 pub fn enable_producer() -> bool {
-    match env::var("QUEUE_MODE") {
-        Ok(v) => v.trim().to_lowercase() == "producer",
+    match env::var(OPERATION_MODE) {
+        Ok(v) => v.trim().to_lowercase() == PRODUCER,
         Err(_) => true,
     }
 }

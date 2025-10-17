@@ -71,6 +71,7 @@ services:
     ports:
       - "${APP_SERVER_HOST_PORT:-8000}:8000"
       - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
+      - "${APP_SERVER_RT_HOST_PORT:-8002}:8002"
     depends_on:
       postgres:
         condition: service_healthy
