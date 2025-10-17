@@ -80,97 +80,99 @@ pub async fn update_workspace_limit_exceeded_by_project_id(
     project_id: Uuid,
     written_bytes: usize,
 ) -> Result<()> {
-    tokio::spawn(async move {
-        let project_info =
-            match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-                Ok(info) => info,
-                Err(e) => {
-                    log::error!(
-                        "Failed to get workspace info for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                    return;
-                }
-            };
-        let workspace_id = project_info.workspace_id;
-        if project_info.tier_name.trim().to_lowercase() != "free" {
-            // We don't need to update the workspace limits cache for non-free tiers
-            return;
-        }
-
-        let bytes_usage_cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
-        let limits_cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
-
-        // First, try to read from cache to check if it exists
-        let cache_result = cache.get::<i64>(&bytes_usage_cache_key).await;
-
-        match cache_result {
-            Ok(Some(_)) => {
-                // Cache exists - atomically increment it
-                let increment_result = cache
-                    .increment(&bytes_usage_cache_key, written_bytes as i64)
-                    .await;
-
-                if let Ok(new_partial_usage) = increment_result {
-                    let workspace_limits_exceeded = WorkspaceLimitsExceeded {
-                        steps: false,
-                        bytes_ingested: new_partial_usage >= project_info.bytes_limit,
-                    };
-
-                    // Update the limits cache
-                    let _ = cache
-                        .insert_with_ttl::<WorkspaceLimitsExceeded>(
-                            &limits_cache_key,
-                            workspace_limits_exceeded,
-                            WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
-                        )
-                        .await;
-                }
+    let project_info =
+        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
+            Ok(info) => info,
+            Err(e) => {
+                log::error!(
+                    "Failed to get workspace info for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+                return Err(anyhow::anyhow!(
+                    "Failed to get workspace info for project [{}]: {:?}",
+                    project_id,
+                    e
+                ));
             }
-            Ok(None) | Err(_) => {
-                // Cache miss or error - perform full recomputation
-                let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
-                    clickhouse.clone(),
-                    project_info.workspace_project_ids,
-                    project_info.reset_time,
-                )
-                .await
-                {
-                    Ok(bytes_ingested) => bytes_ingested as i64,
-                    Err(e) => {
-                        log::error!(
-                            "Failed to get workspace bytes ingested for project [{}]: {:?}",
-                            project_id,
-                            e
-                        );
-                        0 as i64
-                    }
-                };
+        };
+    let workspace_id = project_info.workspace_id;
+    if project_info.tier_name.trim().to_lowercase() != "free" {
+        // We don't need to update the workspace limits cache for non-free tiers
+        return Ok(());
+    }
 
+    let bytes_usage_cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
+    let limits_cache_key = format!("{WORKSPACE_LIMITS_CACHE_KEY}:{workspace_id}");
+
+    // First, try to read from cache to check if it exists
+    let cache_result = cache.get::<i64>(&bytes_usage_cache_key).await;
+
+    match cache_result {
+        Ok(Some(_)) => {
+            // Cache exists - atomically increment it
+            let increment_result = cache
+                .increment(&bytes_usage_cache_key, written_bytes as i64)
+                .await;
+
+            if let Ok(new_partial_usage) = increment_result {
                 let workspace_limits_exceeded = WorkspaceLimitsExceeded {
                     steps: false,
-                    bytes_ingested: bytes_ingested >= project_info.bytes_limit,
+                    bytes_ingested: new_partial_usage >= project_info.bytes_limit,
                 };
 
-                let _ = cache
+                // Update the limits cache
+                cache
                     .insert_with_ttl::<WorkspaceLimitsExceeded>(
                         &limits_cache_key,
                         workspace_limits_exceeded,
                         WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
                     )
-                    .await;
-
-                let _ = cache
-                    .insert_with_ttl::<i64>(
-                        &bytes_usage_cache_key,
-                        bytes_ingested as i64,
-                        WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
-                    )
-                    .await;
+                    .await?;
             }
         }
-    });
+        Ok(None) | Err(_) => {
+            // Cache miss or error - perform full recomputation
+            let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
+                clickhouse.clone(),
+                project_info.workspace_project_ids,
+                project_info.reset_time,
+            )
+            .await
+            {
+                Ok(bytes_ingested) => bytes_ingested as i64,
+                Err(e) => {
+                    log::error!(
+                        "Failed to get workspace bytes ingested for project [{}]: {:?}",
+                        project_id,
+                        e
+                    );
+                    0 as i64
+                }
+            };
+
+            let workspace_limits_exceeded = WorkspaceLimitsExceeded {
+                steps: false,
+                bytes_ingested: bytes_ingested >= project_info.bytes_limit,
+            };
+
+            cache
+                .insert_with_ttl::<WorkspaceLimitsExceeded>(
+                    &limits_cache_key,
+                    workspace_limits_exceeded,
+                    WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
+                )
+                .await?;
+
+            cache
+                .insert_with_ttl::<i64>(
+                    &bytes_usage_cache_key,
+                    bytes_ingested as i64,
+                    WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
+                )
+                .await?;
+        }
+    }
 
     Ok(())
 }
