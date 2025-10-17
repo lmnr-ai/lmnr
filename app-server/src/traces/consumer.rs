@@ -516,12 +516,11 @@ async fn check_and_push_trace_summaries(
         Vec<crate::db::summary_trigger_spans::SummaryTriggerSpanWithEvent>,
     > = std::collections::HashMap::new();
 
-    // Get unique project IDs from spans
-    let unique_project_ids: std::collections::HashSet<Uuid> =
-        spans.iter().map(|s| s.project_id).collect();
-
     // Fetch trigger spans once per project (with caching)
-    for project_id in unique_project_ids {
+    // we get project id from the first span in the batch
+    // because all spans in the batch have the same project id
+    // batching is happening on the Otel SpanProcessor level
+    if let Some(project_id) = spans.first().map(|s| s.project_id) {
         match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
             Ok(trigger_spans) => {
                 project_trigger_spans.insert(project_id, trigger_spans);
