@@ -170,19 +170,19 @@ export default function PlaygroundPanel({
           onClick={() => setHistory(!history)}
           className="h-8 w-fit px-2"
         >
-          <History className="w-4 h-4 mr-1" />
+          <History className="w-3.5 h-3.5 mr-1" />
           History
         </Button>
         {isLoading ? (
           <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-8 w-fit px-2">
-            <Square className="w-4 h-4 mr-2" />
-            <span className="mr-2">Stop</span>
+            <Square className="w-3.5 h-3.5 mr-1" />
+            <span className="mr-2 text-xs">Stop</span>
             <Loader className="animate-spin w-4 h-4" />
           </Button>
         ) : (
           <Button onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
-            <PlayIcon className="w-4 h-4 mr-2" />
-            <span className="mr-2">Run</span>
+            <PlayIcon className="w-3.5 h-3.5 mr-1" />
+            <span className="mr-2 text-xs">Run</span>
             <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
           </Button>
         )}

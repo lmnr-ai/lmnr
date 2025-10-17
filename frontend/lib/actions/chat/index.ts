@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
+import { zJsonString } from "@/lib/actions/common/types.ts";
 import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { providerApiKeys } from "@/lib/db/migrations/schema";
@@ -20,9 +21,12 @@ export const PlaygroundParamsSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
   topK: z.number().positive().optional(),
-  tools: z.string().optional(),
+  tools: z
+    .string()
+    .optional()
+    .transform((v) => parseTools(v)),
   toolChoice: z.any().optional(),
-  structuredOutput: z.string().optional(),
+  structuredOutput: zJsonString,
   playgroundId: z.string().optional(),
   abortSignal: z.any().optional(),
 });
@@ -73,24 +77,12 @@ export async function generateChatResponse(
 
   const provider = model.split(":")[0] as Provider;
   const decodedKey = await getProviderApiKey(projectId, provider);
-  const parsedTools = parseTools(tools);
-
-  // Parse structured output JSON schema
-  let parsedJsonSchema: any = undefined;
-  if (structuredOutput && structuredOutput.trim() !== "") {
-    try {
-      parsedJsonSchema = JSON.parse(structuredOutput);
-    } catch (e) {
-      throw new Error("Invalid structured output JSON schema");
-    }
-  }
 
   const startTime = new Date();
 
   let result: any;
 
-  // Use generateObject if structured output is provided, otherwise use generateText
-  if (parsedJsonSchema) {
+  if (structuredOutput) {
     const objectResult = await generateObject({
       abortSignal,
       model: getModel(model as `${Provider}:${string}`, decodedKey),
@@ -100,10 +92,9 @@ export async function generateChatResponse(
       topK,
       topP,
       providerOptions,
-      schema: jsonSchema(parsedJsonSchema),
+      schema: jsonSchema(structuredOutput),
     });
 
-    // Convert generateObject result to match generateText result structure
     result = {
       ...objectResult,
       text: JSON.stringify(objectResult.object, null, 2),
@@ -124,7 +115,7 @@ export async function generateChatResponse(
       topK,
       topP,
       providerOptions,
-      tools: parsedTools,
+      tools,
       toolChoice,
     });
   }
@@ -141,11 +132,12 @@ export async function generateChatResponse(
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
 ): Promise<GenerateTextResult<ToolSet, {}>> {
-  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } = params;
+  const parsedParams = PlaygroundParamsSchema.parse(params);
+  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+    parsedParams;
 
-  const { result, startTime, endTime } = await generateChatResponse(params);
+  const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  // Ensure the result has safe fallback values for required properties
   const safeResult: GenerateTextResult<ToolSet, {}> = {
     ...result,
     text: result.text || "",

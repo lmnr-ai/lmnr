@@ -1,3 +1,5 @@
+import { JsonType } from "../common/types";
+
 // Convert AI SDK message format to OpenAI format
 export function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {
@@ -103,7 +105,7 @@ export interface SpanData {
   playgroundId?: string;
   startTime: Date;
   endTime: Date;
-  structuredOutput?: string;
+  structuredOutput: JsonType;
 }
 
 export function createSpanAttributes(spanData: SpanData): Record<string, unknown> {
@@ -131,7 +133,7 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
     "lmnr.association.properties.trace_type": "PLAYGROUND",
     "ai.prompt.messages": JSON.stringify(openAIMessages),
     "lmnr.association.properties.metadata.playgroundId": playgroundId,
-    "gen_ai.request.structured_output_schema": structuredOutput,
+    "gen_ai.request.structured_output_schema": JSON.stringify(structuredOutput),
   };
 
   openAIMessages.forEach((message: any, index: number) => {

@@ -1,4 +1,7 @@
-import { handleChatGeneration, PlaygroundParamsSchema } from "@/lib/actions/chat";
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
+import { handleChatGeneration } from "@/lib/actions/chat";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
@@ -6,7 +9,6 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const body = await req.json();
     const { projectId } = await props.params;
 
-    // Convert form messages to ModelMessages
     const convertedMessages = body.messages ? parseSystemMessages(body.messages) : [];
 
     const params = {
@@ -15,27 +17,22 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       projectId,
     };
 
-    const parseResult = PlaygroundParamsSchema.safeParse(params);
-
-    if (!parseResult.success) {
-      return new Response(JSON.stringify(parseResult.error), { status: 400 });
-    }
-
     const result = await handleChatGeneration({
       ...params,
       abortSignal: req.signal,
     });
 
-    return new Response(JSON.stringify(result));
-  } catch (e) {
-    return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Internal server error.",
-        details: e instanceof Error ? e.name : "Unknown error",
-      }),
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
       {
-        status: 500,
-      }
+        error: error instanceof Error ? error.message : "Internal server error.",
+      },
+      { status: 500 }
     );
   }
 }

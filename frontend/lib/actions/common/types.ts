@@ -51,3 +51,20 @@ export const PaginationFiltersSchema = z.object({
   ...FiltersSchema.shape,
   ...PaginationSchema.shape,
 });
+
+export type JsonType = { [key: PropertyKey]: JsonType } | null;
+
+export const zJsonString = z
+  .string()
+  .optional()
+  .transform((str, ctx): JsonType => {
+    if (!str) {
+      return null;
+    }
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      ctx.addIssue({ code: "custom", message: "Invalid JSON" });
+      return z.NEVER;
+    }
+  });
