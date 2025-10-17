@@ -133,8 +133,11 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
     "lmnr.association.properties.trace_type": "PLAYGROUND",
     "ai.prompt.messages": JSON.stringify(openAIMessages),
     "lmnr.association.properties.metadata.playgroundId": playgroundId,
-    "gen_ai.request.structured_output_schema": JSON.stringify(structuredOutput),
   };
+
+  if (structuredOutput) {
+    attributes["gen_ai.request.structured_output_schema"] = JSON.stringify(structuredOutput);
+  }
 
   openAIMessages.forEach((message: any, index: number) => {
     attributes[`gen_ai.prompt.${index}.role`] = message.role;
