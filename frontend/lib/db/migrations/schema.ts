@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum, pgPolicy, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
@@ -722,8 +722,6 @@ export const tagClasses = pgTable("tag_classes", {
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
   description: text(),
-  evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
-  pipelineVersionId: uuid("pipeline_version_id"),
   color: text().default('rgb(190, 194, 200)').notNull(),
 }, (table) => [
   foreignKey({
