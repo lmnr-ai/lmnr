@@ -593,9 +593,6 @@ fn main() -> anyhow::Result<()> {
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
-                    log::info!(
-                        "Running in consumer-only mode, only serving health and ready probes"
-                    );
                     // On the consumer side, we only need to serve health and ready probes
                     let expected_counts = ExpectedWorkerCounts::new(
                         num_spans_workers as usize,
@@ -667,29 +664,24 @@ fn main() -> anyhow::Result<()> {
                         tokio::spawn(process_trace_summaries(mq_for_consumer.clone()));
                     }
 
-                    if !enable_producer() {
-                        HttpServer::new(move || {
-                            App::new()
-                                .wrap(NormalizePath::trim())
-                                .app_data(web::Data::new(connection_for_health_clone.clone()))
-                                .app_data(web::Data::new(worker_tracker_clone.clone()))
-                                .app_data(web::Data::new(expected_counts.clone()))
-                                .app_data(web::Data::new(sse_connections.clone()))
-                                .service(routes::probes::check_ready)
-                                .service(routes::probes::check_health_consumer)
-                                .service(
-                                    // auth on path projects/{project_id} is handled by middleware on Next.js
-                                    web::scope("/api/v1/projects/{project_id}")
-                                        .service(routes::realtime::sse_endpoint),
-                                )
-                        })
-                        .bind(("0.0.0.0", consumer_port))?
-                        .run()
-                        .await
-                    } else {
-                        // If producer is enabled, we'll run the full HTTP server
-                        Ok(())
-                    }
+                    HttpServer::new(move || {
+                        App::new()
+                            .wrap(NormalizePath::trim())
+                            .app_data(web::Data::new(connection_for_health_clone.clone()))
+                            .app_data(web::Data::new(worker_tracker_clone.clone()))
+                            .app_data(web::Data::new(expected_counts.clone()))
+                            .app_data(web::Data::new(sse_connections.clone()))
+                            .service(routes::probes::check_ready)
+                            .service(routes::probes::check_health_consumer)
+                            .service(
+                                // auth on path projects/{project_id} is handled by middleware on Next.js
+                                web::scope("/api/v1/projects/{project_id}")
+                                    .service(routes::realtime::sse_endpoint),
+                            )
+                    })
+                    .bind(("0.0.0.0", consumer_port))?
+                    .run()
+                    .await
                 })
             })
             .unwrap();
