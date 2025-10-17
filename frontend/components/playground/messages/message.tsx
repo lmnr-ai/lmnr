@@ -69,11 +69,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
 
   const handleUpdateRole =
     (onChange: ControllerRenderProps["onChange"]) => (value: PlaygroundForm["messages"]["0"]["role"]) => {
-      if (value === "system") {
-        update(index, { content: [{ type: "text", text: "" }], role: value });
-      } else {
-        onChange(value);
-      }
+      onChange(value);
     };
 
   return (

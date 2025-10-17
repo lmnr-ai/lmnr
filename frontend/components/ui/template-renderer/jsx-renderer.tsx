@@ -42,6 +42,11 @@ const createIframeContent = (templateCode: string, data: any): string => {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
       background: #0A0A0A;
+      color: #FAFAFA;
+    }
+    
+    .error {
+      color: #CC3333;
     }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>

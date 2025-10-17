@@ -207,7 +207,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(agg.output_cost)
         .bind(agg.total_cost)
         .bind(&agg.status)
-        .bind(&agg.tags)
+        .bind(&agg.tags.iter().collect::<Vec<_>>())
         .bind(agg.num_spans)
         .fetch_one(pool)
         .await?;

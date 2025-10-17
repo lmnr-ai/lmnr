@@ -1,4 +1,4 @@
-import { Bolt, ChevronRight } from "lucide-react";
+import { Bolt, ChevronRight, GripHorizontal } from "lucide-react";
 import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
@@ -40,6 +40,20 @@ export const ResizableWrapper = ({
       }}
       enable={{
         bottom: true,
+      }}
+      handleComponent={{
+        bottom: (
+          <div className="flex items-center justify-center w-full h-2 cursor-ns-resize hover:bg-accent/50 transition-colors group">
+            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+          </div>
+        ),
+      }}
+      handleStyles={{
+        bottom: {
+          bottom: 0,
+          height: "8px",
+          cursor: "ns-resize",
+        },
       }}
       className={cn("relative flex h-full w-full", className)}
     >

@@ -2,13 +2,14 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
+import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { DataTable } from "../ui/datatable";
@@ -22,48 +23,59 @@ export default function Datasets() {
   const router = useRouter();
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
-  const [datasets, setDatasets] = useState<DatasetInfo[] | undefined>(undefined);
-  const [totalCount, setTotalCount] = useState<number>(0);
 
   const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
   const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
 
-  const getDatasets = async () => {
-    setDatasets(undefined);
-    const url = `/api/projects/${projectId}/datasets/?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+  const swrKey = `/api/projects/${projectId}/datasets?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+  const { data, mutate } = useSWR<PaginatedResponse<DatasetInfo>>(swrKey, swrFetcher);
 
-    const res = await fetch(url, {
-      method: "GET",
-    });
-
-    const data = (await res.json()) as PaginatedResponse<DatasetInfo>;
-    setDatasets(data.items);
-    setTotalCount(data.totalCount);
-  };
-
-  useEffect(() => {
-    getDatasets();
-  }, [pageNumber, pageSize]);
-
+  const datasets = data?.items;
+  const totalCount = data?.totalCount || 0;
   const pageCount = Math.ceil(totalCount / pageSize);
 
   const { toast } = useToast();
 
   const handleDeleteDatasets = async (datasetIds: string[]) => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(",")}`, {
-        method: "DELETE",
-      });
+      await mutate(
+        async (currentData) => {
+          const res = await fetch(`/api/projects/${projectId}/datasets?datasetIds=${datasetIds.join(",")}`, {
+            method: "DELETE",
+          });
 
-      if (res.ok) {
-        getDatasets();
-        toast({
-          title: "Datasets deleted",
-          description: `Successfully deleted ${datasetIds.length} dataset(s).`,
-        });
-      } else {
-        throw new Error("Failed to delete datasets");
-      }
+          if (!res.ok) {
+            throw new Error("Failed to delete datasets");
+          }
+
+          if (!currentData) {
+            return { items: [], totalCount: 0 };
+          }
+
+          return {
+            items: currentData.items.filter((dataset) => !datasetIds.includes(dataset.id)),
+            totalCount: currentData.totalCount - datasetIds.length,
+          };
+        },
+        {
+          optimisticData: (currentData) => {
+            if (!currentData) {
+              return { items: [], totalCount: 0 };
+            }
+            return {
+              items: currentData.items.filter((dataset) => !datasetIds.includes(dataset.id)),
+              totalCount: currentData.totalCount - datasetIds.length,
+            };
+          },
+          rollbackOnError: true,
+          revalidate: false,
+        }
+      );
+
+      toast({
+        title: "Datasets deleted",
+        description: `Successfully deleted ${datasetIds.length} dataset(s).`,
+      });
     } catch (error) {
       toast({
         title: "Error",

@@ -110,10 +110,10 @@ export const paginatedGet = async <T extends TableConfig, R>({
 
   const countQuery = async () =>
     db
-      .select({ count: sql<number>`COUNT(*)` })
+      .select({ count: sql<string>`COUNT(*)` })
       .from(table)
       .where(and(...filters))
-      .then(([{ count }]) => count);
+      .then(([{ count }]) => parseInt(count, 10));
 
   const [items, totalCount] = await Promise.all([itemsQuery, countQuery()]);
 

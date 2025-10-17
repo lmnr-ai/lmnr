@@ -52,6 +52,7 @@ interface DataTableProps<TData> {
   // Not related to what happens when you click on the row itself
   // NOTE: Set getRowId={(row) => row.id} (based on id primary key in the table)
   enableRowSelection?: boolean;
+  selectedRowIds?: string[];
   onSelectedRowsChange?: (selectedRows: string[]) => void;
   // since we are using manual pagination, we need to know when the user selects all rows across all pages
   // we cannot fetch all rowIds on the client side, so we need to know when the user selects all rows across all pages
@@ -123,6 +124,7 @@ export function DataTable<TData>({
   totalItemsCount,
   className,
   enableRowSelection = false,
+  selectedRowIds: externalSelectedRowIds,
   onSelectedRowsChange,
   onSelectAllAcrossPages,
   children,
@@ -130,9 +132,17 @@ export function DataTable<TData>({
   pageSizeOptions = [10, 20, 50, 100, 200, 500],
   childrenClassName,
 }: PropsWithChildren<DataTableProps<TData>>) {
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [internalRowSelection, setInternalRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
   const [expandedRows, setExpandedRows] = useState<ExpandedState>({});
+
+  const isExternallyControlled = externalSelectedRowIds !== undefined;
+  const currentSelectedRowIds = isExternallyControlled ? externalSelectedRowIds : Object.keys(internalRowSelection);
+
+  // Convert selectedRowIds array to selection object for react-table
+  const rowSelection = isExternallyControlled
+    ? Object.fromEntries(externalSelectedRowIds.map((id) => [id, true]))
+    : internalRowSelection;
 
   const searchParams = new URLSearchParams(useSearchParams().toString());
   const pathName = usePathname();
@@ -147,13 +157,16 @@ export function DataTable<TData>({
   };
 
   useEffect(() => {
-    onSelectedRowsChange?.(Object.keys(rowSelection));
-  }, [rowSelection]);
+    if (!isExternallyControlled) {
+      onSelectedRowsChange?.(Object.keys(internalRowSelection));
+    }
+  }, [internalRowSelection, onSelectedRowsChange, isExternallyControlled]);
 
   useEffect(() => {
-    // reset selection if data changes
-    setRowSelection({});
-  }, [data]);
+    if (!isExternallyControlled) {
+      setInternalRowSelection({});
+    }
+  }, [data, isExternallyControlled]);
 
   const selectionColumns = enableRowSelection
     ? [checkboxColumn<TData>(setAllRowsAcrossAllPagesSelected, onSelectAllAcrossPages)]
@@ -191,7 +204,14 @@ export function DataTable<TData>({
     pageCount: pageCount == -1 ? undefined : pageCount,
     enableRowSelection, //enable or disable row selection for all rows
     enableMultiRowSelection: true,
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: isExternallyControlled
+      ? (updater) => {
+        // For externally controlled state, we need to convert the updater function result back to array
+        const newSelection = typeof updater === "function" ? updater(rowSelection) : updater;
+        const newSelectedIds = Object.keys(newSelection);
+        onSelectedRowsChange?.(newSelectedIds);
+      }
+      : setInternalRowSelection,
     getRowId: getRowId,
   });
 
@@ -307,10 +327,10 @@ export function DataTable<TData>({
 
   return (
     <div className={cn("flex flex-col h-full border-t relative", className)}>
-      {Object.keys(rowSelection).length > 0 && (
+      {currentSelectedRowIds.length > 0 && (
         <div className="bg-background h-12 flex flex-none px-4 items-center border-primary border-[1.5px] rounded-lg absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
           <Label className="">
-            {`${Object.keys(rowSelection).length} ${Object.keys(rowSelection).length === 1 ? "row " : "rows "}`}
+            {`${currentSelectedRowIds.length} ${currentSelectedRowIds.length === 1 ? "row " : "rows "}`}
             selected
           </Label>
           <Button
@@ -319,12 +339,16 @@ export function DataTable<TData>({
               table.toggleAllRowsSelected(false);
               setAllRowsAcrossAllPagesSelected(false);
               onSelectAllAcrossPages?.(false);
-              setRowSelection({});
+              if (isExternallyControlled) {
+                onSelectedRowsChange?.([]);
+              } else {
+                setInternalRowSelection({});
+              }
             }}
           >
             <X size={12} />
           </Button>
-          {selectionPanel?.(Object.keys(rowSelection))}
+          {selectionPanel?.(currentSelectedRowIds)}
         </div>
       )}
       {children && (

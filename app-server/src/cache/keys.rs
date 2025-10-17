@@ -7,3 +7,5 @@ pub const PROJECT_CACHE_KEY: &str = "project";
 pub const WORKSPACE_LIMITS_CACHE_KEY: &str = "workspace_limits";
 pub const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY: &str = "project_evaluators_by_path";
 pub const SUMMARY_TRIGGER_SPANS_CACHE_KEY: &str = "summary_trigger_spans";
+
+pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";

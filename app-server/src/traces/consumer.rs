@@ -150,7 +150,6 @@ async fn process_spans_and_events_batch(
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
-    let mut project_ids = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans in parallel (heavy processing)
@@ -174,7 +173,6 @@ async fn process_spans_and_events_batch(
     // Collect results from parallel processing
     for (span, events, ingested_bytes) in processing_results {
         spans_ingested_bytes.push(ingested_bytes.clone());
-        project_ids.push(span.project_id);
         all_spans.push(span);
         all_events.extend(events.into_iter());
     }
@@ -207,7 +205,6 @@ async fn process_spans_and_events_batch(
         all_spans,
         spans_ingested_bytes,
         all_events,
-        project_ids,
         db,
         clickhouse,
         cache,
@@ -230,7 +227,6 @@ async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,
     events: Vec<Event>,
-    project_ids: Vec<Uuid>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -310,7 +306,7 @@ async fn process_batch(
     }
 
     // Process trace aggregations and update trace statistics
-    let trace_aggregations = TraceAggregation::from_ch_spans(&ch_spans);
+    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
     if !trace_aggregations.is_empty() {
         // Upsert trace statistics in PostgreSQL
         match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
@@ -357,20 +353,31 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(clickhouse.clone(), &all_events).await {
-        Ok(_) => {}
+    let total_events_ingested_bytes = match record_events(clickhouse.clone(), &all_events).await {
+        Ok(bytes) => bytes,
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
+            0
         }
     };
 
-    for project_id in project_ids {
+    let total_ingested_bytes = spans_ingested_bytes
+        .iter()
+        .map(|b| b.span_bytes)
+        .sum::<usize>()
+        + total_events_ingested_bytes;
+
+    // we get project id from the first span in the batch
+    // because all spans in the batch have the same project id
+    // batching is happening on the Otel SpanProcessor level
+    if let Some(project_id) = stripped_spans.first().map(|s| s.project_id) {
         if is_feature_enabled(Feature::UsageLimit) {
             if let Err(e) = update_workspace_limit_exceeded_by_project_id(
                 db.clone(),
                 clickhouse.clone(),
                 cache.clone(),
                 project_id,
+                total_ingested_bytes,
             )
             .await
             {

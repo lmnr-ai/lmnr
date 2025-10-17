@@ -23,6 +23,11 @@ interface CacheEntry<T> {
   expiresAt: number | null;
 }
 
+interface RedisSetOptions {
+  expireAfterSeconds?: number;
+  expireAt?: Date;
+}
+
 class CacheManager {
   private redisClient: Redis | null = null;
   private memoryCache: Map<string, CacheEntry<any>> = new Map();
@@ -70,9 +75,16 @@ class CacheManager {
     }
   }
 
-  async set<T>(key: string, value: T, ...args: any[]): Promise<void> {
+  async set<T>(key: string, value: T, options: RedisSetOptions = {}): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
+      let args: any[] = [];
+      if (options.expireAfterSeconds) {
+        args.push('EX', options.expireAfterSeconds);
+      }
+      if (options.expireAt) {
+        args.push('PXAT', options.expireAt.getTime());
+      }
       try {
         await client.set(key, JSON.stringify(value), ...args);
       } catch (e) {
