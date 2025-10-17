@@ -61,18 +61,24 @@ pub async fn check_health_consumer(
         let spans_count = worker_tracker.get_worker_count(&WorkerType::Spans);
         let browser_events_count = worker_tracker.get_worker_count(&WorkerType::BrowserEvents);
         let evaluators_count = worker_tracker.get_worker_count(&WorkerType::Evaluators);
+        let payloads_count = worker_tracker.get_worker_count(&WorkerType::Payloads);
+        let trace_summaries_count = worker_tracker.get_worker_count(&WorkerType::TraceSummaries);
 
         return HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Worker health check failed",
             "expected": {
                 "spans": expected.spans,
                 "browser_events": expected.browser_events,
-                "evaluators": expected.evaluators
+                "evaluators": expected.evaluators,
+                "payloads": expected.payloads,
+                "trace_summaries": expected.trace_summaries
             },
             "actual": {
                 "spans": spans_count,
                 "browser_events": browser_events_count,
-                "evaluators": evaluators_count
+                "evaluators": evaluators_count,
+                "payloads": payloads_count,
+                "trace_summaries": trace_summaries_count
             },
             "total_workers": worker_tracker.get_total_workers()
         }));

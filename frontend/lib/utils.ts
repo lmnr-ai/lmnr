@@ -30,8 +30,7 @@ export async function fetcher(url: string, init: any): Promise<Response> {
 }
 
 export async function fetcherRealTime(url: string, init: any): Promise<Response> {
-  const backendUrl = process.env.BACKEND_RT_URL || process.env.BACKEND_URL;
-  const res = await fetch(`${backendUrl}/api/v1${url}`, {
+  const res = await fetch(`${process.env.BACKEND_RT_URL}/api/v1${url}`, {
     ...init,
     cache: "no-store",
   });
