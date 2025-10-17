@@ -118,5 +118,6 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
+export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";

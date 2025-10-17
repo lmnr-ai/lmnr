@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
@@ -129,13 +130,6 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  const projectIds = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, workspaceId),
-    columns: {
-      id: true,
-    },
-  });
-
   const resetTime = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, workspaceId),
     columns: {
@@ -147,18 +141,39 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     throw new Error("Workspace not found");
   }
 
+  const resetTimeDate = new Date(resetTime.resetTime);
+  const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+
+  const cacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
+  try {
+    const cachedUsage = await cache.get<number>(cacheKey);
+    if (cachedUsage !== null) {
+      console.log("cached usage", cachedUsage);
+      return {
+        totalBytesIngested: Number(cachedUsage),
+        resetTime: latestResetTime,
+      };
+    }
+  } catch (error) {
+    // If cache fails, continue to ClickHouse query
+    console.error("Error reading from cache:", error);
+  }
+
+  // Cache miss - query ClickHouse for the actual breakdown
+  const projectIds = await db.query.projects.findMany({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: {
+      id: true,
+    },
+  });
+
   if (projectIds.length === 0) {
     return {
-      spansBytesIngested: 0,
-      browserSessionEventsBytesIngested: 0,
-      eventsBytesIngested: 0,
-      resetTime: new Date(resetTime.resetTime),
+      totalBytesIngested: 0,
+      resetTime: latestResetTime,
     };
   }
 
-  const resetTimeDate = new Date(resetTime.resetTime);
-
-  const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
   const query = `WITH spans_bytes_ingested AS (
       SELECT
         SUM(spans.size_bytes) as spans_bytes_ingested
@@ -205,10 +220,13 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     throw new Error("Error getting workspace usage");
   }
 
+  const totalBytesIngested =
+    Number(result[0].spans_bytes_ingested) +
+    Number(result[0].browser_session_events_bytes_ingested) +
+    Number(result[0].events_bytes_ingested);
+
   return {
-    spansBytesIngested: Number(result[0].spans_bytes_ingested),
-    browserSessionEventsBytesIngested: Number(result[0].browser_session_events_bytes_ingested),
-    eventsBytesIngested: Number(result[0].events_bytes_ingested),
+    totalBytesIngested,
     resetTime: latestResetTime,
   };
 };

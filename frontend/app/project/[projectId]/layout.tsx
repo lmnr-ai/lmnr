@@ -70,11 +70,7 @@ async function getProjectDetails(projectId: string): Promise<GetProjectResponse>
   // Convert bytes to GB (1 GB = 1024^3 bytes)
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
-  const gbUsedThisMonth = bytesToGB(
-    Number(
-      usageResult.spansBytesIngested + usageResult.browserSessionEventsBytesIngested + usageResult.eventsBytesIngested
-    )
-  );
+  const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
 
   return {
