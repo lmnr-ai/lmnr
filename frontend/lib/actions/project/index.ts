@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projectApiKeys, projects } from "@/lib/db/migrations/schema";
+import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
 export const DeleteProjectSchema = z.object({
   projectId: z.uuid(),
@@ -162,3 +163,87 @@ async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
   const cacheKey = `${PROJECT_CACHE_KEY}:${projectId}`;
   await cache.remove(cacheKey);
 }
+
+export const getProjectDetails = async (
+  projectId: string
+): Promise<{
+  id: string;
+  name: string;
+  workspaceId: string;
+  gbUsedThisMonth: number;
+  gbLimit: number;
+  isFreeTier: boolean;
+}> => {
+  const projectResult = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      workspaceId: projects.workspaceId,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  if (projectResult.length === 0) {
+    throw new Error("Project not found");
+  }
+
+  const project = projectResult[0];
+
+  const workspaceResult = await db
+    .select({
+      id: workspaces.id,
+      tierId: workspaces.tierId,
+    })
+    .from(workspaces)
+    .where(eq(workspaces.id, project.workspaceId))
+    .limit(1);
+
+  if (workspaceResult.length === 0) {
+    throw new Error("Workspace not found for project");
+  }
+  const workspace = workspaceResult[0];
+
+  const tierResult = await db
+    .select({
+      name: subscriptionTiers.name,
+      stepsLimit: subscriptionTiers.steps,
+      bytesLimit: subscriptionTiers.bytesIngested,
+    })
+    .from(subscriptionTiers)
+    .where(eq(subscriptionTiers.id, workspace.tierId))
+    .limit(1);
+
+  if (tierResult.length === 0) {
+    throw new Error("Subscription tier not found for workspace");
+  }
+  const tier = tierResult[0];
+  const isFreeTier = tier.name.toLowerCase().trim() === "free";
+
+  const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
+  const gbLimit = bytesToGB(Number(tier.bytesLimit));
+
+  if (!isFreeTier) {
+    return {
+      id: project.id,
+      name: project.name,
+      workspaceId: project.workspaceId,
+      // not used in ui
+      gbUsedThisMonth: 0,
+      gbLimit,
+      isFreeTier,
+    };
+  }
+
+  const usageResult = await getWorkspaceUsage(project.workspaceId);
+  const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
+
+  return {
+    id: project.id,
+    name: project.name,
+    workspaceId: project.workspaceId,
+    gbUsedThisMonth,
+    gbLimit,
+    isFreeTier,
+  };
+};

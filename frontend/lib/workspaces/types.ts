@@ -41,16 +41,6 @@ export interface WorkspaceInvitation {
   createdAt: string;
 }
 
-export type GetProjectResponse = {
-  id: string;
-  name: string;
-  workspaceId: string;
-  // New GB-based usage fields
-  gbUsedThisMonth: number;
-  gbLimit: number;
-  isFreeTier: boolean;
-};
-
 export interface ProjectStats {
   datasetsCount: number;
   spansCount: number;
@@ -58,8 +48,6 @@ export interface ProjectStats {
 }
 
 export interface WorkspaceUsage {
-  spansBytesIngested: number;
-  browserSessionEventsBytesIngested: number;
-  eventsBytesIngested: number;
+  totalBytesIngested: number;
   resetTime: Date;
 }
