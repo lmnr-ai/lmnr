@@ -510,20 +510,38 @@ async fn check_and_push_trace_summaries(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    // Group spans by project_id to fetch trigger spans only once per project
-    let mut project_trigger_spans: std::collections::HashMap<
-        Uuid,
-        Vec<crate::db::summary_trigger_spans::SummaryTriggerSpanWithEvent>,
-    > = std::collections::HashMap::new();
-
-    // Fetch trigger spans once per project (with caching)
     // we get project id from the first span in the batch
     // because all spans in the batch have the same project id
     // batching is happening on the Otel SpanProcessor level
     if let Some(project_id) = spans.first().map(|s| s.project_id) {
         match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
             Ok(trigger_spans) => {
-                project_trigger_spans.insert(project_id, trigger_spans);
+                // Check each span against its project's trigger spans
+                for span in spans {
+                    // Check if this span name matches any trigger
+                    let matching_triggers = check_span_trigger(&span.name, &trigger_spans);
+
+                    // Send one message per matching trigger
+                    for trigger in matching_triggers {
+                        if let Err(e) = push_to_trace_summary_queue(
+                            span.trace_id,
+                            span.project_id,
+                            span.span_id,
+                            trigger.event_definition,
+                            queue.clone(),
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                                span.trace_id,
+                                span.project_id,
+                                span.name,
+                                e
+                            );
+                        }
+                    }
+                }
             }
             Err(e) => {
                 log::error!(
@@ -531,34 +549,6 @@ async fn check_and_push_trace_summaries(
                     project_id,
                     e
                 );
-            }
-        }
-    }
-
-    // Check each span against its project's trigger spans
-    for span in spans {
-        if let Some(trigger_spans) = project_trigger_spans.get(&span.project_id) {
-            // Check if this span name matches any trigger
-            let matching_triggers = check_span_trigger(&span.name, trigger_spans);
-
-            // Send one message per matching trigger
-            for trigger in matching_triggers {
-                if let Err(e) = push_to_trace_summary_queue(
-                    span.trace_id,
-                    span.project_id,
-                    trigger.event_definition,
-                    queue.clone(),
-                )
-                .await
-                {
-                    log::error!(
-                        "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
-                        span.trace_id,
-                        span.project_id,
-                        span.name,
-                        e
-                    );
-                }
             }
         }
     }

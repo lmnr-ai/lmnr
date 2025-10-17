@@ -22,6 +22,7 @@ use crate::{
 pub struct TraceSummaryMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
+    pub trigger_span_id: Uuid,
     pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
 }
 
@@ -29,12 +30,14 @@ pub struct TraceSummaryMessage {
 pub async fn push_to_trace_summary_queue(
     trace_id: Uuid,
     project_id: Uuid,
+    trigger_span_id: Uuid,
     event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = TraceSummaryMessage {
         trace_id,
         project_id,
+        trigger_span_id,
         event_definition: event_definition.clone(),
     };
 
@@ -49,9 +52,10 @@ pub async fn push_to_trace_summary_queue(
         .await?;
 
     log::debug!(
-        "Pushed trace summary message to queue: trace_id={}, project_id={}, event={:?}",
+        "Pushed trace summary message to queue: trace_id={}, project_id={}, trigger_span_id={}, event={:?}",
         trace_id,
         project_id,
+        trigger_span_id,
         event_definition.as_ref().map(|e| &e.name)
     );
 
@@ -153,12 +157,6 @@ async fn process_single_trace_summary(
     let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
 
     if !eligibility_result.is_eligible {
-        log::info!(
-            "Skipping trace summary generation: trace_id={}, project_id={}, reason={}",
-            message.trace_id,
-            message.project_id,
-            eligibility_result.reason.unwrap_or_default()
-        );
         if let Err(e) = acker.ack().await {
             log::error!("Failed to ack trace summary message: {:?}", e);
         }
@@ -188,6 +186,7 @@ async fn process_single_trace_summary(
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
+        "trigger_span_id": message.trigger_span_id.to_string(),
         "event_definition": message.event_definition.as_ref().map(|ed| serde_json::to_value(ed).unwrap())
     });
 
@@ -240,20 +239,16 @@ async fn process_single_trace_summary(
 
     match backoff::future::retry(backoff, call_summarizer_service).await {
         Ok(_) => {
-            log::debug!(
-                "Successfully generated trace summary: trace_id={}, project_id={}",
-                message.trace_id,
-                message.project_id
-            );
             if let Err(e) = acker.ack().await {
                 log::error!("Failed to ack trace summary message: {:?}", e);
             }
         }
         Err(e) => {
             log::error!(
-                "Failed to generate trace summary after retries: trace_id={}, project_id={}, error={:?}",
+                "Failed to generate trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
                 message.trace_id,
                 message.project_id,
+                message.trigger_span_id,
                 e
             );
             if let Err(e) = acker.reject(false).await {
