@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { difference } from "lodash";
 import { z } from "zod/v4";
 
@@ -6,16 +6,7 @@ import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
-export type EventDefinitionRow = {
-  id: string;
-  name: string;
-  createdAt: string;
-  projectId: string;
-  prompt: string | null;
-  structuredOutput: Record<string, unknown> | null;
-  isSemantic: boolean;
-  triggerSpansCount: number;
-};
+export type EventDefinitionRow = Omit<EventDefinition, "prompt" | "structuredOutput">;
 
 export type EventDefinition = {
   id: string;
@@ -66,22 +57,45 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
       id: eventDefinitions.id,
       createdAt: eventDefinitions.createdAt,
       name: eventDefinitions.name,
-      prompt: eventDefinitions.prompt,
       projectId: eventDefinitions.projectId,
       isSemantic: eventDefinitions.isSemantic,
-      structuredOutput: eventDefinitions.structuredOutput,
-      triggerSpansCount: sql<number>`(
-        SELECT COUNT(*)::int
-        FROM ${summaryTriggerSpans}
-        WHERE ${summaryTriggerSpans.eventName} = ${eventDefinitions.name}
-        AND ${summaryTriggerSpans.projectId} = ${eventDefinitions.projectId}
-      )`.as("triggerSpansCount"),
     })
     .from(eventDefinitions)
     .where(eq(eventDefinitions.projectId, projectId))
     .orderBy(desc(eventDefinitions.createdAt));
 
-  return results;
+  const triggerSpans = await db
+    .select({
+      eventName: summaryTriggerSpans.eventName,
+      name: summaryTriggerSpans.spanName,
+    })
+    .from(summaryTriggerSpans)
+    .where(
+      and(
+        eq(summaryTriggerSpans.projectId, projectId),
+        inArray(
+          summaryTriggerSpans.eventName,
+          results.map((r) => r.name)
+        ),
+        isNotNull(summaryTriggerSpans.eventName)
+      )
+    );
+
+  const triggerSpansByEvent = triggerSpans.reduce(
+    (acc, span) => {
+      if (!span.eventName) return acc;
+      return {
+        ...acc,
+        [span.eventName]: [...(acc[span.eventName] || []), span.name],
+      };
+    },
+    {} as Record<string, string[]>
+  );
+
+  return results.map((eventDef) => ({
+    ...eventDef,
+    triggerSpans: triggerSpansByEvent[eventDef.name] || [],
+  }));
 }
 
 export async function getEventDefinition(input: z.infer<typeof GetEventDefinitionSchema>) {

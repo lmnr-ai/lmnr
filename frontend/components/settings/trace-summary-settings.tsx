@@ -129,7 +129,7 @@ export default function TraceSummarySettings() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Trace Summary"
-        description="Add span names that should trigger trace summary generation when they complete. The last span we receive will trigger the event, so use the span that ends last in your trace."
+        description="Add span names that should trigger trace summary generation when they complete. Use name of span that ends last in your trace."
       />
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>

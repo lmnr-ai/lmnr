@@ -2,7 +2,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import JsonTooltip from "@/components/ui/json-tooltip.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
 export const columns: ColumnDef<EventDefinitionRow>[] = [
@@ -12,30 +12,34 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     cell: ({ row }) => <span className="truncate">{row.original.name}</span>,
   },
   {
-    header: "Created At",
-    accessorFn: (row) => row.createdAt,
-    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
-  },
-  {
-    header: "Prompt",
-    accessorFn: (row) => row.prompt,
-    cell: ({ row }) => <span className="truncate">{row.original.prompt}</span>,
-  },
-  {
-    header: "Structured Output",
-    id: "structuredOutput",
-    accessorFn: (row) => row.structuredOutput,
-    cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
-  },
-  {
     header: "Trigger Spans",
     id: "triggerSpans",
-    accessorFn: (row) => row.triggerSpansCount,
-    cell: ({ row }) => <span className="truncate">{row.original.triggerSpansCount}</span>,
+    accessorFn: (row) => row.triggerSpans,
+    cell: (row) => {
+      const spans = row.getValue() as string[];
+
+      if (spans?.length > 0) {
+        return (
+          <>
+            {spans.map((span) => (
+              <Badge key={span} className="rounded-3xl mr-1" variant="outline">
+                <span>{span}</span>
+              </Badge>
+            ))}
+          </>
+        );
+      }
+      return "-";
+    },
   },
   {
     header: "Semantic",
     accessorFn: (row) => row.isSemantic,
     cell: ({ row }) => (row.original.isSemantic ? "Yes" : "No"),
+  },
+  {
+    header: "Created At",
+    accessorFn: (row) => row.createdAt,
+    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
   },
 ];

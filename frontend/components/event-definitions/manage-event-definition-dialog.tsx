@@ -185,9 +185,7 @@ function ManageEventDefinitionDialogContent({
       </DialogHeader>
       <form onSubmit={handleSubmit(submit)} className="grid gap-6">
         <div className="grid gap-2">
-          <Label htmlFor="name">
-            Name <span className="text-red-500">*</span>
-          </Label>
+          <Label htmlFor="name">Name</Label>
           <Controller
             rules={{ required: "Name is required" }}
             name="name"

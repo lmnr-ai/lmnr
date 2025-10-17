@@ -1,8 +1,9 @@
 "use client";
 
 import { Cloud, FileText, Key, Settings2 } from "lucide-react";
-import { CSSProperties, ReactNode, useState } from "react";
+import { CSSProperties, ReactNode, useMemo, useState } from "react";
 
+import { useProjectContext } from "@/contexts/project-context.tsx";
 import { ProjectApiKey } from "@/lib/api-keys/types";
 
 import Header from "../ui/header";
@@ -40,6 +41,15 @@ const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 export default function Settings({ apiKeys }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
+  const { workspace } = useProjectContext();
+
+  const menuTabs = useMemo(() => {
+    if (workspace?.tierName !== "Free") {
+      return tabs;
+    }
+    return tabs.filter((t) => t.id !== "trace-summary");
+  }, [workspace]);
+
   const renderContent = () => {
     switch (activeTab) {
       case "general":
@@ -68,13 +78,13 @@ export default function Settings({ apiKeys }: SettingsProps) {
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
           <Sidebar collapsible="none">
             <SidebarContent className="bg-background">
-              <SidebarGroup className="pt-4">
+              <SidebarGroup className="pt-2 px-0">
                 <SidebarMenu>
-                  {tabs.map((tab) => (
+                  {menuTabs.map((tab) => (
                     <SidebarMenuItem className="h-7" key={tab.id}>
                       <SidebarMenuButton
                         asChild
-                        className="text-secondary-foreground flex items-center flex-1"
+                        className="flex items-center flex-1"
                         isActive={activeTab === tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         tooltip={tab.label}

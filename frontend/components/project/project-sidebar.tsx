@@ -1,19 +1,6 @@
 "use client";
 
-import {
-  Book,
-  Database,
-  FlagTriangleRight,
-  FlaskConical,
-  LayoutGrid,
-  Pen,
-  PlayCircle,
-  Rows4,
-  Settings,
-  SquareFunction,
-  SquareTerminal,
-  X,
-} from "lucide-react";
+import { Book, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import DiscordLogo from "@/assets/logo/discord";
 import smallLogo from "@/assets/logo/icon.svg";
 import fullLogo from "@/assets/logo/logo.svg";
+import { getSidebarMenus } from "@/components/project/utils.ts";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -109,61 +97,13 @@ export default function ProjectSidebar({
     }
   }, [showStarCard]);
 
-  const allOptions = useMemo(
-    () => [
-      {
-        name: "dashboards",
-        href: `/project/${projectId}/dashboard`,
-        icon: LayoutGrid,
-      },
-      {
-        name: "traces",
-        href: `/project/${projectId}/traces`,
-        icon: Rows4,
-      },
-      {
-        name: "evaluations",
-        href: `/project/${projectId}/evaluations`,
-        icon: FlaskConical,
-      },
-      {
-        name: "evaluators",
-        href: `/project/${projectId}/evaluators`,
-        icon: SquareFunction,
-      },
-      {
-        name: "events",
-        href: `/project/${projectId}/events`,
-        icon: FlagTriangleRight,
-      },
-      {
-        name: "datasets",
-        href: `/project/${projectId}/datasets`,
-        icon: Database,
-      },
-      {
-        name: "queues",
-        href: `/project/${projectId}/labeling-queues`,
-        icon: Pen,
-      },
-      {
-        name: "sql editor",
-        href: `/project/${projectId}/sql`,
-        icon: SquareTerminal,
-      },
-      {
-        name: "playgrounds",
-        href: `/project/${projectId}/playgrounds`,
-        icon: PlayCircle,
-      },
-      {
-        name: "settings",
-        href: `/project/${projectId}/settings`,
-        icon: Settings,
-      },
-    ],
-    [projectId]
-  );
+  const options = useMemo(() => {
+    const menus = getSidebarMenus(projectId);
+    if (!isFreeTier) {
+      return menus;
+    }
+    return menus.filter((m) => m.name !== "events");
+  }, [isFreeTier, projectId]);
 
   return (
     <Sidebar className="border-r" collapsible="icon">
@@ -182,14 +122,11 @@ export default function ProjectSidebar({
       </SidebarHeader>
       <SidebarContent className="pt-2 bg-background">
         <SidebarMenu className={cn(open || openMobile ? undefined : "justify-center items-center flex")}>
-          {allOptions.map((option, i) => (
+          {options.map((option, i) => (
             <SidebarMenuItem key={i} className="h-7">
               <SidebarMenuButton
                 asChild
-                className={cn(
-                  "text-secondary-foreground flex items-center",
-                  open || openMobile ? "" : "justify-center gap-0"
-                )}
+                className={cn("flex items-center", open || openMobile ? "" : "justify-center gap-0")}
                 isActive={pathname.startsWith(option.href)}
                 tooltip={option.name}
               >
