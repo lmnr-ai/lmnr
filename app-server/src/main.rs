@@ -53,11 +53,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use crate::features::{enable_consumer, enable_producer};
 use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
-use crate::{
-    features::{enable_consumer, enable_producer},
-    routes::realtime::ReStreamClient,
-};
 
 mod agent_manager;
 mod api;
@@ -160,10 +157,10 @@ fn main() -> anyhow::Result<()> {
 
     // Default to the same port as the HTTP server. Should only be overriden for testing,
     // when producer and consumer-only are run on the same machine.
-    let consumer_healthcheck_port: u16 = env::var("CONSUMER_HEALTHCHECK_PORT")
+    let consumer_port: u16 = env::var("CONSUMER_PORT")
         .unwrap_or(port.to_string())
         .parse()
-        .unwrap_or(port);
+        .unwrap_or(8002);
 
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
@@ -405,18 +402,6 @@ fn main() -> anyhow::Result<()> {
 
     // ==== 3.6 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
-    let re_stream_client = if enable_producer() {
-        // We're in producer mode, so we'll re-stream the SSE connections from the consumer server
-        match env::var("CONSUMER_URL") {
-            Ok(consumer_url) => Some(ReStreamClient::new(consumer_url)),
-            Err(_) => {
-                log::error!("CONSUMER_URL not set, not re-streaming SSE connections for realtime");
-                None
-            }
-        }
-    } else {
-        None
-    };
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
@@ -507,6 +492,15 @@ fn main() -> anyhow::Result<()> {
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
+
+    if !enable_producer() && !enable_consumer() {
+        log::error!(
+            "Neither producer nor consumer mode is enabled. Set QUEUE_MODE to 'producer' or 'consumer', or unset to run both"
+        );
+        return Err(anyhow::anyhow!(
+            "Neither producer nor consumer mode is enabled"
+        ));
+    }
 
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
@@ -683,9 +677,13 @@ fn main() -> anyhow::Result<()> {
                                 .app_data(web::Data::new(sse_connections.clone()))
                                 .service(routes::probes::check_ready)
                                 .service(routes::probes::check_health_consumer)
-                                .service(routes::realtime::original_realtime_endpoint)
+                                .service(
+                                    // auth on path projects/{project_id} is handled by middleware on Next.js
+                                    web::scope("/api/v1/projects/{project_id}")
+                                        .service(routes::realtime::sse_endpoint),
+                                )
                         })
-                        .bind(("0.0.0.0", consumer_healthcheck_port))?
+                        .bind(("0.0.0.0", consumer_port))?
                         .run()
                         .await
                     } else {
@@ -753,7 +751,6 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(browser_agent.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
-                            .app_data(web::Data::new(re_stream_client.clone()))
                             .service(
                                 web::scope("/v1/browser-sessions").service(
                                     web::scope("")
