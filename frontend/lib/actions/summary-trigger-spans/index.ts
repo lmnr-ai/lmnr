@@ -1,16 +1,12 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
 export const GetSummaryTriggerSpansSchema = z.object({
   projectId: z.string(),
-});
-
-export const GetSummaryTriggerSpanSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
 });
 
 export const CreateSummaryTriggerSpanSchema = z.object({
@@ -46,18 +42,6 @@ export async function getUnassignedSummaryTriggerSpans(input: z.infer<typeof Get
   return results;
 }
 
-export async function getSummaryTriggerSpan(input: z.infer<typeof GetSummaryTriggerSpanSchema>) {
-  const { id, projectId } = GetSummaryTriggerSpanSchema.parse(input);
-
-  const [result] = await db
-    .select()
-    .from(summaryTriggerSpans)
-    .where(and(eq(summaryTriggerSpans.projectId, projectId), eq(summaryTriggerSpans.id, id)))
-    .limit(1);
-
-  return result;
-}
-
 export async function createSummaryTriggerSpan(input: z.infer<typeof CreateSummaryTriggerSpanSchema>) {
   const { projectId, spanName, eventName } = CreateSummaryTriggerSpanSchema.parse(input);
 
@@ -70,6 +54,8 @@ export async function createSummaryTriggerSpan(input: z.infer<typeof CreateSumma
     })
     .returning();
 
+  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+
   return result;
 }
 
@@ -80,6 +66,8 @@ export async function deleteSummaryTriggerSpan(input: z.infer<typeof DeleteSumma
     .delete(summaryTriggerSpans)
     .where(and(eq(summaryTriggerSpans.projectId, projectId), eq(summaryTriggerSpans.id, id)))
     .returning();
+
+  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return result;
 }

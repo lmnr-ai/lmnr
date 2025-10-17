@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { difference } from "lodash";
 import { z } from "zod/v4";
 
+import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
@@ -130,6 +131,7 @@ export async function createEventDefinition(input: z.infer<typeof CreateEventDef
         spanName,
       }))
     );
+    await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
   }
 
   return result;
@@ -138,7 +140,7 @@ export async function createEventDefinition(input: z.infer<typeof CreateEventDef
 export async function updateEventDefinition(input: z.infer<typeof UpdateEventDefinitionSchema>) {
   const { projectId, id, prompt, structuredOutput, triggerSpans } = UpdateEventDefinitionSchema.parse(input);
 
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [result] = await tx
       .update(eventDefinitions)
       .set({ prompt, structuredOutput })
@@ -149,6 +151,10 @@ export async function updateEventDefinition(input: z.infer<typeof UpdateEventDef
 
     return result;
   });
+
+  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+
+  return result;
 }
 
 const syncTriggerSpans = async (
@@ -195,6 +201,8 @@ export async function deleteEventDefinition(input: z.infer<typeof DeleteEventDef
     .delete(eventDefinitions)
     .where(and(eq(eventDefinitions.projectId, projectId), eq(eventDefinitions.id, id)))
     .returning();
+
+  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return result;
 }

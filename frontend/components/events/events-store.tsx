@@ -38,7 +38,10 @@ export const createEventsStore = (initProps: EventsProps) =>
     spanId: initProps.spanId || null,
     eventDefinition: {
       ...initProps.eventDefinition,
-      structuredOutput: JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2),
+      structuredOutput:
+        initProps.eventDefinition.structuredOutput != null
+          ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
+          : "",
       triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((name) => ({ name })),
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
