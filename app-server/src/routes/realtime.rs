@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::realtime::{SseConnectionMap, create_sse_response};
 
+// SSE Endpoint on the main HTTP server (producer mode)
 #[get("realtime")]
 pub async fn sse_endpoint(
     path: Path<Uuid>,
