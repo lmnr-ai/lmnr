@@ -1,6 +1,6 @@
-import { JsonType } from "../common/types";
-
 // Convert AI SDK message format to OpenAI format
+import { JsonObject } from "@/lib/actions/chat/index.ts";
+
 export function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {
     role: message.role,
@@ -105,7 +105,7 @@ export interface SpanData {
   playgroundId?: string;
   startTime: Date;
   endTime: Date;
-  structuredOutput: JsonType;
+  structuredOutput: JsonObject;
 }
 
 export function createSpanAttributes(spanData: SpanData): Record<string, unknown> {

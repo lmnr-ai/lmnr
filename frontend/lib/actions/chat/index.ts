@@ -4,13 +4,29 @@ import { z } from "zod";
 
 import { Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
-import { zJsonString } from "@/lib/actions/common/types.ts";
 import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { providerApiKeys } from "@/lib/db/migrations/schema";
 import { getModel } from "@/lib/playground/providersRegistry";
 
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
+
+export type JsonObject = { [key: PropertyKey]: JsonObject | string } | null;
+
+export const zJsonObject = z
+  .string()
+  .optional()
+  .transform((str, ctx): JsonObject => {
+    if (!str) {
+      return null;
+    }
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      ctx.addIssue({ code: "custom", message: "Invalid JSON" });
+      return z.NEVER;
+    }
+  });
 
 export const PlaygroundParamsSchema = z.object({
   messages: z.array(modelMessageSchema).min(1),
@@ -26,7 +42,7 @@ export const PlaygroundParamsSchema = z.object({
     .optional()
     .transform((v) => parseTools(v)),
   toolChoice: z.any().optional(),
-  structuredOutput: zJsonString,
+  structuredOutput: zJsonObject,
   playgroundId: z.string().optional(),
   abortSignal: z.any().optional(),
 });
