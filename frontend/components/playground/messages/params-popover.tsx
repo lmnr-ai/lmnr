@@ -30,7 +30,7 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
               variant="outline"
               className={cn(className, "w-8 h-8 self-end")}
             >
-              <SlidersHorizontal className="w-4 h-4" />
+              <SlidersHorizontal className="w-3.5 h-3.5" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>

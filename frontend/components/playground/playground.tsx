@@ -68,6 +68,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
             : getDefaultThinkingModelProviderOptions(playground.modelId as PlaygroundForm["model"]),
         tools: JSON.stringify(playground.tools),
         toolChoice: playground.toolChoice as PlaygroundForm["toolChoice"],
+        structuredOutput: playground.outputSchema ?? undefined,
       });
     }
     resetOutput();
@@ -87,6 +88,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
             maxTokens: form.maxTokens,
             temperature: form.temperature,
             providerOptions: form.providerOptions,
+            outputSchema: form.structuredOutput,
           }),
         });
       } catch (e) {
