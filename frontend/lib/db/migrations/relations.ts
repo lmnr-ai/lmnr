@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, dashboardCharts, datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, machines, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, userCookies, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, dashboardCharts, datasetDatapoints, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, machines, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, userCookies, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
   dataset: one(datasets, {
@@ -64,6 +64,7 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   evaluatorScores: many(evaluatorScores),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
+  summaryTriggerSpans: many(summaryTriggerSpans),
   labelingQueues: many(labelingQueues),
   datasets: many(datasets),
   traces: many(traces),
@@ -78,6 +79,7 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   projectApiKeys: many(projectApiKeys),
   sqlTemplates: many(sqlTemplates),
   playgrounds: many(playgrounds),
+  eventDefinitions: many(eventDefinitions),
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
   projectSettings: many(projectSettings),
@@ -170,6 +172,13 @@ export const agentMessagesRelations = relations(agentMessages, ({one}) => ({
   agentSession: one(agentSessions, {
     fields: [agentMessages.sessionId],
     references: [agentSessions.sessionId]
+  }),
+}));
+
+export const summaryTriggerSpansRelations = relations(summaryTriggerSpans, ({one}) => ({
+  project: one(projects, {
+    fields: [summaryTriggerSpans.projectId],
+    references: [projects.id]
   }),
 }));
 
@@ -284,6 +293,13 @@ export const sqlTemplatesRelations = relations(sqlTemplates, ({one}) => ({
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({
   project: one(projects, {
     fields: [playgrounds.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const eventDefinitionsRelations = relations(eventDefinitions, ({one}) => ({
+  project: one(projects, {
+    fields: [eventDefinitions.projectId],
     references: [projects.id]
   }),
 }));

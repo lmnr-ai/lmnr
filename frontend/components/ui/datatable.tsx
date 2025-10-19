@@ -227,7 +227,7 @@ export function DataTable<TData>({
   const renderRow = (row: Row<TData>) => (
     <TableRow
       className={cn(
-        "flex min-w-full border-b",
+        "flex min-w-full border-b group/row",
         !!onRowClick && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
         focusedRowId === row.id && "bg-secondary/70"

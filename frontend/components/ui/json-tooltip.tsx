@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
+import { githubDarkSyntaxHighlighter } from "@/components/ui/code-highlighter/utils.ts";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -44,16 +44,16 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
               className="relative"
             >
               <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs">{displayValue}</div>
+                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{displayValue}</div>
               </div>
             </div>
           ) : (
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap text-xs font-mono">{displayValue}</div>
+            <div className="text-ellipsis overflow-hidden whitespace-nowrap font-mono">{displayValue}</div>
           )}
         </TooltipTrigger>
         <TooltipContent
           side="bottom"
-          className="p-2 border max-w-96 max-h-96 overflow-auto"
+          className="p-2 border max-w-96 max-h-96 overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -67,8 +67,10 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
               text={jsonString}
             />
             <SyntaxHighlighter
+              wrapLines
+              lineProps={{ style: { wordBreak: "break-all", whiteSpace: "pre-wrap" } }}
               language="json"
-              style={oneDark}
+              style={githubDarkSyntaxHighlighter}
               customStyle={{
                 backgroundColor: "transparent",
                 padding: "0",

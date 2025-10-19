@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 
 export default function DeleteProject() {
   const { project } = useProjectContext();
@@ -76,19 +77,18 @@ export default function DeleteProject() {
   const isDeleteEnabled = inputProjectName === project?.name && !isLoading;
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-foreground">Delete project</h2>
-        <p className="text-sm text-muted-foreground">
-          Permanently delete this project and all of its data. This action cannot be undone.
-        </p>
-      </div>
+    <SettingsSection>
+      <SettingsSectionHeader
+        size="sm"
+        title="Delete project"
+        description="Permanently delete this project and all of its data. This action cannot be undone."
+      />
       <Dialog open={isDialogOpen} onOpenChange={resetAndClose}>
         <DialogTrigger asChild>
           <Button
             onClick={() => setIsDialogOpen(true)}
             variant="outline"
-            className="h-8 text-destructive border-destructive"
+            className="h-9 w-fit text-destructive border-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete project
@@ -138,6 +138,6 @@ export default function DeleteProject() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </SettingsSection>
   );
 }

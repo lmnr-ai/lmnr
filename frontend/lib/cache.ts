@@ -1,4 +1,4 @@
-import { Redis } from 'ioredis';
+import { Redis } from "ioredis";
 
 // Singleton Redis client
 const getRedisSingleton = (() => {
@@ -11,7 +11,7 @@ const getRedisSingleton = (() => {
         retryStrategy(times) {
           const delay = Math.min(times * 50, 2000);
           return delay;
-        }
+        },
       });
     }
     return client;
@@ -38,7 +38,7 @@ class CacheManager {
     // Initialize Redis client immediately if we're using Redis
     if (this.useRedis) {
       this.redisClient = getRedisSingleton();
-      this.redisClient.on('error', (err) => console.error('Redis Client Error', err));
+      this.redisClient.on("error", (err) => console.error("Redis Client Error", err));
     }
   }
 
@@ -46,7 +46,7 @@ class CacheManager {
     if (!this.redisClient) {
       this.redisClient = getRedisSingleton();
     }
-    if (['reconnecting', 'wait'].includes(this.redisClient.status)) {
+    if (["reconnecting", "wait"].includes(this.redisClient.status)) {
       await this.redisClient.connect();
     }
     return this.redisClient;
@@ -121,3 +121,4 @@ export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
+export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
