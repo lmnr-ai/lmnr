@@ -5,6 +5,7 @@ pub mod agent_messages;
 pub mod datasets;
 pub mod evaluations;
 pub mod evaluators;
+pub mod event_definitions;
 pub mod events;
 pub mod prices;
 pub mod project_api_keys;

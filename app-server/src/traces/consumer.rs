@@ -361,7 +361,15 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    let total_events_ingested_bytes = match record_events(clickhouse.clone(), &all_events).await {
+    let total_events_ingested_bytes = match record_events(
+        cache.clone(),
+        db.clone(),
+        project_id,
+        clickhouse.clone(),
+        &all_events,
+    )
+    .await
+    {
         Ok(bytes) => bytes,
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
