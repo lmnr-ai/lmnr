@@ -15,7 +15,6 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct TraceEligibilityResult {
     pub is_eligible: bool,
-    pub reason: Option<String>,
     #[allow(dead_code)]
     pub tier_name: Option<String>,
     #[allow(dead_code)]
@@ -41,7 +40,6 @@ pub async fn check_trace_eligibility(
                 Err(_) => {
                     return Ok(TraceEligibilityResult {
                         is_eligible: false,
-                        reason: Some("project not found".to_string()),
                         tier_name: None,
                         has_trace_analysis: false,
                     });
@@ -58,7 +56,6 @@ pub async fn check_trace_eligibility(
     if !is_paid_tier {
         return Ok(TraceEligibilityResult {
             is_eligible: false,
-            reason: Some("workspace is on free tier".to_string()),
             tier_name,
             has_trace_analysis: false,
         });
@@ -70,7 +67,6 @@ pub async fn check_trace_eligibility(
     if !is_trace_analysis_enabled {
         return Ok(TraceEligibilityResult {
             is_eligible: false,
-            reason: Some("trace analysis not enabled in project settings".to_string()),
             tier_name,
             has_trace_analysis: false,
         });
@@ -78,7 +74,6 @@ pub async fn check_trace_eligibility(
 
     Ok(TraceEligibilityResult {
         is_eligible: true,
-        reason: None,
         tier_name,
         has_trace_analysis: true,
     })
