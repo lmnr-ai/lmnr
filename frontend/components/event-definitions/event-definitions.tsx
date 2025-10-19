@@ -61,7 +61,7 @@ export default function EventDefinitions() {
           emptyRow={
             <TableRow>
               <TableCell colSpan={columns.length} className="text-center">
-                No event definitions found. Create your first event definition to get started.
+                No event definitions.
               </TableCell>
             </TableRow>
           }
