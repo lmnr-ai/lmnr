@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
 
@@ -59,6 +60,7 @@ function EventsContent({
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const ref = useRef<Resizable>(null);
+  const { workspace } = useProjectContext();
 
   const {
     events,
@@ -85,6 +87,8 @@ function EventsContent({
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+
+  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   useEffect(() => {
     if (!initialTraceViewWidth) {
@@ -214,17 +218,19 @@ function EventsContent({
         <div className="flex flex-col gap-4 p-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-medium">{eventDefinition.name}</h1>
-            <ManageEventDefinitionDialog
-              open={isDialogOpen}
-              setOpen={setIsDialogOpen}
-              defaultValues={eventDefinition}
-              key={eventDefinition.id}
-              onSuccess={handleSuccess}
-            >
-              <Button variant="outline" onClick={handleEditEvent}>
-                Edit Event Definition
-              </Button>
-            </ManageEventDefinitionDialog>
+            {!isFreeTier && (
+              <ManageEventDefinitionDialog
+                open={isDialogOpen}
+                setOpen={setIsDialogOpen}
+                defaultValues={eventDefinition}
+                key={eventDefinition.id}
+                onSuccess={handleSuccess}
+              >
+                <Button variant="outline" onClick={handleEditEvent}>
+                  Edit Event Definition
+                </Button>
+              </ManageEventDefinitionDialog>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

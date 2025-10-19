@@ -32,7 +32,11 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
             ) : (
               <div className="w-6 h-6 bg-slate-500 rounded-full cursor-pointer" />
             )}
-            {showDetails && <span className="text-xs truncate whitespace-nowrap text-muted-foreground max-w-32">{email}</span>}
+            {showDetails && (
+              <span title={email} className="text-xs truncate whitespace-nowrap text-muted-foreground max-w-32">
+                {email}
+              </span>
+            )}
           </div>
         </Button>
       </DropdownMenuTrigger>

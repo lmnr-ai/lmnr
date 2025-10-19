@@ -97,13 +97,7 @@ export default function ProjectSidebar({
     }
   }, [showStarCard]);
 
-  const options = useMemo(() => {
-    const menus = getSidebarMenus(projectId);
-    if (!isFreeTier) {
-      return menus;
-    }
-    return menus.filter((m) => m.name !== "events");
-  }, [isFreeTier, projectId]);
+  const options = useMemo(() => getSidebarMenus(projectId), [projectId]);
 
   return (
     <Sidebar className="border-r" collapsible="icon">

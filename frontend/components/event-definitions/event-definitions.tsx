@@ -9,6 +9,7 @@ import { useEventDefinitionsStoreContext } from "@/components/event-definitions/
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
 import { DataTable } from "../ui/datatable";
@@ -18,11 +19,14 @@ export default function EventDefinitions() {
   const router = useRouter();
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { workspace } = useProjectContext();
 
   const { eventDefinitions, fetchEventDefinitions } = useEventDefinitionsStoreContext((state) => ({
     eventDefinitions: state.eventDefinitions,
     fetchEventDefinitions: state.fetchEventDefinitions,
   }));
+
+  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   useEffect(() => {
     fetchEventDefinitions();
@@ -45,11 +49,13 @@ export default function EventDefinitions() {
       <div className="flex flex-col flex-1 overflow-auto">
         <div className="flex gap-4 p-4 items-center justify-between">
           <div className="text-2xl font-medium">Event Definitions</div>
-          <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
-              New Event Definition
-            </Button>
-          </ManageEventDefinitionDialog>
+          {!isFreeTier && (
+            <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+              <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
+                New Event Definition
+              </Button>
+            </ManageEventDefinitionDialog>
+          )}
         </div>
         <DataTable
           emptyRow={
