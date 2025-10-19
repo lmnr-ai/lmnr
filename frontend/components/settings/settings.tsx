@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, FileText, Key, Settings2 } from "lucide-react";
+import { FileText, Key, Settings2, Sparkles } from "lucide-react";
 import { CSSProperties, ReactNode, useMemo, useState } from "react";
 
 import { useProjectContext } from "@/contexts/project-context.tsx";
@@ -32,7 +32,7 @@ type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
-  { id: "provider-api-keys", label: "Provider API Keys", icon: <Cloud /> },
+  { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
   { id: "trace-summary", label: "Trace Summary", icon: <FileText /> },
 ];
 

@@ -52,7 +52,7 @@ export default function ProviderApiKeys() {
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="Provider API keys"
+        title="Model Providers"
         description="Set your model provider API keys for use in LLM calls. Variables are encrypted and stored securely."
       />
       <AddProviderApiKeyVarDialog
@@ -61,7 +61,11 @@ export default function ProviderApiKeys() {
           postProviderApiKey(name, value);
         }}
       />
-      <SettingsTable isLoading={isLoading} isEmpty={isEmpty(providerApiKeys)} emptyMessage="No provider api keys found.">
+      <SettingsTable
+        isLoading={isLoading}
+        isEmpty={isEmpty(providerApiKeys)}
+        emptyMessage="No provider api keys found."
+      >
         {providerApiKeys?.map((apiKey, index) => (
           <SettingsTableRow key={index}>
             <td className="px-4">
