@@ -8,6 +8,7 @@ pub mod provider;
 pub mod span_attributes;
 pub mod spans;
 pub mod summary;
+pub mod trigger;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";

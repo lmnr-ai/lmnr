@@ -22,17 +22,23 @@ use crate::{
 pub struct TraceSummaryMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
+    pub trigger_span_id: Uuid,
+    pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
 }
 
 /// Push a trace completion message to the trace summary queue
 pub async fn push_to_trace_summary_queue(
     trace_id: Uuid,
     project_id: Uuid,
+    trigger_span_id: Uuid,
+    event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = TraceSummaryMessage {
         trace_id,
         project_id,
+        trigger_span_id,
+        event_definition: event_definition.clone(),
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -46,9 +52,11 @@ pub async fn push_to_trace_summary_queue(
         .await?;
 
     log::debug!(
-        "Pushed trace summary message to queue: trace_id={}, project_id={}",
+        "Pushed trace summary message to queue: trace_id={}, project_id={}, trigger_span_id={}, event={:?}",
         trace_id,
-        project_id
+        project_id,
+        trigger_span_id,
+        event_definition.as_ref().map(|e| &e.name)
     );
 
     Ok(())
@@ -149,28 +157,37 @@ async fn process_single_trace_summary(
     let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
 
     if !eligibility_result.is_eligible {
-        log::info!(
-            "Skipping trace summary generation: trace_id={}, project_id={}, reason={}",
-            message.trace_id,
-            message.project_id,
-            eligibility_result.reason.unwrap_or_default()
-        );
         if let Err(e) = acker.ack().await {
             log::error!("Failed to ack trace summary message: {:?}", e);
         }
         return Ok(());
     }
 
-    let summarizer_service_url = env::var("TRACE_SUMMARIZER_URL")
-        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_URL environment variable not set"))?;
+    let summarizer_service_url = if let Ok(url) = env::var("TRACE_SUMMARIZER_URL") {
+        url
+    } else {
+        log::error!("TRACE_SUMMARIZER_URL environment variable not set");
+        if let Err(e) = acker.reject(false).await {
+            log::error!("Failed to reject trace summary message: {:?}", e);
+        }
+        return Ok(());
+    };
 
-    let auth_token = env::var("TRACE_SUMMARIZER_SECRET_KEY")
-        .map_err(|_| anyhow::anyhow!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set"))?;
+    let auth_token = if let Ok(token) = env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        token
+    } else {
+        log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+        if let Err(e) = acker.reject(false).await {
+            log::error!("Failed to reject trace summary message: {:?}", e);
+        }
+        return Ok(());
+    };
 
     let request_body = serde_json::json!({
-        "projectId": message.project_id.to_string(),
-        "traceId": message.trace_id.to_string(),
-        "maxRetries": 5
+        "project_id": message.project_id.to_string(),
+        "trace_id": message.trace_id.to_string(),
+        "trigger_span_id": message.trigger_span_id.to_string(),
+        "event_definition": message.event_definition.as_ref().map(|ed| serde_json::to_value(ed).unwrap())
     });
 
     let call_summarizer_service = || async {
@@ -182,7 +199,10 @@ async fn process_single_trace_summary(
             .send()
             .await
             .map_err(|e| {
-                log::warn!("Failed to call summarizer service for trace summary: {:?}", e);
+                log::warn!(
+                    "Failed to call summarizer service for trace summary: {:?}",
+                    e
+                );
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
@@ -219,20 +239,16 @@ async fn process_single_trace_summary(
 
     match backoff::future::retry(backoff, call_summarizer_service).await {
         Ok(_) => {
-            log::info!(
-                "Successfully generated trace summary: trace_id={}, project_id={}",
-                message.trace_id,
-                message.project_id
-            );
             if let Err(e) = acker.ack().await {
                 log::error!("Failed to ack trace summary message: {:?}", e);
             }
         }
         Err(e) => {
             log::error!(
-                "Failed to generate trace summary after retries: trace_id={}, project_id={}, error={:?}",
+                "Failed to generate trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
                 message.trace_id,
                 message.project_id,
+                message.trigger_span_id,
                 e
             );
             if let Err(e) = acker.reject(false).await {

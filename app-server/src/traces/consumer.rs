@@ -12,6 +12,7 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
+    trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -236,6 +237,13 @@ async fn process_batch(
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
+    // we get project id from the first span in the batch
+    // because all spans in the batch have the same project id
+    // batching is happening on the Otel SpanProcessor level
+    // project_id can never be None, because batch is never empty
+    // but we do unwrap_or_default to avoid Option<Uuid> in the rest of the code
+    let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
+
     for span in &mut spans {
         let span_usage =
             get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
@@ -330,21 +338,9 @@ async fn process_batch(
         }
     }
 
-    // Check for completed traces (top-level spans) and push to trace summary queue
-    for span in &spans {
-        if span.parent_span_id.is_none() {
-            if let Err(e) =
-                push_to_trace_summary_queue(span.trace_id, span.project_id, queue.clone()).await
-            {
-                log::error!(
-                    "Failed to push trace completion to summary queue: trace_id={}, project_id={}, error={:?}",
-                    span.trace_id,
-                    span.project_id,
-                    e
-                );
-            }
-        }
-    }
+    // Check for spans matching trigger conditions and push to trace summary queue
+    check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
+        .await;
 
     // Send realtime messages directly to SSE connections after successful ClickHouse writes
     send_realtime_messages_to_sse(&spans, &sse_connections).await;
@@ -379,26 +375,21 @@ async fn process_batch(
         .sum::<usize>()
         + total_events_ingested_bytes;
 
-    // we get project id from the first span in the batch
-    // because all spans in the batch have the same project id
-    // batching is happening on the Otel SpanProcessor level
-    if let Some(project_id) = stripped_spans.first().map(|s| s.project_id) {
-        if is_feature_enabled(Feature::UsageLimit) {
-            if let Err(e) = update_workspace_limit_exceeded_by_project_id(
-                db.clone(),
-                clickhouse.clone(),
-                cache.clone(),
+    if is_feature_enabled(Feature::UsageLimit) {
+        if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+            db.clone(),
+            clickhouse.clone(),
+            cache.clone(),
+            project_id,
+            total_ingested_bytes,
+        )
+        .await
+        {
+            log::error!(
+                "Failed to update workspace limit exceeded for project [{}]: {:?}",
                 project_id,
-                total_ingested_bytes,
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to update workspace limit exceeded for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-            }
+                e
+            );
         }
     }
 
@@ -512,4 +503,52 @@ fn span_to_realtime_span(span: &Span) -> Value {
         "createdAt": span.start_time, // Use start_time as created_at for compatibility
         // Note: input and output fields are intentionally excluded for performance
     })
+}
+
+/// Check spans against trigger conditions and push matching traces to summary queue
+/// This function groups spans by project to minimize database/cache queries
+async fn check_and_push_trace_summaries(
+    project_id: Uuid,
+    spans: &[Span],
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+) {
+    match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
+        Ok(trigger_spans) => {
+            // Check each span against its project's trigger spans
+            for span in spans {
+                // Check if this span name matches any trigger
+                let matching_triggers = check_span_trigger(&span.name, &trigger_spans);
+
+                // Send one message per matching trigger
+                for trigger in matching_triggers {
+                    if let Err(e) = push_to_trace_summary_queue(
+                        span.trace_id,
+                        span.project_id,
+                        span.span_id,
+                        trigger.event_definition,
+                        queue.clone(),
+                    )
+                    .await
+                    {
+                        log::error!(
+                            "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                            span.trace_id,
+                            span.project_id,
+                            span.name,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to get summary trigger spans for project {}: {:?}",
+                project_id,
+                e
+            );
+        }
+    }
 }
