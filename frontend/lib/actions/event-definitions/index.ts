@@ -134,6 +134,7 @@ export async function createEventDefinition(input: z.infer<typeof CreateEventDef
       name,
       prompt,
       structuredOutput,
+      isSemantic: true,
     })
     .returning();
 
