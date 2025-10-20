@@ -77,8 +77,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
     const interval = groupByInterval || inferGroupByInterval(start, end);
 
     return TimeParametersSchema.parse({
-      start_time: validatedInput.startTime.replace("T", " ").replace("Z", ""),
-      end_time: validatedInput.endTime.replace("T", " ").replace("Z", ""),
+      start_time: start.toISOString().replace("T", " ").replace("Z", ""),
+      end_time: end.toISOString().replace("T", " ").replace("Z", ""),
       interval_unit: interval.toUpperCase(),
     });
   }
