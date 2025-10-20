@@ -1,4 +1,4 @@
-import { differenceInHours, format, parseISO } from "date-fns";
+import { differenceInHours, parseISO } from "date-fns";
 import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
@@ -77,16 +77,19 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
     const interval = groupByInterval || inferGroupByInterval(start, end);
 
     return TimeParametersSchema.parse({
-      start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
-      end_time: format(end, "yyyy-MM-dd HH:mm:ss.SSS"),
+      start_time: validatedInput.startTime.replace("T", " ").replace("Z", ""),
+      end_time: validatedInput.endTime.replace("T", " ").replace("Z", ""),
       interval_unit: interval.toUpperCase(),
     });
   }
 
   if (validatedInput.pastHours === "all") {
+    const startISO = EARLIEST_DATE.toISOString();
+    const endISO = new Date().toISOString();
+
     return TimeParametersSchema.parse({
-      start_time: format(EARLIEST_DATE, "yyyy-MM-dd HH:mm:ss.SSS"),
-      end_time: format(new Date(), "yyyy-MM-dd HH:mm:ss.SSS"),
+      start_time: startISO.replace("T", " ").replace("Z", ""),
+      end_time: endISO.replace("T", " ").replace("Z", ""),
       interval_unit: groupByInterval?.toUpperCase() || GroupByInterval.Day.toUpperCase(),
     });
   }
@@ -100,8 +103,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
   const interval = groupByInterval || inferGroupByInterval(start, now);
 
   return TimeParametersSchema.parse({
-    start_time: format(start, "yyyy-MM-dd HH:mm:ss.SSS"),
-    end_time: format(now, "yyyy-MM-dd HH:mm:ss.SSS"),
+    start_time: start.toISOString().replace("T", " ").replace("Z", ""),
+    end_time: now.toISOString().replace("T", " ").replace("Z", ""),
     interval_unit: interval.toUpperCase(),
   });
 };
