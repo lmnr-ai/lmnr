@@ -45,10 +45,10 @@ export default function Header({
   };
 
   return (
-    <div className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}>
+    <div className={`font-medium flex items-center justify-between flex-none h-12 w-full ${className}`}>
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="ml-2 hover:bg-secondary" />}
-        {workspace && (
+        {/* {workspace && (
           <Link href="/projects" className="flex items-center gap-2 ml-2 text-secondary-foreground max-w-64">
             <p title={workspace.name} className="truncate">
               {workspace.name}
@@ -95,12 +95,12 @@ export default function Header({
             </DropdownMenu>
             <div className="text-secondary-foreground/40">/</div>
           </div>
-        )}
+        )} */}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
             {index > 0 && <div className="text-secondary-foreground/40">/</div>}
             {index === segments.length - 1 ? (
-              <div className="px-3">{segment}</div>
+              <div className="px-2">{segment}</div>
             ) : (
               <Link
                 href={`/project/${projectId}/${segment.replace(/ /g, "-")}`}

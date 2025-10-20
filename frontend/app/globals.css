@@ -40,7 +40,7 @@
     --background: 0 0% 4%;
     --foreground: 0 8% 90%;
 
-    --card: 240 4% 12%;
+    --card: 0 0% 7%;
     --card-foreground: 240 8% 80%;
 
     --popover: 0 0% 8%;
@@ -49,7 +49,7 @@
     --primary: 18 59% 55%;
     --primary-foreground: 16 0% 91%;
 
-    --secondary: 240 4% 16%;
+    --secondary: 0 0% 7%;
     --secondary-foreground: 0 0% 71%;
 
     --muted: 240 6% 16%;
@@ -75,7 +75,7 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
+    --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;

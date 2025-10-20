@@ -356,9 +356,7 @@ export default function TracesTable() {
       data={traces}
       getRowId={(trace) => trace.id}
       onRowClick={handleRowClick}
-      paginated
       focusedRowId={traceId || searchParams.get("traceId")}
-      manualPagination
       pageCount={pageCount}
       defaultPageSize={pageSize}
       defaultPageNumber={pageNumber}

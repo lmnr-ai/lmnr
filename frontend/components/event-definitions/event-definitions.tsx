@@ -45,13 +45,12 @@ export default function EventDefinitions() {
 
   return (
     <div className="flex flex-col flex-1">
-      <Header path="events" />
+      <Header path="events definitions" />
       <div className="flex flex-col flex-1 overflow-auto">
-        <div className="flex gap-4 p-4 items-center justify-between">
-          <div className="text-2xl font-medium">Event Definitions</div>
+        <div className="flex gap-4 p-4 pt-2 items-center justify-between">
           {!isFreeTier && (
             <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-              <Button variant="outline" onClick={() => setIsDialogOpen(true)}>
+              <Button variant="default" onClick={() => setIsDialogOpen(true)}>
                 New Event Definition
               </Button>
             </ManageEventDefinitionDialog>
@@ -71,6 +70,6 @@ export default function EventDefinitions() {
           onRowClick={handleRowClick}
         />
       </div>
-    </div>
+    </div >
   );
 }

@@ -66,7 +66,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
               gbUsedThisMonth={project.gbUsedThisMonth}
               gbLimit={project.gbLimit}
             />
-            <SidebarInset className="overflow-hidden">
+            <SidebarInset className="overflow-hidden bg-sidebar pt-4">
               {showBanner && (
                 <ProjectUsageBanner
                   workspaceId={project.workspaceId}
@@ -74,7 +74,9 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   gbLimit={project.gbLimit}
                 />
               )}
-              {children}
+              <div className="flex flex-col h-full bg-background rounded-tl-lg border"  >
+                {children}
+              </div>
             </SidebarInset>
           </SidebarProvider>
         </div>

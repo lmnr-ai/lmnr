@@ -100,9 +100,9 @@ export default function ProjectSidebar({
   const options = useMemo(() => getSidebarMenus(projectId), [projectId]);
 
   return (
-    <Sidebar className="border-r" collapsible="icon">
-      <SidebarHeader className="h-12 bg-background">
-        <Link
+    <Sidebar className="border-none" collapsible="icon">
+      <SidebarHeader className="h-12">
+        {/* <Link
           href="/projects"
           className={`flex h-12 items-center ${open || openMobile ? "justify-start pl-2" : "justify-center"}`}
         >
@@ -112,9 +112,9 @@ export default function ProjectSidebar({
             width={open || openMobile ? 120 : 20}
             height={open || openMobile ? undefined : 20}
           />
-        </Link>
+        </Link> */}
       </SidebarHeader>
-      <SidebarContent className="pt-2 bg-background">
+      <SidebarContent className="pt-2">
         <SidebarMenu className={cn(open || openMobile ? undefined : "justify-center items-center flex")}>
           {options.map((option, i) => (
             <SidebarMenuItem key={i} className="h-7">
@@ -168,7 +168,7 @@ export default function ProjectSidebar({
           </div>
         )}
       </SidebarContent>
-      <SidebarFooter className="bg-background p-4 gap-1">
+      <SidebarFooter className="p-4 gap-1">
         <Link
           href="https://discord.gg/nNFUUDAKub"
           target="_blank"

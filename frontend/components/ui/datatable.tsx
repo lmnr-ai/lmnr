@@ -69,44 +69,44 @@ const checkboxColumn = <TData,>(
   setAllRowsAcrossAllPagesSelected: Dispatch<SetStateAction<boolean>>,
   onSelectAllAcrossPages: DataTableProps<TData>["onSelectAllAcrossPages"]
 ): ColumnDef<TData> => ({
-    id: "__row_selection",
-    enableResizing: false,
-    header: ({ table }) => (
-      <Checkbox
-        className="border border-secondary"
-        checked={table.getIsAllRowsSelected()}
-        onCheckedChange={(checked) => {
-          if (!checked) {
-            setAllRowsAcrossAllPagesSelected?.(false);
-            onSelectAllAcrossPages?.(false);
-          }
-        }}
-        onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
-        onClick={(e) => {
-          e.stopPropagation();
-          table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
-        }}
-      />
-    ),
-    size: 52,
-    cell: ({ row }) => (
-      <Checkbox
-        className={cn("border border-secondary")}
-        checked={row.getIsSelected()}
-        onCheckedChange={(checked) => {
-          if (!checked) {
-            setAllRowsAcrossAllPagesSelected?.(false);
-            onSelectAllAcrossPages?.(false);
-          }
-        }}
-        onChange={row.getToggleSelectedHandler()}
-        onClick={(e) => {
-          e.stopPropagation();
-          row.toggleSelected(!row.getIsSelected());
-        }}
-      />
-    ),
-  });
+  id: "__row_selection",
+  enableResizing: false,
+  header: ({ table }) => (
+    <Checkbox
+      className="border border-secondary"
+      checked={table.getIsAllRowsSelected()}
+      onCheckedChange={(checked) => {
+        if (!checked) {
+          setAllRowsAcrossAllPagesSelected?.(false);
+          onSelectAllAcrossPages?.(false);
+        }
+      }}
+      onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+      onClick={(e) => {
+        e.stopPropagation();
+        table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
+      }}
+    />
+  ),
+  size: 52,
+  cell: ({ row }) => (
+    <Checkbox
+      className={cn("border border-secondary")}
+      checked={row.getIsSelected()}
+      onCheckedChange={(checked) => {
+        if (!checked) {
+          setAllRowsAcrossAllPagesSelected?.(false);
+          onSelectAllAcrossPages?.(false);
+        }
+      }}
+      onChange={row.getToggleSelectedHandler()}
+      onClick={(e) => {
+        e.stopPropagation();
+        row.toggleSelected(!row.getIsSelected());
+      }}
+    />
+  ),
+});
 
 export function DataTable<TData>({
   columns,
@@ -258,18 +258,19 @@ export function DataTable<TData>({
 
   const content = (
     <Table
-      className="border-separate border-spacing-0 relative"
+      className="border-separate border-spacing-0 relative border border-b-0 rounded bg-sidebar text-xs"
       style={{
         width: table.getHeaderGroups()[0].headers.reduce((acc, header) => acc + header.getSize(), 0),
       }}
     >
-      <TableHeader className="sticky top-0 z-20 text-xs bg-background flex">
+      <TableHeader className="sticky top-0 z-20 text-xs flex">
         {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow className="hover:bg-background p-0 m-0 w-full" key={headerGroup.id}>
+          <TableRow className="p-0 m-0 w-full" key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
               <TableHead
                 colSpan={header.colSpan}
                 style={{
+                  height: 32,
                   width: header.getSize(),
                   minWidth: header.getSize(),
                 }}
@@ -326,7 +327,7 @@ export function DataTable<TData>({
   );
 
   return (
-    <div className={cn("flex flex-col h-full border-t relative", className)}>
+    <div className={cn("flex flex-col h-full relative", className)}>
       {currentSelectedRowIds.length > 0 && (
         <div className="bg-background h-12 flex flex-none px-4 items-center border-primary border-[1.5px] rounded-lg absolute bottom-20 z-50 left-1/2 transform -translate-x-1/2">
           <Label className="">
@@ -352,10 +353,10 @@ export function DataTable<TData>({
         </div>
       )}
       {children && (
-        <div className={cn("flex items-center space-x-2 h-12 px-4 border-b", childrenClassName)}>{children}</div>
+        <div className={cn("flex items-center space-x-2 h-12 px-4", childrenClassName)}>{children}</div>
       )}
       <ScrollArea className="flex-grow overflow-auto">
-        <div className="max-h-0">{content}</div>
+        <div className="max-h-0 p-4 pt-0">{content}</div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       {paginated && (
