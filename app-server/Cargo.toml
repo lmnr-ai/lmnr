@@ -39,6 +39,7 @@ redis = {version = "0.32.4", features = ["tokio-comp"]}
 regex = "1.11.1"
 reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
+# Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.45.0, opentelemetry = 0.29
 sentry = {version = "0.45.0", features = ["opentelemetry"]}
 serde = "1.0"
 serde_json = {version = "1.0.140", features = ["preserve_order"]}
@@ -51,6 +52,7 @@ tokio = {version = "1.46", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.13", features = ["gzip"]}
 tracing = {version = "0.1.41", features = ["attributes"]}
+# Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 url = "2.5.4"
