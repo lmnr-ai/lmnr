@@ -110,9 +110,7 @@ fn main() -> anyhow::Result<()> {
         traces_sample_rate: 1.0,
         environment: Some(Cow::Owned(env::var("ENVIRONMENT").unwrap_or("development".to_string()))),
         before_send: Some(Arc::new(|event| {
-            dbg!(&event);
             if event.extra.get("sql_query").is_some() {
-                dbg!(&event);
                 Some(event)
             } else {
                 None
