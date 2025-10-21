@@ -91,7 +91,7 @@ pub async fn execute_sql_query(
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
 ) -> Result<Vec<Value>, SqlQueryError> {
-    let tracer = global::tracer("tracer");
+    let tracer = global::tracer("app-server");
 
     let mut span = tracer.start("call_query_engine");
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
