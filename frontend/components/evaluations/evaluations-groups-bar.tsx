@@ -14,7 +14,7 @@ export default function EvaluationsGroupsBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { data: groups, isLoading } = useSWR<{ groupId: string; lastEvaluationCreatedAt: string }[]>(
+  const { data: groups } = useSWR<{ groupId: string; lastEvaluationCreatedAt: string }[]>(
     `/api/projects/${projectId}/evaluation-groups`,
     swrFetcher
   );
@@ -31,17 +31,19 @@ export default function EvaluationsGroupsBar() {
     {
       header: "Group",
       accessorFn: (row) => row.groupId,
+      size: 135,
     },
     {
       header: "Last Evaluation",
       accessorFn: (row) => row.lastEvaluationCreatedAt,
       cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEvaluationCreatedAt} />,
+      size: 135,
     },
   ];
 
   return (
-    <div className="flex-none w-80 border-r flex flex-col">
-      <div className="font-medium p-2 px-4 text-lg">Groups</div>
+    <div className="max-w-80 flex flex-col gap-2 px-4">
+      <div className="font-medium text-lg">Groups</div>
       <DataTable
         columns={columns}
         data={groups}

@@ -1,5 +1,5 @@
 import { Activity, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
-import React from "react";
+import React, { useMemo } from "react";
 
 import {
   SidebarContent,
@@ -36,14 +36,22 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   },
 ];
 
-const WorkspaceSidebarContent = () => {
+const WorkspaceSidebarContent = ({ isOwner }: { isOwner: boolean }) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
+  const sidebarMenus = useMemo(() => {
+    if (!isOwner) {
+      return menus.filter((m) => m.value !== "settings");
+    }
+
+    return menus;
+  }, [isOwner]);
+
   return (
     <SidebarContent>
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            {menus.map((m) => (
+            {sidebarMenus.map((m) => (
               <SidebarMenuItem className="h-7" key={m.name}>
                 <SidebarMenuButton
                   className={cn({

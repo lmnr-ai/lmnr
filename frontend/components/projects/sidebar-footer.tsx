@@ -3,7 +3,7 @@ import Link from "next/link";
 import React from "react";
 
 import DiscordLogo from "@/assets/logo/discord.tsx";
-import { LaminarLogo } from "@/components/ui/icons.tsx";
+import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -66,12 +66,25 @@ const SidebarFooterComponent = () => {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem className="mt-2">
-              <Link
-                href="/projects"
-                className={`flex items-center ${open || openMobile ? "justify-center" : "justify-center"}`}
-              >
-                <LaminarLogo fill="#b5b5b5" className="w-[144px] h-6 text-secondary" />
+            <SidebarMenuItem className="mt-4">
+              <Link href="/projects" className="flex items-center">
+                <div className="relative flex ml-4">
+                  <LaminarIcon
+                    className={cn(
+                      "w-4 h-4 transition-all duration-300 ease-in-out",
+                      open || openMobile ? "opacity-0 scale-50 absolute" : "opacity-100 scale-100"
+                    )}
+                    fill="#b5b5b5"
+                  />
+
+                  <LaminarLogo
+                    fill="#b5b5b5"
+                    className={cn(
+                      "w-30 h-5 text-secondary transition-all duration-300 ease-in-out",
+                      open || openMobile ? "opacity-100 scale-100" : "opacity-0 scale-50 absolute"
+                    )}
+                  />
+                </div>
               </Link>
             </SidebarMenuItem>
           </SidebarMenu>

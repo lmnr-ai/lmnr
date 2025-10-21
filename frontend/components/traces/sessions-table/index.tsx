@@ -237,29 +237,29 @@ export default function SessionsTable() {
   );
 
   return (
-    <DataTable
-      className="border-none w-full"
-      columns={columns}
-      data={sessions}
-      getRowId={(session) => get(session, ["id"], session.sessionId)}
-      onRowClick={handleRowClick}
-      paginated
-      focusedRowId={searchParams.get("sessionId")}
-      manualPagination
-      pageCount={pageCount}
-      defaultPageSize={pageSize}
-      defaultPageNumber={pageNumber}
-      onPageChange={onPageChange}
-      totalItemsCount={totalCount}
-      childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-    >
-      <div className="flex flex-1 w-full space-x-2">
-        <DataTableFilter columns={filters} />
-        <DateRangeFilter />
-        <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSessions} variant="outline" className="text-xs" />
-        <SearchInput placeholder="Search in sessions..." />
-      </div>
-      <DataTableFilterList />
-    </DataTable>
+    <div className="flex flex-1 h-full overflow-hidden px-4 pb-4">
+      <DataTable
+        className="border-none w-full"
+        columns={columns}
+        data={sessions}
+        getRowId={(session) => get(session, ["id"], session.sessionId)}
+        onRowClick={handleRowClick}
+        focusedRowId={searchParams.get("sessionId")}
+        pageCount={pageCount}
+        defaultPageSize={pageSize}
+        defaultPageNumber={pageNumber}
+        onPageChange={onPageChange}
+        totalItemsCount={totalCount}
+        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+      >
+        <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter columns={filters} />
+          <DateRangeFilter />
+          <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getSessions} variant="outline" className="text-xs" />
+          <SearchInput placeholder="Search in sessions..." />
+        </div>
+        <DataTableFilterList />
+      </DataTable>
+    </div>
   );
 }

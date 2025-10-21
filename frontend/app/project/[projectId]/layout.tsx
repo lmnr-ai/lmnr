@@ -7,7 +7,7 @@ import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
-import ProjectSidebar from "@/components/project/project-sidebar";
+import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
@@ -30,14 +30,14 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   }
   const user = session.user;
 
-  const project = await getProjectDetails(projectId);
-  const workspace = await getWorkspaceInfo(project.workspaceId);
-  const projects = await getProjectsByWorkspace(project.workspaceId);
+  const projectDetails = await getProjectDetails(projectId);
+  const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
+  const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
-    project.isFreeTier &&
-    project.gbLimit > 0 &&
-    project.gbUsedThisMonth >= 0.8 * project.gbLimit;
+    projectDetails.isFreeTier &&
+    projectDetails.gbLimit > 0 &&
+    projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -56,24 +56,12 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       supabaseAccessToken={session.supabaseAccessToken}
     >
       <PostHogIdentifier email={user.email!} />
-      <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
+      <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
         <div className="flex flex-1 overflow-hidden max-h-screen">
           <SidebarProvider className="bg-sidebar" defaultOpen={defaultOpen}>
-            <ProjectSidebar
-              workspaceId={project.workspaceId}
-              isFreeTier={project.isFreeTier}
-              projectId={projectId}
-              gbUsedThisMonth={project.gbUsedThisMonth}
-              gbLimit={project.gbLimit}
-            />
-            <SidebarInset className="overflow-hidden mt-4 flex flex-col h-full rounded-tl-lg border">
-              {showBanner && (
-                <ProjectUsageBanner
-                  workspaceId={project.workspaceId}
-                  gbUsedThisMonth={project.gbUsedThisMonth}
-                  gbLimit={project.gbLimit}
-                />
-              )}
+            <ProjectSidebar details={projectDetails} />
+            <SidebarInset className="overflow-hidden flex flex-col flex-1 rounded-tl-lg border">
+              {showBanner && <ProjectUsageBanner details={projectDetails} />}
               {children}
             </SidebarInset>
           </SidebarProvider>

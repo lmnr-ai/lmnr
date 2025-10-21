@@ -104,8 +104,12 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
 
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
-      <Tabs className="flex flex-col h-full w-full" value={tracesTab} onValueChange={(value) => resetUrlParams(value)}>
-        <TabsList className="mx-4">
+      <Tabs
+        className="flex flex-1 overflow-hidden gap-4"
+        value={tracesTab}
+        onValueChange={(value) => resetUrlParams(value)}
+      >
+        <TabsList className="mx-4 h-8">
           <TabsTrigger className="text-xs" value="traces">
             Traces
           </TabsTrigger>
@@ -116,7 +120,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
             Sessions
           </TabsTrigger>
         </TabsList>
-        <TabsContent className="flex flex-1 h-full" value="traces" asChild>
+        <TabsContent value="traces" asChild>
           <TracesTable />
         </TabsContent>
         <TabsContent value="spans" asChild>

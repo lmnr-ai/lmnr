@@ -170,12 +170,12 @@ export default function Evaluations() {
   }
 
   return (
-    <div className="flex flex-col flex-1">
+    <>
       <Header path="evaluations" />
       <div className="flex flex-1">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col flex-1 overflow-auto">
-          <div className="flex gap-4 pt-4 px-4 items-center">
+        <div className="flex flex-col gap-2 flex-1 overflow-auto">
+          <div className="flex gap-4 items-center">
             <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
             <Select
               value={aggregationFunction}
@@ -193,16 +193,16 @@ export default function Evaluations() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel className="px-2 grow" minSize={20} defaultSize={20}>
+          <ResizablePanelGroup className="pr-4" direction="vertical">
+            <ResizablePanel className="px-2 border rounded bg-sidebar" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
                 className="h-full px-2 py-4"
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>
-            <ResizableHandle className="z-30" />
-            <ResizablePanel className="grow" minSize={40} defaultSize={40}>
+            <ResizableHandle className="z-30 my-2" />
+            <ResizablePanel className="flex flex-1 overflow-hidden pb-4" minSize={40} defaultSize={40}>
               <DataTable
                 enableRowSelection
                 columns={columns}
@@ -214,10 +214,8 @@ export default function Evaluations() {
                 totalItemsCount={Number(data?.totalCount || 0)}
                 onPageChange={handlePageChange}
                 getRowId={(row: Evaluation) => row.id}
-                paginated
-                manualPagination
                 pageSizeOptions={[10, 25]}
-                childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
+                childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -238,6 +236,6 @@ export default function Evaluations() {
           </ResizablePanelGroup>
         </div>
       </div>
-    </div>
+    </>
   );
 }

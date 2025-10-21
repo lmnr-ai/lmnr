@@ -87,21 +87,23 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
           <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span-input">
-            <div className="border-b shrink-0">
-              <TabsList className="border-none text-sm px-4">
-                <TabsTrigger value="span-input" className="truncate">
-                  Span Input
-                </TabsTrigger>
-                <TabsTrigger value="span-output" className="truncate">
-                  Span Output
-                </TabsTrigger>
-                <TabsTrigger value="attributes" className="truncate">
-                  Attributes
-                </TabsTrigger>
-                <TabsTrigger value="events" className="truncate">
-                  Events
-                </TabsTrigger>
-              </TabsList>
+            <div className="px-4">
+              <div className="bg-secondary rounded mt-1">
+                <TabsList className="border-none text-xs gap-2 h-7">
+                  <TabsTrigger value="span-input" className="truncate text-xs">
+                    Span Input
+                  </TabsTrigger>
+                  <TabsTrigger value="span-output" className="truncate text-xs">
+                    Span Output
+                  </TabsTrigger>
+                  <TabsTrigger value="attributes" className="truncate text-xs">
+                    Attributes
+                  </TabsTrigger>
+                  <TabsTrigger value="events" className="truncate text-xs">
+                    Events
+                  </TabsTrigger>
+                </TabsList>
+              </div>
             </div>
             <div className="flex-1 flex overflow-hidden">
               <TabsContent value="span-input" className="w-full h-full">
@@ -110,7 +112,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               <TabsContent value="span-output" className="w-full h-full">
                 <SpanContent span={span} type="output" />
               </TabsContent>
-              <TabsContent value="attributes" className="w-full h-full">
+              <TabsContent value="attributes" className="w-full h-full p-4">
                 <CodeHighlighter
                   className="border-none"
                   readOnly

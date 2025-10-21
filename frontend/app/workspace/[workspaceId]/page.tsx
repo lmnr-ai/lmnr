@@ -97,7 +97,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
       <WorkspaceMenuProvider>
         <div className="flex flex-1 overflow-hidden max-h-screen">
           <SidebarProvider className="bg-sidebar">
-            <WorkspaceSidebar workspace={workspace} />
+            <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
             <SidebarInset className="overflow-hidden mt-4 flex flex-col h-full rounded-tl-lg border">
               <WorkspaceComponent
                 invitations={invitations}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
+import { Plus } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -44,18 +45,16 @@ export default function EventDefinitions() {
   }, [fetchEventDefinitions]);
 
   return (
-    <div className="flex flex-col flex-1">
+    <>
       <Header path="events definitions" />
-      <div className="flex flex-col flex-1 overflow-auto">
-        <div className="flex gap-4 p-4 pt-2 items-center justify-between">
-          {!isFreeTier && (
-            <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-              <Button variant="default" onClick={() => setIsDialogOpen(true)}>
-                New Event Definition
-              </Button>
-            </ManageEventDefinitionDialog>
-          )}
-        </div>
+      <div className="flex flex-col gap-4 flex-1 overflow-auto px-4">
+        {!isFreeTier && (
+          <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+            <Button className="w-fit" variant="default" onClick={() => setIsDialogOpen(true)}>
+              <Plus className="size-4 mr-2" /> Event Definition
+            </Button>
+          </ManageEventDefinitionDialog>
+        )}
         <DataTable
           emptyRow={
             <TableRow>
@@ -70,6 +69,6 @@ export default function EventDefinitions() {
           onRowClick={handleRowClick}
         />
       </div>
-    </div >
+    </>
   );
 }

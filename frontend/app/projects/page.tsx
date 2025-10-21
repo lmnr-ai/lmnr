@@ -1,16 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import Header from "@/components/ui/header";
-import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
-
-import PostHogClient from "../posthog";
-import PostHogIdentifier from "../posthog-identifier";
 
 export const dynamic = "force-dynamic";
 
@@ -33,32 +28,15 @@ export default async function ProjectsPage() {
 
   const user = session.user;
 
-  const [{ count }] = await db
-    .select({ count: sql`count(*)`.mapWith(Number) })
+  const workspaces = await db
+    .select({ workspaceId: membersOfWorkspaces.workspaceId })
     .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.userId, user.id));
+    .where(eq(membersOfWorkspaces.userId, user.id))
+    .limit(1);
 
-  if (count === 0) {
+  if (workspaces.length === 0) {
     return redirect("/onboarding");
   }
 
-  const posthog = PostHogClient();
-  posthog.identify({
-    distinctId: user.email ?? "",
-  });
-
-  return (
-    <UserContextProvider
-      id={user.id}
-      email={user.email!}
-      supabaseAccessToken={session.supabaseAccessToken}
-      username={user.name!}
-      imageUrl={user.image!}
-    >
-      <PostHogIdentifier email={user.email!} />
-      <div className="flex flex-col grow min-h-screen ml-64 overflow-auto">
-        <Header path="Projects" showSidebarTrigger={false} />
-      </div>
-    </UserContextProvider>
-  );
+  return redirect(`/workspace/${workspaces[0].workspaceId}`);
 }

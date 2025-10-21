@@ -316,27 +316,30 @@ export default function TracesTable() {
   );
 
   return (
-    <DataTable
-      className="border-none w-full"
-      columns={columns}
-      data={traces}
-      getRowId={(trace) => trace.id}
-      onRowClick={handleRowClick}
-      focusedRowId={traceId || searchParams.get("traceId")}
-      pageCount={pageCount}
-      defaultPageSize={pageSize}
-      defaultPageNumber={pageNumber}
-      onPageChange={onPageChange}
-      totalItemsCount={totalCount}
-      childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-    >
-      <div className="flex flex-1 w-full space-x-2">
-        <DataTableFilter presetFilters={presetFilters} columns={filters} />
-        <DateRangeFilter />
-        <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
-        <SearchTracesInput />
-      </div>
-      <DataTableFilterList />
-    </DataTable>
+    <div className="flex flex-1 h-full overflow-hidden">
+      <DataTable
+        className="border-none w-full"
+        columns={columns}
+        data={traces}
+        getRowId={(trace) => trace.id}
+        onRowClick={handleRowClick}
+        focusedRowId={traceId || searchParams.get("traceId")}
+        pageCount={pageCount}
+        defaultPageSize={pageSize}
+        defaultPageNumber={pageNumber}
+        onPageChange={onPageChange}
+        totalItemsCount={totalCount}
+        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+        scrollContentClassName="mb-4 mx-4"
+      >
+        <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter presetFilters={presetFilters} columns={filters} />
+          <DateRangeFilter />
+          <RefreshButton iconClassName="w-3.5 h-3.5" onClick={getTraces} variant="outline" className="text-xs" />
+          <SearchTracesInput />
+        </div>
+        <DataTableFilterList />
+      </DataTable>
+    </div>
   );
 }
