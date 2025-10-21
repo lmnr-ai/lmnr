@@ -109,17 +109,15 @@ fn main() -> anyhow::Result<()> {
         release: sentry::release_name!(),
         traces_sample_rate: 1.0,
         environment: Some(Cow::Owned(env::var("ENVIRONMENT").unwrap_or("development".to_string()))),
-        before_send: Some(Arc::new(|event| {
-            if event.extra.get("sql_query").is_some() {
-                Some(event)
-            } else {
-                None
-            }
+        before_send: Some(Arc::new(|_| {
+            // We don't want Sentry to record events. We only use it for OTel tracing.
+            None
         })),
         ..Default::default()
     }));
 
-    if !is_feature_enabled(Feature::Tracing) {
+    if !is_feature_enabled(Feature::Tracing) || env::var("SENTRY_DSN").is_err() {
+        // If tracing is not enabled, drop the sentry guard, thus disabling sentry
         drop(_sentry_guard);
     }
 
