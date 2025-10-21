@@ -166,6 +166,7 @@ pub async fn execute_sql_query(
             SqlQueryError::InternalError(e.to_string())
         }
     })?;
+    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
     span.end();
 
     let mut processing_span = tracer.start("process_query_response");
