@@ -101,9 +101,19 @@ pub async fn execute_sql_query(
     let validated_query = match validation_result {
         Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
         Ok(QueryEngineValidationResult::Error { error }) => {
+            span.record_error(&std::io::Error::new(
+                std::io::ErrorKind::Other,
+                error.clone(),
+            ));
+            span.end();
             return Err(SqlQueryError::ValidationError(error));
         }
         Err(e) => {
+            span.record_error(&std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ));
+            span.end();
             return Err(SqlQueryError::ValidationError(e.to_string()));
         }
     };
