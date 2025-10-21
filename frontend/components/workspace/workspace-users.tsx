@@ -4,7 +4,7 @@ import { isEmpty } from "lodash";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { Label } from "@/components/ui/label";
+import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
@@ -160,38 +160,44 @@ export default function WorkspaceUsers({
   );
 
   return (
-    <div className="p-4">
-      <div className="flex flex-col items-start gap-4 w-2/3">
-        <div className="flex flex-row w-full gap-4">
-          {canManageUsers && (
-            <div className="flex flex-col gap-4">
-              {isOwner && (
-                <>
-                  <Label>
-                    You have {workspaceStats.membersLimit} seat{workspaceStats.membersLimit > 1 ? "s" : ""} in this
-                    workspace
-                  </Label>
-                  {workspace.tierName === WorkspaceTier.PRO && (
-                    <PurchaseSeatsDialog
-                      workspaceId={workspace.id}
-                      currentQuantity={workspaceStats.membersLimit}
-                      seatsIncludedInTier={workspaceStats.seatsIncludedInTier}
-                      onUpdate={() => {
-                        router.refresh();
-                      }}
-                    />
-                  )}
-                </>
-              )}
-              <AddUserDialog
-                workspaceStats={workspaceStats}
-                open={dialogState.type === "addUser"}
-                onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
-                workspace={workspace}
-              />
-            </div>
-          )}
+    <>
+      <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
 
+      {isOwner && (
+        <SettingsSection>
+          <SettingsSectionHeader
+            size="sm"
+            title="Workspace seats"
+            description={`You have ${workspaceStats.membersLimit} seat${workspaceStats.membersLimit > 1 ? "s" : ""} in this workspace`}
+          />
+          {workspace.tierName === WorkspaceTier.PRO && (
+            <PurchaseSeatsDialog
+              workspaceId={workspace.id}
+              currentQuantity={workspaceStats.membersLimit}
+              seatsIncludedInTier={workspaceStats.seatsIncludedInTier}
+              onUpdate={() => {
+                router.refresh();
+              }}
+            />
+          )}
+        </SettingsSection>
+      )}
+
+      <SettingsSection>
+        <div className="flex items-center justify-between">
+          <SettingsSectionHeader
+            size="sm"
+            title="Workspace members"
+            description={`${workspace.users.length} member${workspace.users.length > 1 ? "s" : ""} in this workspace`}
+          />
+          {canManageUsers && (
+            <AddUserDialog
+              workspaceStats={workspaceStats}
+              open={dialogState.type === "addUser"}
+              onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
+              workspace={workspace}
+            />
+          )}
           {!isOwner && (
             <LeaveWorkspaceDialog
               user={workspace.users?.find(isCurrentUser)}
@@ -201,31 +207,41 @@ export default function WorkspaceUsers({
             />
           )}
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-none bg-card text-card-foreground rounded-lg overflow-hidden">
-              <TableHead className="p-2 rounded-l">Email</TableHead>
-              <TableHead className="p-2">Role</TableHead>
-              <TableHead className="p-2">Added</TableHead>
-              <TableHead className="p-2 rounded-r">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {workspace.users.map((user, i) => (
-              <TableRow key={user.id} className="h-14">
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{renderRoleCell(user)}</TableCell>
-                <TableCell>{formatTimestamp(user.createdAt)}</TableCell>
-                {renderActionCell(user)}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
 
-        {canManageUsers && !isEmpty(invitations) && (
+        <div className="border rounded-md">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-3">Email</TableHead>
+                <TableHead className="px-3">Role</TableHead>
+                <TableHead className="px-3">Added</TableHead>
+                <TableHead className="px-3">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {workspace.users.map((user) => (
+                <TableRow className="border-b last:border-b-0 h-12" key={user.id}>
+                  <TableCell className="font-medium px-3">{user.email}</TableCell>
+                  <TableCell className="px-3">{renderRoleCell(user)}</TableCell>
+                  <TableCell className="text-muted-foreground px-3">{formatTimestamp(user.createdAt)}</TableCell>
+                  {renderActionCell(user)}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </SettingsSection>
+
+      {canManageUsers && !isEmpty(invitations) && (
+        <SettingsSection>
+          <SettingsSectionHeader
+            size="sm"
+            title="Pending invitations"
+            description={`${invitations.length} pending invitation${invitations.length > 1 ? "s" : ""}`}
+          />
           <InvitationsTable workspaceId={workspace.id} invitations={invitations} />
-        )}
-      </div>
+        </SettingsSection>
+      )}
 
       <RemoveUserDialog
         workspace={workspace}
@@ -233,6 +249,6 @@ export default function WorkspaceUsers({
         onOpenChange={(open) => (open ? openDialog("removeUser", dialogState.targetUser) : closeDialog())}
         user={dialogState.targetUser}
       />
-    </div>
+    </>
   );
 }

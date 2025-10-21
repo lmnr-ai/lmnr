@@ -100,7 +100,7 @@ export default function Queues() {
           <Button variant="default">New queue</Button>
         </CreateQueueDialog>
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <DataTable
           paginated
           enableRowSelection={true}

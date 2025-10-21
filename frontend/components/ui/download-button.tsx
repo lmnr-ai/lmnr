@@ -44,7 +44,7 @@ const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: 
 interface DownloadButtonProps {
   uri: string;
   filenameFallback: string;
-  variant?: "default" | "secondary" | "destructive" | "outline" | "ghost";
+  variant?: "default" | "secondary" | "destructive" | "outline-solid" | "ghost";
   className?: string;
   supportedFormats?: string[];
   text?: string;
@@ -64,7 +64,7 @@ function DownloadButtonSingleFormat({ uri, filenameFallback, variant, className,
     <Button
       variant={variant}
       className={cn(
-        "flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none",
+        "flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-hidden",
         className
       )}
       disabled={isDownloading}
@@ -97,12 +97,12 @@ function DownloadButtonMultipleFormats({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+        className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
       >
         {supportedFormats.map((format) => (
           <DropdownMenuItem
             key={format}
-            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground"
             onClick={async () => {
               setIsDownloading(true);
               await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);

@@ -112,7 +112,7 @@ const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }
   }, [setNavigationRefList, data]);
 
   return (
-    <div className="flex-grow">
+    <div className="grow">
       <DataTable
         columns={columns}
         data={data}

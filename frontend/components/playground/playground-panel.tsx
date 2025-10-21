@@ -165,7 +165,7 @@ export default function PlaygroundPanel({
         <ToolsSheet />
         <StructuredOutputSheet />
         <Button
-          variant={history ? "outlinePrimary" : "outline"}
+          variant={history ? "outlinePrimary" : "outline-solid"}
           size="sm"
           onClick={() => setHistory(!history)}
           className="h-8 w-fit px-2"

@@ -28,9 +28,9 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-    traceId: string;
-    spanId: string;
-  };
+      traceId: string;
+      spanId: string;
+    };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
@@ -104,57 +104,57 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
 
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
-      <div className="flex flex-col flex-1">
-        <Tabs
-          value={tracesTab}
-          className="flex flex-col h-full w-full"
-          onValueChange={(value) => resetUrlParams(value)}
-        >
-          <TabsList className="w-full flex px-4 text-sm">
-            <TabsTrigger value="traces">Traces</TabsTrigger>
-            <TabsTrigger value="spans">Spans</TabsTrigger>
-            <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          </TabsList>
-          <TabsContent value="traces" asChild>
-            <TracesTable />
-          </TabsContent>
-          <TabsContent value="spans" asChild>
-            <SpansTable />
-          </TabsContent>
-          <TabsContent value="sessions" asChild>
-            <SessionsTable />
-          </TabsContent>
-        </Tabs>
-        {traceId && (
-          <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-            <Resizable
-              ref={ref}
-              onResizeStop={handleResizeStop}
-              enable={{
-                left: true,
-              }}
-              defaultSize={{
-                width: defaultTraceViewWidth,
-              }}
-            >
-              <FiltersContextProvider columns={filterColumns}>
-                <TraceView
-                  spanId={spanId || undefined}
-                  key={traceId}
-                  onClose={() => {
-                    const params = new URLSearchParams(searchParams);
-                    params.delete("traceId");
-                    params.delete("spanId");
-                    router.push(`${pathName}?${params.toString()}`);
-                    setTraceId(null);
-                  }}
-                  traceId={traceId}
-                />
-              </FiltersContextProvider>
-            </Resizable>
-          </div>
-        )}
-      </div>
+      <Tabs className="flex flex-col h-full w-full" value={tracesTab} onValueChange={(value) => resetUrlParams(value)}>
+        <TabsList className="mx-4">
+          <TabsTrigger className="text-xs" value="traces">
+            Traces
+          </TabsTrigger>
+          <TabsTrigger className="text-xs" value="spans">
+            Spans
+          </TabsTrigger>
+          <TabsTrigger className="text-xs" value="sessions">
+            Sessions
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent className="flex flex-1 h-full" value="traces" asChild>
+          <TracesTable />
+        </TabsContent>
+        <TabsContent value="spans" asChild>
+          <SpansTable />
+        </TabsContent>
+        <TabsContent value="sessions" asChild>
+          <SessionsTable />
+        </TabsContent>
+      </Tabs>
+      {traceId && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+          <Resizable
+            ref={ref}
+            onResizeStop={handleResizeStop}
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: defaultTraceViewWidth,
+            }}
+          >
+            <FiltersContextProvider columns={filterColumns}>
+              <TraceView
+                spanId={spanId || undefined}
+                key={traceId}
+                onClose={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete("traceId");
+                  params.delete("spanId");
+                  router.push(`${pathName}?${params.toString()}`);
+                  setTraceId(null);
+                }}
+                traceId={traceId}
+              />
+            </FiltersContextProvider>
+          </Resizable>
+        </div>
+      )}
     </TraceViewNavigationProvider>
   );
 }

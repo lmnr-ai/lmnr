@@ -84,8 +84,8 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button className="self-start" variant="outline" disabled>
-                <Plus className="w-4 mr-1 text-gray-500" />
+              <Button className="h-9 w-fit" variant="outline" disabled>
+                <Plus className="w-4 h-4 mr-2 text-gray-500" />
                 Invite member
               </Button>
             </TooltipTrigger>
@@ -97,12 +97,11 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
       ) : (
         <DialogTrigger asChild>
           <Button
-            className="self-start"
             disabled={workspace.users.length >= workspaceStats.membersLimit}
             onClick={() => onOpenChange(true)}
             variant="outline"
           >
-            <Plus className="w-4 mr-1" />
+            <Plus className="w-4 h-4 mr-2" />
             Invite member
           </Button>
         </DialogTrigger>

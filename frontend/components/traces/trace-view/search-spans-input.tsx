@@ -88,7 +88,7 @@ const SearchSpansInput = ({
       {open && (
         <div
           className={cn(
-            "absolute z-40 top-10 bg-background flex flex-col gap-2 flex-1 mx-2 w-[calc(100%_-_16px)] rounded transition-all duration-100 ease-linear p-2 border border-t-0 rounded-t-none",
+            "absolute z-40 top-10 bg-background flex flex-col gap-2 flex-1 mx-2 w-[calc(100%-16px)] rounded transition-all duration-100 ease-linear p-2 border border-t-0 rounded-t-none",
             filterBoxClassName
           )}
           onMouseDown={(e) => e.preventDefault()}

@@ -38,7 +38,7 @@ export default function PurchaseSeatsDialog({
       }
     }} open={isOpen}>
       <DialogTrigger asChild>
-        <Button variant="default">Add seats</Button>
+        <Button variant="default" className="h-9 w-fit">Add seats</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

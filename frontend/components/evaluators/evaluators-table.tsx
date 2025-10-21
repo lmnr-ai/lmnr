@@ -99,7 +99,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
   );
 
   return (
-    <div className="flex-grow">
+    <div className="grow">
       <DataTable
         columns={columns}
         data={data?.items}

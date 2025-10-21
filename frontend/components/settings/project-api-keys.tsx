@@ -75,9 +75,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         }}
       >
         <DialogTrigger asChild>
-          <Button variant="outline" className="h-9 w-fit">
+          <Button variant="outline" className="w-fit">
             <Plus className="w-4 h-4 mr-2" />
-            Generate API key
+            API Key
           </Button>
         </DialogTrigger>
         <DialogContent

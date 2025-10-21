@@ -60,7 +60,7 @@ const RunnableNode = memo(({ data }: RunnableNodeProps) => {
             <Braces className="w-4 h-4" />
           </div>
         )}
-        <div className="text-sm font-medium text-gray-900 break-words leading-tight">{label}</div>
+        <div className="text-sm font-medium text-gray-900 wrap-break-word leading-tight">{label}</div>
       </div>
 
       {originalData?.id && (

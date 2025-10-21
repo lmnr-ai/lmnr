@@ -294,40 +294,6 @@ export default function TracesTable() {
     JSON.stringify(searchIn),
   ]);
 
-  const handleDeleteTraces = async (traceIds: string[]) => {
-    try {
-      const params = new URLSearchParams(traceIds.map((id) => ["traceId", id]));
-      const response = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        toast({
-          title: "Failed to delete traces. Please try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Traces deleted",
-          description: `Successfully deleted ${traceIds.length} trace(s).`,
-        });
-
-        setTraces((prev) => {
-          if (prev) {
-            return prev.filter((t) => !traceIds.includes(t.id));
-          }
-          return prev;
-        });
-        setTotalCount((prev) => Math.max(prev - traceIds.length, 0));
-      }
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to delete traces. Please try again.",
-      });
-    }
-  };
-
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
       onRowClick?.(row.id);
@@ -362,13 +328,7 @@ export default function TracesTable() {
       defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
-      // enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-    // selectionPanel={(selectedRowIds) => (
-    //   <div className="flex flex-col space-y-2">
-    //     <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
-    //   </div>
-    // )}
     >
       <div className="flex flex-1 w-full space-x-2">
         <DataTableFilter presetFilters={presetFilters} columns={filters} />

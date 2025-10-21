@@ -57,8 +57,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     >
       <PostHogIdentifier email={user.email!} />
       <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
-        <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
-          <SidebarProvider defaultOpen={defaultOpen}>
+        <div className="flex flex-1 overflow-hidden max-h-screen">
+          <SidebarProvider className="bg-sidebar" defaultOpen={defaultOpen}>
             <ProjectSidebar
               workspaceId={project.workspaceId}
               isFreeTier={project.isFreeTier}
@@ -66,7 +66,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
               gbUsedThisMonth={project.gbUsedThisMonth}
               gbLimit={project.gbLimit}
             />
-            <SidebarInset className="overflow-hidden bg-sidebar pt-4">
+            <SidebarInset className="overflow-hidden mt-4 flex flex-col h-full rounded-tl-lg border">
               {showBanner && (
                 <ProjectUsageBanner
                   workspaceId={project.workspaceId}
@@ -74,9 +74,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                   gbLimit={project.gbLimit}
                 />
               )}
-              <div className="flex flex-col h-full bg-background rounded-tl-lg border"  >
-                {children}
-              </div>
+              {children}
             </SidebarInset>
           </SidebarProvider>
         </div>

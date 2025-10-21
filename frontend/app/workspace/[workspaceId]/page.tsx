@@ -3,8 +3,10 @@ import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import WorkspacesNavbar from "@/components/projects/workspaces-navbar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
+import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
@@ -15,9 +17,8 @@ import {
   workspaceInvitations,
   workspaces,
 } from "@/lib/db/migrations/schema";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
-import { cn } from "@/lib/utils";
 import { WorkspaceWithUsers } from "@/lib/workspaces/types";
 
 export const metadata: Metadata = {
@@ -93,23 +94,22 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
       username={user.name!}
       imageUrl={user.image!}
     >
-      <WorkspacesNavbar />
-      <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
-        <div className="flex flex-row justify-between items-center">
-          <div className="text-lg font-medium p-4 pb-2 flex items-center gap-2">
-            <span className="">{workspace.name}</span>
-            <div
-              className={cn(
-                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                workspace.tierName === "Pro" && "border-primary bg-primary/10 text-primary"
-              )}
-            >
-              {workspace.tierName}
-            </div>
-          </div>
+      <WorkspaceMenuProvider>
+        <div className="flex flex-1 overflow-hidden max-h-screen">
+          <SidebarProvider className="bg-sidebar">
+            <WorkspaceSidebar workspace={workspace} />
+            <SidebarInset className="overflow-hidden mt-4 flex flex-col h-full rounded-tl-lg border">
+              <WorkspaceComponent
+                invitations={invitations}
+                workspace={workspace}
+                workspaceStats={stats}
+                isOwner={isOwner}
+                currentUserRole={currentUserRole}
+              />
+            </SidebarInset>
+          </SidebarProvider>
         </div>
-        <WorkspaceComponent invitations={invitations} workspace={workspace} workspaceStats={stats} isOwner={isOwner} currentUserRole={currentUserRole} />
-      </div>
+      </WorkspaceMenuProvider>
     </UserContextProvider>
   );
 }

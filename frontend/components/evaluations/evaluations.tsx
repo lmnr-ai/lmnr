@@ -194,7 +194,7 @@ export default function Evaluations() {
             </Select>
           </div>
           <ResizablePanelGroup direction="vertical">
-            <ResizablePanel className="px-2 flex-grow" minSize={20} defaultSize={20}>
+            <ResizablePanel className="px-2 grow" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
                 className="h-full px-2 py-4"
@@ -202,7 +202,7 @@ export default function Evaluations() {
               />
             </ResizablePanel>
             <ResizableHandle className="z-30" />
-            <ResizablePanel className="flex-grow" minSize={40} defaultSize={40}>
+            <ResizablePanel className="grow" minSize={40} defaultSize={40}>
               <DataTable
                 enableRowSelection
                 columns={columns}

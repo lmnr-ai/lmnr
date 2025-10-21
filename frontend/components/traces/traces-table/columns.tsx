@@ -46,7 +46,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   //   cell: (row) => (
   //     <span
   //       title={row.row.original.summary}
-  //       className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
+  //       className={cn("text-sm line-clamp-1 whitespace-normal wrap-break-word", {
   //         "line-clamp-4": row.getValue() !== "",
   //       })}
   //     >

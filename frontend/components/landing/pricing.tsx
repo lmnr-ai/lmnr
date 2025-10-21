@@ -199,7 +199,7 @@ function PricingCalculator() {
           <h3 className="text-xl font-semibold">Pricing calculator</h3>
           <div className="flex justify-center items-center gap-2">
             <Badge
-              variant={tier === 'Free' ? 'outline' : tier === 'Hobby' ? 'outlinePrimary' : 'default'}
+              variant={tier === 'Free' ? 'outline-solid' : tier === 'Hobby' ? 'outlinePrimary' : 'default'}
               className="text-sm"
             >
               {tier}
@@ -426,7 +426,7 @@ export default function Pricing() {
           ))}
         </Accordion>
       </div>
-      <div className="flex-grow"></div>
+      <div className="grow"></div>
       <Footer />
     </div >
   );

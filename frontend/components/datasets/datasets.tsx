@@ -117,7 +117,7 @@ export default function Datasets() {
           <Button variant="outline">New dataset</Button>
         </CreateDatasetDialog>
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <DataTable
           enableRowSelection={true}
           onRowClick={(row) => {

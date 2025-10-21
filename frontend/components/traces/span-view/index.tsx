@@ -87,7 +87,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
           <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span-input">
-            <div className="border-b flex-shrink-0">
+            <div className="border-b shrink-0">
               <TabsList className="border-none text-sm px-4">
                 <TabsTrigger value="span-input" className="truncate">
                   Span Input

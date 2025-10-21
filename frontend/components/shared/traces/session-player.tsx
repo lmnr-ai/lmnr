@@ -232,7 +232,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <div className="h-8 border-b pl-4 flex items-center gap-0 flex-shrink-0">
+      <div className="h-8 border-b pl-4 flex items-center gap-0 shrink-0">
         {hasBrowserSession && (
           <button
             onClick={() => setActiveTab("browser-session")}
@@ -279,7 +279,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
             </div>
           ) : (
             <>
-              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
+              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
                 <button onClick={handlePlayPause} className="text-white py-1 rounded">
                   {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
                 </button>
@@ -299,7 +299,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
                 <input
                   type="range"
-                  className="flex-grow cursor-pointer"
+                  className="grow cursor-pointer"
                   min="0"
                   step="0.1"
                   max={duration}
@@ -312,7 +312,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
               </div>
 
               {currentUrl && (
-                <div className="flex items-center px-4 py-1 border-b flex-shrink-0">
+                <div className="flex items-center px-4 py-1 border-b shrink-0">
                   <a
                     href={currentUrl}
                     target="_blank"

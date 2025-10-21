@@ -261,7 +261,7 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           )}
         </div>
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <DataTable
           columns={columns}
           data={datapoints}

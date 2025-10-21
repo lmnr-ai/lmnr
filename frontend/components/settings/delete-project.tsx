@@ -88,7 +88,7 @@ export default function DeleteProject() {
           <Button
             onClick={() => setIsDialogOpen(true)}
             variant="outline"
-            className="h-9 w-fit text-destructive border-destructive"
+            className="w-fit text-destructive border-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete project

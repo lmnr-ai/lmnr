@@ -1,22 +1,14 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { PropsWithChildren } from "react";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
-import { Project, WorkspaceTier } from "@/lib/workspaces/types";
+import { Project } from "@/lib/workspaces/types";
 
-import { Button } from "./button";
 
 interface HeaderProps {
   path: string;

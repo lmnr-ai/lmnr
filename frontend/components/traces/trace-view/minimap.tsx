@@ -190,7 +190,7 @@ function Minimap({ onSpanSelect }: Props) {
       >
         <div
           ref={sessionTimeNeedleRef}
-          className="bg-primary absolute left-0 w-full h-[1px] z-30"
+          className="bg-primary absolute left-0 w-full h-px z-30"
           style={{ display: "none" }}
         />
         <div className="relative w-2 flex-none">

@@ -1,30 +1,38 @@
 "use client";
 
-import { Book, X } from "lucide-react";
-import Image from "next/image";
+import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
+import { ArrowUpLeft, ChevronsUpDown, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { signOut } from "next-auth/react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import DiscordLogo from "@/assets/logo/discord";
-import smallLogo from "@/assets/logo/icon.svg";
-import fullLogo from "@/assets/logo/logo.svg";
 import { getSidebarMenus } from "@/components/project/utils.ts";
+import SidebarFooter from "@/components/projects/sidebar-footer.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
 import { Progress } from "@/components/ui/progress";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
-
-import AvatarMenu from "../user/avatar-menu";
+import { useProjectContext } from "@/contexts/project-context.tsx";
+import { useUserContext } from "@/contexts/user-context.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface ProjectSidebarProps {
   workspaceId: string;
@@ -58,15 +66,15 @@ const UsageDisplay = ({
   if (!open) return null;
 
   return (
-    <div className="mx-4 mb-4 p-3 rounded-lg border bg-muted/30">
-      <div className="text-sm text-muted-foreground mb-2">Free plan usage</div>
+    <div className="p-2 m-2 rounded-lg border bg-muted/30 text-xs">
+      <div className="text-muted-foreground mb-2">Free plan usage</div>
       <div className="flex flex-col gap-2">
-        <div title={title} className="text-xs font-medium truncate">
+        <div title={title} className="font-medium truncate">
           {title}
         </div>
         <Progress value={usagePercentage} className="h-1" />
         <Link href={`/workspace/${workspaceId}`}>
-          <Button className="w-full h-6 text-xs">Upgrade</Button>
+          <Button className="w-full h-6">Upgrade</Button>
         </Link>
       </div>
     </div>
@@ -81,9 +89,10 @@ export default function ProjectSidebar({
   gbLimit = 1,
 }: ProjectSidebarProps) {
   const pathname = usePathname();
-  const { open, openMobile } = useSidebar();
+  const { open, openMobile, isMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useState(false);
-
+  const { projects, project, workspace } = useProjectContext();
+  const { username, imageUrl, email } = useUserContext();
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("showStarCard");
@@ -101,100 +110,108 @@ export default function ProjectSidebar({
 
   return (
     <Sidebar className="border-none" collapsible="icon">
-      <SidebarHeader className="h-12">
-        {/* <Link
-          href="/projects"
-          className={`flex h-12 items-center ${open || openMobile ? "justify-start pl-2" : "justify-center"}`}
-        >
-          <Image
-            alt="Laminar AI logo"
-            src={open || openMobile ? fullLogo : smallLogo}
-            width={open || openMobile ? 120 : 20}
-            height={open || openMobile ? undefined : 20}
-          />
-        </Link> */}
-      </SidebarHeader>
-      <SidebarContent className="pt-2">
-        <SidebarMenu className={cn(open || openMobile ? undefined : "justify-center items-center flex")}>
-          {options.map((option, i) => (
-            <SidebarMenuItem key={i} className="h-7">
-              <SidebarMenuButton
-                asChild
-                className={cn("flex items-center", open || openMobile ? "" : "justify-center gap-0")}
-                isActive={pathname.startsWith(option.href)}
-                tooltip={option.name}
+      <SidebarHeader className="px-0 mt-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton className="w-[calc(100%_-_16px)] p-1">
+                  <span className="truncate font-medium flex-1 leading-tight ml-1">{project?.name}</span>
+                  <ChevronsUpDown className="ml-auto" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg text-xs"
+                align="start"
+                sideOffset={4}
+                side={isMobile ? "bottom" : "right"}
               >
-                <Link href={option.href}>
-                  <option.icon />
-                  {open || openMobile ? <span>{option.name}</span> : null}
+                <DropdownMenuLabel className="flex gap-2 p-1">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarImage src={imageUrl} alt="avatar" />
+                    <AvatarFallback className="rounded-lg">{username?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left leading-tight">
+                    <span className="text-muted-foreground">Logged in as</span>
+                    <span className="text-sidebar-foreground">{email}</span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-muted-foreground p-1">Projects</DropdownMenuLabel>
+                {projects.map((project) => (
+                  <Link key={project.id} passHref href={`/project/${project.id}/traces`}>
+                    <DropdownMenuItem
+                      className={cn("cursor-pointer", {
+                        "bg-accent": project.id === projectId,
+                      })}
+                    >
+                      <span className="text-xs text-sidebar-foreground font-medium">{project.name}</span>
+                    </DropdownMenuItem>
+                  </Link>
+                ))}
+                <DropdownMenuSeparator />
+                <Link passHref href={`/workspace/${workspaceId}`}>
+                  <DropdownMenuItem className="cursor-pointer">
+                    <ArrowUpLeft />
+                    <span className="text-xs truncate">{workspace?.name}</span>
+                    <span
+                      className={cn(
+                        "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                        {
+                          "border-primary bg-primary/10 text-primary": workspace?.tierName === "Pro",
+                        }
+                      )}
+                    >
+                      {workspace?.tierName}
+                    </span>
+                  </DropdownMenuItem>
                 </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => signOut()}>
+                  <LogOut />
+                  <span className="text-xs">Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
         </SidebarMenu>
-        <div className="flex-1" />
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {options.map((option) => (
+                <SidebarMenuItem className="h-7" key={option.name}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
+                    <Link href={option.href}>
+                      <option.icon />
+                      <span>{option.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         {isFreeTier && (open || openMobile) && (
-          <UsageDisplay
-            gbUsed={gbUsedThisMonth}
-            gbLimit={gbLimit}
-            workspaceId={workspaceId}
-            open={open || openMobile}
-          />
-        )}
-
-        {showStarCard && open && (
-          <div
-            className={cn(
-              "mx-4 mt-4 p-3 rounded-lg border bg-muted relative",
-              open || openMobile ? "text-sm" : "hidden"
-            )}
-          >
-            <button
-              onClick={() => setShowStarCard(false)}
-              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
-            <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-            <a
-              href="https://github.com/lmnr-ai/lmnr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-foreground hover:underline"
-            >
-              ⭐ Star it on GitHub
-            </a>
-          </div>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <UsageDisplay
+                    gbUsed={gbUsedThisMonth}
+                    gbLimit={gbLimit}
+                    workspaceId={workspaceId}
+                    open={open || openMobile}
+                  />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="p-4 gap-1">
-        <Link
-          href="https://discord.gg/nNFUUDAKub"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "h-8 text-secondary-foreground flex items-center gap-2",
-            open || openMobile ? "" : "justify-center"
-          )}
-        >
-          <DiscordLogo className="w-5 h-5" />
-          {open || openMobile ? <span className="text-sm">Support</span> : null}
-        </Link>
-        <Link
-          href="https://docs.lmnr.ai"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "h-8 text-secondary-foreground flex items-center gap-2 mb-4",
-            open || openMobile ? "" : "justify-center"
-          )}
-        >
-          <Book size={16} />
-          {open || openMobile ? <span className="text-sm ml-1">Docs</span> : null}
-        </Link>
-        <AvatarMenu showDetails={open || openMobile} />
-      </SidebarFooter>
+      <SidebarFooter />
     </Sidebar>
   );
 }

@@ -109,7 +109,7 @@ const ComparisonScoreValue = ({
 };
 
 const ChangeIndicator = ({ originalValue, comparisonValue }: { originalValue: number; comparisonValue: number }) => (
-  <div className="flex-shrink-0 ml-1">
+  <div className="shrink-0 ml-1">
     <span className="text-xs">
       {originalValue >= comparisonValue ? (
         <span className="text-green-300">▲</span>
@@ -161,7 +161,7 @@ const HeatmapComparisonCell = ({
         <ComparisonScoreValue value={comparisonValue} displayValue={comparison} range={range} />
       </div>
 
-      <ArrowRight className="font-bold text-gray-400 flex-shrink-0" size={8} />
+      <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
 
       <div className="flex-1 min-w-fit">
         <ComparisonScoreValue value={originalValue} displayValue={original} range={range} />

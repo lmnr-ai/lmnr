@@ -21,9 +21,9 @@ export default function Usage() {
   } = useSWR<Workspace[]>('/api/workspaces?accessLevel=owner', swrFetcher);
 
   return isWorkspacesLoading || workspacesError || !ownedWorkspaces ? (
-    <Skeleton className="h-full p-4 w-full flex-grow" />
+    <Skeleton className="h-full p-4 w-full grow" />
   ) : (
-    <div className="h-full p-4 w-full flex-grow">
+    <div className="h-full p-4 w-full grow">
       <div className="flex flex-col items-start space-y-4">
         <div className="flex flex-row space-x-2">
           <Label className="font-bold mb-4">email</Label>

@@ -63,7 +63,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   }
 
   return (
-    <ScrollArea ref={scrollRef} className="overflow-x-hidden flex-grow relative h-full w-full">
+    <ScrollArea ref={scrollRef} className="overflow-x-hidden grow relative h-full w-full">
       <div className="flex flex-col pb-4 pt-1">
         <div
           className="relative"

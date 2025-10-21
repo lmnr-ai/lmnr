@@ -74,7 +74,7 @@ export default function RenameProject() {
               setIsRenameDialogOpen(true);
             }}
             variant="outline"
-            className="h-9 w-fit"
+            className="w-fit"
           >
             <Edit className="w-4 h-4 mr-2" />
             Rename project

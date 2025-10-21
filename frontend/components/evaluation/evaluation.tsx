@@ -248,8 +248,8 @@ export default function Evaluation({
       <div className="h-full flex flex-col relative">
         <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
         <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
-        <div className="flex flex-grow flex-col">
-          <div className="flex flex-col flex-grow">
+        <div className="flex grow flex-col">
+          <div className="flex flex-col grow">
             <div className="flex flex-row space-x-4 p-4">
               {isLoading ? (
                 <>
@@ -268,7 +268,7 @@ export default function Evaluation({
                       isLoading={isLoading}
                     />
                   </div>
-                  <div className="flex-grow">
+                  <div className="grow">
                     {targetId ? (
                       <CompareChart
                         distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}

@@ -89,7 +89,7 @@ export default function Playgrounds() {
         <h1 className="scroll-m-20 text-2xl font-medium">Playgrounds</h1>
         <CreatePlaygroundDialog />
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <DataTable
           enableRowSelection={true}
           onRowClick={(row) => {
