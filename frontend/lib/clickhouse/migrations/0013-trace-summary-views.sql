@@ -27,7 +27,11 @@ CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
             WHEN span_type = 8 THEN 'EVENT'
             ELSE 'UNKNOWN'
          END, parent_span_id='00000000-0000-0000-0000-000000000000') AS top_span_type,
-        CASE WHEN countIf(span_type IN (3, 4, 5)) > 0 THEN 'EVALUATION' ELSE 'DEFAULT' END AS trace_type,
+        CASE
+            WHEN countIf(trace_type = 3) > 0 THEN 'PLAYGROUND'
+            WHEN countIf(span_type IN (3, 4, 5)) > 0 THEN 'EVALUATION'
+            ELSE 'DEFAULT'
+        END AS trace_type,
         arrayDistinct(arrayFlatten(arrayConcat(groupArray(tags_array)))) AS tags,
         trace_id id,
         '' as summary,
