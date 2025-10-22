@@ -121,7 +121,6 @@ const tracesSelectColumns = [
   "total_cost as totalCost",
   "trace_type as traceType",
   "status",
-  "summary",
   "user_id as userId",
 ];
 

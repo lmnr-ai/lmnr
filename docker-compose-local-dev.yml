@@ -51,7 +51,7 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-    
+
   query-engine:
     image: ghcr.io/lmnr-ai/query-engine
     pull_policy: always
@@ -63,7 +63,7 @@ services:
       test: ["CMD", "sleep", "5"]
       interval: 10s
       timeout: 6s
-      retries: 1
+      retries: 3
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server

@@ -414,6 +414,13 @@
       "when": 1760529194362,
       "tag": "0058_sweet_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1761141201098,
+      "tag": "0059_brief_hiroim",
+      "breakpoints": true
     }
   ]
 }
