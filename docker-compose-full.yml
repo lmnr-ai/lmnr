@@ -70,7 +70,7 @@ services:
       test: ["CMD", "sleep", "5"]
       interval: 10s
       timeout: 6s
-      retries: 1
+      retries: 3
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server

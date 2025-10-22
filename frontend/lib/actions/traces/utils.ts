@@ -121,7 +121,6 @@ const tracesSelectColumns = [
   "total_cost as totalCost",
   "trace_type as traceType",
   "status",
-  "summary",
   "user_id as userId",
 ];
 
@@ -144,11 +143,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -192,11 +191,11 @@ export const buildTracesCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({

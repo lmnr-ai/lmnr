@@ -148,4 +148,4 @@ export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   });
 }
 
-export { EVENTS_TRACE_VIEW_WIDTH,TRACES_TRACE_VIEW_WIDTH };
+export { EVENTS_TRACE_VIEW_WIDTH, TRACES_TRACE_VIEW_WIDTH };
