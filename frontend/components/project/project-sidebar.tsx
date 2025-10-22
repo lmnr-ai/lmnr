@@ -1,25 +1,15 @@
 "use client";
 
-import {
-  Book,
-  Database,
-  FlaskConical,
-  LayoutGrid,
-  Pen,
-  PlayCircle,
-  Rows4,
-  Settings,
-  SquareFunction,
-  SquareTerminal,
-  X,
-} from "lucide-react";
+import { Book, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import DiscordLogo from "@/assets/logo/discord";
 import smallLogo from "@/assets/logo/icon.svg";
 import fullLogo from "@/assets/logo/logo.svg";
+import { getSidebarMenus } from "@/components/project/utils.ts";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -107,56 +97,7 @@ export default function ProjectSidebar({
     }
   }, [showStarCard]);
 
-  const allOptions = useMemo(
-    () => [
-      {
-        name: "dashboards",
-        href: `/project/${projectId}/dashboard`,
-        icon: LayoutGrid,
-      },
-      {
-        name: "traces",
-        href: `/project/${projectId}/traces`,
-        icon: Rows4,
-      },
-      {
-        name: "evaluations",
-        href: `/project/${projectId}/evaluations`,
-        icon: FlaskConical,
-      },
-      {
-        name: "evaluators",
-        href: `/project/${projectId}/evaluators`,
-        icon: SquareFunction,
-      },
-      {
-        name: "datasets",
-        href: `/project/${projectId}/datasets`,
-        icon: Database,
-      },
-      {
-        name: "queues",
-        href: `/project/${projectId}/labeling-queues`,
-        icon: Pen,
-      },
-      {
-        name: "sql editor",
-        href: `/project/${projectId}/sql`,
-        icon: SquareTerminal,
-      },
-      {
-        name: "playgrounds",
-        href: `/project/${projectId}/playgrounds`,
-        icon: PlayCircle,
-      },
-      {
-        name: "settings",
-        href: `/project/${projectId}/settings`,
-        icon: Settings,
-      },
-    ],
-    [projectId]
-  );
+  const options = useMemo(() => getSidebarMenus(projectId), [projectId]);
 
   return (
     <Sidebar className="border-r" collapsible="icon">
@@ -175,14 +116,11 @@ export default function ProjectSidebar({
       </SidebarHeader>
       <SidebarContent className="pt-2 bg-background">
         <SidebarMenu className={cn(open || openMobile ? undefined : "justify-center items-center flex")}>
-          {allOptions.map((option, i) => (
+          {options.map((option, i) => (
             <SidebarMenuItem key={i} className="h-7">
               <SidebarMenuButton
                 asChild
-                className={cn(
-                  "text-secondary-foreground flex items-center",
-                  open || openMobile ? "" : "justify-center gap-0"
-                )}
+                className={cn("flex items-center", open || openMobile ? "" : "justify-center gap-0")}
                 isActive={pathname.startsWith(option.href)}
                 tooltip={option.name}
               >
@@ -230,9 +168,9 @@ export default function ProjectSidebar({
           </div>
         )}
       </SidebarContent>
-      <SidebarFooter className="bg-background p-4 gap-4">
+      <SidebarFooter className="bg-background p-4 gap-1">
         <Link
-          href="https://docs.lmnr.ai"
+          href="https://discord.gg/nNFUUDAKub"
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
@@ -240,8 +178,20 @@ export default function ProjectSidebar({
             open || openMobile ? "" : "justify-center"
           )}
         >
+          <DiscordLogo className="w-5 h-5" />
+          {open || openMobile ? <span className="text-sm">Support</span> : null}
+        </Link>
+        <Link
+          href="https://docs.lmnr.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "h-8 text-secondary-foreground flex items-center gap-2 mb-4",
+            open || openMobile ? "" : "justify-center"
+          )}
+        >
           <Book size={16} />
-          {open || openMobile ? <span className="text-sm">Docs</span> : null}
+          {open || openMobile ? <span className="text-sm ml-1">Docs</span> : null}
         </Link>
         <AvatarMenu showDetails={open || openMobile} />
       </SidebarFooter>

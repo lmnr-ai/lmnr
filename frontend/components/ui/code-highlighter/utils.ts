@@ -22,6 +22,46 @@ export const defaultThemeSettings: CreateThemeOptions["settings"] = {
   caret: "2px solid hsl(var(--primary) / 0.1)",
 };
 
+export const githubDarkSyntaxHighlighter = {
+  'code[class*="language-"]': {
+    color: "#c9d1d9",
+    background: "transparent",
+  },
+  'pre[class*="language-"]': {
+    color: "#c9d1d9",
+    background: "transparent",
+  },
+  comment: { color: "#8b949e" },
+  prolog: { color: "#8b949e" },
+  doctype: { color: "#8b949e" },
+  cdata: { color: "#8b949e" },
+  punctuation: { color: "#8b949e" },
+  property: { color: "#d2a8ff" },
+  tag: { color: "#7ee787" },
+  boolean: { color: "#ffab70" },
+  number: { color: "#79c0ff" },
+  constant: { color: "#ffab70" },
+  symbol: { color: "#ffab70" },
+  deleted: { color: "#ffdcd7" },
+  selector: { color: "#7ee787" },
+  "attr-name": { color: "#79c0ff" },
+  string: { color: "#a5d6ff" },
+  char: { color: "#a5d6ff" },
+  builtin: { color: "#a5d6ff" },
+  inserted: { color: "#7ee787" },
+  operator: { color: "#79c0ff" },
+  entity: { color: "#79c0ff" },
+  url: { color: "#79c0ff" },
+  variable: { color: "#79c0ff" },
+  atrule: { color: "#ff7b72" },
+  "attr-value": { color: "#a5d6ff" },
+  keyword: { color: "#ff7b72" },
+  function: { color: "#d2a8ff" },
+  "class-name": { color: "#d2a8ff" },
+  regex: { color: "#a5d6ff" },
+  important: { color: "#ff7b72", fontWeight: "bold" },
+};
+
 export const githubDarkStyle: CreateThemeOptions["styles"] = [
   { tag: [t.standard(t.tagName), t.tagName], color: "#7ee787" },
   { tag: [t.comment, t.bracket], color: "#8b949e" },
@@ -45,7 +85,6 @@ export const theme = createTheme({
   styles: githubDarkStyle,
 });
 
-export const MAX_LINE_WRAPPING_LENGTH = 500000;
 export const baseExtensions = [
   EditorView.theme({
     "&.cm-focused": {
@@ -88,6 +127,7 @@ export const baseExtensions = [
     },
   }),
   highlightSelectionMatches(),
+  EditorView.lineWrapping,
 ];
 
 export const languageExtensions = {

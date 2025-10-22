@@ -8,8 +8,12 @@ use crate::{
     api::v1::browser_sessions::{
         BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY, EventBatch,
     },
+    cache::Cache,
     ch::browser_events::insert_browser_events,
+    db::DB,
+    features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait},
+    traces::limits::update_workspace_limit_exceeded_by_project_id,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -19,16 +23,28 @@ pub struct QueueBrowserEventMessage {
 }
 
 pub async fn process_browser_events(
+    db: Arc<DB>,
     clickhouse: clickhouse::Client,
+    cache: Arc<Cache>,
     browser_events_message_queue: Arc<MessageQueue>,
 ) {
     loop {
-        inner_process_browser_events(clickhouse.clone(), browser_events_message_queue.clone())
-            .await;
+        inner_process_browser_events(
+            db.clone(),
+            clickhouse.clone(),
+            cache.clone(),
+            browser_events_message_queue.clone(),
+        )
+        .await;
     }
 }
 
-async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc<MessageQueue>) {
+async fn inner_process_browser_events(
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -87,13 +103,13 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
             continue;
         }
 
-        let insert_browser_events = || async {
-            insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
+        let insert_browser_events_fn = || async {
+            let bytes_written = insert_browser_events(&clickhouse, project_id, &batch).await.map_err(|e| {
                 log::error!("Failed attempt to insert browser events. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
                 })?;
 
-            Ok::<(), backoff::Error<clickhouse::error::Error>>(())
+            Ok::<usize, backoff::Error<clickhouse::error::Error>>(bytes_written)
         };
         // Starting with 1 second delay, delay multiplies by random factor between 1 and 2
         // up to 1 minute and until the total elapsed time is 1 minute
@@ -106,10 +122,29 @@ async fn inner_process_browser_events(clickhouse: clickhouse::Client, queue: Arc
             .with_max_elapsed_time(Some(std::time::Duration::from_secs(1 * 60)))
             .build();
 
-        match backoff::future::retry(exponential_backoff, insert_browser_events).await {
-            Ok(_) => {
+        match backoff::future::retry(exponential_backoff, insert_browser_events_fn).await {
+            Ok(bytes_written) => {
                 if let Err(e) = acker.ack().await {
                     log::error!("Failed to ack MQ delivery (browser events): {:?}", e);
+                }
+
+                // Update workspace limits cache
+                if is_feature_enabled(Feature::UsageLimit) {
+                    if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+                        db.clone(),
+                        clickhouse.clone(),
+                        cache.clone(),
+                        project_id,
+                        bytes_written,
+                    )
+                    .await
+                    {
+                        log::error!(
+                            "Failed to update workspace limit exceeded for project [{}]: {:?}",
+                            project_id,
+                            e
+                        );
+                    }
                 }
             }
             Err(e) => {

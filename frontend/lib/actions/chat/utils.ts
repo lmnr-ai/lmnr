@@ -1,4 +1,6 @@
 // Convert AI SDK message format to OpenAI format
+import { JsonObject } from "@/lib/actions/chat/index.ts";
+
 export function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {
     role: message.role,
@@ -103,10 +105,12 @@ export interface SpanData {
   playgroundId?: string;
   startTime: Date;
   endTime: Date;
+  structuredOutput: JsonObject;
 }
 
 export function createSpanAttributes(spanData: SpanData): Record<string, unknown> {
-  const { provider, model, result, messages, maxTokens, temperature, topP, topK, playgroundId } = spanData;
+  const { provider, model, result, messages, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+    spanData;
 
   const openAIMessages = messages.map(convertToOpenAIFormat);
 
@@ -130,6 +134,10 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
     "ai.prompt.messages": JSON.stringify(openAIMessages),
     "lmnr.association.properties.metadata.playgroundId": playgroundId,
   };
+
+  if (structuredOutput) {
+    attributes["gen_ai.request.structured_output_schema"] = JSON.stringify(structuredOutput);
+  }
 
   openAIMessages.forEach((message: any, index: number) => {
     attributes[`gen_ai.prompt.${index}.role`] = message.role;

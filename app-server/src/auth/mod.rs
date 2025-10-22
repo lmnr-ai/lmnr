@@ -13,19 +13,6 @@ use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
 use crate::db::DB;
 use crate::db::project_api_keys::ProjectApiKey;
-use crate::db::user::User;
-
-impl FromRequest for User {
-    type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        match req.extensions().get::<User>().cloned() {
-            Some(user) => return ready(Ok(user)),
-            None => return ready(Err(actix_web::error::ParseError::Incomplete.into())),
-        };
-    }
-}
 
 impl FromRequest for ProjectApiKey {
     type Error = Error;

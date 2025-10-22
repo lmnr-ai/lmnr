@@ -12,10 +12,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 
-interface RenameProjectProps {}
-
-export default function RenameProject({}: RenameProjectProps) {
+export default function RenameProject() {
   const { project } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
@@ -56,53 +55,52 @@ export default function RenameProject({}: RenameProjectProps) {
   };
 
   return (
-    <div>
-      <div className="flex flex-col items-start space-y-4">
-        <h1 className="text-lg">Rename project</h1>
-        <Label className="text-sm text-secondary-foreground">
-          Update the name of your project. Changes will take effect immediately.
-        </Label>
-        <Dialog
-          open={isRenameDialogOpen}
-          onOpenChange={() => {
-            setIsRenameDialogOpen(!isRenameDialogOpen);
-            setNewProjectName("");
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setIsRenameDialogOpen(true);
-              }}
-              variant="outline"
-              className="h-8 max-w-80"
-            >
-              <Edit className="w-4 mr-1" />
-              Rename project
+    <SettingsSection>
+      <SettingsSectionHeader
+        size="sm"
+        title="Rename project"
+        description="Update the name of your project. Changes will take effect immediately."
+      />
+      <Dialog
+        open={isRenameDialogOpen}
+        onOpenChange={() => {
+          setIsRenameDialogOpen(!isRenameDialogOpen);
+          setNewProjectName("");
+        }}
+      >
+        <DialogTrigger asChild>
+          <Button
+            onClick={() => {
+              setIsRenameDialogOpen(true);
+            }}
+            variant="outline"
+            className="h-9 w-fit"
+          >
+            <Edit className="w-4 h-4 mr-2" />
+            Rename project
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label>Enter new project name</Label>
+            <Input
+              autoFocus
+              placeholder={project?.name}
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button disabled={!newProjectName.trim() || isLoading} onClick={renameProject} handleEnter={true}>
+              <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+              Rename
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Rename project</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label>Enter new project name</Label>
-              <Input
-                autoFocus
-                placeholder={project?.name}
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button disabled={!newProjectName.trim() || isLoading} onClick={renameProject} handleEnter={true}>
-                <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
-                Rename
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SettingsSection>
   );
 }

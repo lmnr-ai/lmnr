@@ -217,6 +217,7 @@ export const getPlaygroundConfig = (
   modelId: string;
   maxTokens?: number;
   temperature?: number;
+  outputSchema?: string;
 } => {
   const model = get(span, ["attributes", "gen_ai.response.model"]) as string | undefined;
 
@@ -229,7 +230,12 @@ export const getPlaygroundConfig = (
   const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
   const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);
 
-  const referenceModel = model && existingModels.find((existingModel) => model.includes(existingModel));
+  const outputSchema = get(span, ["attributes", "gen_ai.request.structured_output_schema"]) as string | undefined;
+
+  const referenceModel =
+    model &&
+    (existingModels.find((existingModel) => model === existingModel) ||
+      existingModels.filter((existingModel) => model.includes(existingModel)).sort((a, b) => b.length - a.length)[0]);
   const foundModel = models.find((m) => m.name === referenceModel)?.id;
 
   const result = {
@@ -238,6 +244,7 @@ export const getPlaygroundConfig = (
     toolChoice: parsedToolChoice || (parsedTools ? "auto" : undefined),
     maxTokens: get(span, ["attributes", "gen_ai.request.max_tokens"], defaultMaxTokens),
     temperature: get(span, ["attributes", "gen_ai.request.temperature"], defaultTemperature),
+    outputSchema,
   };
 
   return pickBy(result, (value) => value !== undefined) as typeof result;

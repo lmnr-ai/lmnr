@@ -3,11 +3,12 @@ use std::sync::{Arc, LazyLock};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
     db::{events::Event, spans::SpanType},
-    opentelemetry::opentelemetry_proto_common_v1,
+    opentelemetry_proto::opentelemetry_proto_common_v1,
 };
 
 use crate::{
@@ -22,6 +23,7 @@ static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
 /// Calculate usage for both default and LLM spans
+#[instrument(skip(attributes, db, cache, span_name))]
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,
@@ -95,6 +97,7 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
+#[instrument(skip(clickhouse, tags, span_id, project_id))]
 pub async fn record_tags(
     clickhouse: clickhouse::Client,
     tags: &[String],
@@ -145,6 +148,7 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     first_in_ids && first_in_path
 }
 
+#[instrument(skip(span, span_usage, events))]
 pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, events: &[Event]) -> () {
     events.iter().for_each(|event| {
         // Check if it's an exception event

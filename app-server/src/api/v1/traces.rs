@@ -8,7 +8,7 @@ use crate::{
     db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
-    opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
+    opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };
@@ -44,9 +44,12 @@ pub async fn process_traces(
             cache.clone(),
             project_api_key.project_id,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            log::error!("Failed to get workspace limits: {:?}", e);
+        });
 
-        if limits_exceeded.bytes_ingested {
+        if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
             return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
         }
     }

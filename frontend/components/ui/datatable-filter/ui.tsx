@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { find, get, head, isEqual } from "lodash";
+import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
 import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -22,19 +22,30 @@ import { cn } from "@/lib/utils";
 
 interface FilterUIProps {
   columns: ColumnFilter[];
+  presetFilters?: DatatableFilter[];
   className?: string;
   onAddFilter: (filter: DatatableFilter) => void;
   filters: DatatableFilter[];
 }
 
-const FilterPopover = ({ columns, className, onAddFilter, filters, children }: PropsWithChildren<FilterUIProps>) => {
+const FilterPopover = ({
+  columns,
+  presetFilters,
+  className,
+  onAddFilter,
+  filters,
+  children,
+}: PropsWithChildren<FilterUIProps>) => {
   const [filter, setFilter] = useState<DatatableFilter>({ operator: Operator.Eq, column: "", value: "" });
 
-  const handleApplyFilters = useCallback(() => {
-    if (!filters.some((f) => isEqual(f, filter))) {
-      onAddFilter(filter);
-    }
-  }, [filter, filters, onAddFilter]);
+  const handleApplyFilters = useCallback(
+    (filter: DatatableFilter) => {
+      if (!filters.some((f) => isEqual(f, filter))) {
+        onAddFilter(filter);
+      }
+    },
+    [filters, onAddFilter]
+  );
 
   const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
     if (field === "column") {
@@ -81,26 +92,68 @@ const FilterPopover = ({ columns, className, onAddFilter, filters, children }: P
         )}
       </PopoverTrigger>
       <PopoverContent className="z-30 p-0 w-96" side="bottom" align="start">
-        <div className="flex gap-2 p-2">
-          <Select value={filter.column} onValueChange={(value) => handleValueChange({ field: "column", value })}>
-            <SelectTrigger className="flex truncate font-medium max-w-32">
-              <SelectValue placeholder="Choose column..." />
-            </SelectTrigger>
-            <SelectContent>
-              {columns.map((column) => (
-                <SelectItem key={column.key} value={column.key}>
-                  {column.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FilterInputs filter={filter} columns={columns} onValueChange={handleValueChange} />
+        {!isEmpty(presetFilters) && (
+          <>
+            <div className="p-3 border-b bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Quick filters</p>
+              <div className="flex flex-wrap gap-2">
+                {map(presetFilters, (presetFilter, index) => {
+                  const isApplied = filters.some((f) => isEqual(f, presetFilter));
+                  const column = find(columns, ["key", presetFilter.column]);
+                  const operatorLabel = get(
+                    find(
+                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS],
+                      ["key", presetFilter.operator]
+                    ),
+                    "label",
+                    presetFilter.operator
+                  );
+
+                  return (
+                    <PopoverClose key={`preset-${index}`} asChild>
+                      <Button
+                        variant={isApplied ? "secondary" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-7 text-xs font-mono px-2 py-1",
+                          isApplied && "bg-primary/10 border-primary text-primary cursor-default"
+                        )}
+                        onClick={() => handleApplyFilters(presetFilter)}
+                        disabled={isApplied}
+                      >
+                        {column?.name || presetFilter.column} {operatorLabel} {presetFilter.value}
+                      </Button>
+                    </PopoverClose>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+        <div className="p-3">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Custom filter</p>
+          <div className="flex gap-2">
+            <Select value={filter.column} onValueChange={(value) => handleValueChange({ field: "column", value })}>
+              <SelectTrigger className="flex truncate font-medium max-w-32">
+                <SelectValue placeholder="Choose column..." />
+              </SelectTrigger>
+              <SelectContent>
+                {columns.map((column) => (
+                  <SelectItem key={column.key} value={column.key}>
+                    {column.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FilterInputs filter={filter} columns={columns} onValueChange={handleValueChange} />
+          </div>
         </div>
+
         <div className="flex flex-row-reverse border-t p-2">
           <PopoverClose asChild>
             <Button
               disabled={!filter.column || !filter.value || !filter.operator}
-              onClick={handleApplyFilters}
+              onClick={() => handleApplyFilters(filter)}
               variant="secondary"
               handleEnter
               className="ml-auto"

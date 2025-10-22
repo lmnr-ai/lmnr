@@ -8,7 +8,6 @@ import RefreshButton from "@/components/traces/refresh-button";
 import { columns, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanRow } from "@/lib/traces/types";
 import { PaginatedResponse } from "@/lib/types";
@@ -196,13 +195,7 @@ export default function SpansTable() {
       defaultPageNumber={pageNumber}
       onPageChange={onPageChange}
       totalItemsCount={totalCount}
-      enableRowSelection
       childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-      selectionPanel={(selectedRowIds) => (
-        <div className="flex flex-col space-y-2">
-          <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteSpans} entityName="spans" />
-        </div>
-      )}
     >
       <div className="flex flex-1 w-full space-x-2">
         <DataTableFilter columns={filters} />

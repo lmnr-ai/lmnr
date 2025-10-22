@@ -1,23 +1,11 @@
-DROP TABLE IF EXISTS "agent_chats" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "agent_messages" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "agent_sessions" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "machines" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "user_cookies" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "user_subscription_tiers" CASCADE;--> statement-breakpoint
-DROP TABLE IF EXISTS "user_usage" CASCADE;--> statement-breakpoint
-ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "tag_classes_project_id_id_key";--> statement-breakpoint
-ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "tag_classes_name_project_id_unique";--> statement-breakpoint
-ALTER TABLE "tags" DROP CONSTRAINT IF EXISTS "tags_span_id_class_id_unique";--> statement-breakpoint
-ALTER TABLE "tags" DROP CONSTRAINT IF EXISTS "tags_span_id_class_id_key";--> statement-breakpoint
-ALTER TABLE "tags" DROP CONSTRAINT IF EXISTS "tags_span_id_class_id_user_id_unique";--> statement-breakpoint
-ALTER TABLE "tags" DROP CONSTRAINT IF EXISTS "tags_span_id_class_id_user_id_key";--> statement-breakpoint
-ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "tag_classes_project_id_fkey";
+ALTER TABLE "tag_classes" DROP CONSTRAINT "tag_classes_project_id_id_key";--> statement-breakpoint
+ALTER TABLE "tag_classes" DROP CONSTRAINT "tag_classes_name_project_id_unique";--> statement-breakpoint
+ALTER TABLE "tags" DROP CONSTRAINT "tags_span_id_class_id_key";--> statement-breakpoint
+ALTER TABLE "tags" DROP CONSTRAINT "tags_span_id_class_id_user_id_key";--> statement-breakpoint
 --> statement-breakpoint
-DROP INDEX IF EXISTS "tag_classes_project_id_id_key" CASCADE;--> statement-breakpoint
-DROP INDEX IF EXISTS "tags_span_id_class_id_user_id_key" CASCADE;--> statement-breakpoint
-DROP INDEX IF EXISTS "events_span_id_project_id_idx";--> statement-breakpoint
-DROP INDEX IF EXISTS "spans_root_project_id_start_time_trace_id_idx";--> statement-breakpoint
-DROP INDEX IF EXISTS "traces_project_id_trace_type_start_time_end_time_idx";--> statement-breakpoint
+DROP INDEX "events_span_id_project_id_idx";--> statement-breakpoint
+DROP INDEX "spans_root_project_id_start_time_trace_id_idx";--> statement-breakpoint
+DROP INDEX "traces_project_id_trace_type_start_time_end_time_idx";--> statement-breakpoint
 ALTER TABLE "shared_traces" ALTER COLUMN "project_id" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "tag_classes_pkey";--> statement-breakpoint
 ALTER TABLE "tag_classes" DROP CONSTRAINT IF EXISTS "label_classes_pkey";--> statement-breakpoint

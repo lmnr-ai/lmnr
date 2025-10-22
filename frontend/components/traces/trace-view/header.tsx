@@ -63,11 +63,13 @@ const Header = ({ handleClose }: HeaderProps) => {
           <Button variant={"ghost"} className="px-0" onClick={handleClose}>
             <ChevronsRight />
           </Button>
-          <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-            <Button variant="ghost" className="px-0 mr-1">
-              <Expand className="w-4 h-4" size={16} />
-            </Button>
-          </Link>
+          {trace && (
+            <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
+              <Button variant="ghost" className="px-0 mr-1">
+                <Expand className="w-4 h-4" size={16} />
+              </Button>
+            </Link>
+          )}
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -88,7 +90,7 @@ const Header = ({ handleClose }: HeaderProps) => {
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
+                <Button disabled={!trace} onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
                   <ChevronDown className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -104,7 +106,7 @@ const Header = ({ handleClose }: HeaderProps) => {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
+                <Button disabled={!trace} onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
                   <ChevronUp className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -123,6 +125,7 @@ const Header = ({ handleClose }: HeaderProps) => {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              disabled={!trace}
               className="hover:bg-secondary px-1.5"
               variant="ghost"
               onClick={() => setBrowserSession(!browserSession)}

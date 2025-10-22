@@ -15,6 +15,8 @@ pub enum Feature {
     RabbitMQ,
     SqlQueryEngine,
     ClickhouseReadOnly,
+    Tracing,
+    AggregateTraces,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -39,6 +41,13 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
         Feature::ClickhouseReadOnly => {
             env::var("CLICKHOUSE_RO_USER").is_ok() && env::var("CLICKHOUSE_RO_PASSWORD").is_ok()
+        }
+        Feature::Tracing => {
+            env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
+        }
+        Feature::AggregateTraces => {
+            env::var("AGGREGATE_TRACES").is_ok()
+                && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
     }
 }

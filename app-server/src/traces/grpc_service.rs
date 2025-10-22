@@ -8,7 +8,7 @@ use crate::{
     db::{DB, project_api_keys::DBProjectApiKey},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
-    opentelemetry::opentelemetry::proto::collector::trace::v1::{
+    opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
     },
 };

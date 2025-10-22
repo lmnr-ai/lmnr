@@ -1,4 +1,4 @@
-import { Redis } from 'ioredis';
+import { Redis } from "ioredis";
 
 // Singleton Redis client
 const getRedisSingleton = (() => {
@@ -11,7 +11,7 @@ const getRedisSingleton = (() => {
         retryStrategy(times) {
           const delay = Math.min(times * 50, 2000);
           return delay;
-        }
+        },
       });
     }
     return client;
@@ -21,6 +21,11 @@ const getRedisSingleton = (() => {
 interface CacheEntry<T> {
   value: T;
   expiresAt: number | null;
+}
+
+interface RedisSetOptions {
+  expireAfterSeconds?: number;
+  expireAt?: Date;
 }
 
 class CacheManager {
@@ -33,7 +38,7 @@ class CacheManager {
     // Initialize Redis client immediately if we're using Redis
     if (this.useRedis) {
       this.redisClient = getRedisSingleton();
-      this.redisClient.on('error', (err) => console.error('Redis Client Error', err));
+      this.redisClient.on("error", (err) => console.error("Redis Client Error", err));
     }
   }
 
@@ -41,7 +46,7 @@ class CacheManager {
     if (!this.redisClient) {
       this.redisClient = getRedisSingleton();
     }
-    if (['reconnecting', 'wait'].includes(this.redisClient.status)) {
+    if (["reconnecting", "wait"].includes(this.redisClient.status)) {
       await this.redisClient.connect();
     }
     return this.redisClient;
@@ -70,9 +75,16 @@ class CacheManager {
     }
   }
 
-  async set<T>(key: string, value: T, ...args: any[]): Promise<void> {
+  async set<T>(key: string, value: T, options: RedisSetOptions = {}): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
+      let args: any[] = [];
+      if (options.expireAfterSeconds) {
+        args.push('EX', options.expireAfterSeconds);
+      }
+      if (options.expireAt) {
+        args.push('PXAT', options.expireAt.getTime());
+      }
       try {
         await client.set(key, JSON.stringify(value), ...args);
       } catch (e) {
@@ -106,5 +118,7 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
+export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
+export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";

@@ -54,20 +54,23 @@ impl CHEvent {
     }
 }
 
-pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<()> {
+/// Insert events into ClickHouse and return the number of bytes inserted
+pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>) -> Result<usize> {
     if events.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
 
     let ch_insert = clickhouse.insert("events");
     match ch_insert {
         Ok(mut ch_insert) => {
+            let mut total_size_bytes = 0;
             for event in events {
                 ch_insert.write(&event).await?;
+                total_size_bytes += event.size_bytes as usize;
             }
             let ch_insert_end_res = ch_insert.end().await;
             match ch_insert_end_res {
-                Ok(_) => Ok(()),
+                Ok(_) => Ok(total_size_bytes),
                 Err(e) => Err(anyhow::anyhow!(
                     "Clickhouse events insertion failed: {:?}",
                     e

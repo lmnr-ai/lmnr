@@ -1,18 +1,17 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
-import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { NoSpanTooltip } from "@/components/traces/no-span-tooltip.tsx";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -30,19 +29,40 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
 export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
-      <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() ? (
-          <X className="self-center text-destructive" size={18} />
-        ) : (
-          <Check className="text-success" size={18} />
-        )}
-      </div>
+      <div
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
+          "bg-destructive": row.getValue() === "error",
+          "": row.getValue() === "info", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning", // temporary color values
+        })}
+      />
     ),
-    accessorKey: "status",
-    header: "Status",
+    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
+    header: () => <div />,
     id: "status",
-    size: 70,
+    size: 32,
   },
+  // {
+  //   cell: (row) => (
+  //     <span
+  //       title={row.row.original.summary}
+  //       className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
+  //         "line-clamp-4": row.getValue() !== "",
+  //       })}
+  //     >
+  //       {row.row.original.summary}
+  //     </span>
+  //   ),
+  //   accessorFn: (row) => {
+  //     if (row.analysis_preview !== "") {
+  //       return row.analysis_preview;
+  //     }
+  //     return row.summary;
+  //   },
+  //   header: "Summary",
+  //   id: "summary",
+  //   size: 190,
+  // },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "ID",
@@ -53,32 +73,33 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "topSpanType",
     header: "Top level span",
     id: "top_span_type",
-    cell: (row) => (
-      <div className="cursor-pointer flex gap-2 items-center">
-        <div className="flex items-center gap-2">
-          {row.row.original.topSpanName ? (
-            <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-          ) : isStringDateOld(row.row.original.endTime) ? (
-            <NoSpanTooltip>
-              <div className="flex items-center gap-2 rounded-sm bg-secondary p-1">
-                <X className="w-4 h-4" />
-              </div>
-            </NoSpanTooltip>
+    cell: (row) => {
+      const topSpanId = row.row.original.topSpanId;
+      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
+      const isOld = isStringDateOld(row.row.original.endTime);
+      const shouldAnimate = !hasTopSpan && !isOld;
+
+      return (
+        <div className="cursor-pointer flex gap-2 items-center">
+          <div className="flex items-center gap-2">
+            {hasTopSpan ? (
+              <SpanTypeIcon className="z-10" spanType={row.getValue()} />
+            ) : (
+              <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
+            )}
+          </div>
+          {hasTopSpan ? (
+            <div className="text-sm truncate">{row.row.original.topSpanName}</div>
+          ) : row.row.original.topSpanName ? (
+            <div className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}>
+              {row.row.original.topSpanName}
+            </div>
           ) : (
-            <Skeleton className="w-6 h-6 bg-secondary rounded-sm" />
+            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
           )}
         </div>
-        {row.row.original.topSpanName ? (
-          <div className="text-sm truncate">{row.row.original.topSpanName}</div>
-        ) : isStringDateOld(row.row.original.endTime) ? (
-          <NoSpanTooltip>
-            <div className="flex text-muted-foreground">None</div>
-          </NoSpanTooltip>
-        ) : (
-          <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
-        )}
-      </div>
-    ),
+      );
+    },
     size: 150,
   },
   {
@@ -183,38 +204,10 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "tags",
   },
   {
-    accessorFn: (row) => (row.metadata ? JSON.stringify(row.metadata, null, 2) : ""),
+    accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
-    cell: (row) => (
-      <TooltipProvider delayDuration={100}>
-        <Tooltip>
-          <TooltipTrigger className="relative p-0">
-            <div
-              style={{
-                width: row.column.getSize() - 32,
-              }}
-              className="relative"
-            >
-              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{row.getValue()}</div>
-              </div>
-            </div>
-          </TooltipTrigger>
-          {row.getValue() !== undefined && (
-            <TooltipContent
-              side="bottom"
-              className="p-2 border"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <div className="whitespace-pre-wrap">{row.getValue()}</div>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
-    ),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
   {
@@ -297,6 +290,15 @@ export const filters: ColumnFilter[] = [
     dataType: "enum",
     key: "status",
     options: ["success", "error"].map((v) => ({
+      label: capitalize(v),
+      value: v,
+    })),
+  },
+  {
+    name: "Analysis status",
+    dataType: "enum",
+    key: "analysis_status",
+    options: ["info", "warning", "error"].map((v) => ({
       label: capitalize(v),
       value: v,
     })),

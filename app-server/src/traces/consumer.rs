@@ -5,16 +5,26 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use itertools::Itertools;
+use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use serde_json::Value;
+use tracing::instrument;
 use uuid::Uuid;
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    summary::push_to_trace_summary_queue,
+    trigger::{check_span_trigger, get_summary_trigger_spans_cached},
+};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    ch::{self, spans::CHSpan},
-    db::{DB, events::Event, spans::Span},
+    ch::{
+        self,
+        spans::CHSpan,
+        traces::{CHTrace, TraceAggregation, upsert_traces_batch},
+    },
+    db::{DB, events::Event, spans::Span, trace::upsert_trace_statistics_batch},
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
     mq::{
@@ -130,6 +140,16 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    storage,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -142,7 +162,6 @@ async fn process_spans_and_events_batch(
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
-    let mut project_ids = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
 
     // Process all spans in parallel (heavy processing)
@@ -166,7 +185,6 @@ async fn process_spans_and_events_batch(
     // Collect results from parallel processing
     for (span, events, ingested_bytes) in processing_results {
         spans_ingested_bytes.push(ingested_bytes.clone());
-        project_ids.push(span.project_id);
         all_spans.push(span);
         all_events.extend(events.into_iter());
     }
@@ -191,7 +209,7 @@ async fn process_spans_and_events_batch(
             })
             .collect::<Vec<_>>();
 
-        join_all(storage_futures).await;
+        join_all(storage_futures).with_current_context().await;
     }
 
     // Process spans and events in batches
@@ -199,7 +217,6 @@ async fn process_spans_and_events_batch(
         all_spans,
         spans_ingested_bytes,
         all_events,
-        project_ids,
         db,
         clickhouse,
         cache,
@@ -207,6 +224,7 @@ async fn process_spans_and_events_batch(
         queue,
         sse_connections,
     )
+    .with_current_context()
     .await;
 }
 
@@ -218,20 +236,37 @@ struct StrippedSpan {
     output: Option<Value>,
 }
 
+#[instrument(skip(
+    spans,
+    spans_ingested_bytes,
+    events,
+    db,
+    clickhouse,
+    cache,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,
     events: Vec<Event>,
-    project_ids: Vec<Uuid>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
-    evaluators_queue: Arc<MessageQueue>,
+    queue: Arc<MessageQueue>,
     sse_connections: SseConnectionMap,
 ) {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
+
+    // we get project id from the first span in the batch
+    // because all spans in the batch have the same project id
+    // batching is happening on the Otel SpanProcessor level
+    // project_id can never be None, because batch is never empty
+    // but we do unwrap_or_default to avoid Option<Uuid> in the rest of the code
+    let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
 
     for span in &mut spans {
         let span_usage =
@@ -298,7 +333,40 @@ async fn process_batch(
                 e
             );
         });
+        return;
     }
+
+    // Process trace aggregations and update trace statistics
+    if is_feature_enabled(Feature::AggregateTraces) {
+        let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+        if !trace_aggregations.is_empty() {
+            // Upsert trace statistics in PostgreSQL
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(updated_traces) => {
+                    // Convert to ClickHouse traces and upsert
+                    let ch_traces: Vec<CHTrace> = updated_traces
+                        .iter()
+                        .map(|trace| CHTrace::from_db_trace(trace))
+                        .collect();
+
+                    if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+                        log::error!(
+                            "Failed to upsert {} traces to ClickHouse: {:?}",
+                            ch_traces.len(),
+                            e
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                }
+            }
+        }
+    }
+
+    // Check for spans matching trigger conditions and push to trace summary queue
+    check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
+        .await;
 
     // Send realtime messages directly to SSE connections after successful ClickHouse writes
     send_realtime_messages_to_sse(&spans, &sse_connections).await;
@@ -319,29 +387,43 @@ async fn process_batch(
         log::error!("Failed to ack MQ delivery (batch): {:?}", e);
     });
 
-    match record_events(clickhouse.clone(), &all_events).await {
-        Ok(_) => {}
+    let total_events_ingested_bytes = match record_events(
+        cache.clone(),
+        db.clone(),
+        project_id,
+        clickhouse.clone(),
+        &all_events,
+    )
+    .await
+    {
+        Ok(bytes) => bytes,
         Err(e) => {
             log::error!("Failed to record events: {:?}", e);
+            0
         }
     };
 
-    for project_id in project_ids {
-        if is_feature_enabled(Feature::UsageLimit) {
-            if let Err(e) = update_workspace_limit_exceeded_by_project_id(
-                db.clone(),
-                clickhouse.clone(),
-                cache.clone(),
+    let total_ingested_bytes = spans_ingested_bytes
+        .iter()
+        .map(|b| b.span_bytes)
+        .sum::<usize>()
+        + total_events_ingested_bytes;
+
+    if is_feature_enabled(Feature::UsageLimit) {
+        if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+            db.clone(),
+            clickhouse.clone(),
+            cache.clone(),
+            project_id,
+            total_ingested_bytes,
+        )
+        .await
+        {
+            log::error!(
+                "Failed to update workspace limit exceeded for project [{}]: {:?}",
                 project_id,
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to update workspace limit exceeded for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-            }
+                e
+            );
         }
     }
 
@@ -376,7 +458,7 @@ async fn process_batch(
                             span.project_id,
                             evaluator.id,
                             span_output.clone(),
-                            evaluators_queue.clone(),
+                            queue.clone(),
                         )
                         .await
                         {
@@ -455,4 +537,52 @@ fn span_to_realtime_span(span: &Span) -> Value {
         "createdAt": span.start_time, // Use start_time as created_at for compatibility
         // Note: input and output fields are intentionally excluded for performance
     })
+}
+
+/// Check spans against trigger conditions and push matching traces to summary queue
+/// This function groups spans by project to minimize database/cache queries
+async fn check_and_push_trace_summaries(
+    project_id: Uuid,
+    spans: &[Span],
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+) {
+    match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
+        Ok(trigger_spans) => {
+            // Check each span against its project's trigger spans
+            for span in spans {
+                // Check if this span name matches any trigger
+                let matching_triggers = check_span_trigger(&span.name, &trigger_spans);
+
+                // Send one message per matching trigger
+                for trigger in matching_triggers {
+                    if let Err(e) = push_to_trace_summary_queue(
+                        span.trace_id,
+                        span.project_id,
+                        span.span_id,
+                        trigger.event_definition,
+                        queue.clone(),
+                    )
+                    .await
+                    {
+                        log::error!(
+                            "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                            span.trace_id,
+                            span.project_id,
+                            span.name,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to get summary trigger spans for project {}: {:?}",
+                project_id,
+                e
+            );
+        }
+    }
 }

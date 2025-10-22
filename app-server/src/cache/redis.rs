@@ -60,44 +60,76 @@ impl CacheTrait for RedisCache {
             }
         };
 
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .set::<_, Vec<u8>, ()>(String::from(key), bytes)
             .await
-        {
-            log::error!("Redis set error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
-        }
+            .map_err(|e| {
+                log::error!("Redis set error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
     }
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .del::<_, ()>(String::from(key))
             .await
-        {
-            log::error!("Redis delete error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
-        }
+            .map_err(|e| {
+                log::error!("Redis delete error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
     }
 
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
-        if let Err(e) = self
-            .connection
+        self.connection
             .clone()
             .expire::<_, ()>(String::from(key), seconds as i64)
             .await
-        {
-            log::error!("Redis set ttl error: {}", e);
-            Err(CacheError::InternalError(anyhow::Error::from(e)))
-        } else {
-            Ok(())
+            .map_err(|e| {
+                log::error!("Redis set ttl error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+        Ok(())
+    }
+
+    async fn insert_with_ttl<T>(&self, key: &str, value: T, seconds: u64) -> Result<(), CacheError>
+    where
+        T: Serialize + Send,
+    {
+        let bytes = match serde_json::to_vec(&value) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                log::error!("Serialization error: {}", e);
+                return Err(CacheError::SerDeError(e));
+            }
+        };
+
+        self.connection
+            .clone()
+            .set_ex::<_, Vec<u8>, ()>(String::from(key), bytes, seconds)
+            .await
+            .map_err(|e| {
+                log::error!("Redis set error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
+        // Use atomic INCRBY command
+        // Note: Redis INCRBY will create the key if it doesn't exist, starting from 0
+        // The caller should check with get() first if they want to handle missing keys differently
+        let result: RedisResult<i64> = self.connection.clone().incr(key, amount).await;
+        match result {
+            Ok(new_value) => Ok(new_value),
+            Err(e) => {
+                log::error!("Redis increment error: {}", e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
         }
     }
 }

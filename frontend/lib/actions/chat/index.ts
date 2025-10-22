@@ -1,4 +1,4 @@
-import { generateText, GenerateTextResult, modelMessageSchema, ToolSet } from "ai";
+import { generateObject, generateText, GenerateTextResult, jsonSchema, modelMessageSchema, ToolSet } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -11,6 +11,23 @@ import { getModel } from "@/lib/playground/providersRegistry";
 
 import { createSpanAttributes, sendSpanData, type SpanData } from "./utils";
 
+export type JsonObject = { [key: PropertyKey]: JsonObject | string | number | boolean | null | JsonObject[] } | null;
+
+export const zJsonObject = z
+  .string()
+  .optional()
+  .transform((str, ctx): JsonObject => {
+    if (!str) {
+      return null;
+    }
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      ctx.addIssue({ code: "custom", message: "Invalid JSON" });
+      return z.NEVER;
+    }
+  });
+
 export const PlaygroundParamsSchema = z.object({
   messages: z.array(modelMessageSchema).min(1),
   model: z.string().min(1),
@@ -20,8 +37,12 @@ export const PlaygroundParamsSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
   topK: z.number().positive().optional(),
-  tools: z.string().optional(),
+  tools: z
+    .string()
+    .optional()
+    .transform((v) => parseTools(v)),
   toolChoice: z.any().optional(),
+  structuredOutput: zJsonObject,
   playgroundId: z.string().optional(),
   abortSignal: z.any().optional(),
 });
@@ -66,27 +87,54 @@ export async function generateChatResponse(
     topK,
     tools,
     toolChoice,
+    structuredOutput,
     abortSignal,
   } = params;
 
   const provider = model.split(":")[0] as Provider;
   const decodedKey = await getProviderApiKey(projectId, provider);
-  const parsedTools = parseTools(tools);
 
   const startTime = new Date();
 
-  const result = await generateText({
-    abortSignal,
-    model: getModel(model as `${Provider}:${string}`, decodedKey),
-    messages,
-    maxOutputTokens: maxTokens,
-    temperature,
-    topK,
-    topP,
-    providerOptions,
-    tools: parsedTools,
-    toolChoice,
-  });
+  let result: any;
+
+  if (structuredOutput) {
+    const objectResult = await generateObject({
+      abortSignal,
+      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      messages,
+      maxOutputTokens: maxTokens,
+      temperature,
+      topK,
+      topP,
+      providerOptions,
+      schema: jsonSchema(structuredOutput),
+    });
+
+    result = {
+      ...objectResult,
+      text: JSON.stringify(objectResult.object, null, 2),
+      reasoning: [],
+      toolCalls: [],
+      content: [],
+      files: [],
+      sources: [],
+      reasoningText: "",
+    };
+  } else {
+    result = await generateText({
+      abortSignal,
+      model: getModel(model as `${Provider}:${string}`, decodedKey),
+      messages,
+      maxOutputTokens: maxTokens,
+      temperature,
+      topK,
+      topP,
+      providerOptions,
+      tools,
+      toolChoice,
+    });
+  }
 
   const endTime = new Date();
 
@@ -100,11 +148,12 @@ export async function generateChatResponse(
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
 ): Promise<GenerateTextResult<ToolSet, {}>> {
-  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId } = params;
+  const parsedParams = PlaygroundParamsSchema.parse(params);
+  const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
+    parsedParams;
 
-  const { result, startTime, endTime } = await generateChatResponse(params);
+  const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  // Ensure the result has safe fallback values for required properties
   const safeResult: GenerateTextResult<ToolSet, {}> = {
     ...result,
     text: result.text || "",
@@ -145,6 +194,7 @@ export async function handleChatGeneration(
       playgroundId,
       startTime,
       endTime,
+      structuredOutput,
     };
     const attributes = createSpanAttributes(spanData);
     await sendSpanData(projectId, provider, spanData, attributes);

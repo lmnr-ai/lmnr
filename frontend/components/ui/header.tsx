@@ -47,9 +47,9 @@ export default function Header({
   return (
     <div className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}>
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
-        {showSidebarTrigger && <SidebarTrigger className="ml-2 -mr-2 hover:bg-secondary" />}
+        {showSidebarTrigger && <SidebarTrigger className="ml-2 hover:bg-secondary" />}
         {workspace && (
-          <Link href="/projects" className="flex items-center gap-2 pl-4 text-secondary-foreground max-w-64">
+          <Link href="/projects" className="flex items-center gap-2 ml-2 text-secondary-foreground max-w-64">
             <p title={workspace.name} className="truncate">
               {workspace.name}
             </p>

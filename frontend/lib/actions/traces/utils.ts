@@ -34,6 +34,26 @@ const tracesColumnFilterConfig: ColumnFilterConfig = {
         }
       ),
     ],
+    [
+      "analysis_status",
+      createCustomFilter(
+        (filter, paramKey) => {
+          const { operator, value } = filter;
+          if (value === "info") {
+            return operator === "eq" ? `analysis_status = 'info'` : `analysis_status != 'info'`;
+          } else if (value === "warning") {
+            return operator === "eq" ? `analysis_status = 'warning'` : `analysis_status != 'warning'`;
+          } else if (value === "error") {
+            return operator === "eq" ? `analysis_status = 'error'` : `analysis_status != 'error'`;
+          }
+          return `analysis_status ${OperatorLabelMap[operator]} {${paramKey}:String}`;
+        },
+        (filter, paramKey) => {
+          const { value } = filter;
+          return value === "success" || value === "error" ? {} : { [paramKey]: value };
+        }
+      ),
+    ],
     ["trace_type", createStringFilter],
     [
       "tags",

@@ -22,6 +22,7 @@ pub const PAYLOADS_ROUTING_KEY: &str = "payloads_routing_key";
 pub struct QueuePayloadMessage {
     pub key: String,
     pub data: Vec<u8>,
+    pub bucket: String,
 }
 
 use mock::MockStorage;
@@ -37,14 +38,10 @@ pub enum Storage {
 #[enum_delegate::register]
 pub trait StorageTrait {
     type StorageBytesStream: futures_util::stream::Stream<Item = bytes::Bytes>;
-    async fn store(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn store_direct(&self, data: Vec<u8>, key: &str) -> Result<String>;
-    async fn get_stream(
-        &self,
-        key: &str,
-        bucket: &Option<String>,
-    ) -> Result<Self::StorageBytesStream>;
-    async fn get_size(&self, key: &str, bucket: &Option<String>) -> Result<u64>;
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String>;
+    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String>;
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream>;
+    async fn get_size(&self, bucket: &str, key: &str) -> Result<u64>;
 }
 
 pub fn create_key(project_id: &Uuid, file_extension: &Option<String>) -> String {
@@ -118,7 +115,7 @@ async fn inner_process_payloads(storage: Arc<Storage>, queue: Arc<MessageQueue>)
         };
 
         let store_payload = || async {
-            storage.store_direct(message.data.clone(), &message.key).await.map_err(|e| {
+            storage.store_direct(&message.bucket, &message.key, message.data.clone()).await.map_err(|e| {
                 log::error!("Failed attempt to store payload. Will retry according to backoff policy. Error: {:?}", e);
                 backoff::Error::transient(e)
             })
