@@ -118,7 +118,7 @@
     "react-syntax-highlighter": "^15.6.4",
     "react-textarea-autosize": "^8.5.9",
     "recharts": "^2.15.4",
-    "resend": "^4.8.0",
+    "resend": "^6.2.2",
     "rrweb": "2.0.0-alpha.18",
     "rrweb-player": "2.0.0-alpha.18",
     "sharp": "^0.33.5",
