@@ -588,8 +588,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_trace_summary_workers_per_thread {
                         tokio::spawn(process_trace_summaries(
-                            db_for_http.clone(),
-                            cache_for_http.clone(),
                             mq_for_http.clone(),
                         ));
                     }

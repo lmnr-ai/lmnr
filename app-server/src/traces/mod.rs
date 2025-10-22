@@ -1,5 +1,4 @@
 pub mod consumer;
-pub mod eligibility;
 pub mod events;
 pub mod grpc_service;
 pub mod limits;
