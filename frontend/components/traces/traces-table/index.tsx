@@ -316,9 +316,9 @@ export default function TracesTable() {
   );
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden">
+    <div className="flex overflow-hidden px-4 pb-4">
       <DataTable
-        className="border-none w-full"
+        className="w-full"
         columns={columns}
         data={traces}
         getRowId={(trace) => trace.id}
@@ -330,7 +330,6 @@ export default function TracesTable() {
         onPageChange={onPageChange}
         totalItemsCount={totalCount}
         childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
-        scrollContentClassName="mb-4 mx-4"
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />

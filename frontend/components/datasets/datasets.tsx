@@ -1,6 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { PlusIcon } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 
@@ -109,15 +110,14 @@ export default function Datasets() {
   ];
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path="datasets" />
-      <div className="flex justify-between items-center p-4 flex-none">
-        <h1 className="scroll-m-20 text-2xl font-medium">Datasets</h1>
+      <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateDatasetDialog>
-          <Button variant="outline">New dataset</Button>
+          <Button className="w-fit">
+            <PlusIcon className="size-4 mr-2" /> Dataset
+          </Button>
         </CreateDatasetDialog>
-      </div>
-      <div className="grow">
         <DataTable
           enableRowSelection={true}
           onRowClick={(row) => {
@@ -126,8 +126,6 @@ export default function Datasets() {
           getRowId={(row: DatasetInfo) => row.id}
           columns={columns}
           data={datasets}
-          paginated
-          manualPagination
           pageCount={pageCount}
           defaultPageSize={pageSize}
           defaultPageNumber={pageNumber}
@@ -155,6 +153,6 @@ export default function Datasets() {
           }
         />
       </div>
-    </div>
+    </>
   );
 }

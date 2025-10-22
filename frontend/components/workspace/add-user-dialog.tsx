@@ -84,7 +84,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button className="h-9 w-fit" variant="outline" disabled>
+              <Button className="w-fit" variant="outline" disabled>
                 <Plus className="w-4 h-4 mr-2 text-gray-500" />
                 Invite member
               </Button>

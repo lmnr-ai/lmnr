@@ -99,37 +99,33 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
   );
 
   return (
-    <div className="grow">
-      <DataTable
-        columns={columns}
-        data={data?.items}
-        getRowId={(row) => row.id}
-        paginated
-        onRowClick={onRowClick}
-        manualPagination
-        pageCount={Math.ceil((data?.totalCount || 0) / page.size)}
-        defaultPageSize={page.size}
-        defaultPageNumber={page.number}
-        onPageChange={handlePageChange}
-        totalItemsCount={data?.totalCount}
-        enableRowSelection
-        selectionPanel={(selectedRowIds) => (
-          <div className="flex flex-col space-y-2">
-            <DeleteSelectedRows
-              selectedRowIds={selectedRowIds}
-              onDelete={handleDeleteEvaluators}
-              entityName="evaluators"
-            />
-          </div>
-        )}
-        emptyRow={
-          <TableRow>
-            <TableCell colSpan={columns.length} className="text-center">
-              No evaluators found. Create your first evaluator to get started.
-            </TableCell>
-          </TableRow>
-        }
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={data?.items}
+      getRowId={(row) => row.id}
+      onRowClick={onRowClick}
+      pageCount={Math.ceil((data?.totalCount || 0) / page.size)}
+      defaultPageSize={page.size}
+      defaultPageNumber={page.number}
+      onPageChange={handlePageChange}
+      totalItemsCount={data?.totalCount}
+      enableRowSelection
+      selectionPanel={(selectedRowIds) => (
+        <div className="flex flex-col space-y-2">
+          <DeleteSelectedRows
+            selectedRowIds={selectedRowIds}
+            onDelete={handleDeleteEvaluators}
+            entityName="evaluators"
+          />
+        </div>
+      )}
+      emptyRow={
+        <TableRow>
+          <TableCell colSpan={columns.length} className="text-center">
+            No evaluators found. Create your first evaluator to get started.
+          </TableCell>
+        </TableRow>
+      }
+    />
   );
 }

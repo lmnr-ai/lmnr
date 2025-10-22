@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, PlusIcon, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
@@ -92,17 +92,15 @@ export default function Queues() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path="labeling queues" />
-      <div className="flex justify-between items-center p-4 flex-none">
-        <h1 className="scroll-m-20 text-2xl font-medium">Labeling Queues</h1>
+      <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
-          <Button variant="default">New queue</Button>
+          <Button className="w-fit">
+            <PlusIcon className="size-4 mr-2" /> Queue
+          </Button>
         </CreateQueueDialog>
-      </div>
-      <div className="grow">
         <DataTable
-          paginated
           enableRowSelection={true}
           onRowClick={(row) => {
             router.push(`/project/${projectId}/labeling-queues/${row.original.id}`);
@@ -148,6 +146,6 @@ export default function Queues() {
           }
         />
       </div>
-    </div>
+    </>
   );
 }

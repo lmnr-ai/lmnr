@@ -237,9 +237,9 @@ export default function SessionsTable() {
   );
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden px-4 pb-4">
+    <div className="flex overflow-hidden px-4 pb-4">
       <DataTable
-        className="border-none w-full"
+        className="w-full"
         columns={columns}
         data={sessions}
         getRowId={(session) => get(session, ["id"], session.sessionId)}

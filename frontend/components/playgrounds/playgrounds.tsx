@@ -85,10 +85,9 @@ export default function Playgrounds() {
   return (
     <>
       <Header path="playgrounds" />
-      <div className="flex flex-col gap-4 flex-1 overflow-auto px-4">
+      <div className="flex flex-col gap-4 flex-1 overflow-auto px-4 pb-4">
         <CreatePlaygroundDialog />
         <DataTable
-          scrollContentClassName="mb-4"
           enableRowSelection={true}
           onRowClick={(row) => {
             router.push(`/project/${projectId}/playgrounds/${row.original.id}`);

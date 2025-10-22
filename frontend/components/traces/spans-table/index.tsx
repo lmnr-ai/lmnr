@@ -179,9 +179,9 @@ export default function SpansTable() {
   }, [searchParams]);
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden px-4 pb-4">
+    <div className="flex overflow-hidden px-4 pb-4">
       <DataTable
-        className="border-none w-full"
+        className="w-full"
         columns={columns}
         data={spans}
         getRowId={(span) => span.spanId}

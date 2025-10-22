@@ -133,9 +133,9 @@ export default function TraceSummarySettings() {
       />
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" className="h-9 w-fit">
+          <Button variant="outline" className="w-fit">
             <Plus className="w-4 h-4 mr-2" />
-            Add span name
+            Span
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">

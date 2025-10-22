@@ -70,44 +70,44 @@ const checkboxColumn = <TData,>(
   setAllRowsAcrossAllPagesSelected: Dispatch<SetStateAction<boolean>>,
   onSelectAllAcrossPages: DataTableProps<TData>["onSelectAllAcrossPages"]
 ): ColumnDef<TData> => ({
-  id: "__row_selection",
-  enableResizing: false,
-  header: ({ table }) => (
-    <Checkbox
-      className="border border-secondary"
-      checked={table.getIsAllRowsSelected()}
-      onCheckedChange={(checked) => {
-        if (!checked) {
-          setAllRowsAcrossAllPagesSelected?.(false);
-          onSelectAllAcrossPages?.(false);
-        }
-      }}
-      onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
-      onClick={(e) => {
-        e.stopPropagation();
-        table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
-      }}
-    />
-  ),
-  size: 52,
-  cell: ({ row }) => (
-    <Checkbox
-      className={cn("border border-secondary")}
-      checked={row.getIsSelected()}
-      onCheckedChange={(checked) => {
-        if (!checked) {
-          setAllRowsAcrossAllPagesSelected?.(false);
-          onSelectAllAcrossPages?.(false);
-        }
-      }}
-      onChange={row.getToggleSelectedHandler()}
-      onClick={(e) => {
-        e.stopPropagation();
-        row.toggleSelected(!row.getIsSelected());
-      }}
-    />
-  ),
-});
+    id: "__row_selection",
+    enableResizing: false,
+    header: ({ table }) => (
+      <Checkbox
+        className="border border-secondary"
+        checked={table.getIsAllRowsSelected()}
+        onCheckedChange={(checked) => {
+          if (!checked) {
+            setAllRowsAcrossAllPagesSelected?.(false);
+            onSelectAllAcrossPages?.(false);
+          }
+        }}
+        onChange={table.getToggleAllRowsSelectedHandler()} // TODO: Think about row selection per page
+        onClick={(e) => {
+          e.stopPropagation();
+          table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
+        }}
+      />
+    ),
+    size: 52,
+    cell: ({ row }) => (
+      <Checkbox
+        className={cn("border border-secondary")}
+        checked={row.getIsSelected()}
+        onCheckedChange={(checked) => {
+          if (!checked) {
+            setAllRowsAcrossAllPagesSelected?.(false);
+            onSelectAllAcrossPages?.(false);
+          }
+        }}
+        onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => {
+          e.stopPropagation();
+          row.toggleSelected(!row.getIsSelected());
+        }}
+      />
+    ),
+  });
 
 export function DataTable<TData>({
   columns,
@@ -132,7 +132,7 @@ export function DataTable<TData>({
   selectionPanel,
   pageSizeOptions = [10, 20, 50, 100, 200, 500],
   childrenClassName,
-  scrollContentClassName,
+  scrollContentClassName = "border rounded",
 }: PropsWithChildren<DataTableProps<TData>>) {
   const [internalRowSelection, setInternalRowSelection] = useState<Record<string, boolean>>({});
   const [allRowsAcrossAllPagesSelected, setAllRowsAcrossAllPagesSelected] = useState(false);
@@ -208,11 +208,11 @@ export function DataTable<TData>({
     enableMultiRowSelection: true,
     onRowSelectionChange: isExternallyControlled
       ? (updater) => {
-          // For externally controlled state, we need to convert the updater function result back to array
-          const newSelection = typeof updater === "function" ? updater(rowSelection) : updater;
-          const newSelectedIds = Object.keys(newSelection);
-          onSelectedRowsChange?.(newSelectedIds);
-        }
+        // For externally controlled state, we need to convert the updater function result back to array
+        const newSelection = typeof updater === "function" ? updater(rowSelection) : updater;
+        const newSelectedIds = Object.keys(newSelection);
+        onSelectedRowsChange?.(newSelectedIds);
+      }
       : setInternalRowSelection,
     getRowId: getRowId,
   });
@@ -260,12 +260,12 @@ export function DataTable<TData>({
 
   const content = (
     <Table
-      className="border-separate border-spacing-0 relative border-x border-b rounded bg-sidebar text-xs overflow-hidden"
+      className="border-separate border-spacing-0 relative rounded bg-sidebar text-xs overflow-hidden"
       style={{
         width: table.getHeaderGroups()[0].headers.reduce((acc, header) => acc + header.getSize(), 0),
       }}
     >
-      <TableHeader className="sticky top-0 z-20 text-xs flex bg-sidebar rounded-t border-t">
+      <TableHeader className="sticky top-0 z-20 text-xs flex bg-sidebar rounded-t">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr" key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
@@ -354,9 +354,9 @@ export function DataTable<TData>({
           {selectionPanel?.(currentSelectedRowIds)}
         </div>
       )}
-      {children && <div className={cn("flex items-center px-4 space-x-2 h-12", childrenClassName)}>{children}</div>}
-      <ScrollArea className="flex-1 overflow-auto">
-        <div className={scrollContentClassName}>{content}</div>
+      {children && <div className={cn("flex items-center space-x-2 h-12", childrenClassName)}>{children}</div>}
+      <ScrollArea className={cn("flex-1 overflow-auto", scrollContentClassName)}>
+        {content}
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
       {paginated && (
