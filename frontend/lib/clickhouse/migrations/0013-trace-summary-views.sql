@@ -35,7 +35,7 @@ CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
         arrayDistinct(arrayFlatten(arrayConcat(groupArray(tags_array)))) AS tags,
         trace_id id,
         '' as summary,
-        '' as analysis_status,
+        'info' as analysis_status,
         '' as analysis_preview
     FROM spans
     WHERE project_id={project_id:UUID} AND spans.start_time>={start_time:DateTime64} AND spans.start_time<={end_time:DateTime64}
