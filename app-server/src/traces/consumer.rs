@@ -5,7 +5,7 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use itertools::Itertools;
-use opentelemetry::{Context, trace::FutureExt};
+use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use serde_json::Value;
 use tracing::instrument;
@@ -209,9 +209,7 @@ async fn process_spans_and_events_batch(
             })
             .collect::<Vec<_>>();
 
-        join_all(storage_futures)
-            .with_context(Context::current())
-            .await;
+        join_all(storage_futures).with_current_context().await;
     }
 
     // Process spans and events in batches
@@ -226,6 +224,7 @@ async fn process_spans_and_events_batch(
         queue,
         sse_connections,
     )
+    .with_current_context()
     .await;
 }
 
