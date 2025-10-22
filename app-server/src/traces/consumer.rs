@@ -38,7 +38,7 @@ use crate::{
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
-        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags},
+        utils::{get_llm_usage_for_span, prepare_span_for_recording, record_tags_batch},
     },
 };
 
@@ -427,19 +427,22 @@ async fn process_batch(
         }
     }
 
-    for span in &stripped_spans {
-        if let Err(e) = record_tags(
-            clickhouse.clone(),
-            &span.tags,
-            &span.span_id,
-            &span.project_id,
-        )
-        .await
-        {
+    // Collect all tags from all spans for batch insertion
+    let tags_batch: Vec<(Uuid, String, Uuid)> = stripped_spans
+        .iter()
+        .flat_map(|span| {
+            span.tags
+                .iter()
+                .map(move |tag| (span.project_id, tag.clone(), span.span_id))
+        })
+        .collect();
+
+    // Record all tags in a single batch
+    if !tags_batch.is_empty() {
+        if let Err(e) = record_tags_batch(clickhouse.clone(), &tags_batch).await {
             log::error!(
-                "Failed to record tags to DB. span_id [{}], project_id [{}]: {:?}",
-                span.span_id,
-                span.project_id,
+                "Failed to record tags to DB for batch of {} tags: {:?}",
+                tags_batch.len(),
                 e
             );
         }

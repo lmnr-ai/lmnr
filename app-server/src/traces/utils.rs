@@ -97,27 +97,23 @@ pub async fn get_llm_usage_for_span(
     }
 }
 
-#[instrument(skip(clickhouse, tags, span_id, project_id))]
-pub async fn record_tags(
+#[instrument(skip(clickhouse, tags_batch))]
+pub async fn record_tags_batch(
     clickhouse: clickhouse::Client,
-    tags: &[String],
-    span_id: &Uuid,
-    project_id: &Uuid,
+    tags_batch: &[(Uuid, String, Uuid)], // (project_id, tag_name, span_id)
 ) -> anyhow::Result<()> {
-    if tags.is_empty() {
+    if tags_batch.is_empty() {
         return Ok(());
     }
 
-    for tag_name in tags {
-        crate::ch::tags::insert_tag(
-            clickhouse.clone(),
-            *project_id,
-            tag_name.clone(),
-            TagSource::CODE,
-            *span_id,
-        )
-        .await?;
-    }
+    let tags_to_insert: Vec<(Uuid, String, TagSource, Uuid)> = tags_batch
+        .iter()
+        .map(|(project_id, tag_name, span_id)| {
+            (*project_id, tag_name.clone(), TagSource::CODE, *span_id)
+        })
+        .collect();
+
+    crate::ch::tags::insert_tags_batch(clickhouse, &tags_to_insert).await?;
 
     Ok(())
 }

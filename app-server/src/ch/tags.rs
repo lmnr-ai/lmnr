@@ -79,3 +79,40 @@ pub async fn insert_tag(
         }
     }
 }
+
+pub async fn insert_tags_batch(
+    client: clickhouse::Client,
+    tags: &[(Uuid, String, TagSource, Uuid)], // (project_id, name, source, span_id)
+) -> Result<()> {
+    if tags.is_empty() {
+        return Ok(());
+    }
+
+    let ch_insert = client.insert("tags");
+    match ch_insert {
+        Ok(mut ch_insert) => {
+            for (project_id, name, source, span_id) in tags {
+                let id = Uuid::new_v4();
+                let tag = CHTag::new(*project_id, id, name.clone(), source.clone(), *span_id);
+                ch_insert.write(&tag).await?;
+            }
+
+            let ch_insert_end_res = ch_insert.end().await;
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "Clickhouse batch tag insertion failed: {:?}",
+                        e
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to insert tags batch into Clickhouse: {:?}",
+                e
+            ));
+        }
+    }
+}
