@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(false)
         .build_server(true)
         .include_file("mod.rs")
-        .out_dir("./src/opentelemetry/")
+        .out_dir("./src/opentelemetry_proto/")
         .compile_protos(
             &[
                 "./proto/opentelemetry/common.proto",

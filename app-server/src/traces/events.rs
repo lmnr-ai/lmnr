@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::Result;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
     db::{self, DB, events::Event},
 };
 
+#[instrument(skip(cache, db, project_id, clickhouse, event_payloads))]
 pub async fn record_events(
     cache: Arc<Cache>,
     db: Arc<DB>,

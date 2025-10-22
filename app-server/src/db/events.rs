@@ -4,7 +4,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    opentelemetry::opentelemetry_proto_trace_v1::span::Event as OtelEvent,
+    opentelemetry_proto::opentelemetry_proto_trace_v1::span::Event as OtelEvent,
     utils::estimate_json_size,
 };
 

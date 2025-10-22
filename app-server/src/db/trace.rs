@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::ch::traces::TraceAggregation;
@@ -111,6 +112,7 @@ impl Trace {
 
 /// Upsert trace statistics from aggregated span data
 /// Returns the updated trace statistics
+#[instrument(skip(pool, aggregations))]
 pub async fn upsert_trace_statistics_batch(
     pool: &PgPool,
     aggregations: &[TraceAggregation],
