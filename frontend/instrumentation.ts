@@ -55,8 +55,8 @@ export async function register() {
           await migration(
             migrationsHome,
             process.env.CLICKHOUSE_URL || "http://localhost:8123",
-            process.env.CLICKHOUSE_USER || "default",
-            process.env.CLICKHOUSE_PASSWORD || "",
+            process.env.CLICKHOUSE_USER || "ch_user",
+            process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
             process.env.CLICKHOUSE_DB || "default",
             "ENGINE=Atomic", // db_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000), // timeout as string
