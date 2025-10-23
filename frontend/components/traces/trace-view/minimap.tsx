@@ -185,7 +185,7 @@ function Minimap({ onSpanSelect }: Props) {
     <div className="h-full flex-none max-w-16 w-fit z-30 border-l">
       <div
         ref={minimapRef}
-        className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
+        className="pl-1 h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
       >
         <div
