@@ -13,6 +13,8 @@ use utils::calculate_cost;
 
 mod utils;
 
+const LLM_PRICES_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct LLMPriceEntry {
     _provider: String,
@@ -52,7 +54,11 @@ pub async fn estimate_output_cost(
             let price = get_price(&db.pool, provider, model).await.ok()?;
             let price = LLMPriceEntry::from(price);
             let _ = cache
-                .insert::<LLMPriceEntry>(&cache_key, price.clone())
+                .insert_with_ttl::<LLMPriceEntry>(
+                    &cache_key,
+                    price.clone(),
+                    LLM_PRICES_CACHE_TTL_SECONDS,
+                )
                 .await;
             price.output_price_per_million
         }
@@ -68,8 +74,7 @@ pub async fn estimate_input_cost(
     input_tokens: InputTokens,
 ) -> Option<f64> {
     let cache_key = format!("{LLM_PRICES_CACHE_KEY}:{provider}:{model}");
-    // let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await.ok()?;
-    let cache_res = None;
+    let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await.ok()?;
 
     let price = match cache_res {
         Some(price) => price,
@@ -77,7 +82,11 @@ pub async fn estimate_input_cost(
             let price = get_price(&db.pool, provider, model).await.ok()?;
             let price = LLMPriceEntry::from(price);
             let _ = cache
-                .insert::<LLMPriceEntry>(&cache_key, price.clone())
+                .insert_with_ttl::<LLMPriceEntry>(
+                    &cache_key,
+                    price.clone(),
+                    LLM_PRICES_CACHE_TTL_SECONDS,
+                )
                 .await;
             price
         }
