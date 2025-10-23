@@ -2,9 +2,10 @@ use anyhow::Result;
 use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
-use crate::db::tags::TagSource;
+use crate::db::tags::{SpanTag, TagSource};
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -80,10 +81,8 @@ pub async fn insert_tag(
     }
 }
 
-pub async fn insert_tags_batch(
-    client: clickhouse::Client,
-    tags: &[(Uuid, String, TagSource, Uuid)], // (project_id, name, source, span_id)
-) -> Result<()> {
+#[instrument(skip(client, tags))]
+pub async fn insert_tags_batch(client: clickhouse::Client, tags: &[SpanTag]) -> Result<()> {
     if tags.is_empty() {
         return Ok(());
     }
@@ -91,9 +90,15 @@ pub async fn insert_tags_batch(
     let ch_insert = client.insert("tags");
     match ch_insert {
         Ok(mut ch_insert) => {
-            for (project_id, name, source, span_id) in tags {
+            for span_tag in tags {
                 let id = Uuid::new_v4();
-                let tag = CHTag::new(*project_id, id, name.clone(), source.clone(), *span_id);
+                let tag = CHTag::new(
+                    span_tag.project_id,
+                    id,
+                    span_tag.name.clone(),
+                    span_tag.source.clone(),
+                    span_tag.span_id,
+                );
                 ch_insert.write(&tag).await?;
             }
 
