@@ -5,8 +5,10 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use futures_util::future::join_all;
 use itertools::Itertools;
+use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use serde_json::Value;
+use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
@@ -138,6 +140,16 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    storage,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -197,7 +209,7 @@ async fn process_spans_and_events_batch(
             })
             .collect::<Vec<_>>();
 
-        join_all(storage_futures).await;
+        join_all(storage_futures).with_current_context().await;
     }
 
     // Process spans and events in batches
@@ -212,6 +224,7 @@ async fn process_spans_and_events_batch(
         queue,
         sse_connections,
     )
+    .with_current_context()
     .await;
 }
 
@@ -223,6 +236,17 @@ struct StrippedSpan {
     output: Option<Value>,
 }
 
+#[instrument(skip(
+    spans,
+    spans_ingested_bytes,
+    events,
+    db,
+    clickhouse,
+    cache,
+    acker,
+    queue,
+    sse_connections
+))]
 async fn process_batch(
     mut spans: Vec<Span>,
     spans_ingested_bytes: Vec<IngestedBytes>,
@@ -313,27 +337,29 @@ async fn process_batch(
     }
 
     // Process trace aggregations and update trace statistics
-    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
-    if !trace_aggregations.is_empty() {
-        // Upsert trace statistics in PostgreSQL
-        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-            Ok(updated_traces) => {
-                // Convert to ClickHouse traces and upsert
-                let ch_traces: Vec<CHTrace> = updated_traces
-                    .iter()
-                    .map(|trace| CHTrace::from_db_trace(trace))
-                    .collect();
+    if is_feature_enabled(Feature::AggregateTraces) {
+        let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+        if !trace_aggregations.is_empty() {
+            // Upsert trace statistics in PostgreSQL
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(updated_traces) => {
+                    // Convert to ClickHouse traces and upsert
+                    let ch_traces: Vec<CHTrace> = updated_traces
+                        .iter()
+                        .map(|trace| CHTrace::from_db_trace(trace))
+                        .collect();
 
-                if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
-                    log::error!(
-                        "Failed to upsert {} traces to ClickHouse: {:?}",
-                        ch_traces.len(),
-                        e
-                    );
+                    if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+                        log::error!(
+                            "Failed to upsert {} traces to ClickHouse: {:?}",
+                            ch_traces.len(),
+                            e
+                        );
+                    }
                 }
-            }
-            Err(e) => {
-                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                }
             }
         }
     }

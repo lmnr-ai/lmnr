@@ -9,7 +9,7 @@ const nextConfig = {
       fullUrl: true,
     },
   },
-  serverExternalPackages: ["@lmnr-ai/lmnr"],
+  serverExternalPackages: ["@lmnr-ai/lmnr", "@sentry/nextjs"],
   output: "standalone",
   async headers() {
     return [

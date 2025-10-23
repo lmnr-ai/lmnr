@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
@@ -218,6 +219,7 @@ impl TraceAggregation {
 }
 
 /// Insert or update traces in ClickHouse traces_replacing table
+#[instrument(skip(client, traces))]
 pub async fn upsert_traces_batch(
     client: clickhouse::Client,
     traces: &[CHTrace],

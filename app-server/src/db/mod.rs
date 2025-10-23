@@ -9,7 +9,6 @@ pub mod event_definitions;
 pub mod events;
 pub mod prices;
 pub mod project_api_keys;
-pub mod project_settings;
 pub mod projects;
 pub mod provider_api_keys;
 pub mod spans;

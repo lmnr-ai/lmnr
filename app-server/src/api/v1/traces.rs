@@ -8,7 +8,7 @@ use crate::{
     db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
-    opentelemetry::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
+    opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
 };

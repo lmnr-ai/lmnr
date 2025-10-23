@@ -29,7 +29,7 @@ use lapin::{
 };
 use mq::MessageQueue;
 use names::NameGenerator;
-use opentelemetry::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
+use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{Storage, mock::MockStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, process_payloads};
 use tonic::transport::Server;
@@ -44,10 +44,7 @@ use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use realtime::{SseConnectionMap, cleanup_closed_connections};
 use sodiumoxide;
 use std::{
-    env,
-    io::{self, Error},
-    sync::Arc,
-    thread::{self, JoinHandle},
+    borrow::Cow, env, io::{self, Error}, sync::Arc, thread::{self, JoinHandle}
 };
 
 mod agent_manager;
@@ -61,10 +58,11 @@ mod db;
 mod evaluations;
 mod evaluators;
 mod features;
+mod instrumentation;
 mod language_model;
 mod mq;
 mod names;
-mod opentelemetry;
+mod opentelemetry_proto;
 mod project_api_keys;
 mod provider_api_keys;
 mod query_engine;
@@ -97,12 +95,28 @@ fn main() -> anyhow::Result<()> {
 
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
-    if env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
-        env_logger::init();
-    } else {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .init();
+    // == Sentry ==
+    let sentry_dsn = env::var("SENTRY_DSN").unwrap_or(
+        "https://1234567890@sentry.io/1234567890".to_string()
+    );
+    let _sentry_guard = sentry::init((sentry_dsn, sentry::ClientOptions {
+        release: sentry::release_name!(),
+        traces_sample_rate: 1.0,
+        environment: Some(Cow::Owned(env::var("ENVIRONMENT").unwrap_or("development".to_string()))),
+        before_send: Some(Arc::new(|_| {
+            // We don't want Sentry to record events. We only use it for OTel tracing.
+            None
+        })),
+        ..Default::default()
+    }));
+
+    if !is_feature_enabled(Feature::Tracing) || env::var("SENTRY_DSN").is_err() {
+        // If tracing is not enabled, drop the sentry guard, thus disabling sentry
+        drop(_sentry_guard);
+    }
+
+    if is_feature_enabled(Feature::Tracing) {
+        instrumentation::setup_tracing();
     }
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
@@ -588,8 +602,6 @@ fn main() -> anyhow::Result<()> {
 
                     for _ in 0..num_trace_summary_workers_per_thread {
                         tokio::spawn(process_trace_summaries(
-                            db_for_http.clone(),
-                            cache_for_http.clone(),
                             mq_for_http.clone(),
                         ));
                     }

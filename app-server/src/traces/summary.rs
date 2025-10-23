@@ -5,17 +5,10 @@ use backoff::ExponentialBackoffBuilder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
-    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY,
-    eligibility::check_trace_eligibility,
-};
-use crate::{
-    cache::Cache,
-    db::DB,
-    mq::{
-        MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-        MessageQueueTrait,
-    },
+use super::{TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY};
+use crate::mq::{
+    MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
+    MessageQueueTrait,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -63,14 +56,14 @@ pub async fn push_to_trace_summary_queue(
 }
 
 /// Main worker function to process trace summary messages
-pub async fn process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
+pub async fn process_trace_summaries(queue: Arc<MessageQueue>) {
     loop {
-        inner_process_trace_summaries(db.clone(), cache.clone(), queue.clone()).await;
+        inner_process_trace_summaries(queue.clone()).await;
         log::warn!("Trace summary listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Arc<MessageQueue>) {
+async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -131,15 +124,7 @@ async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Ar
             };
 
         // Process the trace summary generation
-        if let Err(e) = process_single_trace_summary(
-            &client,
-            db.clone(),
-            cache.clone(),
-            trace_summary_message,
-            acker,
-        )
-        .await
-        {
+        if let Err(e) = process_single_trace_summary(&client, trace_summary_message, acker).await {
             log::error!("Failed to process trace summary: {:?}", e);
         }
     }
@@ -149,20 +134,9 @@ async fn inner_process_trace_summaries(db: Arc<DB>, cache: Arc<Cache>, queue: Ar
 
 async fn process_single_trace_summary(
     client: &reqwest::Client,
-    db: Arc<DB>,
-    cache: Arc<Cache>,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    let eligibility_result = check_trace_eligibility(db, cache, message.project_id).await?;
-
-    if !eligibility_result.is_eligible {
-        if let Err(e) = acker.ack().await {
-            log::error!("Failed to ack trace summary message: {:?}", e);
-        }
-        return Ok(());
-    }
-
     let summarizer_service_url = if let Ok(url) = env::var("TRACE_SUMMARIZER_URL") {
         url
     } else {

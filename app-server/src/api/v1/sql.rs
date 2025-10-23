@@ -1,6 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
+use opentelemetry::{
+    global,
+    trace::{Tracer, mark_span_as_active},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -32,6 +36,10 @@ pub async fn execute_sql_query(
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let SqlQueryRequest { query } = req.into_inner();
+
+    let tracer = global::tracer("tracer");
+    let span = tracer.start("api_sql_query");
+    let _guard = mark_span_as_active(span);
 
     match clickhouse_ro.as_ref() {
         Some(ro_client) => {
