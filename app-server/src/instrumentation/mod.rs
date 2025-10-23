@@ -9,30 +9,35 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub fn setup_tracing() {
+pub fn setup_tracing(enable_otel: bool) {
     let env_filter = if std::env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
         EnvFilter::from_default_env()
     } else {
         EnvFilter::new("info")
     };
 
-    let mut provider_builder = SdkTracerProvider::builder();
-
-    if std::env::var("SENTRY_DSN").is_ok() {
-        provider_builder = provider_builder
-            .with_span_processor(sentry::integrations::opentelemetry::SentrySpanProcessor::new());
-    }
-
-    let tracer_provider = provider_builder.build();
-    let tracer = tracer_provider.tracer("app-server");
-
-    global::set_tracer_provider(tracer_provider);
-
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
-    tracing_subscriber::registry()
+    let registry = tracing_subscriber::registry()
         .with(env_filter)
-        .with(otel_layer)
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+        .with(tracing_subscriber::fmt::layer());
+
+    if enable_otel {
+        let mut provider_builder = SdkTracerProvider::builder();
+
+        if std::env::var("SENTRY_DSN").is_ok() {
+            provider_builder = provider_builder.with_span_processor(
+                sentry::integrations::opentelemetry::SentrySpanProcessor::new(),
+            );
+        }
+
+        let tracer_provider = provider_builder.build();
+        let tracer = tracer_provider.tracer("app-server");
+
+        global::set_tracer_provider(tracer_provider);
+
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+        registry.with(otel_layer).init();
+    } else {
+        registry.init();
+    }
 }
