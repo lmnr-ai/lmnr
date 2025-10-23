@@ -42,7 +42,7 @@ const EvaluationHeader = ({
   };
 
   return (
-    <div className="flex-none flex space-x-2 h-12 px-4 items-center border-b justify-start">
+    <div className="flex-none flex space-x-2 px-4 items-center justify-start">
       <div>
         <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
           <SelectTrigger

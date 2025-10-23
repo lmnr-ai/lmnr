@@ -78,7 +78,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
           <Sidebar collapsible="none">
             <SidebarContent className="bg-background">
-              <SidebarGroup className="pt-2 px-0">
+              <SidebarGroup className="pt-2">
                 <SidebarMenu>
                   {menuTabs.map((tab) => (
                     <SidebarMenuItem className="h-7" key={tab.id}>

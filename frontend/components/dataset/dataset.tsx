@@ -1,27 +1,25 @@
 "use client";
 
 import { ColumnDef, Row } from "@tanstack/react-table";
-import { Pen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button.tsx";
 import { DataTable } from "@/components/ui/datatable";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import JsonTooltip from "../ui/json-tooltip";
-import MonoWithCopy from "../ui/mono-with-copy";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
@@ -42,11 +40,13 @@ const columns: ColumnDef<Datapoint>[] = [
   },
   {
     accessorFn: (row) => row.data,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
     size: 200,
   },
   {
     accessorFn: (row) => row.target,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
     size: 200,
   },
@@ -216,14 +216,10 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   }, []);
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path={"datasets/" + dataset.name} />
-      <div className="flex p-4 items-start sm:items-center space-x-4">
-        <div>
-          <h1 className="text-lg font-medium">{dataset.name}</h1>
-          <MonoWithCopy className="text-secondary-foreground pt-1 text-nowrap truncate">{dataset.id}</MonoWithCopy>
-        </div>
-        <div className="flex flex-wrap flex-1 items-end justify-end gap-2">
+      <div className="flex px-4 pb-4 flex-col gap-2 overflow-hidden">
+        <div className="flex flex-wrap items-end gap-2">
           <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
             uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
@@ -243,52 +239,51 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
                 selectedDatapointIds.length > 0 ? selectedDatapointIds : datapoints?.map(({ id }) => id) || []
               }
             >
-              <Badge
-                className={`cursor-pointer py-1 px-2 ${selectedDatapointIds.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              <Button
+                icon="pen"
+                className={cn({ "opacity-50 cursor-not-allowed": selectedDatapointIds.length === 0 })}
                 variant="secondary"
               >
-                <Pen className="size-3 min-w-3" />
-                <span className="ml-2 truncate flex-1">
+                <span className="truncate flex-1">
                   {selectedDatapointIds.length > 0
                     ? `Add to labeling queue (${selectedDatapointIds.length})`
                     : "Add to labeling queue"}
                 </span>
-              </Badge>
+              </Button>
             </AddToLabelingQueuePopover>
           </div>
           {enableDownloadParquet && (
             <DownloadParquetDialog datasetId={dataset.id} publicApiBaseUrl={publicApiBaseUrl} />
           )}
         </div>
+        <div className="flex overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={datapoints}
+            getRowId={(datapoint) => datapoint.id}
+            onRowClick={handleDatapointSelect}
+            focusedRowId={datapointId}
+            pageCount={pageCount}
+            defaultPageSize={pageSize}
+            defaultPageNumber={pageNumber}
+            onPageChange={onPageChange}
+            totalItemsCount={totalCount}
+            enableRowSelection
+            selectedRowIds={selectedDatapointIds}
+            onSelectedRowsChange={setSelectedDatapointIds}
+            selectionPanel={(selectedRowIds) => (
+              <div className="flex flex-col space-y-2">
+                <DeleteSelectedRows
+                  selectedRowIds={selectedRowIds}
+                  onDelete={handleDeleteDatapoints}
+                  entityName="datapoints"
+                />
+              </div>
+            )}
+          />
+        </div>
       </div>
-      <div className="grow">
-        <DataTable
-          columns={columns}
-          data={datapoints}
-          getRowId={(datapoint) => datapoint.id}
-          onRowClick={handleDatapointSelect}
-          paginated
-          focusedRowId={datapointId}
-          manualPagination
-          pageCount={pageCount}
-          defaultPageSize={pageSize}
-          defaultPageNumber={pageNumber}
-          onPageChange={onPageChange}
-          totalItemsCount={totalCount}
-          enableRowSelection
-          selectedRowIds={selectedDatapointIds}
-          onSelectedRowsChange={setSelectedDatapointIds}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
-              <DeleteSelectedRows
-                selectedRowIds={selectedRowIds}
-                onDelete={handleDeleteDatapoints}
-                entityName="datapoints"
-              />
-            </div>
-          )}
-        />
-      </div>
+
       {selectedDatapoint && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
@@ -305,6 +300,6 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           </Resizable>
         </div>
       )}
-    </div>
+    </>
   );
 }

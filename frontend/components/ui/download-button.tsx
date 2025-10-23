@@ -1,7 +1,5 @@
-import { Download } from "lucide-react";
 import React, { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -90,10 +88,9 @@ function DownloadButtonMultipleFormats({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(className)} asChild disabled={isDownloading}>
-        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-          <Download className="size-3 mr-2" />
-          <span className="text-xs">Download</span>
-        </Badge>
+        <Button icon="download" variant="secondary">
+          Download
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

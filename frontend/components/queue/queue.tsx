@@ -249,9 +249,9 @@ function QueueInner() {
   );
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <>
       <Header path={`labeling queues/${storeQueue?.name || "Queue"}`} />
-      <ResizablePanelGroup direction="horizontal">
+      <ResizablePanelGroup className="px-4 pb-4" direction="horizontal">
         <ResizablePanel className="flex flex-1 flex-col overflow-hidden p-4" minSize={20} defaultSize={50}>
           {isLoading === "first-load" ? (
             <div className="size-full flex flex-col flex-1 gap-2">
@@ -289,8 +289,8 @@ function QueueInner() {
             </div>
           )}
         </ResizablePanel>
-        <ResizableHandle withHandle className="z-50" />
-        <ResizablePanel className="flex-1 flex-col flex" minSize={42} defaultSize={33}>
+        <ResizableHandle withHandle className="z-30 bg-transparent ml-2" />
+        <ResizablePanel className="flex-1 flex-col flex border rounded bg-sidebar" minSize={42} defaultSize={33}>
           <div className="flex p-4 py-2 border-b text-secondary-foreground justify-between w-full items-center">
             <span className="text-nowrap">
               {currentItem?.position || 0} of {currentItem?.count || 0}
@@ -328,9 +328,11 @@ function QueueInner() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             )}
-            <div className="p-4 border-b">
-              <Label htmlFor="insert-dataset">Insert to dataset on complete</Label>
-              <DatasetSelect className="mt-2" value={dataset} onChange={(dataset) => setDataset(dataset?.id)} />
+            <div className="p-4">
+              <Label className="text-xs" htmlFor="insert-dataset">
+                Insert to dataset on complete
+              </Label>
+              <DatasetSelect className="mt-1" value={dataset} onChange={(dataset) => setDataset(dataset?.id)} />
             </div>
             <div className="flex flex-1 h-full flex-col overflow-auto p-4">
               <div className="flex items-center justify-between mb-2">
@@ -361,7 +363,7 @@ function QueueInner() {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-    </div>
+    </>
   );
 }
 

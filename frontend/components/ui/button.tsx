@@ -1,5 +1,42 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpLeft,
+  Book,
+  Braces,
+  ChartNoAxesGantt,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  CircleAlert,
+  Download,
+  Edit,
+  File,
+  FolderClosed,
+  History,
+  ListFilter,
+  Loader2,
+  LogOut,
+  LucideIcon,
+  Minus,
+  MoreHorizontal,
+  PanelLeft,
+  Pen,
+  PlayCircle,
+  Plus,
+  Rows2,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+  User,
+  Users,
+  X,
+} from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -34,6 +71,47 @@ const buttonVariants = cva(
   }
 );
 
+const iconMap: Record<string, LucideIcon> = {
+  plus: Plus,
+  close: X,
+  braces: Braces,
+  x: X,
+  pen: Pen,
+  chevronDown: ChevronDown,
+  chevronRight: ChevronRight,
+  chevronUp: ChevronUp,
+  search: Search,
+  edit: Edit,
+  download: Download,
+  trash: Trash2,
+  history: History,
+  delete: Trash2,
+  settings: Settings,
+  logout: LogOut,
+  user: User,
+  rows2: Rows2,
+  users: Users,
+  activity: Activity,
+  folder: FolderClosed,
+  book: Book,
+  play: PlayCircle,
+  slidersHorizontal: SlidersHorizontal,
+  warning: AlertTriangle,
+  alert: AlertTriangle,
+  loader: Loader2,
+  loading: Loader2,
+  check: Check,
+  back: ArrowUpLeft,
+  file: File,
+  sparkles: Sparkles,
+  more: MoreHorizontal,
+  panel: PanelLeft,
+  circleAlert: CircleAlert,
+  chart: ChartNoAxesGantt,
+  filter: ListFilter,
+  minus: Minus,
+};
+
 type HandledKey = {
   key: string;
   ctrlKey?: boolean;
@@ -49,10 +127,11 @@ export interface ButtonProps
   // Used for backwards compatibility, use handleKeys instead
   handleEnter?: boolean;
   handleKeys?: HandledKey[];
+  icon?: keyof typeof iconMap;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, handleEnter, handleKeys, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, handleEnter, handleKeys, icon, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
 
     const handleKeysUp = React.useMemo(() => {
@@ -102,7 +181,21 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       };
     }, [props.onClick]);
 
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    // Get the icon component from the map
+    const IconComponent = icon ? iconMap[icon] : null;
+
+    return (
+      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+        {IconComponent && (
+          <IconComponent
+            className={cn("size-4", {
+              "mr-1 -ml-1": size !== "icon" && !children,
+            })}
+          />
+        )}
+        {children}
+      </Comp>
+    );
   }
 );
 

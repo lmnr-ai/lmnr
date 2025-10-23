@@ -1,7 +1,6 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { PlusIcon } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 
@@ -114,8 +113,8 @@ export default function Datasets() {
       <Header path="datasets" />
       <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateDatasetDialog>
-          <Button className="w-fit">
-            <PlusIcon className="size-4 mr-2" /> Dataset
+          <Button icon="plus" className="w-fit">
+            Dataset
           </Button>
         </CreateDatasetDialog>
         <DataTable

@@ -15,7 +15,7 @@ interface ProjectSidebarProps {
 
 export default function ProjectSidebar({ details }: ProjectSidebarProps) {
   return (
-    <Sidebar variant="inset" className="border-none" collapsible="icon">
+    <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
       <ProjectSidebarContent details={details} />
       <SidebarFooter />

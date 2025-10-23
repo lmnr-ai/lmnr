@@ -86,24 +86,22 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
-          <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span-input">
-            <div className="px-4">
-              <div className="bg-secondary rounded mt-1">
-                <TabsList className="border-none text-xs gap-2 h-7">
-                  <TabsTrigger value="span-input" className="truncate text-xs">
-                    Span Input
-                  </TabsTrigger>
-                  <TabsTrigger value="span-output" className="truncate text-xs">
-                    Span Output
-                  </TabsTrigger>
-                  <TabsTrigger value="attributes" className="truncate text-xs">
-                    Attributes
-                  </TabsTrigger>
-                  <TabsTrigger value="events" className="truncate text-xs">
-                    Events
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+          <Tabs className="flex flex-col flex-1 w-full overflow-hidden gap-0" defaultValue="span-input">
+            <div className="px-4 pb-2 mt-2 border-b">
+              <TabsList className="border-none text-xs gap-2 h-7">
+                <TabsTrigger value="span-input" className="truncate text-xs">
+                  Span Input
+                </TabsTrigger>
+                <TabsTrigger value="span-output" className="truncate text-xs">
+                  Span Output
+                </TabsTrigger>
+                <TabsTrigger value="attributes" className="truncate text-xs">
+                  Attributes
+                </TabsTrigger>
+                <TabsTrigger value="events" className="truncate text-xs">
+                  Events
+                </TabsTrigger>
+              </TabsList>
             </div>
             <div className="flex-1 flex overflow-hidden">
               <TabsContent value="span-input" className="w-full h-full">
@@ -114,15 +112,15 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               </TabsContent>
               <TabsContent value="attributes" className="w-full h-full p-4">
                 <CodeHighlighter
-                  className="border-none"
+                  className="rounded"
                   readOnly
                   value={JSON.stringify(span.attributes)}
                   defaultMode="yaml"
                 />
               </TabsContent>
-              <TabsContent value="events" className="w-full h-full">
+              <TabsContent value="events" className="w-full h-full p-4">
                 <CodeHighlighter
-                  className="border-none"
+                  className="rounded"
                   readOnly
                   value={JSON.stringify(cleanedEvents)}
                   defaultMode="yaml"

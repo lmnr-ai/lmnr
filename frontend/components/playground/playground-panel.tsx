@@ -1,7 +1,7 @@
 "use client";
 import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
-import { Bolt, ChevronRight, History, Loader, PlayIcon, Square } from "lucide-react";
+import { Bolt, ChevronRight, Loader, PlayIcon, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
@@ -153,10 +153,10 @@ export default function PlaygroundPanel({
 
   return (
     <>
-      <div className="flex gap-2 p-4">
+      <div className="flex items-center gap-2 p-4">
         <Controller
           render={({ field: { value, onChange } }) => (
-            <LlmSelect className="w-fit h-8" apiKeys={apiKeys} value={value} onChange={handleModelChange(onChange)} />
+            <LlmSelect className="w-fit" apiKeys={apiKeys} value={value} onChange={handleModelChange(onChange)} />
           )}
           name="model"
           control={control}
@@ -165,16 +165,15 @@ export default function PlaygroundPanel({
         <ToolsSheet />
         <StructuredOutputSheet />
         <Button
-          variant={history ? "outlinePrimary" : "outline-solid"}
-          size="sm"
+          icon="history"
+          variant={history ? "outlinePrimary" : "outline"}
           onClick={() => setHistory(!history)}
-          className="h-8 w-fit px-2"
+          className="w-fit"
         >
-          <History className="w-3.5 h-3.5 mr-1" />
           History
         </Button>
         {isLoading ? (
-          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-8 w-fit px-2">
+          <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-7 w-fit px-2">
             <Square className="w-3.5 h-3.5 mr-1" />
             <span className="mr-2 text-xs">Stop</span>
             <Loader className="animate-spin w-4 h-4" />

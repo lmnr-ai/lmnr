@@ -1,8 +1,7 @@
-import { Loader2, Rows2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { isValidJsonObject } from "@/lib/utils";
 
 import { useToast } from "../../lib/hooks/use-toast";
@@ -90,10 +89,9 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
       }}
     >
       <DialogTrigger asChild>
-        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-          <Rows2 className="size-3 mr-2" />
-          <span className="text-xs">Add row</span>
-        </Badge>
+        <Button icon="rows2" variant="secondary">
+          Add row
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>

@@ -1,7 +1,6 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -47,11 +46,11 @@ export default function EventDefinitions() {
   return (
     <>
       <Header path="events definitions" />
-      <div className="flex flex-col gap-4 flex-1 overflow-auto px-4">
+      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
         {!isFreeTier && (
           <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button className="w-fit" variant="default" onClick={() => setIsDialogOpen(true)}>
-              <Plus className="size-4 mr-2" /> Event Definition
+            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+              Event Definition
             </Button>
           </ManageEventDefinitionDialog>
         )}

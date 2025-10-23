@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { envVarsToIconMap } from "@/components/playground/utils";
@@ -37,8 +36,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-fit">
-          <Plus className="w-4 h-4 mr-2" />
+        <Button icon="plus" variant="outline" className="w-fit">
           API Key
         </Button>
       </DialogTrigger>
@@ -46,34 +44,36 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
         <DialogHeader>
           <DialogTitle>Add API key</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <Label>Name</Label>
-          <Select
-            onValueChange={(value) => {
-              setEnvVarType(value);
-              if (value !== "custom") {
-                setEnvVarName(value);
-              } else {
-                setEnvVarName("");
-              }
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="API key provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.values(EnvVars)
-                .filter((e) => !existingKeyNames.includes(e))
-                .map((v) => (
-                  <SelectItem key={v} value={v}>
-                    <span className="flex gap-2 items-center">
-                      {envVarsToIconMap[v]}
-                      {v}
-                    </span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-2">
+            <Label>Name</Label>
+            <Select
+              onValueChange={(value) => {
+                setEnvVarType(value);
+                if (value !== "custom") {
+                  setEnvVarName(value);
+                } else {
+                  setEnvVarName("");
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="API key provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(EnvVars)
+                  .filter((e) => !existingKeyNames.includes(e))
+                  .map((v) => (
+                    <SelectItem key={v} value={v}>
+                      <span className="flex gap-2 items-center">
+                        {envVarsToIconMap[v]}
+                        {v}
+                      </span>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
           {envVarType === "custom" && (
             <Input
               placeholder="Name"
@@ -82,15 +82,17 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
               }}
             />
           )}
-          <Label>Value</Label>
-          <p className="text-sm text-secondary-foreground">All keys are encrypted at rest and stored securely.</p>
-          <Input
-            placeholder="API key"
-            spellCheck={false}
-            onChange={(e) => {
-              setEnvVarValue(e.target.value);
-            }}
-          />
+          <div className="flex flex-col gap-2">
+            <Label>Value</Label>
+            <Input
+              placeholder="API key"
+              spellCheck={false}
+              onChange={(e) => {
+                setEnvVarValue(e.target.value);
+              }}
+            />
+            <p className="text-xs text-secondary-foreground">All keys are encrypted at rest and stored securely.</p>
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>

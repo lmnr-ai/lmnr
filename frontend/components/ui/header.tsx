@@ -26,9 +26,9 @@ export default function Header({
   const segments = path.split("/");
 
   return (
-    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full px-4 mb-2", className)}>
+    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}>
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
-        {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary" />}
+        {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
             {index > 0 && <div className="text-secondary-foreground/40">/</div>}

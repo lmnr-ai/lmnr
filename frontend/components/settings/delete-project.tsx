@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -86,11 +86,11 @@ export default function DeleteProject() {
       <Dialog open={isDialogOpen} onOpenChange={resetAndClose}>
         <DialogTrigger asChild>
           <Button
+            icon="trash"
             onClick={() => setIsDialogOpen(true)}
             variant="outline"
             className="w-fit text-destructive border-destructive"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
             Delete project
           </Button>
         </DialogTrigger>
@@ -105,7 +105,7 @@ export default function DeleteProject() {
               of its data. This action cannot be undone.
             </p>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="project-name-input" className="text-secondary-foreground">
                 Type <span className="font-medium text-white">{project?.name}</span> to confirm
               </Label>

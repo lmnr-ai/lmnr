@@ -1,7 +1,6 @@
-import { File } from "lucide-react";
 import React, { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 import DatasetUpload from "./dataset-upload";
@@ -17,10 +16,9 @@ export default function AddDatapointsDialog({ datasetId, onUpdate }: AddDatapoin
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-          <File className="size-3 mr-2" />
-          <span className="text-xs">Import file</span>
-        </Badge>
+        <Button icon="file" variant="secondary">
+          Import file
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

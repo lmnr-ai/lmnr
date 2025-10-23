@@ -57,10 +57,10 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     >
       <PostHogIdentifier email={user.email!} />
       <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
-        <div className="flex flex-1 overflow-hidden max-h-screen">
+        <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
           <SidebarProvider className="bg-sidebar" defaultOpen={defaultOpen}>
             <ProjectSidebar details={projectDetails} />
-            <SidebarInset className="overflow-hidden flex flex-col flex-1 rounded-tl-lg border">
+            <SidebarInset className="flex flex-col h-[calc(100%_-_8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
               {showBanner && <ProjectUsageBanner details={projectDetails} />}
               {children}
             </SidebarInset>

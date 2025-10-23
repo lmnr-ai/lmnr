@@ -82,9 +82,9 @@ export default function ToolsSheet({
             disabled={!model}
             variant="outline"
             size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
+            className={cn("focus-visible:ring-0 size-7 p-2", className)}
           >
-            <Bolt className="w-3.5 h-3.5" />
+            <Bolt className="size-4" />
           </Button>
         </SheetTrigger>
       );
@@ -97,14 +97,14 @@ export default function ToolsSheet({
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
-            className={cn("focus-visible:ring-0 h-8 w-fit p-2", className)}
+            className={cn("focus-visible:ring-0 h-7 w-fit p-2", className)}
           >
-            <Bolt className="w-3.5 h-3.5" />
+            <Bolt className="size-4" />
             <span className="ml-1 text-xs ">{pluralize(toolsCount, "tool", "tools")}</span>
           </Button>
         </SheetTrigger>
-        <Button onClick={() => setValue("tools", "")} className="w-8 h-8" variant="outlinePrimary" size="icon">
-          <X className="w-3.5 h-3.5" />
+        <Button onClick={() => setValue("tools", "")} className="size-7" variant="outlinePrimary" size="icon">
+          <X className="size-4" />
         </Button>
       </div>
     );

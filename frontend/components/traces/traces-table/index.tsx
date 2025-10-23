@@ -316,7 +316,7 @@ export default function TracesTable() {
   );
 
   return (
-    <div className="flex overflow-hidden px-4 pb-4">
+    <div className="flex overflow-hidden px-4 pb-6">
       <DataTable
         className="w-full"
         columns={columns}

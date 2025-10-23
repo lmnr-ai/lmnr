@@ -95,10 +95,10 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
       imageUrl={user.image!}
     >
       <WorkspaceMenuProvider>
-        <div className="flex flex-1 overflow-hidden max-h-screen">
+        <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
           <SidebarProvider className="bg-sidebar">
             <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
-            <SidebarInset className="overflow-hidden mt-4 flex flex-col h-full rounded-tl-lg border">
+            <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
               <WorkspaceComponent
                 invitations={invitations}
                 workspace={workspace}

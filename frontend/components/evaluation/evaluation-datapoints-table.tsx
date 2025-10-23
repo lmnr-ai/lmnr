@@ -112,15 +112,14 @@ const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }
   }, [setNavigationRefList, data]);
 
   return (
-    <div className="grow">
+    <div className="flex overflow-hidden">
       <DataTable
         columns={columns}
         data={data}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
-        paginated
         onRowClick={handleRowClick}
-        childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
+        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />

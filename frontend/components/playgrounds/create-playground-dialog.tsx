@@ -1,4 +1,4 @@
-import { Loader2, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState } from "react";
 
@@ -52,8 +52,8 @@ export default function CreatePlaygroundDialog() {
         }}
       >
         <DialogTrigger asChild>
-          <Button className="w-fit" variant="default">
-            <Plus className="size-4 mr-2" /> Playground
+          <Button icon="plus" className="w-fit">
+            Playground
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">

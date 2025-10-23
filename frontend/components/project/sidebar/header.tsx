@@ -31,13 +31,30 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   return (
     <SidebarHeader className="px-0 mt-2">
       <SidebarMenu>
-        <SidebarMenuItem>
+        <SidebarMenuItem className="m-0 px-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className="w-[calc(100%_-_16px)] p-1">
-                {!open && !openMobile && <span>{project?.name?.at(0)}</span>}
-                <span className="truncate font-medium leading-tight ml-1">{project?.name}</span>
-                <ChevronsUpDown className="ml-auto" />
+              <SidebarMenuButton className={cn({ border: !open && !openMobile })}>
+                <div className="relative flex items-center">
+                  <span
+                    className={cn(
+                      "transition-all duration-200 ease-in-out flex items-center justify-center",
+                      open || openMobile ? "opacity-0 scale-50 w-0" : "opacity-100 scale-100"
+                    )}
+                  >
+                    {project?.name?.at(0)}
+                  </span>
+
+                  <span
+                    className={cn(
+                      "truncate font-medium leading-tight transition-all duration-200 ease-in-out",
+                      open || openMobile ? "opacity-100 scale-100 ml-1" : "opacity-0 scale-50 absolute ml-0"
+                    )}
+                  >
+                    {project?.name}
+                  </span>
+                </div>
+                <ChevronsUpDown className="ml-auto size-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent

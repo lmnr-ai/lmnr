@@ -42,17 +42,19 @@ export default function EvaluationsGroupsBar() {
   ];
 
   return (
-    <div className="max-w-80 flex flex-col gap-2 px-4">
-      <div className="font-medium text-lg">Groups</div>
-      <DataTable
-        columns={columns}
-        data={groups}
-        getRowId={(row) => row.groupId}
-        focusedRowId={groupId}
-        onRowClick={(row) => {
-          router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
-        }}
-      />
+    <div className="max-w-80 flex flex-1 flex-col gap-2">
+      <div className="flex overflow-hidden">
+        <DataTable
+          className="w-full"
+          columns={columns}
+          data={groups}
+          getRowId={(row) => row.groupId}
+          focusedRowId={groupId}
+          onRowClick={(row) => {
+            router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
+          }}
+        />
+      </div>
     </div>
   );
 }

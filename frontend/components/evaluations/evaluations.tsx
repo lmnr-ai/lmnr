@@ -172,11 +172,11 @@ export default function Evaluations() {
   return (
     <>
       <Header path="evaluations" />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden pb-4 px-4 gap-4">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col gap-2 flex-1 overflow-auto">
+        <div className="flex flex-col w-full gap-2 overflow-hidden">
           <div className="flex gap-4 items-center">
-            <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
+            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
@@ -193,7 +193,7 @@ export default function Evaluations() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup className="pr-4" direction="vertical">
+          <ResizablePanelGroup className="overflow-hidden" direction="vertical">
             <ResizablePanel className="px-2 border rounded bg-sidebar" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
@@ -201,9 +201,10 @@ export default function Evaluations() {
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>
-            <ResizableHandle className="z-30 my-2" />
-            <ResizablePanel className="flex flex-1 overflow-hidden pb-4" minSize={40} defaultSize={40}>
+            <ResizableHandle withHandle className="z-30 mb-2 bg-transparent transition-colors duration-200" />
+            <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
               <DataTable
+                className="w-full"
                 enableRowSelection
                 columns={columns}
                 data={data?.items}

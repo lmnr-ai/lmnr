@@ -245,56 +245,54 @@ export default function Evaluation({
         setDatapointId(item?.datapointId);
       }}
     >
-      <div className="h-full flex flex-col relative">
-        <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
+      <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
+      <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
-        <div className="flex grow flex-col">
-          <div className="flex flex-col grow">
-            <div className="flex flex-row space-x-4 p-4">
-              {isLoading ? (
-                <>
-                  <Skeleton className="w-72 h-48" />
-                  <Skeleton className="w-full h-48" />
-                </>
-              ) : (
-                <>
-                  <div className="flex-none w-72">
-                    <ScoreCard
-                      scores={scores}
-                      selectedScore={selectedScore}
-                      setSelectedScore={setSelectedScore}
-                      statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
-                      comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
+        <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
+          <div className="flex flex-row space-x-4 p-4 border rounded bg-sidebar">
+            {isLoading ? (
+              <>
+                <Skeleton className="w-72 h-48" />
+                <Skeleton className="w-full h-48" />
+              </>
+            ) : (
+              <>
+                <div className="flex-none w-72">
+                  <ScoreCard
+                    scores={scores}
+                    selectedScore={selectedScore}
+                    setSelectedScore={setSelectedScore}
+                    statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
+                    comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
+                    isLoading={isLoading}
+                  />
+                </div>
+                <div className="grow">
+                  {targetId ? (
+                    <CompareChart
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                      comparedDistribution={
+                        selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
+                      }
                       isLoading={isLoading}
                     />
-                  </div>
-                  <div className="grow">
-                    {targetId ? (
-                      <CompareChart
-                        distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
-                        comparedDistribution={
-                          selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
-                        }
-                        isLoading={isLoading}
-                      />
-                    ) : (
-                      <Chart
-                        scoreName={selectedScore}
-                        distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
-                        isLoading={isLoading}
-                      />
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-            <EvaluationDatapointsTable
-              datapointId={datapointId}
-              data={tableData}
-              scores={scores}
-              handleRowClick={handleRowClick}
-            />
+                  ) : (
+                    <Chart
+                      scoreName={selectedScore}
+                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                      isLoading={isLoading}
+                    />
+                  )}
+                </div>
+              </>
+            )}
           </div>
+          <EvaluationDatapointsTable
+            datapointId={datapointId}
+            data={tableData}
+            scores={scores}
+            handleRowClick={handleRowClick}
+          />
         </div>
         {traceId && (
           <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">

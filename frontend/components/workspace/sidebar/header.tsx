@@ -32,10 +32,10 @@ const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithUsers }
   return (
     <SidebarHeader className="px-0 mt-2">
       <SidebarMenu>
-        <SidebarMenuItem>
+        <SidebarMenuItem className="m-0 px-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className="w-[calc(100%_-_16px)] p-1">
+              <SidebarMenuButton>
                 <span className="truncate font-medium flex-1 leading-tight">{workspace.name}</span>
                 <ChevronsUpDown className="ml-auto" />
               </SidebarMenuButton>

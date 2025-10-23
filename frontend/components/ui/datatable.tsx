@@ -260,7 +260,7 @@ export function DataTable<TData>({
 
   const content = (
     <Table
-      className="border-separate border-spacing-0 relative rounded bg-sidebar text-xs overflow-hidden"
+      className="border-separate border-spacing-0 relative rounded bg-sidebar overflow-hidden"
       style={{
         width: table.getHeaderGroups()[0].headers.reduce((acc, header) => acc + header.getSize(), 0),
       }}
@@ -276,10 +276,10 @@ export function DataTable<TData>({
                   width: header.getSize(),
                   minWidth: header.getSize(),
                 }}
-                className="m-0 relative text-secondary-foreground truncate first:rounded-tl last:rounded-tr"
+                className="m-0 relative text-secondary-foreground truncate"
                 key={header.id}
               >
-                <div className="absolute inset-0 items-center h-full border-r flex group px-4">
+                <div className="absolute inset-0 items-center h-full flex group px-4">
                   <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
                     {flexRender(header.column.columnDef.header, header.getContext())}
                     <div
