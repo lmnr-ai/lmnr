@@ -62,7 +62,7 @@ pub async fn estimate_output_cost(
                     );
                     e
                 })
-                .ok()?;
+                .unwrap_or_default()?;
             let price = LLMPriceEntry::from(price);
             let _ = cache
                 .insert_with_ttl::<LLMPriceEntry>(
@@ -101,7 +101,7 @@ pub async fn estimate_input_cost(
                     );
                     e
                 })
-                .ok()?;
+                .unwrap_or_default()?;
             let price = LLMPriceEntry::from(price);
             let _ = cache
                 .insert_with_ttl::<LLMPriceEntry>(
