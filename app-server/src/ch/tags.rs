@@ -2,9 +2,10 @@ use anyhow::Result;
 use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
-use crate::db::tags::TagSource;
+use crate::db::tags::{SpanTag, TagSource};
 
 use super::utils::chrono_to_nanoseconds;
 
@@ -74,6 +75,47 @@ pub async fn insert_tag(
         Err(e) => {
             return Err(anyhow::anyhow!(
                 "Failed to insert tag into Clickhouse: {:?}",
+                e
+            ));
+        }
+    }
+}
+
+#[instrument(skip(client, tags))]
+pub async fn insert_tags_batch(client: clickhouse::Client, tags: &[SpanTag]) -> Result<()> {
+    if tags.is_empty() {
+        return Ok(());
+    }
+
+    let ch_insert = client.insert("tags");
+    match ch_insert {
+        Ok(mut ch_insert) => {
+            for span_tag in tags {
+                let id = Uuid::new_v4();
+                let tag = CHTag::new(
+                    span_tag.project_id,
+                    id,
+                    span_tag.name.clone(),
+                    span_tag.source.clone(),
+                    span_tag.span_id,
+                );
+                ch_insert.write(&tag).await?;
+            }
+
+            let ch_insert_end_res = ch_insert.end().await;
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "Clickhouse batch tag insertion failed: {:?}",
+                        e
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to insert tags batch into Clickhouse: {:?}",
                 e
             ));
         }
