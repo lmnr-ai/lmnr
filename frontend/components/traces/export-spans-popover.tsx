@@ -1,9 +1,8 @@
-import { Database, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dataset } from "@/lib/dataset/types";
@@ -82,10 +81,9 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
       >
         <PopoverTrigger asChild>
           {children || (
-            <Badge className="cursor-pointer min-w-8" variant="secondary">
-              <Database className="size-3 min-w-3 mr-2" />
-              <span className="text-xs truncate min-w-0 block">Add to dataset</span>
-            </Badge>
+            <Button icon="database" size="sm" variant="secondary">
+              <span>Add to dataset</span>
+            </Button>
           )}
         </PopoverTrigger>
         <PopoverContent className="w-80" align="end" side="bottom">

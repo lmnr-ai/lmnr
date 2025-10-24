@@ -185,12 +185,12 @@ function Minimap({ onSpanSelect }: Props) {
     <div className="h-full flex-none max-w-16 w-fit z-30 border-l">
       <div
         ref={minimapRef}
-        className="h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
+        className="pl-1 h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
       >
         <div
           ref={sessionTimeNeedleRef}
-          className="bg-primary absolute left-0 w-full h-[1px] z-30"
+          className="bg-primary absolute left-0 w-full h-px z-30"
           style={{ display: "none" }}
         />
         <div className="relative w-2 flex-none">

@@ -14,7 +14,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
-const buttonClassName = "size-fit p-[1px] transition-all duration-200 opacity-0 group-hover:opacity-100";
+const buttonClassName = "size-fit p-px transition-all duration-200 opacity-0 group-hover:opacity-100";
 
 interface MessagePartsProps {
   parentIndex: number;

@@ -1,45 +1,35 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
+import { AlertCircle, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
-import { Label } from '../ui/label';
-
-interface ProjectUsageBannerProps {
-  workspaceId: string;
-  gbUsedThisMonth: number;
-  gbLimit: number;
-}
+import { ProjectDetails } from "@/lib/actions/project";
 
 export default function ProjectUsageBanner({
-  workspaceId,
-  gbUsedThisMonth,
-  gbLimit,
-}: ProjectUsageBannerProps) {
-  const router = useRouter();
-
+  details: { workspaceId, gbUsedThisMonth, gbLimit },
+}: {
+  details: ProjectDetails;
+}) {
   const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
 
-  let usageStrings = [];
-  if (gbLimit > 0) {
-    usageStrings.push(`${dataPercentage.toFixed(1)}% of your data usage limit`);
-  }
-
-  let messageContent = "";
-  if (usageStrings.length > 0) {
-    messageContent = `You've used ${usageStrings.join(' and ')}. Upgrade your workspace for an uninterrupted experience.`;
-  } else {
-    // Fallback if no limits are set, though the banner might not be shown by parent in this case.
-    messageContent = "Review your workspace settings for usage details.";
-  }
+  const messageContent =
+    gbLimit > 0
+      ? `You've used ${dataPercentage.toFixed(1)}% of your data usage limit. Upgrade your workspace for an uninterrupted experience.`
+      : "Review your workspace settings for usage details.";
 
   return (
-    <div
-      className="flex w-full bg-yellow-600 cursor-pointer"
-      onClick={() => router.push(`/workspace/${workspaceId}/`)}
+    <Link
+      href={`/workspace/${workspaceId}`}
+      className="flex items-center gap-3 w-full px-4 py-2 bg-yellow-900/10 hover:bg-yellow-900/30 transition-colors"
     >
-      <Label className="p-2 text-sm cursor-pointer">
-        {messageContent}
-      </Label>
-    </div>
+      <AlertCircle className="flex-shrink-0 text-yellow-400" size={16} />
+      <div className="flex-1 flex items-center justify-between gap-4">
+        <span className="text-xs text-foreground/90">{messageContent}</span>
+        <div className="flex items-center gap-1 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors">
+          <span>Manage workspace</span>
+          <ArrowRight size={14} />
+        </div>
+      </div>
+    </Link>
   );
 }

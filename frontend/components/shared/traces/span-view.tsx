@@ -85,8 +85,8 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="flex-grow flex h-0">
-          <div className="flex-grow flex flex-col">
+        <div className="grow flex h-0">
+          <div className="grow flex flex-col">
             <TabsContent value="span-input" className="w-full h-full">
               <SpanMessages span={span} type="input" />
             </TabsContent>

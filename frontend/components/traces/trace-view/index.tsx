@@ -534,7 +534,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
               </div>
             </div>
-            <div className="flex-grow overflow-hidden flex-wrap">
+            <div className="grow overflow-hidden flex-wrap">
               {isSpansLoading ? (
                 <div className="flex flex-col space-y-2 p-4">
                   <Skeleton className="h-8 w-full" />

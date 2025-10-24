@@ -50,8 +50,8 @@ export default async function RootLayout({
             <PostHogPageView />
           </Suspense>
           <div className="flex">
-            <div className="flex flex-col flex-grow max-w-full min-h-screen">
-              <main className="z-10 flex flex-col flex-grow">{children}</main>
+            <div className="flex flex-col grow max-w-full min-h-screen">
+              <main className="z-10 flex flex-col grow">{children}</main>
               <Toaster />
             </div>
           </div>

@@ -34,6 +34,10 @@ export interface WorkspaceWithUsers extends Workspace {
   users: WorkspaceUser[];
 }
 
+export interface WorkspaceWithOptionalUsers extends Workspace {
+  users?: WorkspaceUser[];
+}
+
 export interface WorkspaceInvitation {
   id: string;
   workspaceId: string;

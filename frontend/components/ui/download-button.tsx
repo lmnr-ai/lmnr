@@ -1,11 +1,9 @@
-import { Download } from "lucide-react";
 import React, { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { Button } from "./button";
+import { Button, ButtonProps } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
 const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
@@ -44,7 +42,7 @@ const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: 
 interface DownloadButtonProps {
   uri: string;
   filenameFallback: string;
-  variant?: "default" | "secondary" | "destructive" | "outline" | "ghost";
+  variant?: ButtonProps["variant"];
   className?: string;
   supportedFormats?: string[];
   text?: string;
@@ -62,11 +60,7 @@ function DownloadButtonSingleFormat({ uri, filenameFallback, variant, className,
 
   return (
     <Button
-      variant={variant}
-      className={cn(
-        "flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none",
-        className
-      )}
+      variant={variant ?? "secondary"}
       disabled={isDownloading}
       onClick={async () => {
         setIsDownloading(true);
@@ -90,19 +84,18 @@ function DownloadButtonMultipleFormats({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(className)} asChild disabled={isDownloading}>
-        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-          <Download className="size-3 mr-2" />
-          <span className="text-xs">Download</span>
-        </Badge>
+        <Button icon="download" variant="secondary">
+          Download
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+        className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
       >
         {supportedFormats.map((format) => (
           <DropdownMenuItem
             key={format}
-            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
             onClick={async () => {
               setIsDownloading(true);
               await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);

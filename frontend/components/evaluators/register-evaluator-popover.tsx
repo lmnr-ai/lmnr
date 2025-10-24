@@ -1,10 +1,10 @@
 import { includes, isEmpty, map, partition } from "lodash";
-import { ChevronDown, SquareFunction } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useParams } from "next/navigation";
 import { ReactNode, useMemo } from "react";
 import useSWR from "swr";
 
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button.tsx";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -163,10 +163,9 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {children || (
-          <Badge className="cursor-pointer min-w-8" variant="secondary">
-            <SquareFunction className="size-3 min-w-3 mr-2" />
-            <span className="text-xs truncate min-w-0 block">Evaluators</span>
-          </Badge>
+          <Button size="sm" icon="squareFunction" variant="secondary">
+            <span>Evaluators</span>
+          </Button>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end">

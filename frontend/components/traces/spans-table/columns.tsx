@@ -6,6 +6,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanRow, SpanType } from "@/lib/traces/types";
@@ -138,14 +139,14 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     size: 150,
   },
   {
-    cell: (row) => row.getValue(),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     accessorKey: "inputPreview",
     header: "Input",
     id: "input",
     size: 150,
   },
   {
-    cell: (row) => row.getValue(),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     accessorKey: "outputPreview",
     header: "Output",
     id: "output",

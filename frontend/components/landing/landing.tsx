@@ -468,7 +468,7 @@ function CoreSections() {
         <div className="md:grid md:grid-cols-2 md:gap-16">
           <div className="hidden md:flex justify-end">
             <div className="order-1">
-              <div className="sticky top-0 h-[100vh]">
+              <div className="sticky top-0 h-screen">
                 <div className="flex h-full transition-all duration-500 items-center justify-center">
                   <div className="transition-all duration-500 overflow-hidden">
                     {renderLeftContent()}
@@ -479,7 +479,7 @@ function CoreSections() {
           </div>
 
           <div className="flex flex-col order-2 xl:max-w-[600px]">
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-[100vh] justify-center my-8 md:my-0 pt-16 md:pt-0">
+            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-screen justify-center my-8 md:my-0 pt-16 md:pt-0">
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0">
                 Integrate in 2 minutes
               </h1>
@@ -496,7 +496,7 @@ function CoreSections() {
                 />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0">
+            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-screen my-8 md:my-0">
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Observe & Debug
               </h1>
@@ -531,7 +531,7 @@ function CoreSections() {
                 />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-[100vh] flex flex-col justify-center my-8 md:my-0">
+            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-screen flex flex-col justify-center my-8 md:my-0">
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 See what your browser agent sees
               </h1>
@@ -596,7 +596,7 @@ function CoreSections() {
               </InfoCard>
             </div>
 
-            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-[100vh] my-8 md:my-0">
+            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-screen my-8 md:my-0">
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Query & Analyze
               </h1>
@@ -632,7 +632,7 @@ function CoreSections() {
                 />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-[100vh] justify-center my-8 md:my-0">
+            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-screen justify-center my-8 md:my-0">
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 Evaluate & Iterate
               </h1>

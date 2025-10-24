@@ -1,11 +1,9 @@
-import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
-import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -75,9 +73,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         }}
       >
         <DialogTrigger asChild>
-          <Button variant="outline" className="h-9 w-fit">
-            <Plus className="w-4 h-4 mr-2" />
-            Generate API key
+          <Button icon="plus" variant="outline" className="w-fit">
+            API Key
           </Button>
         </DialogTrigger>
         <DialogContent
@@ -133,8 +130,8 @@ function GenerateKeyDialogContent({
 }) {
   return (
     <>
-      <div className="grid gap-4 py-4">
-        <Label>Name</Label>
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs">Name</Label>
         <Input autoFocus placeholder="API key name" onChange={(e) => onNameChange(e.target.value)} />
       </div>
       <DialogFooter>
@@ -147,7 +144,6 @@ function GenerateKeyDialogContent({
 }
 
 function DisplayKeyDialogContent({ apiKey, onClose }: { apiKey: GenerateProjectApiKeyResponse; onClose?: () => void }) {
-  const { toast } = useToast();
   return (
     <>
       <div className="flex flex-col space-y-2">

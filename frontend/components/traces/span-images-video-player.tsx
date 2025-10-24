@@ -237,7 +237,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
+      <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
         <button onClick={handlePlayPause} className="text-white py-1 rounded">
           {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
         </button>
@@ -258,7 +258,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
         <input
           ref={sliderRef}
           type="range"
-          className="flex-grow cursor-pointer"
+          className="grow cursor-pointer"
           min={0}
           step={0.01}
           max={totalDuration || 0}

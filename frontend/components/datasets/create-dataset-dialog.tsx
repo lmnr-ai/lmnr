@@ -82,21 +82,21 @@ export default function CreateDatasetDialog({
         }}
       >
         <DialogTrigger asChild>{children}</DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-96">
           <DialogHeader>
-            <DialogTitle>Create new dataset</DialogTitle>
+            <DialogTitle>Create dataset</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
             <Label>Name</Label>
             <Input
               autoFocus
-              placeholder="Name"
+              placeholder="Enter name..."
               value={newDatasetName}
               onChange={(e) => setNewDatasetName(e.target.value)}
             />
           </div>
           <DialogFooter>
-            <Button onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
+            <Button className="w-fit" onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
               <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Create
             </Button>

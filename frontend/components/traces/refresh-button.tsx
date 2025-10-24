@@ -17,10 +17,14 @@ const RefreshButton = ({ iconClassName, onClick, ...rest }: ButtonProps & { icon
 
   return (
     <Button onClick={handleOnClick} {...rest}>
-      <motion.div transition={{ duration: 0.5, ease: "linear" }} className="block" animate={{ rotate }}>
+      <motion.div
+        transition={{ duration: 0.5, ease: "linear" }}
+        className="block text-secondary-foreground"
+        animate={{ rotate }}
+      >
         <RefreshCw className={cn(iconClassName)} />
       </motion.div>
-      <span className="ml-2">Refresh</span>
+      <span className="ml-2 text-secondary-foreground">Refresh</span>
     </Button>
   );
 };

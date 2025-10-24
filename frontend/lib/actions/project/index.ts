@@ -164,16 +164,16 @@ async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
   await cache.remove(cacheKey);
 }
 
-export const getProjectDetails = async (
-  projectId: string
-): Promise<{
+export interface ProjectDetails {
   id: string;
   name: string;
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
   isFreeTier: boolean;
-}> => {
+}
+
+export const getProjectDetails = async (projectId: string): Promise<ProjectDetails> => {
   const projectResult = await db
     .select({
       id: projects.id,

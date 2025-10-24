@@ -48,9 +48,7 @@ export default function SchemaDefinitionDialog() {
   }));
 
   const [isOpen, setIsOpen] = useState(false);
-  const [tempSchema, setTempSchema] = useState(
-    annotationSchema ? JSON.stringify(annotationSchema, null, 2) : ""
-  );
+  const [tempSchema, setTempSchema] = useState(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
   const [isValid, setIsValid] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -120,16 +118,19 @@ export default function SchemaDefinitionDialog() {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      setIsOpen(open);
-      if (open) {
-        // Reset tempSchema when opening dialog
-        setTempSchema(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
-        setIsValid(true);
-      }
-    }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (open) {
+          // Reset tempSchema when opening dialog
+          setTempSchema(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
+          setIsValid(true);
+        }
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outlinePrimary" icon="braces">
           Define target schema
         </Button>
       </DialogTrigger>

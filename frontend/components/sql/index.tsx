@@ -14,7 +14,7 @@ const SQLTemplates = () => {
   const { data = [], isLoading } = useSWR<SQLTemplate[]>(`/api/projects/${projectId}/sql/templates`, swrFetcher);
 
   return (
-    <div className="flex flex-1 divide-x">
+    <div className="flex flex-1 divide-x gap-x-4 px-4 pb-4">
       <Sidebar isLoading={isLoading} templates={data} />
       <div className="flex flex-1 overflow-hidden">
         <SQLEditorPanel />

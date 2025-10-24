@@ -71,7 +71,7 @@ function Timeline() {
       >
         <div
           ref={sessionTimeNeedleRef}
-          className="absolute top-0 bg-primary z-50 w-[1px]"
+          className="absolute top-0 bg-primary z-50 w-px"
           style={{
             display: "none",
             height: virtualizer.getTotalSize() + 32,

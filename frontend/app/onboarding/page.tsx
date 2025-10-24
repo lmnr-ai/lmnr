@@ -26,6 +26,7 @@ export default async function OnboardingPage() {
     .where(eq(membersOfWorkspaces.userId, session.user.id));
 
   if (count > 0) {
+    // legacy, redirect to projects to later redirect user to first workspace.
     return redirect("/projects");
   }
 

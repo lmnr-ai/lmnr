@@ -34,9 +34,9 @@ const SchemaNode = memo(({ data, selected }: SchemaNodeProps) => {
       }}
     >
       <div className="flex items-center space-x-2 w-full">
-        {isStart && <Play className="w-4 h-4 text-green-600 flex-shrink-0" />}
-        {isEnd && <Square className="w-4 h-4 text-red-600 flex-shrink-0" />}
-        {!isStart && !isEnd && <Circle className="w-4 h-4 text-gray-600 flex-shrink-0" />}
+        {isStart && <Play className="w-4 h-4 text-green-600 shrink-0" />}
+        {isEnd && <Square className="w-4 h-4 text-red-600 shrink-0" />}
+        {!isStart && !isEnd && <Circle className="w-4 h-4 text-gray-600 shrink-0" />}
         <div title={label} className="text-sm font-medium text-gray-900 truncate">
           {label}
         </div>

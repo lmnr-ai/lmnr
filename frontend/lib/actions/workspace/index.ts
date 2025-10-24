@@ -10,7 +10,10 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
 import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
-import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser } from "@/lib/workspaces/types";
+
+const LAST_WORKSPACE_ID = "last-workspace-id";
+const MAX_AGE = 60 * 60 * 24 * 30;
 
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.string(),
@@ -22,6 +25,10 @@ const UpdateWorkspaceSchema = z.object({
 });
 
 const GetWorkspaceSchema = z.object({
+  workspaceId: z.string(),
+});
+
+const GetWorkspaceUsersSchema = z.object({
   workspaceId: z.string(),
 });
 
@@ -72,7 +79,7 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
   return { success: true, message: "Workspace deleted successfully" };
 }
 
-export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): Promise<WorkspaceWithUsers> => {
+export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): Promise<Workspace> => {
   const { workspaceId } = GetWorkspaceSchema.parse(input);
 
   if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
@@ -94,6 +101,20 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     throw new Error("Workspace not found");
   }
 
+  return {
+    id: workspace[0].id,
+    name: workspace[0].name,
+    tierName: workspace[0].tierName as WorkspaceTier,
+  };
+};
+
+export const getWorkspaceUsers = async (input: z.infer<typeof GetWorkspaceUsersSchema>): Promise<WorkspaceUser[]> => {
+  const { workspaceId } = GetWorkspaceUsersSchema.parse(input);
+
+  if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
+    throw new Error("Unauthorized: User is not a member of this workspace");
+  }
+
   const workspaceUsers = (await db
     .select({
       id: users.id,
@@ -106,12 +127,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
     .where(eq(membersOfWorkspaces.workspaceId, workspaceId))) as WorkspaceUser[];
 
-  return {
-    id: workspace[0].id,
-    name: workspace[0].name,
-    tierName: workspace[0].tierName as WorkspaceTier,
-    users: workspaceUsers,
-  };
+  return workspaceUsers;
 };
 
 export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> => {
@@ -255,3 +271,5 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 
   return { success: true, message: "User role updated successfully" };
 };
+
+export { LAST_WORKSPACE_ID, MAX_AGE };

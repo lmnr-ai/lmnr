@@ -65,7 +65,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
               <div className="space-y-0.5 overflow-hidden">
                 {traceLines.map((line, index) => (
                   <div key={index} className="flex items-start gap-1.5">
-                    <div className="w-1 h-1 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                    <div className="w-1 h-1 bg-red-500 rounded-full mt-1.5 shrink-0"></div>
                     <span className="text-xs font-mono break-all overflow-hidden">{line.trim()}</span>
                   </div>
                 ))}

@@ -1,21 +1,15 @@
-import { eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { get, head } from "lodash";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import Projects from "@/components/projects/projects";
-import WorkspacesNavbar from "@/components/projects/workspaces-navbar";
-import Header from "@/components/ui/header";
-import { UserContextProvider } from "@/contexts/user-context";
+import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { membersOfWorkspaces, workspaces } from "@/lib/db/migrations/schema";
 
-import PostHogClient from "../posthog";
-import PostHogIdentifier from "../posthog-identifier";
-
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -36,34 +30,22 @@ export default async function ProjectsPage() {
 
   const user = session.user;
 
-  const [{ count }] = await db
-    .select({ count: sql`count(*)`.mapWith(Number) })
+  const workspaceLists = await db
+    .select({ workspaceId: membersOfWorkspaces.workspaceId })
     .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.userId, user.id));
+    .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
+    .where(eq(membersOfWorkspaces.userId, user.id))
+    .orderBy(desc(workspaces.createdAt));
 
-  if (count === 0) {
+  if (workspaceLists.length === 0) {
     return redirect("/onboarding");
   }
 
-  const posthog = PostHogClient();
-  posthog.identify({
-    distinctId: user.email ?? "",
-  });
+  const lastWorkspaceId = await getLastWorkspaceIdCookie();
 
-  return (
-    <UserContextProvider
-      id={user.id}
-      email={user.email!}
-      supabaseAccessToken={session.supabaseAccessToken}
-      username={user.name!}
-      imageUrl={user.image!}
-    >
-      <PostHogIdentifier email={user.email!} />
-      <WorkspacesNavbar />
-      <div className="flex flex-col flex-grow min-h-screen ml-64 overflow-auto">
-        <Header path="Projects" showSidebarTrigger={false} />
-        <Projects isWorkspaceEnabled={isFeatureEnabled(Feature.WORKSPACE)} />
-      </div>
-    </UserContextProvider>
-  );
+  const lastWorkspace = workspaceLists.find((w) => w.workspaceId === lastWorkspaceId);
+
+  const targetWorkspaceId = get(lastWorkspace, "workspaceId") ?? (get(head(workspaceLists), "workspaceId") as string);
+
+  return redirect(`/workspace/${targetWorkspaceId}`);
 }

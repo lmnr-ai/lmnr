@@ -241,7 +241,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
           )}
         </div>
 
-        <div className="flex-grow flex overflow-hidden rounded-b">
+        <div className="grow flex overflow-hidden rounded-b">
           <JsxRenderer className="rounded-none" code={currentTemplateCode} data={data} />
         </div>
 

@@ -110,10 +110,10 @@ export default function InfiniteLogoCarousel() {
   };
 
   return (
-    <div className="relative overflow-hidden w-[100vw] xl:max-w-[1000px] 2xl:max-w-[1200px]">
+    <div className="relative overflow-hidden w-screen xl:max-w-[1000px] 2xl:max-w-[1200px]">
       {/* Fade gradients */}
-      <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute left-0 top-0 bottom-0 w-16 bg-linear-to-r from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-16 bg-linear-to-l from-background to-transparent z-10 pointer-events-none" />
 
       {/* Scrolling container */}
       <div
@@ -123,21 +123,21 @@ export default function InfiniteLogoCarousel() {
       >
         {/* First set of logos */}
         {logos.map((logo) => (
-          <div key={`first-${logo.id}`} className="flex-shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div key={`first-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
             <LogoComponent logo={logo} />
           </div>
         ))}
 
         {/* Duplicate set for seamless loop */}
         {logos.map((logo) => (
-          <div key={`second-${logo.id}`} className="flex-shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div key={`second-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
             <LogoComponent logo={logo} />
           </div>
         ))}
 
         {/* Third set to ensure smooth transition */}
         {logos.map((logo) => (
-          <div key={`third-${logo.id}`} className="flex-shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div key={`third-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
             <LogoComponent logo={logo} />
           </div>
         ))}

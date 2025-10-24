@@ -79,13 +79,13 @@ export default function CreateQueueDialog({
       }}
     >
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-96">
         <DialogHeader>
-          <DialogTitle>Create new queue</DialogTitle>
+          <DialogTitle>Create queue</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-2">
           <Label>Name</Label>
-          <Input autoFocus placeholder="Name" onChange={(e) => setNewQueueName(e.target.value)} />
+          <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewQueueName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button onClick={createNewQueue} disabled={!newQueueName || isLoading} handleEnter>

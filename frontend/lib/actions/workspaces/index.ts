@@ -1,19 +1,26 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys, membersOfWorkspaces, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
-import { WorkspaceTier, WorkspaceWithProjects } from "@/lib/workspaces/types";
+import { apiKeys, membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
   projectName: z.string().optional(),
 });
 
-export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<WorkspaceWithProjects> => {
+type CreateWorkspaceResult = {
+  id: string;
+  name: string;
+  tierName: WorkspaceTier;
+  projectId?: string;
+};
+
+export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
@@ -55,20 +62,20 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     memberRole: "owner",
   });
 
-  const projects = projectName
-    ? [
-      await createProject({
-        name: projectName,
-        workspaceId: workspace.id,
-      }),
-    ]
-    : [];
+  let projectId: string | undefined;
+  if (projectName) {
+    const project = await createProject({
+      name: projectName,
+      workspaceId: workspace.id,
+    });
+    projectId = project.id;
+  }
 
   return {
     id: workspace.id,
     name: workspace.name,
     tierName: WorkspaceTier.FREE,
-    projects,
+    projectId,
   };
 };
 
@@ -79,50 +86,17 @@ export const getWorkspaces = async () => {
     throw new Error("Unauthorized: User not authenticated");
   }
 
-  const userId = await db
-    .select({ id: apiKeys.userId })
-    .from(apiKeys)
-    .where(eq(apiKeys.apiKey, session.user.apiKey))
-    .execute()
-    .then((res) => {
-      if (res.length === 0) {
-        throw new Error("User not found");
-      }
-      return res[0].id;
-    });
-
   const results = await db
     .select({
       id: workspaces.id,
       name: workspaces.name,
       tierName: subscriptionTiers.name,
-      isFreeTier: sql`${workspaces.tierId} = 1`,
     })
     .from(workspaces)
     .innerJoin(membersOfWorkspaces, eq(workspaces.id, membersOfWorkspaces.workspaceId))
     .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-    .where(eq(membersOfWorkspaces.userId, userId))
+    .where(eq(membersOfWorkspaces.userId, session?.user?.id))
     .orderBy(desc(workspaces.createdAt));
 
-  const workspacesWithProjects = (await Promise.all(
-    results.map(async (workspace) => {
-      const prjs = await db
-        .select({
-          id: projects.id,
-          name: projects.name,
-          workspaceId: projects.workspaceId,
-        })
-        .from(projects)
-        .where(eq(projects.workspaceId, workspace.id));
-
-      return {
-        id: workspace.id,
-        name: workspace.name,
-        tierName: workspace.tierName as WorkspaceTier,
-        projects: prjs,
-      };
-    })
-  )) as WorkspaceWithProjects[];
-
-  return workspacesWithProjects;
+  return results;
 };

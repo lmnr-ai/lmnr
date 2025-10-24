@@ -39,7 +39,7 @@ const Messages = () => {
   return (
     <>
       <ScrollArea
-        className="overflow-y-auto flex-grow px-4 [mask-image:linear-gradient(to_top,rgba(0,0,0,0)_0%,_rgba(0,0,0,1)_3%)]"
+        className="overflow-y-auto grow px-4 mask-[linear-gradient(to_top,rgba(0,0,0,0)_0%,rgba(0,0,0,1)_3%)]"
         style={{
           contain: "strict",
         }}

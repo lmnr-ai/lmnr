@@ -25,12 +25,12 @@ const ParamsPopover = ({ className }: ParamsPopoverProps) => {
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
-              disabled={!watch("model")}
               size="icon"
+              disabled={!watch("model")}
               variant="outline"
-              className={cn(className, "w-8 h-8 self-end")}
+              className={cn(className, "self-end size-7")}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <SlidersHorizontal className="size-4" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>

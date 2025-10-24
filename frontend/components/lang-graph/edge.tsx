@@ -29,7 +29,7 @@ export interface GetSpecialPathParams {
 const DEFAULT_CONFIG: EdgeConfig = {
   baseOffset: 50,
   strokeWidth: 2,
-  labelClassName: "px-2 py-1 bg-white border border-gray-300 rounded shadow-sm text-xs font-medium",
+  labelClassName: "px-2 py-1 bg-white border border-gray-300 rounded shadow-xs text-xs font-medium",
   curveIntensity: 0.25,
 };
 

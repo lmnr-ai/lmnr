@@ -73,7 +73,7 @@ const Message = ({ insert, remove, update, index, deletable = true }: MessagePro
     };
 
   return (
-    <Collapsible defaultOpen className="px-2 py-3 rounded-md border-[1px] bg-muted/50 group">
+    <Collapsible defaultOpen className="px-2 py-3 rounded-md border bg-muted/50 group">
       <div className="flex items-center gap-1 group-data-[state=open]:mb-2">
         <Controller
           render={({ field: { value, onChange } }) => (

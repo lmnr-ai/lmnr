@@ -235,7 +235,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 </div>
               </div>
               {selectedSpan && (
-                <div className="flex-grow overflow-hidden flex-wrap">
+                <div className="grow overflow-hidden flex-wrap">
                   <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
                 </div>
               )}

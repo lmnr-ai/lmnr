@@ -207,7 +207,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
               Saving
             </div>
           )}
-          <div className="flex-grow" />
+          <div className="grow" />
           {datapoint && (
             <AddToLabelingQueuePopover
               data={[
@@ -224,8 +224,8 @@ export default function DatasetPanel({ datasetId, datapointId, onClose }: Datase
           )}
         </div>
         {datapoint && (
-          <div className="flex-grow flex overflow-auto">
-            <div className="flex-grow flex flex-col space-y-4 p-4 h-full w-full">
+          <div className="grow flex overflow-auto">
+            <div className="grow flex flex-col space-y-4 p-4 h-full w-full">
               <div className="flex flex-col space-y-2">
                 <Label className="font-medium">Data</Label>
                 <CodeHighlighter
