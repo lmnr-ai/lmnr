@@ -116,13 +116,13 @@ const EvaluationHeader = ({
         <DropdownMenuContent align="start">
           <RenameEvaluationDialog defaultValue={name} urlKey={urlKey}>
             <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
-              <Edit className="w-3 mr-2" />
+              <Edit className="size-3 mr-2" />
               <span className="text-xs">Rename</span>
             </DropdownMenuItem>
           </RenameEvaluationDialog>
           <DeleteEvaluationDialog>
             <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
-              <Trash className="text-destructive w-3 mr-2" />
+              <Trash className="text-destructive size-3 mr-2" />
               <span className="text-destructive text-xs">Delete</span>
             </DropdownMenuItem>
           </DeleteEvaluationDialog>

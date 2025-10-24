@@ -9,6 +9,7 @@ import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import TemplateRenderer from "@/components/ui/template-renderer";
 
 interface CodeSheetProps {
   renderedValue: string;
@@ -16,9 +17,10 @@ interface CodeSheetProps {
   onModeChange: (mode: string) => void;
   extensions: Extension[];
   placeholder?: string;
+  presetKey?: string | null;
 }
 
-const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
+const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder, presetKey }: CodeSheetProps) => {
   // Process the value using the new renderText function
   const {
     text: processedText,
@@ -70,14 +72,18 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           </div>
           <ScrollArea className="flex-grow">
             <div className="flex flex-col">
-              <CodeMirror
-                placeholder={placeholder}
-                theme={theme}
-                className="h-full"
-                extensions={combinedExtensions}
-                value={processedText}
-                readOnly={true}
-              />
+              {mode === "custom" ? (
+                <TemplateRenderer data={processedText} presetKey={presetKey} />
+              ) : (
+                <CodeMirror
+                  placeholder={placeholder}
+                  theme={theme}
+                  className="h-full"
+                  extensions={combinedExtensions}
+                  value={processedText}
+                  readOnly={true}
+                />
+              )}
             </div>
           </ScrollArea>
         </div>

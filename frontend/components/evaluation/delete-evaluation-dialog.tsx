@@ -26,8 +26,11 @@ const DeleteEvaluationDialog = ({ children }: PropsWithChildren) => {
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/projects/${projectId}/evaluations?evaluationIds=${evaluationId}`, {
+      const response = await fetch(`/api/projects/${projectId}/evaluations`, {
         method: "DELETE",
+        body: JSON.stringify({
+          evaluationIds: [evaluationId],
+        }),
       });
 
       if (!response.ok) {

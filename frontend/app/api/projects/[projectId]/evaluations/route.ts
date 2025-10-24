@@ -1,12 +1,7 @@
 import { NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import {
-  deleteEvaluations,
-  DeleteEvaluationsSchema,
-  getEvaluations,
-  GetEvaluationsSchema,
-} from "@/lib/actions/evaluations";
+import { deleteEvaluations, getEvaluations, GetEvaluationsSchema } from "@/lib/actions/evaluations";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -49,16 +44,10 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   const params = await props.params;
   const projectId = params.projectId;
 
-  const evaluationIds = req.nextUrl.searchParams.getAll("id");
-
-  const parseResult = DeleteEvaluationsSchema.safeParse({ evaluationIds, projectId });
-
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
+  const body = await req.json();
 
   try {
-    await deleteEvaluations(parseResult.data);
+    await deleteEvaluations({ projectId, ...body });
     return new Response("Evaluations deleted successfully", { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {
