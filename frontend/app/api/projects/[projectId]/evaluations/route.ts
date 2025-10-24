@@ -44,10 +44,10 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   const params = await props.params;
   const projectId = params.projectId;
 
-  const evaluationIds = req.nextUrl.searchParams.getAll("id");
+  const body = await req.json();
 
   try {
-    await deleteEvaluations({ evaluationIds, projectId });
+    await deleteEvaluations({ projectId, ...body });
     return new Response("Evaluations deleted successfully", { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {
