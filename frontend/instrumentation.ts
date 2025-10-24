@@ -47,46 +47,23 @@ export async function register() {
 
       const initializeClickHouse = async () => {
         try {
-          const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-          const { readFileSync, readdirSync } = await import("fs");
+          const { migration } = await import("clickhouse-migrations");
           const { join } = await import("path");
 
-          for (const file of readdirSync("lib/clickhouse/migrations")) {
-            if (!file.endsWith(".sql")) {
-              continue;
-            }
-            const schemaSql = readFileSync(join(process.cwd(), "lib/clickhouse/migrations", file), "utf-8");
-            const statements = schemaSql
-              .split(";")
-              .map((s) => s.trim())
-              .filter((s) => s.length > 0);
+          const migrationsHome = join(process.cwd(), "lib/clickhouse/migrations");
 
-            for (const statement of statements) {
-              try {
-                await clickhouseClient.exec({ query: statement });
-              } catch (error) {
-                if ((error as { type: string }).type === "DUPLICATE_COLUMN") {
-                  console.warn(
-                    "[WARNING] Failed to apply ClickHouse statement:",
-                    statement,
-                    "because column already exists"
-                  );
-                  continue;
-                } else if ((error as { type: string }).type === "TABLE_ALREADY_EXISTS") {
-                  console.warn(
-                    "[WARNING] Failed to apply ClickHouse statement:",
-                    statement,
-                    "because table already exists"
-                  );
-                  continue;
-                } else {
-                  throw error;
-                }
-              }
-            }
-          }
+          await migration(
+            migrationsHome,
+            process.env.CLICKHOUSE_URL || "http://localhost:8123",
+            process.env.CLICKHOUSE_USER || "ch_user",
+            process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
+            process.env.CLICKHOUSE_DB || "default",
+            "ENGINE=Atomic", // db_engine
+            String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000), // timeout as string
+          );
         } catch (error) {
-          console.error("Failed to apply ClickHouse schema:", error);
+          console.error("Failed to apply ClickHouse migrations:", error);
+          throw error;
         }
       };
       // Run Postgres migrations and data initialization

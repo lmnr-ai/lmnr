@@ -13,7 +13,7 @@ use crate::{
 
 use crate::{
     cache::Cache,
-    db::{DB, spans::Span, tags::TagSource},
+    db::{DB, spans::Span},
     language_model::costs::estimate_cost_by_provider_name,
 };
 
@@ -95,31 +95,6 @@ pub async fn get_llm_usage_for_span(
         request_model,
         provider_name,
     }
-}
-
-#[instrument(skip(clickhouse, tags, span_id, project_id))]
-pub async fn record_tags(
-    clickhouse: clickhouse::Client,
-    tags: &[String],
-    span_id: &Uuid,
-    project_id: &Uuid,
-) -> anyhow::Result<()> {
-    if tags.is_empty() {
-        return Ok(());
-    }
-
-    for tag_name in tags {
-        crate::ch::tags::insert_tag(
-            clickhouse.clone(),
-            *project_id,
-            tag_name.clone(),
-            TagSource::CODE,
-            *span_id,
-        )
-        .await?;
-    }
-
-    Ok(())
 }
 
 pub fn skip_span_name(name: &str) -> bool {
