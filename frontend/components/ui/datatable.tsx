@@ -17,11 +17,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { Button } from "./button";
-import { DataTablePagination } from "./datatable-pagination";
-import { Label } from "./label";
-import { ScrollArea, ScrollBar } from "./scroll-area";
-import { Skeleton } from "./skeleton";
+import { Button } from './button';
+import { DataTablePagination } from './datatable-pagination';
+import { Label } from './label';
+import { ScrollArea, ScrollBar } from './scroll-area';
+import { Skeleton } from './skeleton';
+import { Favorite } from '@/components/ui/favorite';
+
 const DEFAULT_PAGE_SIZE = 50;
 
 interface DataTableProps<TData> {
@@ -168,9 +170,85 @@ export function DataTable<TData>({
     }
   }, [data, isExternallyControlled]);
 
+
+  const addFavorite = () => {
+    console.log('Added favorite - placeholder');
+  };
+
+  const removeFavorite = () => {
+    console.log('Removed favorite - placeholder');
+  };
+
+  if (enableRowSelection) {
+    columns.unshift({
+      id: '__row_selection',
+      enableResizing: false,
+      header: ({ table }) => (
+        <Checkbox
+          className="border border-secondary"
+          checked={table.getIsAllRowsSelected()}
+          onCheckedChange={(checked) => {
+            if (!checked) {
+              setAllRowsAcrossAllPagesSelected(false);
+              onSelectAllAcrossPages?.(false);
+            }
+          }}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          onClick={(e) => {
+            e.stopPropagation();
+            table.toggleAllRowsSelected(!table.getIsAllRowsSelected());
+          }}
+        />
+      ),
+      size: 24,
+      cell: ({ row }) => (
+        <Checkbox
+          className={cn('border border-secondary mt-1')}
+          checked={row.getIsSelected()}
+          onCheckedChange={(checked) => {
+            if (!checked) {
+              setAllRowsAcrossAllPagesSelected(false);
+              onSelectAllAcrossPages?.(false);
+            }
+          }}
+          onChange={row.getToggleSelectedHandler()}
+          onClick={(e) => {
+            e.stopPropagation();
+            row.toggleSelected(!row.getIsSelected());
+          }}
+        />
+      ),
+    });
+    columns.splice(1, 0, {
+      id: '__favorite',
+      enableResizing: false,
+      header: ({ table }) => (
+        <Favorite
+          isSelected={allRowsAcrossAllPagesSelected}
+          isHeader={true}
+          onToggleFavorite={() => {}}
+        />
+      ),
+      size: 40,
+      cell: ({ row }) => (
+        <Favorite
+          isSelected={row.getIsSelected()}
+          onToggleFavorite={() => {
+            if (!row.getIsSelected()) {
+              addFavorite();
+            } else {
+              removeFavorite();
+            }
+          }}
+        />
+      ),
+    });
+  }
+
   const selectionColumns = enableRowSelection
     ? [checkboxColumn<TData>(setAllRowsAcrossAllPagesSelected, onSelectAllAcrossPages)]
     : [];
+
 
   const table = useReactTable<TData>({
     data: data || (EMPTY_ARRAY as TData[]),
