@@ -16,6 +16,7 @@ import {
   ScoreValue,
   shouldShowHeatmap,
 } from "@/components/evaluation/utils";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { type ScoreRange } from "@/lib/colors";
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/utils";
@@ -303,21 +304,18 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
     size: 70,
   },
   {
-    accessorFn: flow((row: EvaluationDatapointPreviewWithCompared) => row.data, JSON.stringify),
+    accessorFn: (row) => row.data,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
   },
   {
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.target,
-      (target) => (target ? JSON.stringify(target) : "-")
-    ),
+    accessorFn: (row) => row.target,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
   },
   {
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.metadata,
-      (metadata) => (metadata ? JSON.stringify(metadata) : "-")
-    ),
+    accessorFn: (row) => row.metadata,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Metadata",
   },
 ];

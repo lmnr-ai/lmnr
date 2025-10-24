@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
 interface EvaluationDatapointsTableProps {
+  isLoading: boolean;
   datapointId?: string;
   data: EvaluationDatapointPreview[] | undefined;
   scores: string[];
@@ -42,7 +43,13 @@ const filters: ColumnFilter[] = [
   { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
-const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }: EvaluationDatapointsTableProps) => {
+const EvaluationDatapointsTable = ({
+  data,
+  scores,
+  handleRowClick,
+  datapointId,
+  isLoading,
+}: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
 
   const targetId = searchParams.get("targetId");
@@ -118,8 +125,8 @@ const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }
         data={data ?? []}
         hasMore={false}
         isFetching={false}
-        isLoading={false}
-        fetchNextPage={() => { }}
+        isLoading={isLoading}
+        fetchNextPage={() => {}}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}

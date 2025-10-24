@@ -101,7 +101,7 @@ export default function Evaluation({
     return url;
   }, [params?.projectId, targetId, search, searchIn, filter]);
 
-  const { data: targetData } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
+  const { data: targetData, isLoading: isTargetLoading } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
 
   const evaluation = data?.evaluation;
 
@@ -288,6 +288,7 @@ export default function Evaluation({
             )}
           </div>
           <EvaluationDatapointsTable
+            isLoading={isLoading || isTargetLoading}
             datapointId={datapointId}
             data={tableData}
             scores={scores}
