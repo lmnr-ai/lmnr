@@ -134,16 +134,15 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
       try {
         await mutate(
           async (currentData) => {
-            const response = await fetch(
-              `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` +
-                `?datapointIds=${datapointIds.join(",")}`,
-              {
-                method: "DELETE",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-              }
-            );
+            const response = await fetch(`/api/projects/${projectId}/datasets/${dataset.id}/datapoints`, {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                datapointIds,
+              }),
+            });
 
             if (!response.ok) {
               throw new Error("Failed to delete datapoints");
