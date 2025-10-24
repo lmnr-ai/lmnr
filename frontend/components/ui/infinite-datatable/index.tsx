@@ -22,7 +22,7 @@ export function InfiniteDataTable<TData extends RowData>({
   isLoading,
   fetchNextPage,
   estimatedRowHeight = 41,
-  overscan = 100,
+  overscan = 50,
 
   // Custom interaction props
   onRowClick,

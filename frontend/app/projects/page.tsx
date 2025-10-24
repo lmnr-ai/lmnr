@@ -1,11 +1,13 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { get, head } from "lodash";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
+import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, workspaces } from "@/lib/db/migrations/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +30,22 @@ export default async function ProjectsPage() {
 
   const user = session.user;
 
-  const workspaces = await db
+  const workspaceLists = await db
     .select({ workspaceId: membersOfWorkspaces.workspaceId })
     .from(membersOfWorkspaces)
+    .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
     .where(eq(membersOfWorkspaces.userId, user.id))
-    .limit(1);
+    .orderBy(desc(workspaces.createdAt));
 
-  if (workspaces.length === 0) {
+  if (workspaceLists.length === 0) {
     return redirect("/onboarding");
   }
 
-  return redirect(`/workspace/${workspaces[0].workspaceId}`);
+  const lastWorkspaceId = await getLastWorkspaceIdCookie();
+
+  const lastWorkspace = workspaceLists.find((w) => w.workspaceId === lastWorkspaceId);
+
+  const targetWorkspaceId = get(lastWorkspace, "workspaceId") ?? (get(head(workspaceLists), "workspaceId") as string);
+
+  return redirect(`/workspace/${targetWorkspaceId}`);
 }

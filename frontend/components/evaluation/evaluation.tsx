@@ -294,58 +294,58 @@ export default function Evaluation({
             handleRowClick={handleRowClick}
           />
         </div>
-        {traceId && (
-          <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-            <Resizable
-              ref={ref}
-              onResizeStop={handleResizeStop}
-              enable={{
-                left: true,
-              }}
-              defaultSize={{
-                width: defaultTraceViewWidth,
-              }}
-            >
-              <div className="w-full h-full flex flex-col">
-                {targetId && (
-                  <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-                    <Select value={traceId} onValueChange={handleTraceChange}>
-                      <SelectTrigger className="flex font-medium text-secondary-foreground">
-                        <SelectValue placeholder="Select evaluation" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedRow?.traceId && (
-                          <SelectItem value={selectedRow.traceId}>
-                            <span>
-                              {data?.evaluation.name}
-                              <span className="text-secondary-foreground text-xs ml-2">
-                                {formatTimestamp(String(data?.evaluation.createdAt))}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        )}
-                        {selectedRow?.comparedTraceId && (
-                          <SelectItem value={selectedRow?.comparedTraceId}>
-                            <span>
-                              {targetData?.evaluation.name}
-                              <span className="text-secondary-foreground text-xs ml-2">
-                                {formatTimestamp(String(targetData?.evaluation.createdAt))}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <FiltersContextProvider>
-                  <TraceView key={traceId} onClose={onClose} traceId={traceId} />
-                </FiltersContextProvider>
-              </div>
-            </Resizable>
-          </div>
-        )}
       </div>
+      {traceId && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+          <Resizable
+            ref={ref}
+            onResizeStop={handleResizeStop}
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: defaultTraceViewWidth,
+            }}
+          >
+            <div className="w-full h-full flex flex-col">
+              {targetId && (
+                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+                  <Select value={traceId} onValueChange={handleTraceChange}>
+                    <SelectTrigger className="flex font-medium text-secondary-foreground">
+                      <SelectValue placeholder="Select evaluation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedRow?.traceId && (
+                        <SelectItem value={selectedRow.traceId}>
+                          <span>
+                            {data?.evaluation.name}
+                            <span className="text-secondary-foreground text-xs ml-2">
+                              {formatTimestamp(String(data?.evaluation.createdAt))}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      )}
+                      {selectedRow?.comparedTraceId && (
+                        <SelectItem value={selectedRow?.comparedTraceId}>
+                          <span>
+                            {targetData?.evaluation.name}
+                            <span className="text-secondary-foreground text-xs ml-2">
+                              {formatTimestamp(String(targetData?.evaluation.createdAt))}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <FiltersContextProvider>
+                <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+              </FiltersContextProvider>
+            </div>
+          </Resizable>
+        </div>
+      )}
     </TraceViewNavigationProvider>
   );
 }

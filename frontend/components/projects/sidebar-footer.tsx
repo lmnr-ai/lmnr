@@ -1,3 +1,5 @@
+"use client";
+
 import { Book, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";

@@ -12,6 +12,9 @@ import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } f
 import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser } from "@/lib/workspaces/types";
 
+const LAST_WORKSPACE_ID = "last-workspace-id";
+const MAX_AGE = 60 * 60 * 24 * 30;
+
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.string(),
 });
@@ -268,3 +271,5 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 
   return { success: true, message: "User role updated successfully" };
 };
+
+export { LAST_WORKSPACE_ID, MAX_AGE };

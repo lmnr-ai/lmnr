@@ -218,7 +218,6 @@ function EventsContentInner({
       <div className="flex flex-col overflow-hidden">
         <div className="flex flex-col gap-4 px-4 pb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-medium">{eventDefinition.name}</h1>
             {!isFreeTier && (
               <ManageEventDefinitionDialog
                 open={isDialogOpen}
@@ -227,14 +226,14 @@ function EventsContentInner({
                 key={eventDefinition.id}
                 onSuccess={handleSuccess}
               >
-                <Button icon="edit" variant="outline" onClick={handleEditEvent}>
+                <Button icon="edit" onClick={handleEditEvent}>
                   Event Definition
                 </Button>
               </ManageEventDefinitionDialog>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 border rounded bg-sidebar p-4">
             <div className="flex flex-col gap-2">
               <span className="text-sm text-muted-foreground font-medium">Prompt</span>
               {eventDefinition.prompt ? (

@@ -1,10 +1,11 @@
 import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import React from "react";
 import useSWR from "swr";
 
+import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog.tsx";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
@@ -21,6 +22,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
+import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
@@ -61,6 +63,7 @@ const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithOptiona
               {data?.map((w) => (
                 <Link key={w.id} passHref href={`/workspace/${w.id}`}>
                   <DropdownMenuItem
+                    onSelect={() => setLastWorkspaceIdCookie(w.id)}
                     className={cn("cursor-pointer", {
                       "bg-accent": w.id === workspace.id,
                     })}
@@ -81,6 +84,13 @@ const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithOptiona
                   </DropdownMenuItem>
                 </Link>
               ))}
+              <DropdownMenuSeparator />
+              <WorkspaceCreateDialog>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Plus size={16} />
+                  <span className="text-xs">Workspace</span>
+                </DropdownMenuItem>
+              </WorkspaceCreateDialog>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => signOut()}>
                 <LogOut />
