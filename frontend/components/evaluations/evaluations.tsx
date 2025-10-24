@@ -228,7 +228,7 @@ function EvaluationsContent() {
             </Select>
           </div>
           <ResizablePanelGroup className="overflow-hidden" direction="vertical">
-            <ResizablePanel className="px-2 border rounded bg-sidebar" minSize={20} defaultSize={20}>
+            <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
                 className="h-full px-2 py-4"

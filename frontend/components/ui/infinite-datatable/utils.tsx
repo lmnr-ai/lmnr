@@ -14,7 +14,6 @@ export function createCheckboxColumn<TData extends RowData>(options?: CheckboxCo
     size: 52,
     header: ({ table }) => (
       <Checkbox
-        className="border border-secondary"
         checked={table.getIsAllRowsSelected()}
         onCheckedChange={(checked) => {
           table.toggleAllRowsSelected(!!checked);
@@ -26,7 +25,6 @@ export function createCheckboxColumn<TData extends RowData>(options?: CheckboxCo
     ),
     cell: ({ row }) => (
       <Checkbox
-        className={cn("border border-secondary")}
         checked={row.getIsSelected()}
         onCheckedChange={(checked) => {
           row.toggleSelected(!!checked);

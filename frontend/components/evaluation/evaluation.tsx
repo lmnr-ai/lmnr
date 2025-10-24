@@ -249,7 +249,7 @@ export default function Evaluation({
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          <div className="flex flex-row space-x-4 p-4 border rounded bg-sidebar">
+          <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
             {isLoading ? (
               <>
                 <Skeleton className="w-72 h-48" />

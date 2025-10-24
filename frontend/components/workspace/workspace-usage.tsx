@@ -103,7 +103,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
 
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Usage summary" description={`${tierHint} ${tierHintOverages}`} />
-        <div className="border rounded-md p-6 bg-sidebar max-w-md">
+        <div className="border rounded-md p-6 bg-secondary max-w-md">
           <div className="flex justify-between items-center max-w-md">
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">Data usage</span>

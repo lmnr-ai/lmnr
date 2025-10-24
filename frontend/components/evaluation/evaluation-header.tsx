@@ -47,7 +47,7 @@ const EvaluationHeader = ({
         <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
           <SelectTrigger
             disabled={evaluations.length <= 1}
-            className="flex font-medium text-secondary-foreground truncate"
+            className="flex font-medium truncate"
           >
             <SelectValue placeholder="Select compared evaluation" />
           </SelectTrigger>
@@ -76,7 +76,7 @@ const EvaluationHeader = ({
             router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
           }}
         >
-          <SelectTrigger className="flex font-medium text-secondary-foreground">
+          <SelectTrigger className="flex font-medium">
             <SelectValue placeholder="Select evaluation" />
           </SelectTrigger>
           <SelectContent>
@@ -93,13 +93,11 @@ const EvaluationHeader = ({
           </SelectContent>
         </Select>
       </div>
-      <div>
-        {targetId && (
-          <Button variant="secondaryLight" className="text-xs" onClick={() => handleChange(undefined)}>
-            Reset
-          </Button>
-        )}
-      </div>
+      {targetId && (
+        <Button variant="outline" onClick={() => handleChange(undefined)}>
+          Reset
+        </Button>
+      )}
       {!targetId && (
         <DownloadButton
           uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
@@ -109,20 +107,20 @@ const EvaluationHeader = ({
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondaryLight" className="h-[26px] w-[26px] p-0">
+          <Button variant="outline" className="h-7 w-7 p-0">
             <EllipsisVertical className="w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <RenameEvaluationDialog defaultValue={name} urlKey={urlKey}>
             <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
-              <Edit className="w-3 mr-2" />
+              <Edit className="size-3.5" />
               <span className="text-xs">Rename</span>
             </DropdownMenuItem>
           </RenameEvaluationDialog>
           <DeleteEvaluationDialog>
             <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
-              <Trash className="text-destructive w-3 mr-2" />
+              <Trash className="size-3.5 text-destructive" />
               <span className="text-destructive text-xs">Delete</span>
             </DropdownMenuItem>
           </DeleteEvaluationDialog>

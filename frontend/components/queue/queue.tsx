@@ -290,7 +290,7 @@ function QueueInner() {
           )}
         </ResizablePanel>
         <ResizableHandle withHandle className="z-30 bg-transparent ml-2" />
-        <ResizablePanel className="flex-1 flex-col flex border rounded bg-sidebar" minSize={42} defaultSize={33}>
+        <ResizablePanel className="flex-1 flex-col flex border rounded bg-secondary" minSize={42} defaultSize={33}>
           <div className="flex p-4 py-2 border-b text-secondary-foreground justify-between w-full items-center">
             <span className="text-nowrap">
               {currentItem?.position || 0} of {currentItem?.count || 0}

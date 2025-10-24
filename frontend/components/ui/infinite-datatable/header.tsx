@@ -8,7 +8,7 @@ import { InfiniteDataTableHeaderProps } from "./types";
 export function InfiniteDatatableHeader<TData extends RowData>({ table }: InfiniteDataTableHeaderProps<TData>) {
   return (
     <TableHeader
-      className="text-xs flex bg-sidebar rounded-t"
+      className="text-xs flex bg-secondary rounded-t"
       style={{
         display: "grid",
         position: "sticky",
@@ -27,7 +27,7 @@ export function InfiniteDatatableHeader<TData extends RowData>({ table }: Infini
                 minWidth: header.getSize(),
                 display: "flex",
               }}
-              className="m-0 relative text-secondary-foreground truncate"
+              className="m-0 relative text-secondary-foreground truncate hover:bg-transparent"
               key={header.id}
             >
               <div className="absolute inset-0 items-center h-full flex group px-4">
@@ -36,7 +36,7 @@ export function InfiniteDatatableHeader<TData extends RowData>({ table }: Infini
                   <div
                     className={cn(
                       "group-hover:bg-blue-300 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors",
-                      header.column.getIsResizing() ? "bg-blue-400" : "bg-secondary"
+                      header.column.getIsResizing() ? "bg-blue-400" : "bg-transparent"
                     )}
                     onMouseDown={header.getResizeHandler()}
                     onDoubleClick={() => header.column.resetSize()}

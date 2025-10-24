@@ -92,7 +92,7 @@ const DashboardEditorCore = () => {
       <Header path={`dashboard/${id}`} />
       <ResizablePanelGroup className="px-4 pb-4" direction="vertical">
         <ResizablePanel className="flex flex-1" defaultSize={40} minSize={20}>
-          <div className="flex border rounded bg-sidebar overflow-auto w-full h-full">
+          <div className="flex border rounded bg-secondary overflow-auto w-full h-full">
             <CodeMirror
               placeholder="Enter your SQL query..."
               theme={theme}
@@ -150,7 +150,7 @@ const DashboardEditorCore = () => {
                       hasMore={false}
                       isFetching={false}
                       isLoading={false}
-                      fetchNextPage={() => {}}
+                      fetchNextPage={() => { }}
                     />
                   ),
                   loadingText: "Executing query...",

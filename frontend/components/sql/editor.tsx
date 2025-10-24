@@ -112,7 +112,7 @@ export default function SQLEditor({ className }: SQLEditorProps) {
   );
 
   return (
-    <div className="flex border rounded bg-sidebar overflow-auto w-full h-full">
+    <div className="flex border rounded bg-secondary overflow-auto w-full h-full">
       {template ? (
         <CodeMirror
           placeholder="Enter your SQL query..."

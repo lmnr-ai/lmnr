@@ -60,11 +60,7 @@ function DownloadButtonSingleFormat({ uri, filenameFallback, variant, className,
 
   return (
     <Button
-      variant={variant}
-      className={cn(
-        "flex h-7 items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-hidden",
-        className
-      )}
+      variant={variant ?? "secondary"}
       disabled={isDownloading}
       onClick={async () => {
         setIsDownloading(true);
@@ -99,7 +95,7 @@ function DownloadButtonMultipleFormats({
         {supportedFormats.map((format) => (
           <DropdownMenuItem
             key={format}
-            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground"
+            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
             onClick={async () => {
               setIsDownloading(true);
               await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
