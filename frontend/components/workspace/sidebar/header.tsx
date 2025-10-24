@@ -22,12 +22,12 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { cn, swrFetcher } from "@/lib/utils.ts";
-import { WorkspaceWithProjects, WorkspaceWithUsers } from "@/lib/workspaces/types.ts";
+import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
-const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithUsers }) => {
+const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithOptionalUsers }) => {
   const { isMobile } = useSidebar();
   const { username, imageUrl, email } = useUserContext();
-  const { data } = useSWR<WorkspaceWithProjects[]>("/api/workspaces", swrFetcher);
+  const { data } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
 
   return (
     <SidebarHeader className="px-0 mt-2">

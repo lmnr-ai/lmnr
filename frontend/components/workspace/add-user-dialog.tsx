@@ -1,4 +1,4 @@
-import { Loader2, Plus, User } from "lucide-react";
+import { Loader2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
@@ -17,16 +17,17 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceStats } from "@/lib/usage/types";
-import { WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { Workspace } from "@/lib/workspaces/types";
 
 interface AddUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspace: WorkspaceWithUsers;
+  workspace: Workspace;
   workspaceStats: WorkspaceStats;
+  usersCount: number;
 }
 
-const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUserDialogProps) => {
+const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats, usersCount }: AddUserDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState("");
   const { toast } = useToast();
@@ -80,12 +81,11 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
         setUser("");
       }}
     >
-      {workspace.users.length >= workspaceStats.membersLimit ? (
+      {usersCount >= workspaceStats.membersLimit ? (
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button className="w-fit" variant="outline" disabled>
-                <Plus className="w-4 h-4 mr-2 text-gray-500" />
+              <Button icon="plus" className="w-fit" variant="outline" disabled>
                 Invite member
               </Button>
             </TooltipTrigger>
@@ -97,11 +97,11 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats }: AddUse
       ) : (
         <DialogTrigger asChild>
           <Button
-            disabled={workspace.users.length >= workspaceStats.membersLimit}
+            icon="plus"
+            disabled={usersCount >= workspaceStats.membersLimit}
             onClick={() => onOpenChange(true)}
             variant="outline"
           >
-            <Plus className="w-4 h-4 mr-2" />
             Invite member
           </Button>
         </DialogTrigger>

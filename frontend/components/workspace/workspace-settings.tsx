@@ -10,7 +10,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { WorkspaceWithProjects, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { Workspace, WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -25,7 +25,7 @@ interface DeleteWorkspaceForm {
 }
 
 interface WorkspaceSettingsProps {
-  workspace: WorkspaceWithUsers;
+  workspace: Workspace;
   isOwner: boolean;
 }
 

@@ -19,38 +19,36 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
   const { toast } = useToast();
 
   return (
-    <>
-      <div className="flex flex-col">
-        <Label className="mt-2 text-secondary-foreground">Datapoints file formats: .jsonl, .json, .csv.</Label>
-        <Button variant={"secondary"} className="mt-4 w-32" onClick={() => hiddenInput.current?.click()}>
-          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          Select file
-        </Button>
-        <input
-          className="hidden"
-          type="file"
-          name="file"
-          accept="*"
-          ref={hiddenInput}
-          onChange={(e) => {
-            setIsLoading(true);
-            const file = e.target.files![0];
-            uploadFile(file, `/api/projects/${projectId}/datasets/${datasetId}/file-upload`)
-              .then((_) => {
-                onSuccessfulUpload?.();
-              })
-              .catch((error) => {
-                toast({
-                  title: "Error",
-                  description: "Error uploading file" + error,
-                });
-              })
-              .finally(() => {
-                setIsLoading(false);
+    <div className="grid gap-4">
+      <Label className="mt-2 text-secondary-foreground">Datapoints file formats: .jsonl, .json, .csv.</Label>
+      <Button className="w-fit" variant="secondary" onClick={() => hiddenInput.current?.click()}>
+        {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        Select file
+      </Button>
+      <input
+        className="hidden"
+        type="file"
+        name="file"
+        accept="*"
+        ref={hiddenInput}
+        onChange={(e) => {
+          setIsLoading(true);
+          const file = e.target.files![0];
+          uploadFile(file, `/api/projects/${projectId}/datasets/${datasetId}/file-upload`)
+            .then((_) => {
+              onSuccessfulUpload?.();
+            })
+            .catch((error) => {
+              toast({
+                title: "Error",
+                description: "Error uploading file" + error,
               });
-          }}
-        />
-      </div>
-    </>
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
+        }}
+      />
+    </div>
   );
 }

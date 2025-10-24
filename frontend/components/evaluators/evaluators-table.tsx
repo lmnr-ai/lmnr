@@ -1,13 +1,12 @@
 "use client";
 
-import { ColumnDef, Row } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
+import { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { DataTable } from "@/components/ui/datatable";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -38,32 +37,12 @@ const columns: ColumnDef<Evaluator>[] = [
 ];
 
 export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTableProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
-
-  const page = useMemo(() => {
-    const size = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
-    return {
-      number: searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0,
-      size,
-    };
-  }, [searchParams]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { data, mutate } = useSWR<PaginatedResponse<Evaluator>>(
-    `/api/projects/${projectId}/evaluators?pageNumber=${page.number}&pageSize=${page.size}`,
+    `/api/projects/${projectId}/evaluators?pageNumber=0&pageSize=10000`,
     swrFetcher
-  );
-
-  const handlePageChange = useCallback(
-    (pageNumber: number, pageSize: number) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pageNumber", pageNumber.toString());
-      params.set("pageSize", pageSize.toString());
-      router.push(`${pathname}?${params}`);
-    },
-    [pathname, router, searchParams]
   );
 
   const handleDeleteEvaluators = useCallback(
@@ -80,6 +59,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
 
         if (response.ok) {
           await mutate();
+          setRowSelection({});
           toast({
             title: "Evaluators deleted",
             description: `Successfully deleted ${selectedRowIds.length} evaluator(s).`,
@@ -99,17 +79,20 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
   );
 
   return (
-    <DataTable
+    <InfiniteDataTable
       columns={columns}
-      data={data?.items}
+      data={data?.items ?? []}
+      hasMore={false}
+      isFetching={false}
+      isLoading={!data}
+      fetchNextPage={() => {}}
       getRowId={(row) => row.id}
       onRowClick={onRowClick}
-      pageCount={Math.ceil((data?.totalCount || 0) / page.size)}
-      defaultPageSize={page.size}
-      defaultPageNumber={page.number}
-      onPageChange={handlePageChange}
-      totalItemsCount={data?.totalCount}
       enableRowSelection
+      state={{
+        rowSelection,
+      }}
+      onRowSelectionChange={setRowSelection}
       selectionPanel={(selectedRowIds) => (
         <div className="flex flex-col space-y-2">
           <DeleteSelectedRows

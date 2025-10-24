@@ -1,4 +1,4 @@
-import { Loader2, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -63,9 +63,8 @@ export default function ProjectCreateDialog({ workspaceId, onProjectCreate }: Pr
       }}
     >
       <DialogTrigger asChild>
-        <Button className="w-fit" variant="default">
-          <Plus size={16} className="mr-1" />
-          New project
+        <Button icon="plus" className="w-fit">
+          <span>Project</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

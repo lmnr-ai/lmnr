@@ -1,12 +1,16 @@
+import { json } from "@codemirror/lang-json";
+import { EditorView } from "@codemirror/view";
+import CodeMirror from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
+import { theme } from "@/components/ui/code-highlighter/utils.ts";
+import { Label } from "@/components/ui/label.tsx";
 import { isValidJsonObject } from "@/lib/utils";
 
 import { useToast } from "../../lib/hooks/use-toast";
 import { Button } from "../ui/button";
-import CodeEditor from "../ui/code-editor";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 
 const DEFAULT_DATA = '{\n  "data": {},\n  "target": {}\n}';
@@ -93,23 +97,32 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
           Add row
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>New datapoint</DialogTitle>
+          <DialogTitle>Create datapoint</DialogTitle>
         </DialogHeader>
-        <span>{"Fill in datapoint in JSON format."}</span>
-        <div className="border rounded-md max-h-[300px] overflow-y-auto">
-          <CodeEditor value={data} onChange={setData} language="json" editable />
+        <div className="grid gap-2">
+          <Label>Fill in datapoint in JSON format.</Label>
+          <div className="border rounded-md bg-muted/50 overflow-hidden min-h-48 max-h-96">
+            <CodeMirror
+              height="100%"
+              className="h-full"
+              value={data}
+              onChange={setData}
+              extensions={[json(), EditorView.lineWrapping]}
+              theme={theme}
+            />
+          </div>
         </div>
         {!isValidJson() && (
           <div className="text-red-500">
             Please enter a valid JSON map that has a {'"'}data{'"'} key.
           </div>
         )}
-        <DialogFooter className="mt-4">
+        <DialogFooter>
           <Button disabled={isLoading || !isValidJson()} onClick={async () => await addDatapoint()}>
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Add datapoint
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>

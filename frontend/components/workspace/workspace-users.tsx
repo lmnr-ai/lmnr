@@ -3,9 +3,11 @@
 import { isEmpty } from "lodash";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
@@ -13,13 +15,13 @@ import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceStats } from "@/lib/usage/types";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
   WorkspaceInvitation,
   WorkspaceRole,
   WorkspaceTier,
   WorkspaceUser,
-  WorkspaceWithUsers,
+  WorkspaceWithOptionalUsers,
 } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
@@ -28,7 +30,7 @@ import PurchaseSeatsDialog from "./purchase-seats-dialog";
 
 interface WorkspaceUsersProps {
   invitations: WorkspaceInvitation[];
-  workspace: WorkspaceWithUsers;
+  workspace: WorkspaceWithOptionalUsers;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
@@ -49,6 +51,12 @@ export default function WorkspaceUsers({
   const { email } = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
+
+  const {
+    data: users = [],
+    mutate,
+    isLoading,
+  } = useSWR<WorkspaceUser[]>(`/api/workspaces/${workspace.id}/users`, swrFetcher);
 
   const [dialogState, setDialogState] = useState<DialogState>({ type: "none" });
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
@@ -84,6 +92,7 @@ export default function WorkspaceUsers({
         toast({
           title: "Role updated successfully",
         });
+        mutate();
         router.refresh();
       } catch (error) {
         toast({
@@ -94,7 +103,7 @@ export default function WorkspaceUsers({
         setUpdatingRoleUserId(null);
       }
     },
-    [workspace.id, toast, router]
+    [workspace.id, toast, mutate, router]
   );
 
   const renderRoleCell = useCallback(
@@ -159,6 +168,27 @@ export default function WorkspaceUsers({
     [currentUserRole, isCurrentUser, isOwner, openDialog]
   );
 
+  if (isLoading) {
+    return (
+      <>
+        <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
+        <SettingsSection>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          </div>
+        </SettingsSection>
+      </>
+    );
+  }
+
   return (
     <>
       <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
@@ -188,7 +218,7 @@ export default function WorkspaceUsers({
           <SettingsSectionHeader
             size="sm"
             title="Workspace members"
-            description={`${workspace.users.length} member${workspace.users.length > 1 ? "s" : ""} in this workspace`}
+            description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
           {canManageUsers && (
             <AddUserDialog
@@ -196,11 +226,12 @@ export default function WorkspaceUsers({
               open={dialogState.type === "addUser"}
               onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
               workspace={workspace}
+              usersCount={users.length}
             />
           )}
           {!isOwner && (
             <LeaveWorkspaceDialog
-              user={workspace.users?.find(isCurrentUser)}
+              user={users?.find(isCurrentUser)}
               workspace={workspace}
               open={dialogState.type === "leaveWorkspace"}
               onOpenChange={(open) => (open ? openDialog("leaveWorkspace") : closeDialog())}
@@ -219,7 +250,7 @@ export default function WorkspaceUsers({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workspace.users.map((user) => (
+              {users.map((user) => (
                 <TableRow className="border-b last:border-b-0 h-12" key={user.id}>
                   <TableCell className="font-medium px-3">{user.email}</TableCell>
                   <TableCell className="px-3">{renderRoleCell(user)}</TableCell>

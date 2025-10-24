@@ -88,8 +88,8 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
           <DialogHeader>
             <DialogTitle>Rename dataset</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Label>Enter new dataset name</Label>
+          <div className="grid gap-2">
+            <Label>Name</Label>
             <Input
               autoFocus
               placeholder={dataset.name}

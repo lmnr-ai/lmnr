@@ -112,7 +112,7 @@ const FilterPopover = ({
                   return (
                     <PopoverClose key={`preset-${index}`} asChild>
                       <Button
-                        variant={isApplied ? "secondary" : "outline-solid"}
+                        variant={isApplied ? "secondary" : "outline"}
                         size="sm"
                         className={cn(
                           "h-7 text-xs font-mono px-2 py-1",

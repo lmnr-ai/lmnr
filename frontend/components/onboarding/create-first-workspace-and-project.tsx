@@ -7,7 +7,6 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
@@ -36,13 +35,16 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
         throw new Error("Failed to create workspace");
       }
 
-      const newWorkspace = (await res.json()) as WorkspaceWithProjects;
+      const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       // Populate default dashboard charts for the created project
 
       // As we want user to start from traces page, redirect to it
-      // Expect the workspace to contain exactly one created project
-      router.push(`/project/${newWorkspace.projects[0].id}/traces`);
+      if (newWorkspace.projectId) {
+        router.push(`/project/${newWorkspace.projectId}/traces`);
+      } else {
+        router.push(`/workspace/${newWorkspace.id}`);
+      }
       // We don't need to set isLoading to false, as we are redirecting.
       // Redirect itself takes some time, so we need the button to be disabled
     } catch (error) {

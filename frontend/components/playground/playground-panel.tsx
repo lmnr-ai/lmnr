@@ -1,7 +1,7 @@
 "use client";
 import { GenerateTextResult, ToolSet } from "ai";
 import { isEmpty } from "lodash";
-import { Bolt, ChevronRight, Loader, PlayIcon, Square } from "lucide-react";
+import { Bolt, ChevronRight, Loader, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
 import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
@@ -174,13 +174,12 @@ export default function PlaygroundPanel({
         </Button>
         {isLoading ? (
           <Button variant="outlinePrimary" onClick={abortRequest} className="ml-auto h-7 w-fit px-2">
-            <Square className="w-3.5 h-3.5 mr-1" />
+            <Square className="w-4 h-4 mr-1" />
             <span className="mr-2 text-xs">Stop</span>
             <Loader className="animate-spin w-4 h-4" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit(submit)} className="ml-auto h-8 w-fit px-2">
-            <PlayIcon className="w-3.5 h-3.5 mr-1" />
+          <Button icon="playIcon" onClick={handleSubmit(submit)} className="ml-auto w-fit">
             <span className="mr-2 text-xs">Run</span>
             <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
           </Button>
@@ -255,10 +254,10 @@ export default function PlaygroundPanel({
           <>
             <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
             <ResizablePanel minSize={20} defaultSize={30} className="flex flex-col">
-              <div className="px-4 py-2 border-b">
+              <div className="px-3 py-2 border-b">
                 <h3 className="text-sm font-medium">Playground runs history</h3>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div className="flex overflow-hidden p-2">
                 <PlaygroundHistoryTable playgroundId={id} onTraceSelect={onTraceSelect} />
               </div>
             </ResizablePanel>

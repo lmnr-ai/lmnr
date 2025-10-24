@@ -1,4 +1,5 @@
 import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpLeft, ChevronsUpDown, LogOut } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -34,27 +35,33 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
         <SidebarMenuItem className="m-0 px-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className={cn({ border: !open && !openMobile })}>
-                <div className="relative flex items-center">
-                  <span
-                    className={cn(
-                      "transition-all duration-200 ease-in-out flex items-center justify-center",
-                      open || openMobile ? "opacity-0 scale-50 w-0" : "opacity-100 scale-100"
-                    )}
-                  >
-                    {project?.name?.at(0)}
-                  </span>
-
-                  <span
-                    className={cn(
-                      "truncate font-medium leading-tight transition-all duration-200 ease-in-out",
-                      open || openMobile ? "opacity-100 scale-100 ml-1" : "opacity-0 scale-50 absolute ml-0"
-                    )}
-                  >
-                    {project?.name}
-                  </span>
-                </div>
-                <ChevronsUpDown className="ml-auto size-4" />
+              <SidebarMenuButton className={cn("flex items-center justify-center", { border: !open && !openMobile })}>
+                <AnimatePresence mode="wait" initial={false}>
+                  {!open && !openMobile ? (
+                    <motion.span
+                      key="collapsed"
+                      initial={{ opacity: 0, scale: 0.5, width: 0 }}
+                      animate={{ opacity: 1, scale: 1, width: "auto" }}
+                      exit={{ opacity: 0, scale: 0.5, width: 0 }}
+                      transition={{ duration: 0.1 }}
+                      className="flex items-center justify-center"
+                    >
+                      {project?.name?.at(0)?.toUpperCase()}
+                    </motion.span>
+                  ) : (
+                    <motion.div
+                      key="expanded"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.1 }}
+                      className="flex items-center w-full"
+                    >
+                      <span className="truncate font-medium leading-tight">{project?.name}</span>
+                      <ChevronsUpDown className="ml-auto size-4" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent

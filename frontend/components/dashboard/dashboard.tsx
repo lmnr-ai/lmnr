@@ -1,6 +1,5 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
@@ -39,10 +38,7 @@ export default function Dashboard() {
           <DateRangeFilter />
           <GroupByPeriodSelect />
           <Link passHref className="ml-auto" href={{ pathname: "dashboard/new" }}>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Chart
-            </Button>
+            <Button icon="plus">Chart</Button>
           </Link>
         </div>
       </Header>

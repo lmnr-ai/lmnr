@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleAlert,
+  Database,
   Download,
   Edit,
   File,
@@ -26,12 +27,15 @@ import {
   PanelLeft,
   Pen,
   PlayCircle,
+  PlayIcon,
   Plus,
   Rows2,
   Search,
   Settings,
   SlidersHorizontal,
   Sparkles,
+  SquareFunction,
+  Tag,
   Trash2,
   User,
   Users,
@@ -58,8 +62,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-3 text-xs",
-        sm: "h-6 rounded-md px-2 text-xs",
+        default: "h-7 px-3 text-xs py-2",
+        sm: "h-[22px] rounded-md px-2 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-9 w-9",
       },
@@ -80,6 +84,7 @@ const iconMap: Record<string, LucideIcon> = {
   chevronDown: ChevronDown,
   chevronRight: ChevronRight,
   chevronUp: ChevronUp,
+  database: Database,
   search: Search,
   edit: Edit,
   download: Download,
@@ -90,10 +95,13 @@ const iconMap: Record<string, LucideIcon> = {
   logout: LogOut,
   user: User,
   rows2: Rows2,
+  playIcon: PlayIcon,
   users: Users,
   activity: Activity,
   folder: FolderClosed,
   book: Book,
+  tag: Tag,
+  squareFunction: SquareFunction,
   play: PlayCircle,
   slidersHorizontal: SlidersHorizontal,
   warning: AlertTriangle,
@@ -186,13 +194,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
-        {IconComponent && (
-          <IconComponent
-            className={cn("size-4", {
-              "mr-1 -ml-1": size !== "icon" && !children,
-            })}
-          />
-        )}
+        {IconComponent && <IconComponent className={cn(size === "sm" ? "size-3 mr-1" : "size-4 mr-2 -ml-1")} />}
         {children}
       </Comp>
     );

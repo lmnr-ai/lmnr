@@ -18,6 +18,8 @@ import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
+const projectSidebarCookieName = "project-sidebar-state";
+
 export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
   const params = await props.params;
 
@@ -45,7 +47,9 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   });
 
   const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
+  const defaultOpen = cookieStore.get(projectSidebarCookieName)
+    ? cookieStore.get(projectSidebarCookieName)?.value === "true"
+    : true;
 
   return (
     <UserContextProvider
@@ -58,7 +62,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <PostHogIdentifier email={user.email!} />
       <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
         <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
-          <SidebarProvider className="bg-sidebar" defaultOpen={defaultOpen}>
+          <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
             <ProjectSidebar details={projectDetails} />
             <SidebarInset className="flex flex-col h-[calc(100%_-_8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
               {showBanner && <ProjectUsageBanner details={projectDetails} />}

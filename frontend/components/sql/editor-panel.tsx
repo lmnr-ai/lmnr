@@ -25,11 +25,10 @@ import ParametersPanel from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import CodeHighlighter from "@/components/ui/code-highlighter/index";
-import { DataTable } from "@/components/ui/datatable";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
-
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -146,7 +145,7 @@ export default function EditorPanel() {
     }) => {
       if (isLoading) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+          <div className="flex flex-col flex-1 items-center justify-center text-muted-foreground space-y-3">
             <Loader2 className="w-8 h-8 animate-spin" />
             <p className="text">{loadingText}</p>
           </div>
@@ -168,7 +167,7 @@ export default function EditorPanel() {
 
       if (results && results.length === 0) {
         return (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
+          <div className="flex w-full items-center justify-center h-full text-muted-foreground">
             Query executed successfully but returned no results
           </div>
         );
@@ -184,27 +183,29 @@ export default function EditorPanel() {
       <ResizablePanel className="h-full flex flex-col" defaultSize={40} minSize={20}>
         <SQLEditor />
       </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel className="flex flex-col" defaultSize={60} minSize={20}>
-        <Tabs className="flex flex-col h-full flex-1 overflow-hidden" defaultValue="table">
-          <TabsList className="border-b px-3 text-sm">
-            <TabsTrigger value="table">
-              <TableProperties className="mr-2 w-4 h-4" />
-              <span>Table</span>
-            </TabsTrigger>
-            <TabsTrigger value="json">
-              <FileJson2 className="mr-2 w-4 h-4" />
-              <span>JSON</span>
-            </TabsTrigger>
-            <TabsTrigger value="chart">
-              <ChartArea className="mr-2 w-4 h-4" />
-              <span>Chart</span>
-            </TabsTrigger>
-            <TabsTrigger value="parameters">
-              <Braces className="mr-2 w-4 h-4" />
-              <span>Parameters</span>
-            </TabsTrigger>
-            <div className="ml-auto py-2">
+      <ResizableHandle className="z-30 bg-transparent transition-colors duration-200" withHandle />
+      <ResizablePanel className="flex flex-col h-full mt-2" defaultSize={60} minSize={20}>
+        <Tabs className="flex flex-col h-full overflow-hidden" defaultValue="table">
+          <div className="flex items-center h-fit">
+            <TabsList className="text-xs">
+              <TabsTrigger value="table">
+                <TableProperties className="w-4 h-4" />
+                <span>Table</span>
+              </TabsTrigger>
+              <TabsTrigger value="json">
+                <FileJson2 className="w-4 h-4" />
+                <span>JSON</span>
+              </TabsTrigger>
+              <TabsTrigger value="chart">
+                <ChartArea className="w-4 h-4" />
+                <span>Chart</span>
+              </TabsTrigger>
+              <TabsTrigger value="parameters">
+                <Braces className="w-4 h-4" />
+                <span>Parameters</span>
+              </TabsTrigger>
+            </TabsList>
+            <div className="ml-auto">
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tr-none rounded-br-none border-r-0">
                   <Database className="size-3.5 mr-2" />
@@ -226,15 +227,24 @@ export default function EditorPanel() {
                 <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
               </Button>
             </div>
-          </TabsList>
-
+          </div>
           <TabsContent asChild value="table">
-            <div className="size-full">
+            <div className="flex overflow-hidden h-full">
               {renderContent({
-                success: <DataTable className="border-t-0 w-full" columns={columns} data={results || []} paginated />,
+                success: (
+                  <InfiniteDataTable
+                    className="w-full"
+                    columns={columns}
+                    data={results || []}
+                    hasMore={false}
+                    isFetching={false}
+                    isLoading={false}
+                    fetchNextPage={() => {}}
+                  />
+                ),
                 loadingText: "Executing query...",
                 default: (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+                  <div className="flex flex-col w-full items-center justify-center h-full text-muted-foreground space-y-3">
                     <TableProperties className="w-8 h-8 opacity-50" />
                     <p className="text">Execute a query to see table results</p>
                   </div>
@@ -249,7 +259,7 @@ export default function EditorPanel() {
                 success: (
                   <CodeHighlighter
                     readOnly
-                    className="border-0"
+                    className="rounded"
                     value={JSON.stringify(results, null, 2)}
                     defaultMode="json"
                   />

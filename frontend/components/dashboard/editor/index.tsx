@@ -1,7 +1,7 @@
 "use client";
 
 import CodeMirror from "@uiw/react-codemirror";
-import { filter, isEmpty, map, some } from "lodash";
+import { isEmpty } from "lodash";
 import { AlertCircle, Braces, ChartArea, Loader, Loader2, PlayIcon, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { ReactNode, useCallback } from "react";
@@ -16,11 +16,10 @@ import {
 import ParametersPanel from "@/components/sql/parameters-panel";
 import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/datatable";
 import Header from "@/components/ui/header";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 
 const DashboardEditorCore = () => {
   const { projectId, id } = useParams();
@@ -59,7 +58,7 @@ const DashboardEditorCore = () => {
     }) => {
       if (isLoading) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
+          <div className="flex flex-1 flex-col items-center justify-center h-full text-muted-foreground space-y-3">
             <Loader2 className="w-8 h-8 animate-spin" />
             <p className="text">{loadingText}</p>
           </div>
@@ -80,7 +79,7 @@ const DashboardEditorCore = () => {
       }
 
       if (data.length === 0) {
-        return <div className="flex items-center justify-center h-full text-muted-foreground">No results</div>;
+        return <div className="flex flex-1 items-center justify-center h-full text-muted-foreground">No results</div>;
       }
 
       return defaultContent;
@@ -91,9 +90,9 @@ const DashboardEditorCore = () => {
   return (
     <>
       <Header path={`dashboard/${id}`} />
-      <ResizablePanelGroup direction="vertical">
-        <ResizablePanel className="flex flex-1 p-2" defaultSize={40} minSize={20}>
-          <div className="bg-muted/50 overflow-auto flex flex-1 rounded-b-lg">
+      <ResizablePanelGroup className="px-4 pb-4" direction="vertical">
+        <ResizablePanel className="flex flex-1" defaultSize={40} minSize={20}>
+          <div className="flex border rounded bg-sidebar overflow-auto w-full h-full">
             <CodeMirror
               placeholder="Enter your SQL query..."
               theme={theme}
@@ -106,45 +105,54 @@ const DashboardEditorCore = () => {
             />
           </div>
         </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel className="flex flex-col" defaultSize={60} minSize={20}>
+        <ResizableHandle className="z-30 bg-transparent transition-colors duration-200" withHandle />
+        <ResizablePanel className="flex flex-col h-full mt-2" defaultSize={60} minSize={20}>
           <Tabs
             value={tab}
-            className="flex flex-col flex-1 overflow-hidden"
+            className="flex flex-col h-full overflow-hidden"
             onValueChange={(v) => setTab(v as typeof tab)}
           >
-            <TabsList className="px-4 py-1 border-b text-sm">
-              <TabsTrigger value="table">
-                <TableProperties className="mr-2 w-4 h-4" />
-                <span>Table</span>
-              </TabsTrigger>
-              <TabsTrigger value="chart">
-                <ChartArea className="mr-2 w-4 h-4" />
-                <span>Chart</span>
-              </TabsTrigger>
-              <TabsTrigger className="relative" value="parameters">
-                <Braces className="mr-2 w-4 h-4" />
-                <span className={cn({ "mr-3": some(map(parameters, "value")) })}>Parameters</span>
-                {some(map(parameters, "value")) && (
-                  <span className="w-4 h-4 p-0 ml-2 flex items-center justify-center text-xs absolute right-0 top-1 bg-muted rounded-full">
-                    {filter(parameters, "value")?.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <Button disabled={isLoading || !query.trim()} onClick={handleExecuteQuery} className="ml-auto">
-                {isLoading ? (
-                  <Loader size={14} className="mr-1 animate-spin" />
-                ) : (
-                  <PlayIcon size={14} className="mr-1" />
-                )}
-                <span className="mr-2">Run</span>
-                <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
-              </Button>
-            </TabsList>
+            <div className="flex items-center h-fit">
+              <TabsList className="text-xs">
+                <TabsTrigger value="table">
+                  <TableProperties className="size-4" />
+                  <span>Table</span>
+                </TabsTrigger>
+                <TabsTrigger value="chart">
+                  <ChartArea className="size-4" />
+                  <span>Chart</span>
+                </TabsTrigger>
+                <TabsTrigger className="relative" value="parameters">
+                  <Braces className="size-4" />
+                  <span>Parameters</span>
+                </TabsTrigger>
+              </TabsList>
+              <div className="ml-auto">
+                <Button disabled={isLoading || !query.trim()} onClick={handleExecuteQuery} className="ml-auto">
+                  {isLoading ? (
+                    <Loader size={14} className="mr-1 animate-spin" />
+                  ) : (
+                    <PlayIcon size={14} className="mr-1" />
+                  )}
+                  <span className="mr-2">Run</span>
+                  <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
+                </Button>
+              </div>
+            </div>
             <TabsContent asChild value="table">
-              <div className="size-full">
+              <div className="flex overflow-hidden h-full">
                 {renderContent({
-                  success: <DataTable className="border-t-0 w-full" columns={columns} data={data} paginated />,
+                  success: (
+                    <InfiniteDataTable
+                      className="w-full"
+                      columns={columns}
+                      data={data}
+                      hasMore={false}
+                      isFetching={false}
+                      isLoading={false}
+                      fetchNextPage={() => {}}
+                    />
+                  ),
                   loadingText: "Executing query...",
                   default: (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">

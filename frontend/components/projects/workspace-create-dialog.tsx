@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { WorkspaceWithProjects } from '@/lib/workspaces/types';
 
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -37,7 +36,7 @@ export default function WorkspaceCreateDialog({
       })
     });
 
-    const newWorkspace = (await res.json()) as WorkspaceWithProjects;
+    const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
     onWorkspaceCreate?.();
     router.push(`/workspace/${newWorkspace.id}`);

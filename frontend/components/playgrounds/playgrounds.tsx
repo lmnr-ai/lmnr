@@ -1,18 +1,19 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { DataTable } from "../ui/datatable";
 import {
   Dialog,
   DialogContent,
@@ -24,18 +25,36 @@ import {
 } from "../ui/dialog";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
-import { TableCell, TableRow } from "../ui/table";
 import CreatePlaygroundDialog from "./create-playground-dialog";
 
-export default function Playgrounds() {
-  const { projectId } = useParams();
+const columns: ColumnDef<PlaygroundInfo>[] = [
+  {
+    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
+    size: 300,
+    header: "ID",
+  },
+  {
+    accessorKey: "name",
+    header: "name",
+    size: 300,
+  },
+  {
+    header: "Created at",
+    accessorKey: "createdAt",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+  },
+];
 
+const PlaygroundsContent = () => {
+  const { projectId } = useParams();
   const router = useRouter();
+  const { toast } = useToast();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
   const { data, mutate } = useSWR<PlaygroundInfo[]>(`/api/projects/${projectId}/playgrounds`, swrFetcher);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { toast } = useToast();
 
   const handleDeletePlaygrounds = async (playgroundIds: string[]) => {
     setIsDeleting(true);
@@ -46,6 +65,7 @@ export default function Playgrounds() {
 
       if (res.ok) {
         mutate();
+        setRowSelection({});
         toast({
           title: "Playgrounds deleted",
           description: `Successfully deleted ${playgroundIds.length} playground(s).`,
@@ -64,37 +84,27 @@ export default function Playgrounds() {
     setIsDeleteDialogOpen(false);
   };
 
-  const columns: ColumnDef<PlaygroundInfo>[] = [
-    {
-      cell: ({ row }) => <Mono>{row.original.id}</Mono>,
-      size: 300,
-      header: "ID",
-    },
-    {
-      accessorKey: "name",
-      header: "name",
-      size: 300,
-    },
-    {
-      header: "Created at",
-      accessorKey: "createdAt",
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    },
-  ];
-
   return (
     <>
       <Header path="playgrounds" />
-      <div className="flex flex-col gap-4 flex-1 overflow-auto px-4 pb-4">
+      <div className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
         <CreatePlaygroundDialog />
-        <DataTable
+        <InfiniteDataTable
           enableRowSelection={true}
           onRowClick={(row) => {
             router.push(`/project/${projectId}/playgrounds/${row.original.id}`);
           }}
           getRowId={(row) => row.id}
           columns={columns}
-          data={data}
+          data={data ?? []}
+          hasMore={false}
+          isFetching={false}
+          isLoading={!data}
+          fetchNextPage={() => {}}
+          state={{
+            rowSelection,
+          }}
+          onRowSelectionChange={setRowSelection}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -124,15 +134,16 @@ export default function Playgrounds() {
               </Dialog>
             </div>
           )}
-          emptyRow={
-            <TableRow>
-              <TableCell colSpan={columns.length} className="text-center text">
-                Create a new playground to get started
-              </TableCell>
-            </TableRow>
-          }
         />
       </div>
     </>
+  );
+};
+
+export default function Playgrounds() {
+  return (
+    <DataTableStateProvider>
+      <PlaygroundsContent />
+    </DataTableStateProvider>
   );
 }

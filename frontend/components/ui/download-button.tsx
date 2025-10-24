@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { Button } from "./button";
+import { Button, ButtonProps } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
 const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
@@ -42,7 +42,7 @@ const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: 
 interface DownloadButtonProps {
   uri: string;
   filenameFallback: string;
-  variant?: "default" | "secondary" | "destructive" | "outline-solid" | "ghost";
+  variant?: ButtonProps["variant"];
   className?: string;
   supportedFormats?: string[];
   text?: string;

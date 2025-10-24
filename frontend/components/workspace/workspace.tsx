@@ -4,7 +4,7 @@ import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { WorkspaceStats } from "@/lib/usage/types";
-import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
@@ -12,7 +12,7 @@ import WorkspaceUsers from "./workspace-users";
 
 interface WorkspaceProps {
   invitations: WorkspaceInvitation[];
-  workspace: WorkspaceWithUsers;
+  workspace: WorkspaceWithOptionalUsers;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
