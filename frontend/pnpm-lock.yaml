@@ -200,6 +200,9 @@ importers:
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
+      clickhouse-migrations:
+        specifier: ^1.1.1
+        version: 1.1.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -4312,6 +4315,11 @@ packages:
     resolution: {integrity: sha512-tRkV3HJ1ASwm19THiiLIXLO7Im7wlTuKnvkYaTkyoAPefqjNg7W7DHKUlGRxy9vxDvbyCYQkQozvptuMkGCg8A==}
     engines: {node: '>=4'}
 
+  clickhouse-migrations@1.1.1:
+    resolution: {integrity: sha512-RCdg5Pj6bhVLtSF3H8moLIS5sVLyC4O8JoMjt7QrSjV269sI3TrCMBqJe/LKxGD5PPXvsui2pNuKyCC8fUR0DA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
@@ -4361,6 +4369,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@14.0.1:
+    resolution: {integrity: sha512-2JkV3gUZUVrbNA+1sjBOYLsMZ5cEEl8GTFP2a4AVz5hvasAMCQ1D2l2le/cX+pV4N6ZU17zjUahLpIXRrnWL8A==}
+    engines: {node: '>=20'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -12327,6 +12339,11 @@ snapshots:
     dependencies:
       string-width: 4.2.3
 
+  clickhouse-migrations@1.1.1:
+    dependencies:
+      '@clickhouse/client': 1.12.1
+      commander: 14.0.1
+
   client-only@0.0.1: {}
 
   cliui@8.0.1:
@@ -12384,6 +12401,8 @@ snapshots:
   comma-separated-tokens@1.0.8: {}
 
   comma-separated-tokens@2.0.3: {}
+
+  commander@14.0.1: {}
 
   commander@2.20.3: {}
 

@@ -80,6 +80,7 @@
     "@xyflow/react": "^12.8.3",
     "ai": "5.0.28",
     "class-variance-authority": "^0.7.1",
+    "clickhouse-migrations": "^1.1.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
@@ -125,11 +126,11 @@
     "shiki": "^3.12.2",
     "streamdown": "^1.2.0",
     "stripe": "^16.12.0",
-    "use-stick-to-bottom": "^1.1.1",
-    "zod": "^4.1.5",
     "swr": "^2.3.6",
+    "use-stick-to-bottom": "^1.1.1",
     "uuid": "^9.0.1",
     "yaml": "^2.8.1",
+    "zod": "^4.1.5",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
