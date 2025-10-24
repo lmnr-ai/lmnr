@@ -11,7 +11,11 @@ pub struct DBPriceEntry {
     pub additional_prices: Value,
 }
 
-pub async fn get_price(pool: &PgPool, provider: &str, model: &str) -> anyhow::Result<DBPriceEntry> {
+pub async fn get_price(
+    pool: &PgPool,
+    provider: &str,
+    model: &str,
+) -> anyhow::Result<Option<DBPriceEntry>> {
     let price = sqlx::query_as::<_, DBPriceEntry>(
         "SELECT
             provider,
@@ -32,7 +36,7 @@ pub async fn get_price(pool: &PgPool, provider: &str, model: &str) -> anyhow::Re
     )
     .bind(provider)
     .bind(model)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(price)
