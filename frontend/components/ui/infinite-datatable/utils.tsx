@@ -1,7 +1,6 @@
 import { ColumnDef, RowData } from "@tanstack/react-table";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 
 import { CheckboxColumnOptions } from "./types";
 
