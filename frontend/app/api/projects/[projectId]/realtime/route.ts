@@ -1,4 +1,4 @@
-import { fetcher } from "@/lib/utils";
+import { fetcherRealTime } from "@/lib/utils";
 
 export async function GET(
   request: Request,
@@ -18,7 +18,7 @@ export async function GET(
     }
 
     // Forward the request to the app-server SSE endpoint
-    const response = await fetcher(`/projects/${projectId}/realtime`, {
+    const response = await fetcherRealTime(`/projects/${projectId}/realtime`, {
       method: "GET",
       headers: {
         "Accept": "text/event-stream",

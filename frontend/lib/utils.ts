@@ -14,8 +14,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export async function fetcher<JSON = any>(url: string, init: any): Promise<Response> {
+export async function fetcher(url: string, init: any): Promise<Response> {
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1${url}`, {
+    ...init,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+
+    throw new Error(text);
+  }
+
+  return res;
+}
+
+export async function fetcherRealTime(url: string, init: any): Promise<Response> {
+  const res = await fetch(`${process.env.BACKEND_RT_URL}/api/v1${url}`, {
     ...init,
     cache: "no-store",
   });
