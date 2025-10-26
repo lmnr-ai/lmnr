@@ -15,6 +15,7 @@ interface WorkspaceProps {
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
+  workspaceFeatureEnabled: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -23,13 +24,15 @@ export default function WorkspaceComponent({
   workspaceStats,
   isOwner,
   currentUserRole,
+  workspaceFeatureEnabled,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
         {menu === "projects" && <Projects workspaceId={workspace.id} />}
-        {menu === "team" && (
+        {workspaceFeatureEnabled && menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
@@ -38,8 +41,12 @@ export default function WorkspaceComponent({
             currentUserRole={currentUserRole}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspace={workspace} workspaceStats={workspaceStats} isOwner={isOwner} />}
-        {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
+        {workspaceFeatureEnabled && menu === "usage" && (
+          <WorkspaceUsage workspace={workspace} workspaceStats={workspaceStats} isOwner={isOwner} />
+        )}
+        {workspaceFeatureEnabled && menu === "settings" && (
+          <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
+        )}
       </div>
     </div>
   );

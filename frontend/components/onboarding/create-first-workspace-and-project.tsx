@@ -1,9 +1,11 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
+import icon from "@/assets/logo/icon.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,37 +56,63 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   };
 
   return (
-    <div className="max-w-4xl mx-auto mt-12 p-6 rounded-lg shadow-md">
-      <div className="flex flex-col">
-        <h2 className="text-2xl font-semibold mb-4">Create workspace and first project</h2>
-        <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Workspace Name</Label>
-          <Input
-            type="text"
-            placeholder="Workspace name"
-            value={workspaceName}
-            onChange={(e) => setWorkspaceName(e.target.value)}
-          />
+    <div className="flex-1 flex items-center justify-center">
+      <div className="w-full max-w-md">
+        <div className="flex flex-col items-center mb-8">
+          <div className="mb-6">
+            <Image alt="Laminar AI icon" src={icon} width={40} height={40} />
+          </div>
+          <h1 className="text-3xl font-semibold mb-2">Welcome to Laminar</h1>
+          <p className="text-sm text-muted-foreground text-center">
+            Let's set up your workspace and first project to get started
+          </p>
         </div>
-        <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Project Name</Label>
-          <Input
-            type="text"
-            placeholder="Project name"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-          />
-        </div>
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            onClick={handleButtonClick}
-            disabled={!workspaceName || !projectName || isLoading}
-            handleEnter={true}
-          >
-            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Create
-          </Button>
+        <div className="grid gap-4 px-8">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="workspace-name" className="text-xs font-medium">
+              Workspace Name
+            </Label>
+            <Input
+              id="workspace-name"
+              type="text"
+              placeholder="Enter workspace name"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
+                  handleButtonClick();
+                }
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="project-name" className="text-xs font-medium">
+              Project Name
+            </Label>
+            <Input
+              id="project-name"
+              type="text"
+              placeholder="Enter project name"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
+                  handleButtonClick();
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleButtonClick}
+              disabled={!workspaceName || !projectName || isLoading}
+              className="self-end align-end w-fit"
+            >
+              {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+              Create workspace and project
+            </Button>
+          </div>
         </div>
       </div>
     </div>

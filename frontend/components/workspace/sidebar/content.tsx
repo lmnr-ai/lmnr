@@ -1,3 +1,5 @@
+"use client";
+
 import { Activity, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
 import React, { useMemo } from "react";
 
@@ -36,15 +38,21 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   },
 ];
 
-const WorkspaceSidebarContent = ({ isOwner }: { isOwner: boolean }) => {
+interface WorkspaceSidebarContentProps {
+  isOwner: boolean;
+  workspaceFeatureEnabled: boolean;
+}
+
+export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
+
   const sidebarMenus = useMemo(() => {
-    if (!isOwner) {
-      return menus.filter((m) => m.value !== "settings");
+    if (!workspaceFeatureEnabled) {
+      return menus.filter((m) => m.value === "projects");
     }
 
-    return menus;
-  }, [isOwner]);
+    return isOwner ? menus : menus.filter((m) => m.value !== "settings");
+  }, [isOwner, workspaceFeatureEnabled]);
 
   return (
     <SidebarContent>

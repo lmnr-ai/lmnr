@@ -1,3 +1,4 @@
+import { isEmpty } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -104,7 +105,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           )}
         </DialogContent>
       </Dialog>
-      <SettingsTable>
+      <SettingsTable emptyMessage="No project api keys found." isEmpty={isEmpty(projectApiKeys)}>
         {projectApiKeys.map((apiKey, id) => (
           <SettingsTableRow key={id}>
             <td className="px-4 text-sm font-medium">{apiKey.name}</td>

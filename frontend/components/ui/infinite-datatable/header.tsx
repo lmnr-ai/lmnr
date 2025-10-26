@@ -35,7 +35,7 @@ export function InfiniteDatatableHeader<TData extends RowData>({ table }: Infini
                   {flexRender(header.column.columnDef.header, header.getContext())}
                   <div
                     className={cn(
-                      "group-hover:bg-blue-300 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 bg-primary h-full cursor-col-resize transition-colors",
+                      "group-hover:bg-blue-300 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 h-full cursor-col-resize transition-colors",
                       header.column.getIsResizing() ? "bg-blue-400" : "bg-transparent"
                     )}
                     onMouseDown={header.getResizeHandler()}

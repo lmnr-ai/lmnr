@@ -1,3 +1,5 @@
+"use client";
+
 import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
 import { ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +28,11 @@ import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
-const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithOptionalUsers }) => {
+interface WorkspaceSidebarHeaderProps {
+  workspace: WorkspaceWithOptionalUsers;
+}
+
+const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
   const { isMobile } = useSidebar();
   const { username, imageUrl, email } = useUserContext();
   const { data } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
@@ -88,7 +94,7 @@ const WorkspaceSidebarHeader = ({ workspace }: { workspace: WorkspaceWithOptiona
               <WorkspaceCreateDialog>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <Plus size={16} />
-                  <span className="text-xs">Workspace</span>
+                  <span className="text-xs">Create Workspace</span>
                 </DropdownMenuItem>
               </WorkspaceCreateDialog>
               <DropdownMenuSeparator />

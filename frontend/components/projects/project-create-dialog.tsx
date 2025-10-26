@@ -71,7 +71,7 @@ export default function ProjectCreateDialog({ workspaceId, onProjectCreate }: Pr
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-2">
           <Label>Name</Label>
           <Input
             autoFocus

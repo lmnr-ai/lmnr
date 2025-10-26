@@ -182,9 +182,9 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
             <DialogHeader>
               <DialogTitle>Rename workspace</DialogTitle>
             </DialogHeader>
-            <form onSubmit={renameWorkspace} className="space-y-4">
-              <div className="grid gap-4 py-4">
-                <Label>Enter new workspace name</Label>
+            <form onSubmit={renameWorkspace}>
+              <div className="grid gap-2">
+                <Label>Name</Label>
                 <Controller
                   name="name"
                   control={renameForm.control}
@@ -205,19 +205,19 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   )}
                 />
               </div>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
-                  handleEnter={true}
-                >
-                  <Loader2
-                    className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
-                  />
-                  Rename
-                </Button>
-              </DialogFooter>
             </form>
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
+                handleEnter={true}
+              >
+                <Loader2
+                  className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
+                />
+                Rename
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </SettingsSection>

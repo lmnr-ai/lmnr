@@ -139,13 +139,13 @@ export default function TraceSummarySettings() {
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add span name</DialogTitle>
+            <DialogTitle>Add span</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Label>Span name</Label>
+          <div className="grid gap-2">
+            <Label>Name</Label>
             <Input
               autoFocus
-              placeholder="Enter span name"
+              placeholder="Enter span name..."
               value={newSpanName}
               onChange={(e) => setNewSpanName(e.target.value)}
               onKeyDown={(e) => {

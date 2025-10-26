@@ -44,7 +44,7 @@ export default function AddProviderApiKeyVarDialog({ existingKeyNames, onAdd }: 
         <DialogHeader>
           <DialogTitle>Add API key</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label>Name</Label>
             <Select

@@ -28,10 +28,6 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   }
   const user = session.user;
 
-  if (!isFeatureEnabled(Feature.WORKSPACE)) {
-    redirect("/projects");
-  }
-
   // check if user part of the workspace
   let workspace: WorkspaceWithOptionalUsers;
   try {
@@ -68,6 +64,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
+  const workspaceFeatureEnabled = isFeatureEnabled(Feature.WORKSPACE);
+
   return (
     <UserContextProvider
       id={user.id}
@@ -79,7 +77,11 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
       <WorkspaceMenuProvider>
         <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
           <SidebarProvider className="bg-sidebar">
-            <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
+            <WorkspaceSidebar
+              isOwner={isOwner}
+              workspace={workspace}
+              workspaceFeatureEnabled={workspaceFeatureEnabled}
+            />
             <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
               <WorkspaceComponent
                 invitations={invitations}
@@ -87,6 +89,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
                 workspaceStats={stats}
                 isOwner={isOwner}
                 currentUserRole={currentUserRole}
+                workspaceFeatureEnabled={workspaceFeatureEnabled}
               />
             </SidebarInset>
           </SidebarProvider>

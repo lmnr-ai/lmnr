@@ -26,27 +26,28 @@ const SidebarFooterComponent = () => {
     <SidebarFooter className="px-0 mb-2">
       <SidebarGroup>
         <SidebarGroupContent>
-          {showStarCard && open && (
-            <div
-              className={cn("rounded-lg border bg-muted relative p-2 m-2", open || openMobile ? "text-sm" : "hidden")}
+          <div
+            className={cn(
+              "rounded-lg border bg-muted relative p-2 m-2",
+              (open || openMobile) && showStarCard ? "text-sm" : "hidden"
+            )}
+          >
+            <button
+              onClick={() => setShowStarCard(false)}
+              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
             >
-              <button
-                onClick={() => setShowStarCard(false)}
-                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-              >
-                <X size={16} />
-              </button>
-              <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-              <a
-                href="https://github.com/lmnr-ai/lmnr"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-foreground hover:underline"
-              >
-                ⭐ Star it on GitHub
-              </a>
-            </div>
-          )}
+              <X size={16} />
+            </button>
+            <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
+            <a
+              href="https://github.com/lmnr-ai/lmnr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-foreground hover:underline"
+            >
+              ⭐ Star it on GitHub
+            </a>
+          </div>
         </SidebarGroupContent>
       </SidebarGroup>
       <SidebarGroup>

@@ -7,7 +7,6 @@ import useSWR from "swr";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
@@ -102,13 +101,6 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
           />
         </div>
       )}
-      emptyRow={
-        <TableRow>
-          <TableCell colSpan={columns.length} className="text-center">
-            No evaluators found. Create your first evaluator to get started.
-          </TableCell>
-        </TableRow>
-      }
     />
   );
 }

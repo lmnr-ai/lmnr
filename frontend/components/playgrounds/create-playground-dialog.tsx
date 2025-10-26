@@ -60,9 +60,9 @@ export default function CreatePlaygroundDialog() {
           <DialogHeader>
             <DialogTitle>Create new playground</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
             <Label>Name</Label>
-            <Input autoFocus placeholder="Name" onChange={(e) => setNewPlaygroundName(e.target.value)} />
+            <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewPlaygroundName(e.target.value)} />
           </div>
           <DialogFooter>
             <Button onClick={createNewPlayground} disabled={!newPlaygroundName || isLoading} handleEnter>

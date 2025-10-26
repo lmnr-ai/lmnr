@@ -219,7 +219,7 @@ function IconAnthropic({ className, ...props }: React.ComponentProps<"svg">) {
 }
 
 function IconGemini({ className, ...props }: React.ComponentProps<"svg">) {
-  const gradientId = React.useId();
+  const gradientId = "icon-gemini-gradient";
 
   return (
     <svg className={cn("w-4 h-4", className)} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -273,7 +273,7 @@ function IconMistral({ className, ...props }: React.ComponentProps<"svg">) {
 }
 
 function IconAmazonBedrock({ className, ...props }: React.ComponentProps<"svg">) {
-  const gradientId = React.useId();
+  const gradientId = "icon-amazon-bedrock-gradient";
 
   return (
     <svg className={cn("w-4 h-4", className)} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>

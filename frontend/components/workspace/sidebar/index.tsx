@@ -3,15 +3,21 @@
 import React from "react";
 
 import SidebarFooter from "@/components/projects/sidebar-footer";
-import { Sidebar } from "@/components/ui/sidebar.tsx";
-import WorkspaceSidebarContent from "@/components/workspace/sidebar/content.tsx";
-import WorkspaceSidebarHeader from "@/components/workspace/sidebar/header.tsx";
-import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
+import { Sidebar } from "@/components/ui/sidebar";
+import { WorkspaceSidebarContent } from "@/components/workspace/sidebar/content";
+import WorkspaceSidebarHeader from "@/components/workspace/sidebar/header";
+import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
-const WorkspaceSidebar = ({ workspace, isOwner }: { workspace: WorkspaceWithOptionalUsers; isOwner: boolean }) => (
+interface WorkspaceSidebarProps {
+  workspace: WorkspaceWithOptionalUsers;
+  isOwner: boolean;
+  workspaceFeatureEnabled: boolean;
+}
+
+const WorkspaceSidebar = ({ workspace, isOwner, workspaceFeatureEnabled }: WorkspaceSidebarProps) => (
   <Sidebar className="border-none" collapsible="icon">
     <WorkspaceSidebarHeader workspace={workspace} />
-    <WorkspaceSidebarContent isOwner={isOwner} />
+    <WorkspaceSidebarContent isOwner={isOwner} workspaceFeatureEnabled={workspaceFeatureEnabled} />
     <SidebarFooter />
   </Sidebar>
 );
