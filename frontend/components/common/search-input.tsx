@@ -62,7 +62,7 @@ const SearchInput = ({ onSearch, placeholder, className }: SearchInputProps) => 
         <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
           type="text"
           placeholder={placeholder}
           onKeyDown={handleKeyPress}

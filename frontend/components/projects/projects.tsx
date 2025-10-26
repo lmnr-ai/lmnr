@@ -20,7 +20,7 @@ export default function Projects({ workspaceId }: ProjectsProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Projects</h1>
+      <h1 className="text-xl font-medium">Projects</h1>
       {!data ? (
         <Skeleton className="w-36 h-6" />
       ) : (

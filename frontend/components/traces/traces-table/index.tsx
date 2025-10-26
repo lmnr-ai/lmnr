@@ -314,7 +314,7 @@ function TracesTableContent() {
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
           <DateRangeFilter />
           <RefreshButton
-            iconClassName="w-4 h-4 text-secondary-foreground"
+            iconClassName="w-3.5 h-3.5 text-secondary-foreground"
             onClick={refetch}
             variant="outline"
             className="text-xs text-secondary-foreground"

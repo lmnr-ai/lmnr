@@ -77,7 +77,7 @@ function EventDefinitionsContent() {
 
   return (
     <>
-      <Header path="events definitions" />
+      <Header path="event definitions" />
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
         {!isFreeTier && (
           <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>

@@ -64,7 +64,7 @@ export default function ProjectCreateDialog({ workspaceId, onProjectCreate }: Pr
     >
       <DialogTrigger asChild>
         <Button icon="plus" className="w-fit">
-          <span>Project</span>
+          Project
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

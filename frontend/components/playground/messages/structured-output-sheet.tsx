@@ -52,7 +52,7 @@ export default function StructuredOutputSheet({
             size="icon"
             className={cn("focus-visible:ring-0 size-7", className)}
           >
-            <BracesIcon className="size-4" />
+            <BracesIcon className="size-3.5" />
           </Button>
         </SheetTrigger>
       );

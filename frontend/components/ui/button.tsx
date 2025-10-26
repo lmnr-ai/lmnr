@@ -50,7 +50,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary",
+        default: "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border border-white/25",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline: "border border-input bg-background hover:bg-accent",
         outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
@@ -194,7 +194,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
-        {IconComponent && <IconComponent className={cn(size === "sm" ? "size-3 mr-1" : "size-3.5 mr-2 -ml-1")} />}
+        {IconComponent && <IconComponent className={cn("-ml-1 mr-1", size === "sm" ? "size-3" : "size-3.5")} />}
         {children}
       </Comp>
     );
