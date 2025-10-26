@@ -1,14 +1,11 @@
 use dashmap::DashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct ExpectedWorkerCounts {
-    pub spans: usize,
-    pub browser_events: usize,
-    pub evaluators: usize,
-    pub payloads: usize,
-    pub trace_summaries: usize,
+    counts: HashMap<WorkerType, usize>,
 }
 
 impl ExpectedWorkerCounts {
@@ -19,13 +16,18 @@ impl ExpectedWorkerCounts {
         payloads: usize,
         trace_summaries: usize,
     ) -> Self {
-        Self {
-            spans,
-            browser_events,
-            evaluators,
-            payloads,
-            trace_summaries,
-        }
+        let mut counts = HashMap::new();
+        counts.insert(WorkerType::Spans, spans);
+        counts.insert(WorkerType::BrowserEvents, browser_events);
+        counts.insert(WorkerType::Evaluators, evaluators);
+        counts.insert(WorkerType::Payloads, payloads);
+        counts.insert(WorkerType::TraceSummaries, trace_summaries);
+
+        Self { counts }
+    }
+
+    pub fn get(&self, worker_type: &WorkerType) -> usize {
+        self.counts.get(worker_type).copied().unwrap_or(0)
     }
 }
 
@@ -36,6 +38,20 @@ pub enum WorkerType {
     Evaluators,
     Payloads,
     TraceSummaries,
+}
+
+impl WorkerType {
+    /// Returns all worker type variants. This match is exhaustive,
+    /// so adding new variants will cause a compilation error here.
+    pub fn all_variants() -> Vec<WorkerType> {
+        vec![
+            WorkerType::Spans,
+            WorkerType::BrowserEvents,
+            WorkerType::Evaluators,
+            WorkerType::Payloads,
+            WorkerType::TraceSummaries,
+        ]
+    }
 }
 
 impl std::fmt::Display for WorkerType {
@@ -93,13 +109,11 @@ impl WorkerTracker {
     }
 
     pub fn is_healthy(&self, expected: &ExpectedWorkerCounts) -> bool {
-        let spans_count = self.get_worker_count(&WorkerType::Spans);
-        let browser_events_count = self.get_worker_count(&WorkerType::BrowserEvents);
-        let evaluators_count = self.get_worker_count(&WorkerType::Evaluators);
-
-        spans_count >= expected.spans
-            && browser_events_count >= expected.browser_events
-            && evaluators_count >= expected.evaluators
+        WorkerType::all_variants().iter().all(|worker_type| {
+            let actual_count = self.get_worker_count(worker_type);
+            let expected_count = expected.get(worker_type);
+            actual_count >= expected_count
+        })
     }
 
     fn unregister_worker(&self, worker_id: Uuid) {
@@ -118,5 +132,213 @@ impl Drop for WorkerHandle {
     fn drop(&mut self) {
         log::error!("Dropping worker handle for worker {}", self.id);
         self.tracker.unregister_worker(self.id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_variants_returns_all_worker_types() {
+        let variants = WorkerType::all_variants();
+
+        // Check we have the expected number of variants
+        assert_eq!(variants.len(), 5);
+
+        // Check each variant is present
+        assert!(variants.contains(&WorkerType::Spans));
+        assert!(variants.contains(&WorkerType::BrowserEvents));
+        assert!(variants.contains(&WorkerType::Evaluators));
+        assert!(variants.contains(&WorkerType::Payloads));
+        assert!(variants.contains(&WorkerType::TraceSummaries));
+    }
+
+    #[test]
+    fn test_expected_worker_counts_stores_and_retrieves_correctly() {
+        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5);
+
+        assert_eq!(expected.get(&WorkerType::Spans), 1);
+        assert_eq!(expected.get(&WorkerType::BrowserEvents), 2);
+        assert_eq!(expected.get(&WorkerType::Evaluators), 3);
+        assert_eq!(expected.get(&WorkerType::Payloads), 4);
+        assert_eq!(expected.get(&WorkerType::TraceSummaries), 5);
+    }
+
+    #[test]
+    fn test_is_healthy_when_all_workers_meet_expectations() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1);
+
+        // Register workers
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::Spans);
+        let _h3 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h4 = tracker.register_worker(WorkerType::Evaluators);
+        let _h5 = tracker.register_worker(WorkerType::Payloads);
+        let _h6 = tracker.register_worker(WorkerType::TraceSummaries);
+
+        assert!(tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_when_one_worker_type_is_below_threshold() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1);
+
+        // Register only 1 Spans worker (need 2)
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h3 = tracker.register_worker(WorkerType::Evaluators);
+        let _h4 = tracker.register_worker(WorkerType::Payloads);
+        let _h5 = tracker.register_worker(WorkerType::TraceSummaries);
+
+        assert!(!tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_when_workers_exceed_expectations() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1);
+
+        // Register more than expected (should still be healthy)
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::Spans);
+        let _h3 = tracker.register_worker(WorkerType::Spans);
+        let _h4 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h5 = tracker.register_worker(WorkerType::Evaluators);
+        let _h6 = tracker.register_worker(WorkerType::Payloads);
+        let _h7 = tracker.register_worker(WorkerType::TraceSummaries);
+
+        assert!(tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_exactly_at_threshold() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(3, 2, 1, 4, 2);
+
+        // Register exactly the expected counts
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::Spans);
+        let _h3 = tracker.register_worker(WorkerType::Spans);
+        let _h4 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h5 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h6 = tracker.register_worker(WorkerType::Evaluators);
+        let _h7 = tracker.register_worker(WorkerType::Payloads);
+        let _h8 = tracker.register_worker(WorkerType::Payloads);
+        let _h9 = tracker.register_worker(WorkerType::Payloads);
+        let _h10 = tracker.register_worker(WorkerType::Payloads);
+        let _h11 = tracker.register_worker(WorkerType::TraceSummaries);
+        let _h12 = tracker.register_worker(WorkerType::TraceSummaries);
+
+        assert!(tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_with_no_workers() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1);
+
+        // No workers registered
+        assert!(!tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_with_zero_expectations() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(0, 0, 0, 0, 0);
+
+        // No workers registered, but none expected either
+        assert!(tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_is_healthy_checks_all_worker_types() {
+        let tracker = WorkerTracker::new();
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1);
+
+        // Missing TraceSummaries worker
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h3 = tracker.register_worker(WorkerType::Evaluators);
+        let _h4 = tracker.register_worker(WorkerType::Payloads);
+        // Intentionally not registering TraceSummaries
+
+        assert!(!tracker.is_healthy(&expected));
+    }
+
+    #[test]
+    fn test_get_worker_count() {
+        let tracker = WorkerTracker::new();
+
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::Spans);
+        let _h3 = tracker.register_worker(WorkerType::BrowserEvents);
+
+        assert_eq!(tracker.get_worker_count(&WorkerType::Spans), 2);
+        assert_eq!(tracker.get_worker_count(&WorkerType::BrowserEvents), 1);
+        assert_eq!(tracker.get_worker_count(&WorkerType::Evaluators), 0);
+    }
+
+    #[test]
+    fn test_get_total_workers() {
+        let tracker = WorkerTracker::new();
+
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::BrowserEvents);
+        let _h3 = tracker.register_worker(WorkerType::Evaluators);
+
+        assert_eq!(tracker.get_total_workers(), 3);
+    }
+
+    #[test]
+    fn test_worker_handle_unregisters_on_drop() {
+        let tracker = WorkerTracker::new();
+
+        {
+            let _h1 = tracker.register_worker(WorkerType::Spans);
+            assert_eq!(tracker.get_worker_count(&WorkerType::Spans), 1);
+        }
+        // Handle dropped, worker should be unregistered
+
+        assert_eq!(tracker.get_worker_count(&WorkerType::Spans), 0);
+    }
+
+    #[test]
+    fn test_get_worker_counts() {
+        let tracker = WorkerTracker::new();
+
+        let _h1 = tracker.register_worker(WorkerType::Spans);
+        let _h2 = tracker.register_worker(WorkerType::Spans);
+        let _h3 = tracker.register_worker(WorkerType::BrowserEvents);
+
+        let counts = tracker.get_worker_counts();
+        let counts_map: HashMap<WorkerType, usize> = counts.into_iter().collect();
+
+        assert_eq!(counts_map.get(&WorkerType::Spans), Some(&2));
+        assert_eq!(counts_map.get(&WorkerType::BrowserEvents), Some(&1));
+        assert_eq!(counts_map.get(&WorkerType::Evaluators), None);
+    }
+
+    #[test]
+    fn test_worker_type_display() {
+        assert_eq!(format!("{}", WorkerType::Spans), "spans");
+        assert_eq!(format!("{}", WorkerType::BrowserEvents), "browser_events");
+        assert_eq!(format!("{}", WorkerType::Evaluators), "evaluators");
+        assert_eq!(format!("{}", WorkerType::Payloads), "payloads");
+        assert_eq!(format!("{}", WorkerType::TraceSummaries), "trace_summaries");
+    }
+
+    #[test]
+    fn test_expected_counts_covers_all_variants() {
+        // This test ensures that ExpectedWorkerCounts::new() covers all variants
+        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5);
+
+        // Verify we can retrieve a count for each variant
+        for variant in WorkerType::all_variants() {
+            let count = expected.get(&variant);
+            assert!(count > 0, "Variant {:?} should have a count", variant);
+        }
     }
 }

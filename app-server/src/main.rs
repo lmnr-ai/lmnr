@@ -672,8 +672,6 @@ fn main() -> anyhow::Result<()> {
                     for _ in 0..num_trace_summary_workers {
                         let worker_handle =
                             worker_tracker_clone.register_worker(WorkerType::TraceSummaries);
-                        let db_clone = db_for_consumer.clone();
-                        let cache_clone = cache_for_consumer.clone();
                         let mq_clone = mq_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
