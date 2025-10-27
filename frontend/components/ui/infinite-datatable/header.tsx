@@ -7,30 +7,27 @@ import { InfiniteDataTableHeaderProps } from "./types";
 
 export function InfiniteDatatableHeader<TData extends RowData>({ table }: InfiniteDataTableHeaderProps<TData>) {
   return (
-    <TableHeader
-      className="text-xs flex bg-secondary rounded-t"
-      style={{
-        display: "grid",
-        position: "sticky",
-        top: 0,
-        zIndex: 20,
-      }}
-    >
+    <TableHeader className="text-xs bg-secondary rounded-t sticky top-0 z-20">
       {table.getHeaderGroups().map((headerGroup) => (
-        <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr flex" key={headerGroup.id}>
+        <TableRow
+          className="p-0 m-0 w-full rounded-tl rounded-tr bg-secondary border-b-0!"
+          key={headerGroup.id}
+          style={{
+            boxShadow: "0 1px 0 0 hsl(var(--border))",
+          }}
+        >
           {headerGroup.headers.map((header) => (
             <TableHead
               colSpan={header.colSpan}
               style={{
                 height: 32,
                 width: header.getSize(),
-                minWidth: header.getSize(),
-                display: "flex",
+                boxShadow: "0 1px 0 0 hsl(var(--border))",
               }}
-              className="m-0 relative text-secondary-foreground truncate hover:bg-transparent"
+              className="m-0 relative text-secondary-foreground truncate"
               key={header.id}
             >
-              <div className="absolute inset-0 items-center h-full flex group px-4">
+              <div className="absolute inset-0 items-center flex group px-4 h-8">
                 <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
                   {flexRender(header.column.columnDef.header, header.getContext())}
                   <div

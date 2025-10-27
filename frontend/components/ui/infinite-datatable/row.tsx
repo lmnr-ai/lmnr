@@ -17,7 +17,8 @@ export function InfiniteDatatableRow<TData extends RowData>({
       data-index={virtualRow.index}
       ref={(node) => rowVirtualizer.measureElement(node)}
       className={cn(
-        "flex min-w-full border-b last:border-b-0 group/row absolute",
+        "min-w-full group/row",
+        virtualRow.index < rowVirtualizer.options.count - 1 && "border-b",
         !!onRowClick && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
         focusedRowId === row.id && "bg-muted"
@@ -28,17 +29,16 @@ export function InfiniteDatatableRow<TData extends RowData>({
         onRowClick?.(row);
       }}
       style={{
-        transform: `translateY(${virtualRow.start}px)`,
-        width: "100%",
+        height: `${virtualRow.size}px`,
+        transform: `translateY(${virtualRow.start - virtualRow.index * virtualRow.size}px)`,
       }}
     >
       {row.getVisibleCells().map((cell, index) => (
         <TableCell
-          className="relative px-4 m-0 truncate h-full my-auto"
+          className="relative px-4 m-0 truncate my-auto"
           key={cell.id}
           style={{
             width: cell.column.getSize(),
-            display: "flex",
           }}
         >
           {row.getIsSelected() && index === 0 && (
