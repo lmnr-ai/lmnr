@@ -20,7 +20,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
         "flex min-w-full border-b last:border-b-0 group/row absolute",
         !!onRowClick && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
-        focusedRowId === row.id && "bg-secondary/70"
+        focusedRowId === row.id && "bg-muted"
       )}
       key={row.id}
       data-state={row.getIsSelected() && "selected"}
