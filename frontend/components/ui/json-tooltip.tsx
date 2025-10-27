@@ -36,7 +36,7 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
   return (
     <TooltipProvider delayDuration={100}>
       <Tooltip>
-        <TooltipTrigger className="relative p-0">
+        <TooltipTrigger asChild className="relative p-0">
           <div
             style={{
               ...(columnSize

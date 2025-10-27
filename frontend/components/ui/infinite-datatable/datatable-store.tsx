@@ -13,6 +13,7 @@ export interface InfiniteScrollState<TData> {
   error: Error | null;
   uniqueKey: string;
   hasMore: boolean;
+  pageSize: number;
 }
 
 export interface InfiniteScrollActions<TData> {
@@ -45,7 +46,7 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
   SelectionState &
   SelectionActions;
 
-const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
+const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number = 50) =>
   createStore<DataTableStore<TData>>((set) => ({
     data: [],
     totalCount: 0,
@@ -55,6 +56,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
     error: null,
     uniqueKey,
     hasMore: true,
+    pageSize,
 
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setTotalCount: (totalCount) => set({ totalCount }),
@@ -71,7 +73,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isFetching: false,
         isLoading: false,
         error: null,
-        hasMore: items.length > 0,
+        hasMore: items.length >= state.pageSize,
       })),
 
     replaceData: (items, count) =>
@@ -81,7 +83,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isFetching: false,
         isLoading: false,
         error: null,
-        hasMore: items.length > 0,
+        hasMore: items.length >= state.pageSize,
       })),
 
     resetInfiniteScroll: () =>
@@ -94,6 +96,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         error: null,
         uniqueKey: state.uniqueKey,
         hasMore: true,
+        pageSize: state.pageSize,
       })),
 
     selectedRows: new Set(),
@@ -133,12 +136,17 @@ const DataTableContext = createContext<DataTableStoreApi<any> | undefined>(undef
 export interface DataTableStateProviderProps {
   children: ReactNode;
   uniqueKey?: string;
+  pageSize?: number;
 }
 
-export function DataTableStateProvider<TData>({ children, uniqueKey = "id" }: DataTableStateProviderProps) {
+export function DataTableStateProvider<TData>({
+  children,
+  uniqueKey = "id",
+  pageSize = 50,
+}: DataTableStateProviderProps) {
   const storeRef = useRef<DataTableStoreApi<TData> | undefined>(undefined);
   if (!storeRef.current) {
-    storeRef.current = createDataTableStore<TData>(uniqueKey);
+    storeRef.current = createDataTableStore<TData>(uniqueKey, pageSize);
   }
 
   return <DataTableContext.Provider value={storeRef.current}>{children}</DataTableContext.Provider>;

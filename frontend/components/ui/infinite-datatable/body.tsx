@@ -69,7 +69,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
               />
             );
           })}
-          {!isLoading && hasMore && <tr className="bg-red-500 absolute" style={{ bottom: 410 }} ref={loadMoreRef} />}
+          {!isLoading && hasMore && <tr className="absolute border-b-0" style={{ bottom: 410 }} ref={loadMoreRef} />}
         </>
       ) : (
         (emptyRow ?? (
