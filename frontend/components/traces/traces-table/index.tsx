@@ -290,7 +290,7 @@ function TracesTableContent() {
   );
 
   return (
-    <div className="flex flex-1 overflow-hidden px-4 pb-6">
+    <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<TraceRow>
         className="w-full"
         columns={columns}

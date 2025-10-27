@@ -5,9 +5,9 @@ import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/tra
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
-import { Skeleton } from "../ui/skeleton";
-import { NoSpanTooltip } from "./no-span-tooltip";
-import SpanTypeIcon from "./span-type-icon";
+import { Skeleton } from "../../ui/skeleton";
+import { NoSpanTooltip } from "../no-span-tooltip";
+import SpanTypeIcon from "../span-type-icon";
 
 const ROW_HEIGHT = 36;
 const SQUARE_SIZE = 22;
@@ -97,7 +97,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <div className="text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs">
+            <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
               {getDurationString(span.startTime, span.endTime)}
             </div>
           )}
@@ -120,7 +120,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               style={{
                 width: containerWidth,
                 height: ROW_HEIGHT,
-                left: -(depth + 1) * 24 - 8,
+                left: -(depth + 1) * 24 + 8,
               }}
             />
           )}

@@ -86,19 +86,19 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
-          <Tabs className="flex flex-col flex-1 w-full overflow-hidden gap-0" defaultValue="span-input">
-            <div className="px-4 pb-2 mt-2 border-b">
-              <TabsList className="border-none text-xs gap-2 h-7">
-                <TabsTrigger value="span-input" className="truncate text-xs">
+          <Tabs className="flex flex-1 overflow-hidden gap-0" defaultValue="span-input">
+            <div className="px-4 pb-2 mt-2 border-b w-full">
+              <TabsList className="border-none text-xs h-7">
+                <TabsTrigger value="span-input" className="text-xs">
                   Span Input
                 </TabsTrigger>
-                <TabsTrigger value="span-output" className="truncate text-xs">
+                <TabsTrigger value="span-output" className="text-xs">
                   Span Output
                 </TabsTrigger>
-                <TabsTrigger value="attributes" className="truncate text-xs">
+                <TabsTrigger value="attributes" className="text-xs">
                   Attributes
                 </TabsTrigger>
-                <TabsTrigger value="events" className="truncate text-xs">
+                <TabsTrigger value="events" className="text-xs">
                   Events
                 </TabsTrigger>
               </TabsList>
