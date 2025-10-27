@@ -1,7 +1,5 @@
 use sqlx::PgPool;
 
-pub mod agent_chats;
-pub mod agent_messages;
 pub mod datasets;
 pub mod evaluations;
 pub mod evaluators;
@@ -16,7 +14,6 @@ pub mod stats;
 pub mod summary_trigger_spans;
 pub mod tags;
 pub mod trace;
-pub mod user_cookies;
 pub mod utils;
 
 #[derive(Clone, Debug)]

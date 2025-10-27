@@ -23,6 +23,7 @@ impl DBProjectApiKey {
     }
 }
 
+// TODO: Remove this and use DBProjectApiKey directly
 #[derive(Clone)]
 pub struct ProjectApiKey {
     pub project_id: Uuid,
