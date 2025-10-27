@@ -1,27 +1,26 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ColumnDef, Row } from "@tanstack/react-table";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
+import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { Evaluation } from "@/lib/evaluation/types";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
@@ -80,10 +79,19 @@ const filters: ColumnFilter[] = [
   },
 ];
 
+const FETCH_SIZE = 50;
+
 export default function Evaluations() {
+  return (
+    <DataTableStateProvider>
+      <EvaluationsContent />
+    </DataTableStateProvider>
+  );
+}
+
+function EvaluationsContent() {
   const params = useParams();
-  const pathName = usePathname();
-  const { push } = useRouter();
+  const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
@@ -92,48 +100,67 @@ export default function Evaluations() {
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
 
-  const page = useMemo<{ number: number; size: number }>(() => {
-    const size = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 25;
-    return {
-      number: searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0,
-      size,
-    };
-  }, [searchParams]);
-
-  const evaluationsParams = useMemo(() => {
-    const sp = new URLSearchParams();
-    if (groupId) {
-      sp.set("groupId", groupId);
-    }
-
-    if (search && search.trim() !== "") {
-      sp.set("search", search);
-    }
-
-    filter.forEach((f) => sp.append("filter", f));
-
-    sp.append("pageNumber", String(page.number));
-    sp.append("pageSize", String(page.size));
-
-    return sp;
-  }, [filter, groupId, page.number, page.size, search]);
-
-  const { data, mutate } = useSWR<PaginatedResponse<Evaluation & { dataPointsCount: 0 }>>(
-    `/api/projects/${params?.projectId}/evaluations?${evaluationsParams.toString()}`,
-    swrFetcher
-  );
-
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
 
-  const handlePageChange = useCallback(
-    (pageNumber: number, pageSize: number) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pageNumber", pageNumber.toString());
-      params.set("pageSize", pageSize.toString());
-      push(`${pathName}?${params}`);
+  const fetchEvaluations = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        if (groupId) {
+          urlParams.set("groupId", groupId);
+        }
+
+        if (search && search.trim() !== "") {
+          urlParams.set("search", search);
+        }
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        const url = `/api/projects/${params?.projectId}/evaluations?${urlParams.toString()}`;
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          const text = (await res.json()) as { error: string };
+          throw new Error(text.error);
+        }
+
+        const data = (await res.json()) as { items: Evaluation[]; totalCount: number };
+        return { items: data.items, count: data.totalCount };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load evaluations. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
     },
-    [pathName, push, searchParams]
+    [filter, groupId, params?.projectId, search, toast]
   );
+
+  const {
+    data: evaluations,
+    totalCount,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteScroll<Evaluation>({
+    fetchFn: fetchEvaluations,
+    enabled: true,
+    deps: [filter, groupId, params?.projectId, search],
+  });
+
+  const { rowSelection, onRowSelectionChange } = useSelection();
 
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
     try {
@@ -148,7 +175,7 @@ export default function Evaluations() {
       });
 
       if (response.ok) {
-        await mutate();
+        await refetch();
 
         toast({
           title: "Evaluations deleted",
@@ -166,18 +193,25 @@ export default function Evaluations() {
     }
   };
 
+  const handleRowClick = useCallback(
+    (row: Row<Evaluation>) => {
+      router.push(`/project/${params?.projectId}/evaluations/${row.original.id}`);
+    },
+    [params?.projectId, router]
+  );
+
   if (isFeatureEnabled(Feature.POSTHOG)) {
     posthog.identify(email);
   }
 
   return (
-    <div className="flex flex-col flex-1">
+    <>
       <Header path="evaluations" />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden pb-4 px-4 gap-4">
         <EvaluationsGroupsBar />
-        <div className="flex flex-col flex-1 overflow-auto">
-          <div className="flex gap-4 pt-4 px-4 items-center">
-            <div className="text-primary-foreground text-xl font-medium">{searchParams.get("groupId")}</div>
+        <div className="flex flex-col w-full gap-2 overflow-hidden">
+          <div className="flex gap-4 items-center">
+            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
@@ -194,31 +228,32 @@ export default function Evaluations() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel className="px-2 flex-grow" minSize={20} defaultSize={20}>
+          <ResizablePanelGroup className="overflow-hidden" direction="vertical">
+            <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
-                evaluations={(data?.items || []).map(({ id, name }) => ({ id, name }))}
+                evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
                 className="h-full px-2 py-4"
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>
-            <ResizableHandle className="z-30" />
-            <ResizablePanel className="flex-grow" minSize={40} defaultSize={40}>
-              <DataTable
+            <ResizableHandle withHandle className="z-30 mb-2 bg-transparent transition-colors duration-200" />
+            <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
+              <InfiniteDataTable<Evaluation>
+                className="w-full"
                 enableRowSelection
                 columns={columns}
-                data={data?.items}
-                onRowClick={(row) => push(`/project/${params?.projectId}/evaluations/${row.original.id}`)}
-                defaultPageNumber={page.number}
-                defaultPageSize={page.size}
-                pageCount={Math.ceil(Number(data?.totalCount || 0) / page.size)}
-                totalItemsCount={Number(data?.totalCount || 0)}
-                onPageChange={handlePageChange}
-                getRowId={(row: Evaluation) => row.id}
-                paginated
-                manualPagination
-                pageSizeOptions={[10, 25]}
-                childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
+                data={evaluations}
+                getRowId={(evaluation) => evaluation.id}
+                onRowClick={handleRowClick}
+                hasMore={hasMore}
+                isFetching={isFetching}
+                isLoading={isLoading}
+                fetchNextPage={fetchNextPage}
+                totalItemsCount={totalCount}
+                estimatedRowHeight={41}
+                state={{ rowSelection }}
+                onRowSelectionChange={onRowSelectionChange}
+                childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -234,11 +269,11 @@ export default function Evaluations() {
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />
-              </DataTable>
+              </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
       </div>
-    </div>
+    </>
   );
 }

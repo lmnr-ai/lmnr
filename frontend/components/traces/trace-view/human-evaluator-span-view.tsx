@@ -65,7 +65,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
     <SpanViewStateProvider>
       <SpanControls span={span}>
         <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
-          <div className="border-b flex-shrink-0">
+          <div className="border-b shrink-0">
             <TabsList className="border-none text-sm px-4">
               <TabsTrigger value="span" className="truncate">
                 Span

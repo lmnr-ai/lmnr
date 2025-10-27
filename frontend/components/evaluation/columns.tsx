@@ -16,6 +16,7 @@ import {
   ScoreValue,
   shouldShowHeatmap,
 } from "@/components/evaluation/utils";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { type ScoreRange } from "@/lib/colors";
 import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/utils";
@@ -109,7 +110,7 @@ const ComparisonScoreValue = ({
 };
 
 const ChangeIndicator = ({ originalValue, comparisonValue }: { originalValue: number; comparisonValue: number }) => (
-  <div className="flex-shrink-0 ml-1">
+  <div className="shrink-0 ml-1">
     <span className="text-xs">
       {originalValue >= comparisonValue ? (
         <span className="text-green-300">▲</span>
@@ -161,7 +162,7 @@ const HeatmapComparisonCell = ({
         <ComparisonScoreValue value={comparisonValue} displayValue={comparison} range={range} />
       </div>
 
-      <ArrowRight className="font-bold text-gray-400 flex-shrink-0" size={8} />
+      <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
 
       <div className="flex-1 min-w-fit">
         <ComparisonScoreValue value={originalValue} displayValue={original} range={range} />
@@ -303,21 +304,18 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
     size: 70,
   },
   {
-    accessorFn: flow((row: EvaluationDatapointPreviewWithCompared) => row.data, JSON.stringify),
+    accessorFn: (row) => row.data,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
   },
   {
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.target,
-      (target) => (target ? JSON.stringify(target) : "-")
-    ),
+    accessorFn: (row) => row.target,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
   },
   {
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.metadata,
-      (metadata) => (metadata ? JSON.stringify(metadata) : "-")
-    ),
+    accessorFn: (row) => row.metadata,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Metadata",
   },
 ];

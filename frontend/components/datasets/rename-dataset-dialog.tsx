@@ -1,10 +1,9 @@
 "use client";
 
-import { Edit, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { PropsWithChildren, useState } from "react";
 
-import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -80,18 +79,17 @@ export default function RenameDatasetDialog({ dataset, children }: PropsWithChil
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
           {children || (
-            <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-              <Edit className="size-3 mr-2" />
-              <span className="text-xs">Rename</span>
-            </Badge>
+            <Button icon="edit" variant="secondary">
+              Rename
+            </Button>
           )}
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Rename dataset</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Label>Enter new dataset name</Label>
+          <div className="grid gap-2">
+            <Label>Name</Label>
             <Input
               autoFocus
               placeholder={dataset.name}

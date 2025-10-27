@@ -78,6 +78,7 @@ services:
     ports:
       - "${APP_SERVER_HOST_PORT:-8000}:8000"
       - "${APP_SERVER_GRPC_HOST_PORT:-8001}:8001"
+      - "${APP_SERVER_RT_HOST_PORT:-8002}:8002"
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,6 +116,7 @@ services:
     environment:
       PORT: 5667
       BACKEND_URL: http://app-server:8000
+      BACKEND_RT_URL: http://app-server:8002
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       NEXTAUTH_URL: http://localhost:5667

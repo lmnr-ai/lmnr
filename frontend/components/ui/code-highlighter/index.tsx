@@ -198,7 +198,7 @@ const PureCodeHighlighter = ({
   const renderHeaderContent = () => (
     <>
       <Select value={mode} onValueChange={handleModeChange}>
-        <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-none focus:ring-0">
+        <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
         <SelectContent>
@@ -260,19 +260,19 @@ const PureCodeHighlighter = ({
 
   return (
     <div
-      className={cn("w-full min-h-[1.75rem] h-full flex flex-col border relative group/code-highlighter", className)}
+      className={cn("w-full min-h-7 h-full flex flex-col border relative group/code-highlighter", className)}
     >
       <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-muted/50")}>
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <div className="flex-grow flex bg-muted/50 overflow-auto w-full h-full">
+        <div className="grow flex bg-muted/50 overflow-auto w-full h-full">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
       ) : (
         <div
           className={cn(
-            "flex-grow flex bg-muted/50 overflow-auto w-full h-full",
+            "grow flex bg-muted/50 overflow-auto w-full h-full",
             !showLineNumbers && "pl-1",
             codeEditorClassName
           )}

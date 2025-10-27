@@ -24,11 +24,11 @@ export default function PricingCard({
 }: PricingCardProps) {
   return (
     <div className={cn(className, "flex flex-col space-y-4 text-base py-4 font-title font-semibold")}>
-      <div className="flex-shrink space-y-2">
+      <div className="shrink space-y-2">
         <h1 className="text-2xl">{title}</h1>
         <h1 className="text-4xl text-white">{price}</h1>
       </div>
-      <div className="flex-grow space-y-2">
+      <div className="grow space-y-2">
         {features.map((feature, index) => (
           <div key={index}>
             <div key={index} className="flex items-center">

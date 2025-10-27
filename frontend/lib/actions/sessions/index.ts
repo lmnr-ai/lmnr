@@ -2,7 +2,7 @@ import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { buildSessionsCountQueryWithParams, buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
+import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
@@ -25,7 +25,7 @@ export const DeleteSessionsSchema = z.object({
 
 export async function getSessions(
   input: z.infer<typeof GetSessionsSchema>
-): Promise<{ items: SessionRow[]; count: number }> {
+): Promise<{ items: SessionRow[] }> {
   const {
     projectId,
     pastHours,
@@ -53,7 +53,7 @@ export async function getSessions(
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [], count: 0 };
+    return { items: [] };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
@@ -66,22 +66,10 @@ export async function getSessions(
     pastHours,
   });
 
-  const { query: countQuery, parameters: countParams } = buildSessionsCountQueryWithParams({
-    traceIds,
-    filters,
-    startTime,
-    endTime,
-    pastHours,
-  });
-
-  const [items, [count]] = await Promise.all([
-    executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
-  ]);
+  const items = await executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
     items: items.map((item) => ({ ...item, subRows: [] })),
-    count: count?.count || 0,
   };
 }
 

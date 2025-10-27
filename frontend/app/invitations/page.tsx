@@ -2,12 +2,11 @@ import { differenceInMinutes } from "date-fns";
 import { and, eq } from "drizzle-orm";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
-import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import logo from "@/assets/logo/logo.svg";
 import { Button } from "@/components/ui/button";
+import { LaminarLogo } from "@/components/ui/icons";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { apiKeys, membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
@@ -110,24 +109,26 @@ export default async function InvitationsPage(props: {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="flex-1 flex items-center justify-center pb-16">
       {isExpired ? (
-        <span className="text-xl font-medium">Invitation is expired</span>
+        <div className="w-full max-w-md border bg-secondary rounded p-8">
+          <div className="flex flex-col items-start gap-6">
+            <span className="font-medium text-center w-full">Invitation is expired</span>
+          </div>
+        </div>
       ) : (
-        <div className="flex flex-col justify-center items-center relative bg-primary rounded-lg flex-1 min-h-64 max-w-lg">
-          <div className="z-20 flex flex-col items-center p-16 px-8">
-            <Image alt="logo" src={logo} width={220} className="my-16" />
-            <h2 className="text-lg font-medium mb-8 text-center">
-              You are invited to join <b>{workspace.name}</b>
+        <div className="w-full max-w-md border bg-secondary rounded p-8">
+          <div className="flex items-start flex-col gap-6">
+            <LaminarLogo className="h-7 w-auto" fill="#b5b5b5" />
+            <h2 className="font-medium">
+              You are invited to join <span className="font-semibold">{workspace.name}</span>
             </h2>
-            <div className="flex gap-4">
+            <div className="flex gap-4 w-full justify-center mt-6">
               <form action={acceptInvitation}>
-                <Button type="submit" variant="light" size="lg">
-                  Accept
-                </Button>
+                <Button type="submit">Accept</Button>
               </form>
               <form action={declineInvitation}>
-                <Button type="submit" variant="lightSecondary" size="lg">
+                <Button type="submit" variant="outline">
                   Decline
                 </Button>
               </form>

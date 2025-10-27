@@ -14,7 +14,7 @@ interface ParametersPanelProps {
 }
 
 const ParametersPanel = ({ parameters, onChange }: ParametersPanelProps) => (
-  <div className="size-full p-4">
+  <div className="size-full">
     {parameters.length === 0 ? (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
         <VariableIcon className="w-8 h-8 opacity-50" />

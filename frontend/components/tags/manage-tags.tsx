@@ -25,7 +25,7 @@ const ManageTags = ({ children }: PropsWithChildren) => {
       }}
     >
       {children}
-      <DropdownMenuContent side="bottom" align="start">
+      <DropdownMenuContent className="max-h-96" side="bottom" align="start">
         {renderStep[step]}
       </DropdownMenuContent>
     </DropdownMenu>

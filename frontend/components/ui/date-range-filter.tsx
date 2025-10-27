@@ -280,7 +280,7 @@ export default function DateRangeFilter({
                 key={index}
                 className={cn(
                   "h-full items-center flex px-2 cursor-pointer border-r",
-                  range.value === selectedRange?.value ? "bg-secondary/80 text-white" : "hover:bg-secondary/80"
+                  range.value === selectedRange?.value ? "bg-muted text-white" : "hover:bg-secondary"
                 )}
                 onClick={() => {
                   searchParams.delete("startDate");

@@ -7,7 +7,7 @@ import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
-import ProjectSidebar from "@/components/project/project-sidebar";
+import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
@@ -17,6 +17,8 @@ import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+const projectSidebarCookieName = "project-sidebar-state";
 
 export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
   const params = await props.params;
@@ -30,14 +32,14 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   }
   const user = session.user;
 
-  const project = await getProjectDetails(projectId);
-  const workspace = await getWorkspaceInfo(project.workspaceId);
-  const projects = await getProjectsByWorkspace(project.workspaceId);
+  const projectDetails = await getProjectDetails(projectId);
+  const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
+  const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =
     isFeatureEnabled(Feature.WORKSPACE) &&
-    project.isFreeTier &&
-    project.gbLimit > 0 &&
-    project.gbUsedThisMonth >= 0.8 * project.gbLimit;
+    projectDetails.isFreeTier &&
+    projectDetails.gbLimit > 0 &&
+    projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
 
   const posthog = PostHogClient();
   posthog.identify({
@@ -45,7 +47,9 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   });
 
   const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar:state") ? cookieStore.get("sidebar:state")?.value === "true" : true;
+  const defaultOpen = cookieStore.get(projectSidebarCookieName)
+    ? cookieStore.get(projectSidebarCookieName)?.value === "true"
+    : true;
 
   return (
     <UserContextProvider
@@ -56,24 +60,12 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       supabaseAccessToken={session.supabaseAccessToken}
     >
       <PostHogIdentifier email={user.email!} />
-      <ProjectContextProvider workspace={workspace} projects={projects} project={project}>
-        <div className="flex flex-row flex-1 overflow-hidden max-h-screen">
-          <SidebarProvider defaultOpen={defaultOpen}>
-            <ProjectSidebar
-              workspaceId={project.workspaceId}
-              isFreeTier={project.isFreeTier}
-              projectId={projectId}
-              gbUsedThisMonth={project.gbUsedThisMonth}
-              gbLimit={project.gbLimit}
-            />
-            <SidebarInset className="overflow-hidden">
-              {showBanner && (
-                <ProjectUsageBanner
-                  workspaceId={project.workspaceId}
-                  gbUsedThisMonth={project.gbUsedThisMonth}
-                  gbLimit={project.gbLimit}
-                />
-              )}
+      <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
+        <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
+          <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
+            <ProjectSidebar details={projectDetails} />
+            <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
+              {showBanner && <ProjectUsageBanner details={projectDetails} />}
               {children}
             </SidebarInset>
           </SidebarProvider>

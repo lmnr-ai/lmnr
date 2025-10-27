@@ -88,7 +88,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
         <Search size={16} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
           type="text"
           placeholder="Search in traces..."
           onKeyDown={handleKeyPress}
@@ -106,7 +106,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
       {open && (
         <div
           className={cn(
-            "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded p-2 border",
+            "absolute z-50 top-10 bg-secondary flex flex-col gap-2 w-full rounded p-2 border",
             filterBoxClassName
           )}
           onMouseDown={(e) => e.preventDefault()}

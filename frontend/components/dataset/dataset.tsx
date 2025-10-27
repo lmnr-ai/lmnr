@@ -1,27 +1,25 @@
 "use client";
 
-import { ColumnDef, Row } from "@tanstack/react-table";
-import { Pen } from "lucide-react";
+import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
-import { Badge } from "@/components/ui/badge";
-import { DataTable } from "@/components/ui/datatable";
+import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
 import JsonTooltip from "../ui/json-tooltip";
-import MonoWithCopy from "../ui/mono-with-copy";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
@@ -42,11 +40,13 @@ const columns: ColumnDef<Datapoint>[] = [
   },
   {
     accessorFn: (row) => row.data,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
     size: 200,
   },
   {
     accessorFn: (row) => row.target,
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
     size: 200,
   },
@@ -58,35 +58,63 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) {
+const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const [selectedDatapointIds, setSelectedDatapointIds] = useState<string[]>([]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();
 
   const datapointId = searchParams.get("datapointId");
   const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(null);
 
-  const parseNumericSearchParam = (key: string, defaultValue: number): number => {
-    const param = searchParams.get(key);
-    if (Array.isArray(param)) {
-      return defaultValue;
-    }
-    const parsed = param ? parseInt(param as string) : defaultValue;
-    return isNaN(parsed) ? defaultValue : parsed;
-  };
+  const FETCH_SIZE = 50;
 
-  const pageNumber = parseNumericSearchParam("pageNumber", 0);
-  const pageSize = Math.max(parseNumericSearchParam("pageSize", 50), 1);
+  const fetchDatapoints = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const url = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${FETCH_SIZE}`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
-  const swrKey = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-  const { data, mutate } = useSWR<PaginatedResponse<Datapoint>>(swrKey, swrFetcher);
+        if (!res.ok) {
+          const text = await res.json();
+          throw new Error(text.error || "Failed to fetch datapoints");
+        }
 
-  const datapoints = data?.items;
-  const totalCount = data?.totalCount || 0;
-  const pageCount = Math.ceil(totalCount / pageSize);
+        const data = await res.json();
+        return { items: data.items, count: data.totalCount };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load datapoints. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [projectId, dataset.id, toast]
+  );
+
+  const {
+    data: datapoints,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+    refetch,
+    updateData,
+  } = useInfiniteScroll<Datapoint>({
+    fetchFn: fetchDatapoints,
+    enabled: true,
+    deps: [dataset.id],
+  });
+
+  const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
 
   const handleDatapointSelect = useCallback(
     (datapoint: Row<Datapoint> | null) => {
@@ -106,73 +134,36 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   const handlePanelClose = useCallback(
     (updatedDatapoint?: Datapoint) => {
       if (updatedDatapoint) {
-        mutate(
-          (currentData: PaginatedResponse<Datapoint> | undefined) => {
-            if (!currentData) return currentData;
-
-            return {
-              ...currentData,
-              items: currentData.items.map((datapoint) =>
-                datapoint.id === updatedDatapoint.id ? updatedDatapoint : datapoint
-              ),
-            };
-          },
-          {
-            revalidate: false,
-            populateCache: true,
-          }
+        updateData((currentData) =>
+          currentData.map((datapoint) => (datapoint.id === updatedDatapoint.id ? updatedDatapoint : datapoint))
         );
       }
 
       handleDatapointSelect(null);
     },
-    [mutate, handleDatapointSelect]
+    [updateData, handleDatapointSelect]
   );
 
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
       try {
-        await mutate(
-          async (currentData) => {
-            const response = await fetch(`/api/projects/${projectId}/datasets/${dataset.id}/datapoints`, {
-              method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                datapointIds,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error("Failed to delete datapoints");
-            }
-
-            if (!currentData) {
-              return { items: [], totalCount: 0 };
-            }
-
-            return {
-              items: currentData.items.filter((datapoint) => !datapointIds.includes(datapoint.id)),
-              totalCount: currentData.totalCount - datapointIds.length,
-            };
+        const response = await fetch(`/api/projects/${projectId}/datasets/${dataset.id}/datapoints`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
           },
-          {
-            optimisticData: (currentData) => {
-              if (!currentData) {
-                return { items: [], totalCount: 0 };
-              }
-              return {
-                items: currentData.items.filter((datapoint) => !datapointIds.includes(datapoint.id)),
-                totalCount: currentData.totalCount - datapointIds.length,
-              };
-            },
-            rollbackOnError: true,
-            revalidate: false,
-          }
-        );
+          body: JSON.stringify({
+            datapointIds,
+          }),
+        });
 
-        setSelectedDatapointIds([]);
+        if (!response.ok) {
+          throw new Error("Failed to delete datapoints");
+        }
+
+        updateData((currentData) => currentData.filter((datapoint) => !datapointIds.includes(datapoint.id)));
+
+        setRowSelection({});
         toast({
           title: "Datapoints deleted",
           description: `Successfully deleted ${datapointIds.length} datapoint(s).`,
@@ -188,22 +179,12 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
         });
       }
     },
-    [dataset.id, handleDatapointSelect, mutate, projectId, selectedDatapoint, toast]
+    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData, refetch]
   );
 
   const revalidateDatapoints = useCallback(() => {
-    mutate();
-  }, [mutate]);
-
-  const onPageChange = useCallback(
-    (pageNumber: number, pageSize: number) => {
-      const params = new URLSearchParams(searchParams);
-      params.set("pageNumber", pageNumber.toString());
-      params.set("pageSize", pageSize.toString());
-      router.push(`${pathName}?${params.toString()}`);
-    },
-    [pathName, router, searchParams]
-  );
+    refetch();
+  }, [refetch]);
 
   useEffect(() => {
     if (datapointId && datapoints) {
@@ -215,14 +196,10 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
   }, []);
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path={"datasets/" + dataset.name} />
-      <div className="flex p-4 items-start sm:items-center space-x-4">
-        <div>
-          <h1 className="text-lg font-medium">{dataset.name}</h1>
-          <MonoWithCopy className="text-secondary-foreground pt-1 text-nowrap truncate">{dataset.id}</MonoWithCopy>
-        </div>
-        <div className="flex flex-wrap flex-1 items-end justify-end gap-2">
+      <div className="flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1">
+        <div className="flex flex-wrap items-end gap-2">
           <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
             uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
@@ -242,52 +219,53 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
                 selectedDatapointIds.length > 0 ? selectedDatapointIds : datapoints?.map(({ id }) => id) || []
               }
             >
-              <Badge
-                className={`cursor-pointer py-1 px-2 ${selectedDatapointIds.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              <Button
+                icon="pen"
+                className={cn({ "opacity-50 cursor-not-allowed": selectedDatapointIds.length === 0 })}
                 variant="secondary"
               >
-                <Pen className="size-3 min-w-3" />
-                <span className="ml-2 truncate flex-1">
+                <span className="truncate flex-1">
                   {selectedDatapointIds.length > 0
                     ? `Add to labeling queue (${selectedDatapointIds.length})`
                     : "Add to labeling queue"}
                 </span>
-              </Badge>
+              </Button>
             </AddToLabelingQueuePopover>
           </div>
           {enableDownloadParquet && (
             <DownloadParquetDialog datasetId={dataset.id} publicApiBaseUrl={publicApiBaseUrl} />
           )}
         </div>
+        <div className="flex overflow-hidden flex-1">
+          <InfiniteDataTable
+            columns={columns}
+            data={datapoints}
+            hasMore={hasMore}
+            isFetching={isFetching}
+            isLoading={isLoading}
+            fetchNextPage={fetchNextPage}
+            getRowId={(datapoint) => datapoint.id}
+            onRowClick={handleDatapointSelect}
+            focusedRowId={datapointId}
+            enableRowSelection
+            state={{
+              rowSelection,
+            }}
+            onRowSelectionChange={setRowSelection}
+            className="flex-1"
+            selectionPanel={(selectedRowIds) => (
+              <div className="flex flex-col space-y-2">
+                <DeleteSelectedRows
+                  selectedRowIds={selectedRowIds}
+                  onDelete={handleDeleteDatapoints}
+                  entityName="datapoints"
+                />
+              </div>
+            )}
+          />
+        </div>
       </div>
-      <div className="flex-grow">
-        <DataTable
-          columns={columns}
-          data={datapoints}
-          getRowId={(datapoint) => datapoint.id}
-          onRowClick={handleDatapointSelect}
-          paginated
-          focusedRowId={datapointId}
-          manualPagination
-          pageCount={pageCount}
-          defaultPageSize={pageSize}
-          defaultPageNumber={pageNumber}
-          onPageChange={onPageChange}
-          totalItemsCount={totalCount}
-          enableRowSelection
-          selectedRowIds={selectedDatapointIds}
-          onSelectedRowsChange={setSelectedDatapointIds}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
-              <DeleteSelectedRows
-                selectedRowIds={selectedRowIds}
-                onDelete={handleDeleteDatapoints}
-                entityName="datapoints"
-              />
-            </div>
-          )}
-        />
-      </div>
+
       {selectedDatapoint && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
@@ -304,6 +282,14 @@ export default function Dataset({ dataset, enableDownloadParquet, publicApiBaseU
           </Resizable>
         </div>
       )}
-    </div>
+    </>
+  );
+};
+
+export default function Dataset(props: DatasetProps) {
+  return (
+    <DataTableStateProvider>
+      <DatasetContent {...props} />
+    </DataTableStateProvider>
   );
 }
