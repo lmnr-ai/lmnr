@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
@@ -36,13 +36,16 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
         throw new Error("Failed to create workspace");
       }
 
-      const newWorkspace = (await res.json()) as WorkspaceWithProjects;
+      const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       // Populate default dashboard charts for the created project
 
       // As we want user to start from traces page, redirect to it
-      // Expect the workspace to contain exactly one created project
-      router.push(`/project/${newWorkspace.projects[0].id}/traces`);
+      if (newWorkspace.projectId) {
+        router.push(`/project/${newWorkspace.projectId}/traces`);
+      } else {
+        router.push(`/workspace/${newWorkspace.id}`);
+      }
       // We don't need to set isLoading to false, as we are redirecting.
       // Redirect itself takes some time, so we need the button to be disabled
     } catch (error) {
@@ -52,37 +55,60 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   };
 
   return (
-    <div className="max-w-4xl mx-auto mt-12 p-6 rounded-lg shadow-md">
-      <div className="flex flex-col">
-        <h2 className="text-2xl font-semibold mb-4">Create workspace and first project</h2>
-        <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Workspace Name</Label>
-          <Input
-            type="text"
-            placeholder="Workspace name"
-            value={workspaceName}
-            onChange={(e) => setWorkspaceName(e.target.value)}
-          />
+    <div className="flex-1 flex items-center justify-center pb-16">
+      <div className="w-full max-w-md border bg-secondary p-8 rounded">
+        <div className="flex flex-col items-start mb-8">
+          <div className="mb-4">
+            <LaminarLogo className="h-7 w-auto" fill="#b5b5b5" />
+          </div>
+          <p className="text-sm text-muted-foreground">Let's set up your workspace and first project to get started</p>
         </div>
-        <div className="flex flex-col mb-6">
-          <Label className="block text-sm font-medium text-secondary-foreground mb-2">Project Name</Label>
-          <Input
-            type="text"
-            placeholder="Project name"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-          />
-        </div>
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            onClick={handleButtonClick}
-            disabled={!workspaceName || !projectName || isLoading}
-            handleEnter={true}
-          >
-            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Create
-          </Button>
+        <div className="grid gap-4">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="workspace-name" className="text-xs font-medium">
+              Workspace Name
+            </Label>
+            <Input
+              id="workspace-name"
+              type="text"
+              placeholder="Enter workspace name"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
+                  handleButtonClick();
+                }
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="project-name" className="text-xs font-medium">
+              Project Name
+            </Label>
+            <Input
+              id="project-name"
+              type="text"
+              placeholder="Enter project name"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
+                  handleButtonClick();
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleButtonClick}
+              disabled={!workspaceName || !projectName || isLoading}
+              className="self-end align-end w-fit"
+            >
+              {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+              Create
+            </Button>
+          </div>
         </div>
       </div>
     </div>

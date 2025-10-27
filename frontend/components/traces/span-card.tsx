@@ -55,13 +55,13 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
     >
       <div className="flex flex-col">
         <div
-          className="flex w-full items-center space-x-2 cursor-pointer group relative"
+          className="flex w-full items-center space-x-2 cursor-pointer group relative pl-2"
           style={{
             height: ROW_HEIGHT,
           }}
         >
           <div
-            className="border-l-2 border-b-2 rounded-bl-lg absolute left-0"
+            className="border-l-2 border-b-2 rounded-bl-lg absolute"
             style={{
               height: segmentHeight - ROW_HEIGHT / 2 + SQUARE_SIZE / 4,
               top: -(segmentHeight - ROW_HEIGHT + SQUARE_SIZE / 4),
@@ -102,7 +102,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
             </div>
           )}
           <div
-            className="z-30 top-[-px]  hover:bg-red-100/10 absolute transition-all"
+            className="z-30 hover:bg-red-100/10 absolute transition-all"
             style={{
               width: containerWidth,
               height: ROW_HEIGHT,
@@ -135,7 +135,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
-          <div className="flex-grow" />
+          <div className="grow" />
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import React, { memo, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 
@@ -36,58 +37,58 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
     <TooltipProvider delayDuration={100}>
       <Tooltip>
         <TooltipTrigger className="relative p-0">
-          {columnSize ? (
-            <div
-              style={{
-                width: columnSize - 32,
-              }}
-              className="relative"
-            >
-              <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                <div className="text-ellipsis overflow-hidden whitespace-nowrap">{displayValue}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-ellipsis overflow-hidden whitespace-nowrap font-mono">{displayValue}</div>
-          )}
-        </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          className="p-2 border max-w-96 max-h-96 overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <div className="relative space-y-2">
-            <CopyButton
-              size="icon"
-              variant="ghost"
-              className="h-3 w-3 absolute right-0.5 top-0.5"
-              iconClassName="h-3 w-3"
-              text={jsonString}
-            />
-            <SyntaxHighlighter
-              wrapLines
-              lineProps={{ style: { wordBreak: "break-all", whiteSpace: "pre-wrap" } }}
-              language="json"
-              style={githubDarkSyntaxHighlighter}
-              customStyle={{
-                backgroundColor: "transparent",
-                padding: "0",
-                margin: "0",
-                fontSize: "0.75rem",
-                lineHeight: "1.4",
-              }}
-              codeTagProps={{
-                style: {
-                  backgroundColor: "transparent",
-                },
-              }}
-            >
-              {jsonString}
-            </SyntaxHighlighter>
+          <div
+            style={{
+              ...(columnSize
+                ? {
+                  width: columnSize - 32,
+                }
+                : {}),
+            }}
+            className="truncate"
+          >
+            {displayValue}
           </div>
-        </TooltipContent>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent
+            side="bottom"
+            className="p-2 border max-w-96 max-h-96 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="relative space-y-2">
+              <CopyButton
+                size="icon"
+                variant="ghost"
+                className="h-3 w-3 absolute right-0.5 top-0.5"
+                iconClassName="h-3 w-3"
+                text={jsonString}
+              />
+              <SyntaxHighlighter
+                wrapLines
+                lineProps={{ style: { wordBreak: "break-all", whiteSpace: "pre-wrap" } }}
+                language="json"
+                style={githubDarkSyntaxHighlighter}
+                customStyle={{
+                  backgroundColor: "transparent",
+                  padding: "0",
+                  margin: "0",
+                  fontSize: "0.75rem",
+                  lineHeight: "1.4",
+                }}
+                codeTagProps={{
+                  style: {
+                    backgroundColor: "transparent",
+                  },
+                }}
+              >
+                {jsonString}
+              </SyntaxHighlighter>
+            </div>
+          </TooltipContent>
+        </TooltipPortal>
       </Tooltip>
     </TooltipProvider>
   );

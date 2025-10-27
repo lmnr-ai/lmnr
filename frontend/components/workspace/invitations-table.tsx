@@ -1,7 +1,7 @@
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp } from "@/lib/utils";
 import { WorkspaceInvitation } from "@/lib/workspaces/types";
@@ -56,22 +56,21 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full mt-8">
-      <span>Invitations</span>
+    <div className="border rounded-md">
       <Table>
-        <TableHeader className="border-none bg-card text-card-foreground rounded-lg overflow-hidden">
+        <TableHeader>
           <TableRow>
-            <TableCell>Email</TableCell>
-            <TableCell>Invited</TableCell>
-            <TableCell className="w-[10%]" />
+            <TableHead className="px-3">Email</TableHead>
+            <TableHead className="px-3">Invited</TableHead>
+            <TableHead className="px-3">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {invitations.map((invitation) => (
-            <TableRow className="h-14" key={invitation.id}>
-              <TableCell>{invitation.email}</TableCell>
-              <TableCell>{formatTimestamp(invitation.createdAt)}</TableCell>
-              <TableCell>
+            <TableRow className="border-b last:border-b-0 h-12" key={invitation.id}>
+              <TableCell className="font-medium px-3">{invitation.email}</TableCell>
+              <TableCell className="text-muted-foreground px-3">{formatTimestamp(invitation.createdAt)}</TableCell>
+              <TableCell className="px-3">
                 <Button onClick={() => handleRevokeInvitation(invitation.id, invitation.email)} variant="outline">
                   Revoke invite
                 </Button>

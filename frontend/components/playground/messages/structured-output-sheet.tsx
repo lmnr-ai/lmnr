@@ -50,9 +50,9 @@ export default function StructuredOutputSheet({
             disabled={!model}
             variant="outline"
             size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
+            className={cn("focus-visible:ring-0 size-7", className)}
           >
-            <BracesIcon className="w-3.5 h-3.5" />
+            <BracesIcon className="size-3.5" />
           </Button>
         </SheetTrigger>
       );
@@ -65,18 +65,18 @@ export default function StructuredOutputSheet({
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
+            className={cn("focus-visible:ring-0 size-7", className)}
           >
-            <BracesIcon className="w-3.5 h-3.5" />
+            <BracesIcon className="size-4" />
           </Button>
         </SheetTrigger>
         <Button
           onClick={() => setValue("structuredOutput", undefined)}
-          className="w-8 h-8"
+          className="size-7"
           variant="outlinePrimary"
           size="icon"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="size-4" />
         </Button>
       </div>
     );

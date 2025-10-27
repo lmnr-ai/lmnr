@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
@@ -133,20 +133,19 @@ export default function TraceSummarySettings() {
       />
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" className="h-9 w-fit">
-            <Plus className="w-4 h-4 mr-2" />
-            Add span name
+          <Button icon="plus" variant="outline" className="w-fit">
+            Span
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add span name</DialogTitle>
+            <DialogTitle>Add span</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Label>Span name</Label>
+          <div className="grid gap-2">
+            <Label>Name</Label>
             <Input
               autoFocus
-              placeholder="Enter span name"
+              placeholder="Enter span name..."
               value={newSpanName}
               onChange={(e) => setNewSpanName(e.target.value)}
               onKeyDown={(e) => {

@@ -1,11 +1,10 @@
-import { Loader2, Pen, Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,16 +126,15 @@ export default function AddToLabelingQueuePopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {children || (
-          <Badge className="cursor-pointer h-fit flex-nowrap min-w-8" variant="secondary">
-            <Pen className="size-3 min-w-3" />
-            <span className="ml-2 text-xs truncate block min-w-0">Add to labeling queue</span>
-          </Badge>
+          <Button size="sm" icon="pen" className="w-fit" variant="secondary">
+            <span className="text-xs truncate block min-w-0">Add to labeling queue</span>
+          </Button>
         )}
       </PopoverTrigger>
 
       <PopoverContent className="w-80" align="start" side="bottom">
         <div className="flex flex-col space-y-4">
-          <span className="font-medium">Add to Labeling Queue</span>
+          <span className="font-medium">Add to Queue</span>
           <Select disabled={isQueuesLoading} value={selectedQueue} onValueChange={setSelectedQueue}>
             <SelectTrigger>
               <SelectValue placeholder="Select a labeling queue" />
@@ -151,14 +149,14 @@ export default function AddToLabelingQueuePopover({
               <CreateQueueDialog>
                 <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
                   <Plus className="w-3 h-3 mr-2" />
-                  <span className="text-xs">Create new queue</span>
+                  <span className="text-xs">Create queue</span>
                 </div>
               </CreateQueueDialog>
             </SelectContent>
           </Select>
           <Button className="ml-auto" onClick={handleAddToQueue} disabled={!selectedQueue || isLoading}>
             {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            Add to queue
+            Add
           </Button>
         </div>
       </PopoverContent>

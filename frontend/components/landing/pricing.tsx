@@ -1,27 +1,22 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePostHog } from 'posthog-js/react';
+import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
-import Footer from '@/components/landing/footer';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger
-} from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import Footer from "@/components/landing/footer";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { toFixedIfFloat } from '@/lib/utils';
+import { toFixedIfFloat } from "@/lib/utils";
 
-import PricingCard from './pricing-card';
+import PricingCard from "./pricing-card";
 
 function PricingCalculator() {
-  const [tokens, setTokens] = useState(100_000_000);  // Default 100 million tokens
+  const [tokens, setTokens] = useState(100_000_000); // Default 100 million tokens
   const [teamMembers, setTeamMembers] = useState(1);
-  const [agentSteps, setAgentSteps] = useState(500);  // agent steps per month
+  const [agentSteps, setAgentSteps] = useState(500); // agent steps per month
 
   // Convert tokens to GB (1 token = 3.5 bytes)
   const tokensToGB = (tokenCount: number) => {
@@ -32,13 +27,12 @@ function PricingCalculator() {
 
   // Logarithmic slider mapping
   const tokenRanges = [
-
     // Range 10M-100M: step 10M (9 positions: 14-22)
     { min: 10_000_000, max: 100_000_000, step: 10_000_000, positions: 9 },
     // Range 100M-1B: step 100M (9 positions: 23-31)
     { min: 100_000_000, max: 1_000_000_000, step: 50_000_000, positions: 20 },
     // Range 1B-10B: step 1B (9 positions: 32-40)
-    { min: 1_000_000_000, max: 10_000_000_000, step: 1_000_000_000, positions: 10 }
+    { min: 1_000_000_000, max: 10_000_000_000, step: 1_000_000_000, positions: 10 },
   ];
 
   const positionToTokens = (position: number): number => {
@@ -50,7 +44,7 @@ function PricingCalculator() {
         if (relativePosition === 0) {
           return range.min;
         }
-        return range.min + (relativePosition * range.step);
+        return range.min + relativePosition * range.step;
       }
       currentPosition += range.positions;
     }
@@ -85,25 +79,25 @@ function PricingCalculator() {
     const dataCount = tokensToGB(tokens); // Convert tokens to GB for calculation
 
     let breakdown = {
-      baseTier: '',
+      baseTier: "",
       basePrice: 0,
       additionalData: 0,
       additionalMembers: 0,
       additionalSteps: 0,
-      total: 0
+      total: 0,
     };
 
     // Free tier: 1GB data, 1 team member, 500 agent steps
     if (dataCount <= 1 && teamMembers <= 1 && agentSteps <= 500) {
       breakdown = {
-        baseTier: 'Free',
+        baseTier: "Free",
         basePrice: 0,
         additionalData: 0,
         additionalMembers: 0,
         additionalSteps: 0,
-        total: 0
+        total: 0,
       };
-      return { tier: 'Free', price: 0, breakdown };
+      return { tier: "Free", price: 0, breakdown };
     }
 
     // Hobby tier: 2GB data, 2 team members, 2500 agent steps
@@ -126,15 +120,15 @@ function PricingCalculator() {
       const total = basePrice + additionalDataCost + additionalStepsCost;
 
       breakdown = {
-        baseTier: 'Hobby',
+        baseTier: "Hobby",
         basePrice,
         additionalData: additionalDataCost,
         additionalMembers: 0,
         additionalSteps: additionalStepsCost,
-        total
+        total,
       };
 
-      return { tier: 'Hobby', price: total, breakdown };
+      return { tier: "Hobby", price: total, breakdown };
     }
 
     // Pro tier: 5GB data, 5+ team members, 5000 agent steps
@@ -162,15 +156,15 @@ function PricingCalculator() {
     const total = basePrice + additionalDataCost + additionalMembersCost + additionalStepsCost;
 
     breakdown = {
-      baseTier: 'Pro',
+      baseTier: "Pro",
       basePrice,
       additionalData: additionalDataCost,
       additionalMembers: additionalMembersCost,
       additionalSteps: additionalStepsCost,
-      total
+      total,
     };
 
-    return { tier: 'Pro', price: total, breakdown };
+    return { tier: "Pro", price: total, breakdown };
   };
 
   const { tier, price, breakdown } = calculateTierAndPrice();
@@ -199,14 +193,12 @@ function PricingCalculator() {
           <h3 className="text-xl font-semibold">Pricing calculator</h3>
           <div className="flex justify-center items-center gap-2">
             <Badge
-              variant={tier === 'Free' ? 'outline' : tier === 'Hobby' ? 'outlinePrimary' : 'default'}
+              variant={tier === "Free" ? "outline" : tier === "Hobby" ? "outlinePrimary" : "default"}
               className="text-sm"
             >
               {tier}
             </Badge>
-            <span className="text-2xl font-bold">
-              ${toFixedIfFloat(price)} / month
-            </span>
+            <span className="text-2xl font-bold">${toFixedIfFloat(price)} / month</span>
           </div>
         </div>
 
@@ -216,9 +208,7 @@ function PricingCalculator() {
               <span className="font-medium">Tokens per month</span>
               <span className="font-medium">{formatTokens(tokens)} tokens</span>
             </div>
-            <div className="text-sm text-muted-foreground mb-2 font-semibold">
-              ≈ {toFixedIfFloat(estimatedGB)} GB
-            </div>
+            <div className="text-sm text-muted-foreground mb-2 font-semibold">≈ {toFixedIfFloat(estimatedGB)} GB</div>
             <div className="text-xs text-muted-foreground mb-2">
               * Based on ~4 bytes per token (approximation, excludes stored images)
             </div>
@@ -273,7 +263,9 @@ function PricingCalculator() {
 
               {breakdown.additionalSteps > 0 && (
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Additional agent steps ({Math.ceil((agentSteps - (tier === 'Hobby' ? 2500 : 5000)) / 100) * 100})</span>
+                  <span>
+                    Additional agent steps ({Math.ceil((agentSteps - (tier === "Hobby" ? 2500 : 5000)) / 100) * 100})
+                  </span>
                   <span>+${toFixedIfFloat(breakdown.additionalSteps)}</span>
                 </div>
               )}
@@ -296,20 +288,22 @@ export default function Pricing() {
   const posthog = usePostHog();
 
   const handleQuestionClick = (question: string) => {
-    posthog?.capture('faq_question_clicked', { question });
+    posthog?.capture("faq_question_clicked", { question });
   };
 
   // Add FAQ data
   const faqItems = [
     {
-      id: 'data-calculation',
-      question: 'How is data usage calculated?',
-      answer: 'Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that pricing calculator does not take into account stored images and is an approximation of the total data usage.'
+      id: "data-calculation",
+      question: "How is data usage calculated?",
+      answer:
+        "Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that pricing calculator does not take into account stored images and is an approximation of the total data usage.",
     },
     {
-      id: 'span',
-      question: 'What is a span?',
-      answer: 'A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.'
+      id: "span",
+      question: "What is a span?",
+      answer:
+        "A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.",
     },
   ];
 
@@ -321,15 +315,10 @@ export default function Pricing() {
             className="text-secondary-foreground"
             title="Free"
             price="0 / month"
-            features={[
-              '1GB data / month',
-              '15 day data retention',
-              '1 team member',
-              'Community support',
-            ]}
+            features={["1GB data / month", "15 day data retention", "1 team member", "Community support"]}
           />
           <Link href="/projects">
-            <Button variant="secondary" className="w-full h-10">
+            <Button variant="secondary" className="w-full h-10 text-sm">
               Get started
             </Button>
           </Link>
@@ -340,19 +329,15 @@ export default function Pricing() {
             title="Hobby"
             price="$25 / month"
             features={[
-              '2GB data / month included',
-              '30 day data retention',
-              '2 team members',
-              'Priority email support',
+              "2GB data / month included",
+              "30 day data retention",
+              "2 team members",
+              "Priority email support",
             ]}
-            subfeatures={[
-              'then $2 per 1GB of additional data',
-              null,
-              null,
-            ]}
+            subfeatures={["then $2 per 1GB of additional data", null, null]}
           />
           <Link href="/projects">
-            <Button variant="secondary" className="w-full h-10">
+            <Button variant="secondary" className="w-full h-10 text-sm">
               Get started
             </Button>
           </Link>
@@ -363,16 +348,12 @@ export default function Pricing() {
             title="Pro"
             price="$50 / month"
             features={[
-              '5GB data / month included',
-              '90 day data retention',
-              '3 team members included',
-              'Private Slack channel',
+              "5GB data / month included",
+              "90 day data retention",
+              "3 team members included",
+              "Private Slack channel",
             ]}
-            subfeatures={[
-              'then $2 per 1GB of additional data',
-              null,
-              'then $25 per additional team member',
-            ]}
+            subfeatures={["then $2 per 1GB of additional data", null, "then $25 per additional team member"]}
           />
           <Link href="/projects" className="w-full z-20">
             <Button
@@ -388,15 +369,10 @@ export default function Pricing() {
             className="text-secondary-foreground"
             title="Enterprise"
             price="Custom"
-            features={[
-              'Custom data retention',
-              'Custom team members',
-              'On-premise deployment',
-              'Dedicated support',
-            ]}
+            features={["Custom data retention", "Custom team members", "On-premise deployment", "Dedicated support"]}
           />
           <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
-            <Button variant="secondary" className="w-full h-10">
+            <Button variant="secondary" className="w-full h-10 text-sm">
               Contact us
             </Button>
           </Link>
@@ -407,27 +383,20 @@ export default function Pricing() {
       <PricingCalculator />
 
       <div className="w-full max-w-3xl mt-16 mb-32 px-4">
-        <h2 className="text-2xl font-bold mb-4 text-center font-title">
-          Frequently Asked Questions
-        </h2>
+        <h2 className="text-2xl font-bold mb-4 text-center font-title">Frequently Asked Questions</h2>
         <Accordion type="single" collapsible className="w-full">
           {faqItems.map((item) => (
             <AccordionItem key={item.id} value={item.id}>
-              <AccordionTrigger
-                className="text-xl"
-                onClick={() => handleQuestionClick(item.question)}
-              >
+              <AccordionTrigger className="text-xl" onClick={() => handleQuestionClick(item.question)}>
                 {item.question}
               </AccordionTrigger>
-              <AccordionContent className="text-secondary-foreground">
-                {item.answer}
-              </AccordionContent>
+              <AccordionContent className="text-secondary-foreground">{item.answer}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
       </div>
-      <div className="flex-grow"></div>
+      <div className="grow"></div>
       <Footer />
-    </div >
+    </div>
   );
 }

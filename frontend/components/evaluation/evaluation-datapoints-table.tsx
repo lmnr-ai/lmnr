@@ -13,7 +13,6 @@ import {
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/datatable";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import {
@@ -23,10 +22,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
 interface EvaluationDatapointsTableProps {
+  isLoading: boolean;
   datapointId?: string;
   data: EvaluationDatapointPreview[] | undefined;
   scores: string[];
@@ -42,7 +43,13 @@ const filters: ColumnFilter[] = [
   { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
-const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }: EvaluationDatapointsTableProps) => {
+const EvaluationDatapointsTable = ({
+  data,
+  scores,
+  handleRowClick,
+  datapointId,
+  isLoading,
+}: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
 
   const targetId = searchParams.get("targetId");
@@ -112,15 +119,19 @@ const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }
   }, [setNavigationRefList, data]);
 
   return (
-    <div className="flex-grow">
-      <DataTable
+    <div className="flex overflow-hidden flex-1">
+      <InfiniteDataTable
         columns={columns}
-        data={data}
+        data={data ?? []}
+        hasMore={false}
+        isFetching={false}
+        isLoading={isLoading}
+        fetchNextPage={() => {}}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
-        paginated
         onRowClick={handleRowClick}
-        childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
+        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+        className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
@@ -145,7 +156,7 @@ const EvaluationDatapointsTable = ({ data, scores, handleRowClick, datapointId }
           <SearchEvaluationInput />
         </div>
         <DataTableFilterList />
-      </DataTable>
+      </InfiniteDataTable>
     </div>
   );
 };

@@ -6,7 +6,6 @@ import { Operator } from "@/components/ui/datatable-filter/utils.ts";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import {
-  buildSpansCountQueryWithParams,
   buildSpansQueryWithParams,
   createParentRewiring,
   transformSpanWithEvents,
@@ -77,7 +76,7 @@ function buildTraceSubquery({
   };
 }
 
-export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[]; count: number }> {
+export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[] }> {
   const {
     projectId,
     pastHours,
@@ -110,7 +109,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     : [];
 
   if (search && spanIds?.length === 0) {
-    return { items: [], count: 0 };
+    return { items: [] };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
@@ -125,24 +124,10 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     customConditions: [traceSubquery],
   });
 
-  const { query: countQuery, parameters: countParams } = buildSpansCountQueryWithParams({
-    projectId,
-    spanIds,
-    filters,
-    startTime,
-    endTime,
-    pastHours,
-    customConditions: [traceSubquery],
-  });
-
-  const [items, [count]] = await Promise.all([
-    executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
-  ]);
+  const items = await executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
-    items: items,
-    count: count?.count || 0,
+    items,
   };
 }
 

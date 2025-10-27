@@ -1,22 +1,11 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { PropsWithChildren } from "react";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useProjectContext } from "@/contexts/project-context";
 import { cn } from "@/lib/utils";
-import { Project, WorkspaceTier } from "@/lib/workspaces/types";
-
-import { Button } from "./button";
 
 interface HeaderProps {
   path: string;
@@ -32,79 +21,23 @@ export default function Header({
   childrenContainerClassName,
   showSidebarTrigger = true,
 }: PropsWithChildren<HeaderProps>) {
-  const { project, workspace, projects } = useProjectContext();
   const { projectId } = useParams();
-  const router = useRouter();
 
   const segments = path.split("/");
 
-  const handleProjectSelect = (project: Project) => {
-    if (project.id !== projectId) {
-      router.push(`/project/${project.id}/traces`);
-    }
-  };
-
   return (
-    <div className={`font-medium flex items-center justify-between flex-none h-12 border-b w-full ${className}`}>
+    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}>
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
-        {showSidebarTrigger && <SidebarTrigger className="ml-2 hover:bg-secondary" />}
-        {workspace && (
-          <Link href="/projects" className="flex items-center gap-2 ml-2 text-secondary-foreground max-w-64">
-            <p title={workspace.name} className="truncate">
-              {workspace.name}
-            </p>
-            <div
-              className={cn(
-                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                {
-                  "border-primary bg-primary/10 text-primary": [WorkspaceTier.PRO, WorkspaceTier.HOBBY].includes(
-                    workspace.tierName
-                  ),
-                }
-              )}
-            >
-              {workspace.tierName}
-            </div>
-            <div className="text-secondary-foreground/40">/</div>
-          </Link>
-        )}
-        {project && (
-          <div className="flex items-center gap-1 ml-1 text-secondary-foreground">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                asChild
-                className="flex items-center space-x-1 hover:bg-secondary rounded-lg px-2 py-1 transition-colors"
-              >
-                <Button className="h-7" variant="ghost">
-                  <span className="whitespace-nowrap truncate text-base">{project.name}</span>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {projects.map((p) => (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onClick={() => handleProjectSelect(p)}
-                    className="flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{p.name}</span>
-                    {p.id === projectId && <Check className="h-4 w-4" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <div className="text-secondary-foreground/40">/</div>
-          </div>
-        )}
+        {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
             {index > 0 && <div className="text-secondary-foreground/40">/</div>}
             {index === segments.length - 1 ? (
-              <div className="px-3">{segment}</div>
+              <div className="px-2">{segment}</div>
             ) : (
               <Link
                 href={`/project/${projectId}/${segment.replace(/ /g, "-")}`}
-                className="hover:bg-secondary rounded-lg px-2 mx-1 p-0.5 text-secondary-foreground"
+                className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
               >
                 {segment}
               </Link>

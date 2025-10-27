@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -70,13 +70,13 @@ export default function RenameProject() {
       >
         <DialogTrigger asChild>
           <Button
+            icon="edit"
             onClick={() => {
               setIsRenameDialogOpen(true);
             }}
             variant="outline"
-            className="h-9 w-fit"
+            className="w-fit"
           >
-            <Edit className="w-4 h-4 mr-2" />
             Rename project
           </Button>
         </DialogTrigger>
@@ -84,7 +84,7 @@ export default function RenameProject() {
           <DialogHeader>
             <DialogTitle>Rename project</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex flex-col gap-2 py-4">
             <Label>Enter new project name</Label>
             <Input
               autoFocus

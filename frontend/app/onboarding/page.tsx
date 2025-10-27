@@ -4,14 +4,13 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import CreateFirstWorkspaceAndProject from "@/components/onboarding/create-first-workspace-and-project";
-import OnboardingHeader from "@/components/onboarding/onboarding-header";
 import { UserContextProvider } from "@/contexts/user-context";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
-  title: "Create workspace and project",
+  title: "Get Started - Laminar",
 };
 
 export default async function OnboardingPage() {
@@ -26,6 +25,7 @@ export default async function OnboardingPage() {
     .where(eq(membersOfWorkspaces.userId, session.user.id));
 
   if (count > 0) {
+    // legacy, redirect to projects to later redirect user to first workspace.
     return redirect("/projects");
   }
 
@@ -39,8 +39,7 @@ export default async function OnboardingPage() {
       username={user.name!}
       imageUrl={user.image!}
     >
-      <div className="flex flex-col h-full w-full">
-        <OnboardingHeader />
+      <div className="flex flex-col h-screen w-full bg-background">
         <CreateFirstWorkspaceAndProject name={user.name} />
       </div>
     </UserContextProvider>

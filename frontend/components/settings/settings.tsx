@@ -78,7 +78,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
           <Sidebar collapsible="none">
             <SidebarContent className="bg-background">
-              <SidebarGroup className="pt-2 px-0">
+              <SidebarGroup className="pt-2">
                 <SidebarMenu>
                   {menuTabs.map((tab) => (
                     <SidebarMenuItem className="h-7" key={tab.id}>
@@ -101,7 +101,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
             </SidebarContent>
           </Sidebar>
           <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">{renderContent()}</div>
+            <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4">{renderContent()}</div>
           </div>
         </div>
       </SidebarProvider>

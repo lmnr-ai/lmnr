@@ -162,7 +162,7 @@ export default function Formatter({
                     </SheetClose>
                   </div>
                 </div>
-                <ScrollArea className="flex-grow">
+                <ScrollArea className="grow">
                   <div className="flex flex-col">
                     {mode === "custom" ? (
                       <TemplateRenderer data={renderText(expandedValue)} presetKey={presetKey} />
@@ -194,7 +194,7 @@ export default function Formatter({
         </div>
       </div>
       {!isCollapsed && (
-        <div className="flex-grow flex overflow-auto w-full">
+        <div className="grow flex overflow-auto w-full">
           {mode === "custom" ? (
             <TemplateRenderer data={renderedValue} presetKey={presetKey} />
           ) : (

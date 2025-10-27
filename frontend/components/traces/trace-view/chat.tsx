@@ -43,7 +43,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                 onSetSpanId(spanUuid || "");
               }}
             >
-              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs">{spanName}</span> span
+              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
             </button>
           );
         }
@@ -71,7 +71,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
                 onSetSpanId(spanUuid || "");
               }}
             >
-              <span className="bg-primary/70 rounded px-1.5 py-[0.125rem] font-mono text-xs mr-1">{spanName}</span>
+              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
               span
               <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
             </button>
@@ -206,7 +206,7 @@ ${analysis}`;
   }, [trace.id, trace.startTime, trace.endTime, projectId]);
 
   return (
-    <div className="flex-grow flex flex-col overflow-auto">
+    <div className="grow flex flex-col overflow-auto">
       <Conversation>
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           <div className="p-4">

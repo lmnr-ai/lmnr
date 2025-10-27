@@ -6,10 +6,11 @@ import { useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
+import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { WorkspaceWithProjects, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { Workspace, WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -24,7 +25,7 @@ interface DeleteWorkspaceForm {
 }
 
 interface WorkspaceSettingsProps {
-  workspace: WorkspaceWithUsers;
+  workspace: Workspace;
   isOwner: boolean;
 }
 
@@ -155,38 +156,35 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
   if (!isOwner) {
     return (
-      <div className="p-4">
+      <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
         <p className="text-muted-foreground">Only workspace owners can access workspace settings.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col space-y-8 p-4">
-      <div className="flex flex-col items-start space-y-4">
-        <h1 className="text-lg">Rename workspace</h1>
-        <Label className="text-sm text-secondary-foreground">
-          Update the name of your workspace. Changes will take effect immediately.
-        </Label>
+    <>
+      <SettingsSectionHeader title="General" description="Manage your workspace settings and preferences" />
+      <SettingsSection>
+        <SettingsSectionHeader
+          size="sm"
+          title="Rename workspace"
+          description="Update the name of your workspace. Changes will take effect immediately."
+        />
         <Dialog open={isRenameDialogOpen} onOpenChange={resetAndCloseRenameDialog}>
           <DialogTrigger asChild>
-            <Button
-              disabled={!isOwner}
-              onClick={() => setIsRenameDialogOpen(true)}
-              variant="outline"
-              className="h-8 max-w-80"
-            >
-              <Edit className="w-4 mr-1" />
-              Rename workspace
+            <Button disabled={!isOwner} onClick={() => setIsRenameDialogOpen(true)} variant="outline" className="w-fit">
+              <Edit className="w-4 h-4 mr-2" />
+              Rename
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Rename workspace</DialogTitle>
             </DialogHeader>
-            <form onSubmit={renameWorkspace} className="space-y-4">
-              <div className="grid gap-4 py-4">
-                <Label>Enter new workspace name</Label>
+            <form onSubmit={renameWorkspace}>
+              <div className="grid gap-2">
+                <Label>Name</Label>
                 <Controller
                   name="name"
                   control={renameForm.control}
@@ -207,40 +205,39 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   )}
                 />
               </div>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
-                  handleEnter={true}
-                >
-                  <Loader2
-                    className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
-                  />
-                  Rename
-                </Button>
-              </DialogFooter>
             </form>
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
+                handleEnter={true}
+              >
+                <Loader2
+                  className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
+                />
+                Rename
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </SettingsSection>
 
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">Delete workspace</h2>
-          <p className="text-sm text-muted-foreground">
-            Permanently delete this workspace and all of its data, including all projects. This action cannot be undone.
-          </p>
-        </div>
+      <SettingsSection>
+        <SettingsSectionHeader
+          size="sm"
+          title="Delete workspace"
+          description="Permanently delete this workspace and all of its data, including all projects. This action cannot be undone."
+        />
         <Dialog open={isDeleteDialogOpen} onOpenChange={resetAndCloseDeleteDialog}>
           <DialogTrigger asChild>
             <Button
               disabled={!isOwner}
               onClick={() => setIsDeleteDialogOpen(true)}
               variant="outline"
-              className="h-8 text-destructive border-destructive"
+              className="w-fit text-destructive border-destructive"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete workspace
+              Delete
             </Button>
           </DialogTrigger>
 
@@ -256,7 +253,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   action cannot be undone.
                 </p>
 
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="workspace-name-input" className="text-secondary-foreground">
                     Type <span className="font-medium text-white">{workspace.name}</span> to confirm
                   </Label>
@@ -302,7 +299,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
+      </SettingsSection>
+    </>
   );
 }

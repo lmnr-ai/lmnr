@@ -1,7 +1,8 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -12,29 +13,44 @@ import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
-import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
+import { InfiniteDataTable } from "../ui/infinite-datatable";
 import Mono from "../ui/mono";
-import { TableCell, TableRow } from "../ui/table";
 import CreateDatasetDialog from "./create-dataset-dialog";
+
+const columns: ColumnDef<DatasetInfo>[] = [
+  {
+    cell: ({ row }) => <Mono>{row.original.id}</Mono>,
+    size: 300,
+    header: "ID",
+  },
+  {
+    accessorKey: "name",
+    header: "name",
+    size: 300,
+  },
+  {
+    accessorKey: "datapointsCount",
+    header: "Datapoints Count",
+    size: 300,
+  },
+  {
+    header: "Created at",
+    accessorKey: "createdAt",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+  },
+];
 
 export default function Datasets() {
   const { projectId } = useParams();
   const router = useRouter();
-  const searchParams = new URLSearchParams(useSearchParams().toString());
-  const pathName = usePathname();
+  const { toast } = useToast();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const pageNumber = searchParams.get("pageNumber") ? parseInt(searchParams.get("pageNumber")!) : 0;
-  const pageSize = searchParams.get("pageSize") ? parseInt(searchParams.get("pageSize")!) : 50;
-
-  const swrKey = `/api/projects/${projectId}/datasets?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+  const swrKey = `/api/projects/${projectId}/datasets?pageNumber=0&pageSize=10000`;
   const { data, mutate } = useSWR<PaginatedResponse<DatasetInfo>>(swrKey, swrFetcher);
 
   const datasets = data?.items;
-  const totalCount = data?.totalCount || 0;
-  const pageCount = Math.ceil(totalCount / pageSize);
-
-  const { toast } = useToast();
 
   const handleDeleteDatasets = async (datasetIds: string[]) => {
     try {
@@ -72,6 +88,7 @@ export default function Datasets() {
         }
       );
 
+      setRowSelection({});
       toast({
         title: "Datasets deleted",
         description: `Successfully deleted ${datasetIds.length} dataset(s).`,
@@ -85,58 +102,31 @@ export default function Datasets() {
     }
   };
 
-  const columns: ColumnDef<DatasetInfo>[] = [
-    {
-      cell: ({ row }) => <Mono>{row.original.id}</Mono>,
-      size: 300,
-      header: "ID",
-    },
-    {
-      accessorKey: "name",
-      header: "name",
-      size: 300,
-    },
-    {
-      accessorKey: "datapointsCount",
-      header: "Datapoints Count",
-      size: 300,
-    },
-    {
-      header: "Created at",
-      accessorKey: "createdAt",
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    },
-  ];
-
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path="datasets" />
-      <div className="flex justify-between items-center p-4 flex-none">
-        <h1 className="scroll-m-20 text-2xl font-medium">Datasets</h1>
+      <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateDatasetDialog>
-          <Button variant="outline">New dataset</Button>
+          <Button icon="plus" className="w-fit">
+            Dataset
+          </Button>
         </CreateDatasetDialog>
-      </div>
-      <div className="flex-grow">
-        <DataTable
+        <InfiniteDataTable
           enableRowSelection={true}
           onRowClick={(row) => {
             router.push(`/project/${projectId}/datasets/${row.original.id}`);
           }}
           getRowId={(row: DatasetInfo) => row.id}
           columns={columns}
-          data={datasets}
-          paginated
-          manualPagination
-          pageCount={pageCount}
-          defaultPageSize={pageSize}
-          defaultPageNumber={pageNumber}
-          onPageChange={(pageNumber, pageSize) => {
-            searchParams.set("pageNumber", pageNumber.toString());
-            searchParams.set("pageSize", pageSize.toString());
-            router.push(`${pathName}?${searchParams.toString()}`);
+          data={datasets ?? []}
+          hasMore={false}
+          isFetching={false}
+          isLoading={!data}
+          fetchNextPage={() => {}}
+          state={{
+            rowSelection,
           }}
-          totalItemsCount={totalCount}
+          onRowSelectionChange={setRowSelection}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows
@@ -146,15 +136,8 @@ export default function Datasets() {
               />
             </div>
           )}
-          emptyRow={
-            <TableRow>
-              <TableCell colSpan={columns.length} className="text-center text">
-                Create a new dataset to get started
-              </TableCell>
-            </TableRow>
-          }
         />
       </div>
-    </div>
+    </>
   );
 }
