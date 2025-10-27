@@ -81,7 +81,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isFetching: false,
         isLoading: false,
         error: null,
-        hasMore: true,
+        hasMore: items.length > 0,
       })),
 
     resetInfiniteScroll: () =>
