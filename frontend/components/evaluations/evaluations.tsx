@@ -162,15 +162,16 @@ function EvaluationsContent() {
 
   const { rowSelection, onRowSelectionChange } = useSelection();
 
-  const handleDeleteEvaluations = async (selectedRowIds: string[]) => {
+  const handleDeleteEvaluations = async (evaluationIds: string[]) => {
     try {
-      const sp = new URLSearchParams(selectedRowIds.map((id) => ["id", id]));
-
-      const response = await fetch(`/api/projects/${params?.projectId}/evaluations?${sp.toString()}`, {
+      const response = await fetch(`/api/projects/${params?.projectId}/evaluations`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          evaluationIds,
+        }),
       });
 
       if (response.ok) {
@@ -178,7 +179,7 @@ function EvaluationsContent() {
 
         toast({
           title: "Evaluations deleted",
-          description: `Successfully deleted ${selectedRowIds.length} evaluation(s).`,
+          description: `Successfully deleted ${evaluationIds.length} evaluation(s).`,
         });
       } else {
         throw new Error("Failed to delete evaluations");

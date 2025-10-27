@@ -231,6 +231,7 @@ const PureCodeHighlighter = ({
           onModeChange={handleModeChange}
           extensions={extensions}
           placeholder={placeholder}
+          presetKey={presetKey}
         />
       </div>
       <Popover onOpenChange={setIsSettingsOpen}>

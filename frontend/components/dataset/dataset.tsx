@@ -108,14 +108,12 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     fetchNextPage,
     refetch,
     updateData,
-    setTotalCount,
   } = useInfiniteScroll<Datapoint>({
     fetchFn: fetchDatapoints,
     enabled: true,
     deps: [dataset.id],
   });
 
-  // Convert rowSelection to array of IDs for compatibility with existing code
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
 
   const handleDatapointSelect = useCallback(
@@ -149,23 +147,21 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
       try {
-        const response = await fetch(
-          `/api/projects/${projectId}/datasets/${dataset.id}/datapoints` + `?datapointIds=${datapointIds.join(",")}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        const response = await fetch(`/api/projects/${projectId}/datasets/${dataset.id}/datapoints`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            datapointIds,
+          }),
+        });
 
         if (!response.ok) {
           throw new Error("Failed to delete datapoints");
         }
 
-        // Update data optimistically
         updateData((currentData) => currentData.filter((datapoint) => !datapointIds.includes(datapoint.id)));
-        setTotalCount((prev) => prev - datapointIds.length);
 
         setRowSelection({});
         toast({
@@ -181,11 +177,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           title: "Failed to delete datapoints",
           variant: "destructive",
         });
-        // Refetch on error to restore correct state
-        refetch();
       }
     },
-    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData, setTotalCount, refetch]
+    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData, refetch]
   );
 
   const revalidateDatapoints = useCallback(() => {

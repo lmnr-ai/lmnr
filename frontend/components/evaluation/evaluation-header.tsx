@@ -45,10 +45,7 @@ const EvaluationHeader = ({
     <div className="flex-none flex space-x-2 px-4 items-center justify-start">
       <div>
         <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-          <SelectTrigger
-            disabled={evaluations.length <= 1}
-            className="flex font-medium truncate"
-          >
+          <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
             <SelectValue placeholder="Select compared evaluation" />
           </SelectTrigger>
           <SelectContent>
@@ -107,19 +104,19 @@ const EvaluationHeader = ({
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-7 w-7 p-0">
+          <Button variant="secondary" className="h-7 w-7 p-0">
             <EllipsisVertical className="w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <RenameEvaluationDialog defaultValue={name} urlKey={urlKey}>
-            <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
               <Edit className="size-3.5" />
               <span className="text-xs">Rename</span>
             </DropdownMenuItem>
           </RenameEvaluationDialog>
           <DeleteEvaluationDialog>
-            <DropdownMenuItem className="py-1" onSelect={(e) => e.preventDefault()}>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
               <Trash className="size-3.5 text-destructive" />
               <span className="text-destructive text-xs">Delete</span>
             </DropdownMenuItem>
