@@ -92,8 +92,8 @@ function TracesTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: TraceRow[]; count: number };
-        return data;
+        const data = (await res.json()) as { items: TraceRow[] };
+        return { items: data.items, count: 0 };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
@@ -107,14 +107,12 @@ function TracesTableContent() {
 
   const {
     data: traces,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
     fetchNextPage,
     refetch,
     updateData,
-    setTotalCount,
   } = useInfiniteScroll<TraceRow>({
     fetchFn: fetchTraces,
     enabled: shouldFetch,
@@ -218,13 +216,11 @@ function TracesTableContent() {
             newTraces.splice(FETCH_SIZE);
           }
 
-          console.log("Added new trace:", traceId);
-          setTotalCount((prev: number) => prev + 1);
           return newTraces;
         }
       });
     },
-    [updateData, setTotalCount]
+    [updateData]
   );
 
   // SSE connection for realtime updates
@@ -294,7 +290,7 @@ function TracesTableContent() {
   );
 
   return (
-    <div className="flex overflow-hidden px-4 pb-6">
+    <div className="flex flex-1 overflow-hidden px-4 pb-6">
       <InfiniteDataTable<TraceRow>
         className="w-full"
         columns={columns}
@@ -306,7 +302,6 @@ function TracesTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        totalItemsCount={totalCount}
         estimatedRowHeight={41}
         childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
       >

@@ -105,7 +105,7 @@ export function InfiniteDataTable<TData extends RowData>({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
+        if (entries[0]?.isIntersecting && hasMore && !isFetching) {
           fetchNextPage();
         }
       },

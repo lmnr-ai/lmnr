@@ -81,8 +81,8 @@ function SpansTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: SpanRow[]; totalCount: number };
-        return { items: data.items, count: data.totalCount };
+        const data = (await res.json()) as { items: SpanRow[] };
+        return { items: data.items, count: 0 };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load spans. Please try again.",
@@ -96,14 +96,11 @@ function SpansTableContent() {
 
   const {
     data: spans,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
     fetchNextPage,
     refetch,
-    updateData,
-    setTotalCount,
   } = useInfiniteScroll<SpanRow>({
     fetchFn: fetchSpans,
     enabled: shouldFetch,
@@ -152,7 +149,6 @@ function SpansTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        totalItemsCount={totalCount}
         estimatedRowHeight={41}
         childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
       >

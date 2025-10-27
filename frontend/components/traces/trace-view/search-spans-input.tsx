@@ -69,7 +69,7 @@ const SearchSpansInput = ({
       >
         <Search size={18} className="text-secondary-foreground min-w-[18px]" />
         <Input
-          className="focus-visible:ring-0 border-none max-h-8 px-1"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 bg-transparent"
           type="text"
           placeholder="Search"
           value={value}
@@ -88,7 +88,7 @@ const SearchSpansInput = ({
       {open && (
         <div
           className={cn(
-            "absolute z-40 top-10 bg-background flex flex-col gap-2 flex-1 mx-2 w-[calc(100%-16px)] rounded transition-all duration-100 ease-linear p-2 border border-t-0 rounded-t-none",
+            "absolute z-40 top-10 bg-secondary flex flex-col gap-2 flex-1 mx-2 w-[calc(100%-16px)] rounded transition-all duration-100 ease-linear p-2 border border-t-0 rounded-t-none",
             filterBoxClassName
           )}
           onMouseDown={(e) => e.preventDefault()}

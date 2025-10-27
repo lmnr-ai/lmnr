@@ -106,7 +106,7 @@ const SearchTracesInput = ({ className, filterBoxClassName }: { className?: stri
       {open && (
         <div
           className={cn(
-            "absolute z-50 top-10 bg-background flex flex-col gap-2 w-full rounded p-2 border",
+            "absolute z-50 top-10 bg-secondary flex flex-col gap-2 w-full rounded p-2 border",
             filterBoxClassName
           )}
           onMouseDown={(e) => e.preventDefault()}

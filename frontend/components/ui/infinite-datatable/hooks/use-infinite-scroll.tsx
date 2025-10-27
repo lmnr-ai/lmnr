@@ -14,17 +14,17 @@ export interface InfiniteScrollOptions<TData> {
 export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }: InfiniteScrollOptions<TData>) {
   const store = useDataTableStore<TData>();
 
-  const { data, totalCount, currentPage, isFetching, isLoading, error } = useStore(store, (state) => ({
+  const { data, totalCount, currentPage, isFetching, isLoading, error, hasMore } = useStore(store, (state) => ({
     data: state.data,
     totalCount: state.totalCount,
     currentPage: state.currentPage,
     isFetching: state.isFetching,
     isLoading: state.isLoading,
     error: state.error,
+    hasMore: state.hasMore,
   }));
 
   const depsString = JSON.stringify(deps);
-  const hasMore = data.length < totalCount;
 
   const fetchPage = useCallback(
     async (pageNumber: number, shouldReset: boolean = false) => {

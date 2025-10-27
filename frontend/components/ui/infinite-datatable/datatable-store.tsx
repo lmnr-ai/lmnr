@@ -12,6 +12,7 @@ export interface InfiniteScrollState<TData> {
   isLoading: boolean;
   error: Error | null;
   uniqueKey: string;
+  hasMore: boolean;
 }
 
 export interface InfiniteScrollActions<TData> {
@@ -21,6 +22,7 @@ export interface InfiniteScrollActions<TData> {
   setIsFetching: (fetching: boolean) => void;
   setIsLoading: (loading: boolean) => void;
   setError: (error: Error | null) => void;
+  setHasMore: (hasMore: boolean) => void;
   appendData: (items: TData[], count: number) => void;
   replaceData: (items: TData[], count: number) => void;
   resetInfiniteScroll: () => void;
@@ -52,6 +54,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
     isLoading: false,
     error: null,
     uniqueKey,
+    hasMore: true,
 
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setTotalCount: (totalCount) => set({ totalCount }),
@@ -59,6 +62,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
     setIsFetching: (isFetching) => set({ isFetching }),
     setIsLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error }),
+    setHasMore: (hasMore) => set({ hasMore }),
 
     appendData: (items, count) =>
       set((state) => ({
@@ -67,6 +71,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isFetching: false,
         isLoading: false,
         error: null,
+        hasMore: items.length > 0,
       })),
 
     replaceData: (items, count) =>
@@ -76,6 +81,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isFetching: false,
         isLoading: false,
         error: null,
+        hasMore: true,
       })),
 
     resetInfiniteScroll: () =>
@@ -87,6 +93,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id") =>
         isLoading: false,
         error: null,
         uniqueKey: state.uniqueKey,
+        hasMore: true,
       })),
 
     selectedRows: new Set(),

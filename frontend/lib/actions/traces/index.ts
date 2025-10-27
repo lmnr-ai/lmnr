@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
@@ -31,7 +31,7 @@ export const DeleteTracesSchema = z.object({
   traceIds: z.array(z.string()).min(1),
 });
 
-export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[]; count: number }> {
+export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[] }> {
   const {
     projectId,
     pastHours,
@@ -60,7 +60,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [], count: 0 };
+    return { items: [] };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
@@ -75,24 +75,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     pastHours,
   });
 
-  const { query: countQuery, parameters: countParams } = buildTracesCountQueryWithParams({
-    projectId,
-    traceType,
-    traceIds,
-    filters,
-    startTime,
-    endTime,
-    pastHours,
-  });
-
-  const [items, [count]] = await Promise.all([
-    executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
-  ]);
+  const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
     items,
-    count: count?.count || 0,
   };
 }
 

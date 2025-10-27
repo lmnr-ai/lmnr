@@ -179,7 +179,7 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
         }
 
         const data = await res.json();
-        return { items: data.items, count: data.totalCount };
+        return { items: data.items, count: 0 };
       } catch (error) {
         toast({
           title: "Failed to load playground history. Please try again.",

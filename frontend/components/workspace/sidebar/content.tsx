@@ -1,6 +1,8 @@
 "use client";
 
 import { Activity, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
 import {
@@ -45,7 +47,7 @@ interface WorkspaceSidebarContentProps {
 
 export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
-
+  const pathName = usePathname();
   const sidebarMenus = useMemo(() => {
     if (!workspaceFeatureEnabled) {
       return menus.filter((m) => m.value === "projects");
@@ -68,10 +70,10 @@ export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: Wo
                   onClick={() => setMenu(m.value)}
                   asChild
                 >
-                  <div className="cursor-pointer">
+                  <Link href={`${pathName}?tab=${m.value}`}>
                     <m.icon />
                     <span>{m.name}</span>
-                  </div>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

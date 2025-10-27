@@ -24,14 +24,9 @@ const SidebarFooterComponent = () => {
 
   return (
     <SidebarFooter className="px-0 mb-2">
-      <SidebarGroup>
+      <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
         <SidebarGroupContent>
-          <div
-            className={cn(
-              "rounded-lg border bg-muted relative p-2 m-2",
-              (open || openMobile) && showStarCard ? "text-sm" : "hidden"
-            )}
-          >
+          <div className={cn("rounded-lg border bg-muted relative p-2 m-2")}>
             <button
               onClick={() => setShowStarCard(false)}
               className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"

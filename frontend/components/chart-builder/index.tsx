@@ -209,7 +209,7 @@ const ChartBuilderCore = () => {
         </div>
       </ScrollArea>
 
-      <ScrollArea className="flex flex-1 col-span-3">
+      <ScrollArea className="flex flex-1 col-span-3 [&>*>div]:h-full">
         <div className="size-full p-4">
           {!hasChartType ? (
             <div className="flex flex-1 items-center justify-center h-full w-full text-muted-foreground">

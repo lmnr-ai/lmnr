@@ -11,8 +11,8 @@
   padding-inline: 2rem;
 
   @media (width >=--theme(--breakpoint-sm)) {
-    max-width: none;
-  }
+  max-width: none;
+}
 
   @media (width >=1400px) {
     max-width: 1400px;
@@ -21,7 +21,6 @@
 
 @theme {
   --font-sans: var(--font-inter);
-  --font-manrope: var(--font-manrope);
   --font-title: var(--font-title);
 
   --color-border: hsl(var(--border));
@@ -67,64 +66,6 @@
 
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-
-  /*--animate-accordion-down: accordion-down 0.2s ease-out;*/
-  /*--animate-accordion-up: accordion-up 0.2s ease-out;*/
-
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.6rem;
-  --text-lg--letter-spacing: -0.0125em;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.75rem;
-  --text-xl--letter-spacing: -0.025em;
-  --text-2xl: 1.5rem;
-  --text-2xl--line-height: 2rem;
-  --text-2xl--letter-spacing: -0.025em;
-  --text-3xl: 1.875rem;
-  --text-3xl--line-height: 2.25rem;
-  --text-3xl--letter-spacing: -0.025em;
-  --text-4xl: 2.25rem;
-  --text-4xl--line-height: 2.5rem;
-  --text-4xl--letter-spacing: -0.025em;
-  --text-5xl: 3rem;
-  --text-5xl--line-height: 1;
-  --text-5xl--letter-spacing: -0.025em;
-  --text-6xl: 3.75rem;
-  --text-6xl--line-height: 1;
-  --text-6xl--letter-spacing: -0.025em;
-  --text-7xl: 4.5rem;
-  --text-7xl--line-height: 1;
-  --text-7xl--letter-spacing: -0.025em;
-  --text-8xl: 6rem;
-  --text-8xl--line-height: 1;
-  --text-8xl--letter-spacing: -0.025em;
-  --text-9xl: 8rem;
-  --text-9xl--line-height: 1;
-  --text-9xl--letter-spacing: -0.025em;
-
-  /*@keyframes accordion-down {*/
-  /*  from {*/
-  /*    height: 0;*/
-  /*  }*/
-
-  /*  to {*/
-  /*    height: var(--radix-accordion-content-height);*/
-  /*  }*/
-  /*}*/
-
-  /*@keyframes accordion-up {*/
-  /*  from {*/
-  /*    height: var(--radix-accordion-content-height);*/
-  /*  }*/
-
-  /*  to {*/
-  /*    height: 0;*/
-  /*  }*/
-  /*}*/
 }
 
 @utility no-scrollbar {
@@ -188,6 +129,7 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
     --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

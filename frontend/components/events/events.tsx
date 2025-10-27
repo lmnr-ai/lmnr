@@ -132,10 +132,10 @@ function EventsContentInner({
           title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
           variant: "destructive",
         });
-        throw error;
       }
+      return { items: [], count: 0 };
     },
-    [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter, toast]
+    [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter]
   );
 
   const {

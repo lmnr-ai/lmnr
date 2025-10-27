@@ -37,7 +37,7 @@ export default function Header({
             ) : (
               <Link
                 href={`/project/${projectId}/${segment.replace(/ /g, "-")}`}
-                className="hover:bg-secondary rounded-lg px-2 p-0.5 text-secondary-foreground"
+                className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground"
               >
                 {segment}
               </Link>

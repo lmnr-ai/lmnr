@@ -42,14 +42,14 @@ const UsageDisplay = ({
   if (!open) return null;
 
   return (
-    <div className="p-2 m-2 rounded-lg border bg-muted/30 text-xs">
+    <div className="p-2 rounded-lg border bg-muted/30 text-xs">
       <div className="text-muted-foreground mb-2">Free plan usage</div>
       <div className="flex flex-col gap-2">
         <div title={title} className="font-medium truncate">
           {title}
         </div>
         <Progress value={usagePercentage} className="h-1" />
-        <Link href={`/workspace/${workspaceId}`}>
+        <Link href={`/workspace/${workspaceId}?tab=usage`}>
           <Button className="w-full h-6">Upgrade</Button>
         </Link>
       </div>
@@ -86,7 +86,7 @@ const ProjectSidebarContent = ({
       </SidebarGroup>
 
       {isFreeTier && (open || openMobile) && (
-        <SidebarGroup>
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>

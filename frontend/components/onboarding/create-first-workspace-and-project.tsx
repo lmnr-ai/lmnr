@@ -1,12 +1,11 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
-import icon from "@/assets/logo/icon.svg";
 import { Button } from "@/components/ui/button";
+import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -56,18 +55,15 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <div className="mb-6">
-            <Image alt="Laminar AI icon" src={icon} width={40} height={40} />
+    <div className="flex-1 flex items-center justify-center pb-16">
+      <div className="w-full max-w-md border bg-secondary p-8 rounded">
+        <div className="flex flex-col items-start mb-8">
+          <div className="mb-4">
+            <LaminarLogo className="h-7 w-auto" fill="#b5b5b5" />
           </div>
-          <h1 className="text-3xl font-semibold mb-2">Welcome to Laminar</h1>
-          <p className="text-sm text-muted-foreground text-center">
-            Let's set up your workspace and first project to get started
-          </p>
+          <p className="text-sm text-muted-foreground">Let's set up your workspace and first project to get started</p>
         </div>
-        <div className="grid gap-4 px-8">
+        <div className="grid gap-4">
           <div className="flex flex-col gap-1">
             <Label htmlFor="workspace-name" className="text-xs font-medium">
               Workspace Name
@@ -110,7 +106,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
               className="self-end align-end w-fit"
             >
               {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-              Create workspace and project
+              Create
             </Button>
           </div>
         </div>

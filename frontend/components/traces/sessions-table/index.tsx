@@ -91,8 +91,8 @@ function SessionsTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: SessionRow[]; totalCount: number };
-        return { items: data.items, count: data.totalCount };
+        const data = (await res.json()) as { items: SessionRow[] };
+        return { items: data.items, count: 0 };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load sessions. Please try again.",
@@ -106,14 +106,12 @@ function SessionsTableContent() {
 
   const {
     data: sessions,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
     fetchNextPage,
     refetch,
     updateData,
-    setTotalCount,
     error,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
@@ -178,7 +176,7 @@ function SessionsTableContent() {
           throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
         }
 
-        const traces = (await res.json()) as { items: TraceRow[]; count: number };
+        const traces = (await res.json()) as { items: TraceRow[] };
 
         // Update the session with its subRows (traces)
         updateData((sessions) =>
@@ -217,7 +215,6 @@ function SessionsTableContent() {
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
         fetchNextPage={fetchNextPage}
-        totalItemsCount={totalCount}
         estimatedRowHeight={41}
         childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         error={error}
