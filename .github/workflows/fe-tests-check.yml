@@ -23,7 +23,7 @@ jobs:
           version: 9
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
           cache: 'pnpm'
