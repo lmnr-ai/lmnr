@@ -69,9 +69,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
             )}
           </div>
           {hasTopSpan ? (
-            <div className="text-sm truncate">{row.row.original.topSpanName}</div>
+            <div title={row.row.original.topSpanName} className="text-sm truncate">
+              {row.row.original.topSpanName}
+            </div>
           ) : row.row.original.topSpanName ? (
-            <div className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}>
+            <div
+              title={row.row.original.topSpanName}
+              className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}
+            >
               {row.row.original.topSpanName}
             </div>
           ) : (
@@ -112,15 +117,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         return (
           <TooltipProvider delayDuration={100}>
             <Tooltip>
-              <TooltipTrigger className="relative p-0">
-                <div
-                  style={{
-                    width: row.column.getSize() - 32,
-                  }}
-                  className="truncate"
-                >
-                  {format.format(row.getValue())}
-                </div>
+              <TooltipTrigger asChild className="relative p-0">
+                <div className="truncate">{format.format(row.getValue())}</div>
               </TooltipTrigger>
               <TooltipPortal>
                 <TooltipContent side="bottom" className="p-2 border">

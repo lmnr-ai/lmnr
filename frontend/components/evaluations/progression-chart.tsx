@@ -134,17 +134,21 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
             {[...Array.from(keys), ADDITIONAL_NAME].map((key) => (
               <div
                 key={key}
-                className="flex items-center text-sm cursor-pointer decoration-dashed text-muted-foreground"
-                style={
-                  scores.includes(key)
-                    ? {
-                      color: chartConfig[key].color,
-                    }
-                    : {}
-                }
+                className="flex items-center text-sm cursor-pointer decoration-dashed"
                 onClick={() => handleClick(key)}
               >
-                <Label className="cursor-pointer">{key}</Label>
+                <Label
+                  style={
+                    scores.includes(key)
+                      ? {
+                        color: chartConfig[key].color,
+                      }
+                      : {}
+                  }
+                  className="cursor-pointer"
+                >
+                  {key}
+                </Label>
               </div>
             ))}
           </div>

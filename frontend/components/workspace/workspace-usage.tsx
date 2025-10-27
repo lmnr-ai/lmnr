@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -134,7 +135,7 @@ interface UsageProgressDiscProps {
   dataKey: string;
 }
 
-const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
+const UsageProgressDisc = memo(({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
   const startAngle = 90;
   const endAngle = startAngle - (Math.min(value, maxValue) / maxValue) * 360;
 
@@ -152,4 +153,6 @@ const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDisc
       </RadialBarChart>
     </ChartContainer>
   );
-};
+});
+
+UsageProgressDisc.displayName = "UsageProgressDisc";

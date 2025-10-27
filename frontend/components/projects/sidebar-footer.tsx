@@ -26,14 +26,13 @@ const SidebarFooterComponent = () => {
     <SidebarFooter className="px-0 mb-2">
       <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
         <SidebarGroupContent>
-          <div className={cn("rounded-lg border bg-muted relative p-2 m-2")}>
-            <button
-              onClick={() => setShowStarCard(false)}
-              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
-            <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
+          <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
+            <div className="flex justify-between items-start">
+              <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
+              <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
             <a
               href="https://github.com/lmnr-ai/lmnr"
               target="_blank"

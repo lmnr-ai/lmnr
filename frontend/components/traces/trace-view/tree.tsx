@@ -5,8 +5,8 @@ import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import { SpanCard } from "../span-card";
 import { useScrollContext } from "./scroll-context";
+import { SpanCard } from "./span-card";
 
 interface TreeProps {
   onSpanSelect: (span?: TraceViewSpan) => void;

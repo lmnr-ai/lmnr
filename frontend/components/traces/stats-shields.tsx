@@ -151,7 +151,7 @@ function StatsShieldsContent({
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
       <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
         <Clock3 size={12} className="min-w-3 min-h-3" />
-        <Label className="text-xs truncate" title={getDurationString(startTime, endTime)}>
+        <Label className="text-xs truncate text-foreground" title={getDurationString(startTime, endTime)}>
           {getDurationString(startTime, endTime)}
         </Label>
       </div>
@@ -160,7 +160,7 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{totalTokens}</Label>
+              <Label className="text-xs truncate text-foreground">{totalTokens}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
@@ -182,7 +182,7 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
               <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{totalCost?.toFixed(3)}</Label>
+              <Label className="text-xs truncate text-foreground">{totalCost?.toFixed(3)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>

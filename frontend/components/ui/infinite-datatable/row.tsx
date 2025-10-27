@@ -20,7 +20,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
         "flex min-w-full border-b last:border-b-0 group/row absolute",
         !!onRowClick && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
-        focusedRowId === row.id && "bg-secondary/70"
+        focusedRowId === row.id && "bg-muted"
       )}
       key={row.id}
       data-state={row.getIsSelected() && "selected"}
@@ -42,7 +42,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
           }}
         >
           {row.getIsSelected() && index === 0 && (
-            <div className="border-l-2 border-l-primary absolute h-full left-0 top-0"></div>
+            <div className="border-l-2 border-l-primary absolute h-full left-0 top-0" />
           )}
           <div className="truncate">{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
         </TableCell>

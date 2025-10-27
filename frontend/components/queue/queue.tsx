@@ -252,7 +252,7 @@ function QueueInner() {
     <>
       <Header path={`labeling queues/${storeQueue?.name || "Queue"}`} />
       <ResizablePanelGroup className="px-4 pb-4" direction="horizontal">
-        <ResizablePanel className="flex flex-1 flex-col overflow-hidden p-4" minSize={20} defaultSize={50}>
+        <ResizablePanel className="flex flex-1 flex-col overflow-hidden" minSize={20} defaultSize={50}>
           {isLoading === "first-load" ? (
             <div className="size-full flex flex-col flex-1 gap-2">
               <Skeleton className="h-6 w-20 mb-2" />
@@ -289,7 +289,7 @@ function QueueInner() {
             </div>
           )}
         </ResizablePanel>
-        <ResizableHandle withHandle className="z-30 bg-transparent ml-2" />
+        <ResizableHandle withHandle className="z-30 bg-transparent ml-[14px]" />
         <ResizablePanel className="flex-1 flex-col flex border rounded bg-secondary" minSize={42} defaultSize={33}>
           <div className="flex p-4 py-2 border-b text-secondary-foreground justify-between w-full items-center">
             <span className="text-nowrap">
