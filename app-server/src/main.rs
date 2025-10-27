@@ -12,10 +12,6 @@ use actix_web::{
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use agent_manager::{
-    AgentManager, agent_manager_grpc::agent_manager_service_client::AgentManagerServiceClient,
-    agent_manager_impl::AgentManagerImpl, channel::AgentManagerWorkers,
-};
 use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
 use aws_config::BehaviorVersion;
 use browser_events::process_browser_events;
@@ -56,7 +52,6 @@ use std::{
 use crate::features::{enable_consumer, enable_producer};
 use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
 
-mod agent_manager;
 mod api;
 mod auth;
 mod browser_events;
@@ -397,15 +392,12 @@ fn main() -> anyhow::Result<()> {
         Arc::new(queue.into())
     };
 
-    // ==== 3.5 Agent worker message queue ====
-    let agent_manager_workers = Arc::new(AgentManagerWorkers::new());
-
-    // ==== 3.6 SSE connections map ====
+    // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
-    // ==== 3.7 Worker tracker ====
+    // ==== 3.6 Worker tracker ====
     let worker_tracker = Arc::new(WorkerTracker::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -710,23 +702,6 @@ fn main() -> anyhow::Result<()> {
             .name("http".to_string())
             .spawn(move || {
                 runtime_handle_for_http.block_on(async {
-                    // == Browser agent ==
-                    let browser_agent: Arc<AgentManager> =
-                        if is_feature_enabled(Feature::AgentManager) {
-                            let agent_manager_url = env::var("AGENT_MANAGER_URL")
-                                .expect("AGENT_MANAGER_URL must be set");
-                            log::info!("Agent manager URL: {}", agent_manager_url);
-                            let agent_manager_client = Arc::new(
-                                AgentManagerServiceClient::connect(agent_manager_url)
-                                    .await
-                                    .unwrap(),
-                            );
-                            Arc::new(AgentManagerImpl::new(agent_manager_client).into())
-                        } else {
-                            log::info!("Using mock agent manager");
-                            Arc::new(agent_manager::mock::MockAgentManager {}.into())
-                        };
-
                     // == Name generator ==
                     let name_generator = Arc::new(NameGenerator::new());
 
@@ -753,9 +728,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
-                            .app_data(web::Data::new(agent_manager_workers.clone()))
                             .app_data(web::Data::new(connection_for_health.clone()))
-                            .app_data(web::Data::new(browser_agent.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .service(
@@ -764,11 +737,6 @@ fn main() -> anyhow::Result<()> {
                                         .wrap(project_auth.clone())
                                         .service(api::v1::browser_sessions::create_session_event),
                                 ),
-                            )
-                            .service(
-                                web::scope("api/v1/agent")
-                                    .service(routes::agent::run_agent_manager)
-                                    .service(routes::agent::stop_agent_manager),
                             )
                             .service(
                                 web::scope("/v1")
@@ -784,7 +752,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::evaluators::create_evaluator_score)
                                     .service(api::v1::tag::tag_trace)
-                                    .service(api::v1::agent::run_agent_manager)
                                     .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::payloads::get_payload),
                             )
