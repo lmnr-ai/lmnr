@@ -155,10 +155,11 @@ fn main() -> anyhow::Result<()> {
         .parse()
         .unwrap_or(8001);
 
-    // Default to the same port as the HTTP server. Should only be overriden for testing,
-    // when producer and consumer-only are run on the same machine.
+    // Default to the port 8002. Usually is different from the HTTP and gRPC ports,
+    // to avoid conflicts, when producer and consumer are run on the same machine
+    // in the dual mode.
     let consumer_port: u16 = env::var("CONSUMER_PORT")
-        .unwrap_or(port.to_string())
+        .unwrap_or(String::from("8002"))
         .parse()
         .unwrap_or(8002);
 
