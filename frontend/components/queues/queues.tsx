@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
-import { Loader2, PlusIcon, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
@@ -98,8 +98,8 @@ const QueuesContent = () => {
       <Header path="labeling queues" />
       <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
-          <Button className="w-fit">
-            <PlusIcon className="size-4 mr-2" /> Queue
+          <Button icon="plus" className="w-fit">
+            Queue
           </Button>
         </CreateQueueDialog>
         <InfiniteDataTable
@@ -113,7 +113,7 @@ const QueuesContent = () => {
           hasMore={false}
           isFetching={false}
           isLoading={!data}
-          fetchNextPage={() => { }}
+          fetchNextPage={() => {}}
           state={{
             rowSelection,
           }}
