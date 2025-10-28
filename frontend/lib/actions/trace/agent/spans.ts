@@ -5,7 +5,6 @@ import { executeQuery } from "@/lib/actions/sql";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
 import { GetTraceStructureSchema } from "./index";
-import { deduplicateSpanContent, replaceBase64ImagesInSpans } from "./utils";
 
 const ClickHouseToSpanSchema = z.object({
   span_id: z.string(),
@@ -210,7 +209,7 @@ interface SpanData {
 export const getSpansData = async (input: z.infer<typeof GetTraceStructureSchema>, ids: number[]): Promise<SpanData[]> => {
   const allData = await fetchFullTraceSpans(input);
 
-  const processedData = replaceBase64ImagesInSpans(allData);
+  const processedData = allData;
 
   return processedData.map((span, index) => ({
     name: span.name,
@@ -219,10 +218,4 @@ export const getSpansData = async (input: z.infer<typeof GetTraceStructureSchema
     output: span.output,
     errorEvents: span.events.filter(isErrorEvent),
   })).filter((span) => ids.includes(span.id));
-};
-
-export const getFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<Span[]> => {
-  const allData = await fetchFullTraceSpans(input);
-
-  return deduplicateSpanContent(allData);
 };
