@@ -1,6 +1,6 @@
 "use client";
 
-import { unionBy, uniqBy } from "lodash";
+import { uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useRef } from "react";
 import { createStore } from "zustand";
 
@@ -67,14 +67,19 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     setHasMore: (hasMore) => set({ hasMore }),
 
     appendData: (items, count) =>
-      set((state) => ({
-        data: unionBy(state.data, items, state.uniqueKey),
-        totalCount: count,
-        isFetching: false,
-        isLoading: false,
-        error: null,
-        hasMore: items.length >= state.pageSize,
-      })),
+      set((state) => {
+        const combined = [...state.data, ...items];
+        const uniqueData = uniqBy(combined, state.uniqueKey);
+
+        return {
+          data: uniqueData,
+          totalCount: count,
+          isFetching: false,
+          isLoading: false,
+          error: null,
+          hasMore: items.length >= state.pageSize,
+        };
+      }),
 
     replaceData: (items, count) =>
       set((state) => ({

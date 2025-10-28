@@ -35,7 +35,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
         <SidebarMenuItem className="m-0 px-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className={cn("flex items-center justify-center", { border: !open && !openMobile })}>
+              <SidebarMenuButton
+                className={cn("flex items-center justify-center bg-muted", { border: !open && !openMobile })}
+              >
                 <AnimatePresence mode="wait" initial={false}>
                   {!open && !openMobile ? (
                     <motion.span

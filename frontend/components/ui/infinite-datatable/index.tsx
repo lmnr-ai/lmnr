@@ -111,7 +111,7 @@ export function InfiniteDataTable<TData extends RowData>({
       },
       {
         root: scrollContainer,
-        rootMargin: "400px",
+        rootMargin: "420px",
         threshold: 0,
       }
     );
@@ -140,9 +140,8 @@ export function InfiniteDataTable<TData extends RowData>({
       {children && <div className={cn("flex items-center space-x-2 h-12", childrenClassName)}>{children}</div>}
       <ScrollArea ref={tableContainerRef} className={cn("flex max-h-full relative", scrollContentClassName)}>
         <Table
-          className="border-collapse border-spacing-0 rounded bg-secondary table-fixed"
+          className="grid border-collapse border-spacing-0 rounded bg-secondary"
           style={{
-            tableLayout: "fixed",
             width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
           }}
         >

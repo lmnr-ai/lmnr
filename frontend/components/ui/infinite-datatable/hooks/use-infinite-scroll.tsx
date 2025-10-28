@@ -1,7 +1,8 @@
 "use client";
 
 import { DependencyList, useCallback, useEffect } from "react";
-import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { useDataTableStore } from "../datatable-store";
 
@@ -14,15 +15,43 @@ export interface InfiniteScrollOptions<TData> {
 export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }: InfiniteScrollOptions<TData>) {
   const store = useDataTableStore<TData>();
 
-  const { data, totalCount, currentPage, isFetching, isLoading, error, hasMore } = useStore(store, (state) => ({
-    data: state.data,
-    totalCount: state.totalCount,
-    currentPage: state.currentPage,
-    isFetching: state.isFetching,
-    isLoading: state.isLoading,
-    error: state.error,
-    hasMore: state.hasMore,
-  }));
+  const { data, totalCount, currentPage, isFetching, isLoading, error, hasMore } = useStoreWithEqualityFn(
+    store,
+    (state) => ({
+      data: state.data,
+      totalCount: state.totalCount,
+      currentPage: state.currentPage,
+      isFetching: state.isFetching,
+      isLoading: state.isLoading,
+      error: state.error,
+      hasMore: state.hasMore,
+    }),
+    shallow
+  );
+
+  const {
+    setIsFetching,
+    setIsLoading,
+    setCurrentPage,
+    replaceData,
+    appendData,
+    setError,
+    setData,
+    resetInfiniteScroll,
+  } = useStoreWithEqualityFn(
+    store,
+    (state) => ({
+      setIsFetching: state.setIsFetching,
+      setIsLoading: state.setIsLoading,
+      setCurrentPage: state.setCurrentPage,
+      replaceData: state.replaceData,
+      appendData: state.appendData,
+      setData: state.setData,
+      setError: state.setError,
+      resetInfiniteScroll: state.resetInfiniteScroll,
+    }),
+    shallow
+  );
 
   const depsString = JSON.stringify(deps);
 
@@ -31,27 +60,26 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
       if (!enabled) return;
 
       try {
-        store.getState().setIsFetching(true);
+        setIsFetching(true);
         if (shouldReset) {
-          store.getState().setIsLoading(true);
+          setIsLoading(true);
         }
 
         const result = await fetchFn(pageNumber);
 
         if (shouldReset) {
-          store.getState().replaceData(result.items, result.count);
+          replaceData(result.items, result.count);
         } else {
-          store.getState().appendData(result.items, result.count);
+          appendData(result.items, result.count);
         }
-
-        store.getState().setCurrentPage(pageNumber);
+        setCurrentPage(pageNumber);
       } catch (err) {
-        store.getState().setError(err instanceof Error ? err : new Error("Failed to fetch data"));
-        store.getState().setIsFetching(false);
-        store.getState().setIsLoading(false);
+        setError(err instanceof Error ? err : new Error("Failed to fetch data"));
+        setIsFetching(false);
+        setIsLoading(false);
       }
     },
-    [fetchFn, enabled, store]
+    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError]
   );
 
   const fetchNextPage = useCallback(() => {
@@ -61,32 +89,17 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
   }, [isFetching, hasMore, currentPage, fetchPage]);
 
   const refetch = useCallback(() => {
-    store.getState().resetInfiniteScroll();
+    resetInfiniteScroll();
     fetchPage(0, true);
-  }, [fetchPage, store]);
+  }, [fetchPage]);
 
-  const updateData = useCallback(
-    (updater: (prevData: TData[]) => TData[]) => {
-      store.getState().setData(updater);
-    },
-    [store]
-  );
-
-  const setTotalCount = useCallback(
-    (countOrUpdater: number | ((prev: number) => number)) => {
-      if (typeof countOrUpdater === "function") {
-        const currentCount = store.getState().totalCount;
-        store.getState().setTotalCount(countOrUpdater(currentCount));
-      } else {
-        store.getState().setTotalCount(countOrUpdater);
-      }
-    },
-    [store]
-  );
+  const updateData = useCallback((updater: (prevData: TData[]) => TData[]) => {
+    setData(updater);
+  }, []);
 
   useEffect(() => {
     if (enabled) {
-      store.getState().resetInfiniteScroll();
+      resetInfiniteScroll();
       fetchPage(0, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,6 +116,5 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
     fetchNextPage,
     refetch,
     updateData,
-    setTotalCount,
   };
 }

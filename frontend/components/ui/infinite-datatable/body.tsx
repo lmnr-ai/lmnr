@@ -38,13 +38,14 @@ export function InfiniteDatatableBody<TData extends RowData>({
   return (
     <TableBody
       style={{
-        height: isLoading ? "auto" : `${rowVirtualizer.getTotalSize()}px`,
+        height: isLoading ? "auto" : `${rowVirtualizer.getTotalSize() > 0 ? rowVirtualizer.getTotalSize() : 52}px`,
         position: "relative",
+        display: "block",
       }}
     >
       {isLoading ? (
         (loadingRow ?? (
-          <tr>
+          <tr className="flex">
             <td colSpan={columns.length} className="w-full">
               <div className="flex flex-col w-full gap-y-2 p-2">
                 <Skeleton className="w-full h-8" />
@@ -69,22 +70,12 @@ export function InfiniteDatatableBody<TData extends RowData>({
               />
             );
           })}
-          {!isLoading && hasMore && (
-            <tr
-              ref={loadMoreRef}
-              style={{
-                height: 1,
-                visibility: "hidden",
-              }}
-            >
-              <td />
-            </tr>
-          )}
+          {!isLoading && hasMore && <tr className="absolute border-b-0 bottom-0" ref={loadMoreRef} />}
         </>
       ) : (
         (emptyRow ?? (
-          <TableRow>
-            <TableCell colSpan={columns.length} className="text-center p-4 text-secondary-foreground rounded-b">
+          <TableRow className="flex">
+            <TableCell colSpan={columns.length} className="text-center p-4 text-secondary-foreground rounded-b w-full">
               {searchParams.get("filter") !== null ? "Applied filters returned no results. " : "No results"}
               {searchParams.get("filter") !== null && (
                 <span className="text-primary hover:cursor-pointer" onClick={clearFilters}>
