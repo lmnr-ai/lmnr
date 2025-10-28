@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { SpanType } from "@/lib/clickhouse/types";
 import { convertToLocalTimeWithMillis } from "@/lib/utils";
 
-import { getFullTraceSpans, getSpansData, getTraceStructure } from "./spans";
+import { getSpansData, getTraceStructure } from "./spans";
 
 export const GetTraceStructureSchema = z.object({
   projectId: z.string(),
@@ -36,34 +36,6 @@ export const getTraceStructureAsYAML = async (input: z.infer<typeof GetTraceStru
 export const getSpansDataAsYAML = async (input: z.infer<typeof GetTraceStructureSchema>, ids: number[]): Promise<string> => {
   const spans = await getSpansData(input, ids);
   return YAML.stringify(spans);
-};
-
-export const getFullTraceForSummary = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<{ stringifiedSpans: string, spanIdsMap: Record<string, string> }> => {
-  const spans = await getFullTraceSpans(input);
-
-  const spanUuidToId = spans.reduce((acc, span, index) => {
-    acc[span.spanId] = index + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const spanIdsMap = Object.fromEntries(Object.entries(spanUuidToId).map(([uuid, id]) => [String(id), uuid]));
-
-  const strippedSpans = spans.map((span, index) => ({
-    id: index + 1,
-    input: span.type === "LLM" ? span.input : "",
-    output: span.type === "LLM" ? span.output : "",
-    parent: spanUuidToId[span.parent],
-    status: span.status,
-    name: span.name,
-    type: span.type,
-    start: span.start,
-    end: span.end,
-  }));
-
-  return {
-    stringifiedSpans: YAML.stringify(strippedSpans),
-    spanIdsMap,
-  };
 };
 
 // Re-export summary functionality
