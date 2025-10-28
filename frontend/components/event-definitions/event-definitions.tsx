@@ -52,7 +52,6 @@ function EventDefinitionsContent() {
 
   const {
     data: eventDefinitions,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
@@ -95,7 +94,6 @@ function EventDefinitionsContent() {
           isFetching={isFetching}
           isLoading={isLoading}
           fetchNextPage={fetchNextPage}
-          totalItemsCount={totalCount}
           estimatedRowHeight={41}
         />
       </div>

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
+import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { cn } from "@/lib/utils.ts";
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
@@ -83,7 +84,12 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-muted-foreground p-1">Projects</DropdownMenuLabel>
               {projects.map((project) => (
-                <Link key={project.id} passHref href={`/project/${project.id}/traces`}>
+                <Link
+                  key={project.id}
+                  passHref
+                  href={`/project/${project.id}/traces`}
+                  onClick={() => setLastProjectIdCookie(project.id)}
+                >
                   <DropdownMenuItem
                     className={cn("cursor-pointer", {
                       "bg-accent": project.id === projectId,

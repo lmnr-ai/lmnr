@@ -140,7 +140,6 @@ function EventsContentInner({
 
   const {
     data: events,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
@@ -281,7 +280,6 @@ function EventsContentInner({
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}
-            totalItemsCount={totalCount}
             childrenClassName="flex flex-col h-fit"
           >
             <div className="flex flex-1 w-full space-x-2">

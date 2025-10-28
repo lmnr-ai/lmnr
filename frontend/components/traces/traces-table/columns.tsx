@@ -48,6 +48,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "ID",
     accessorKey: "id",
     id: "id",
+    size: 150,
   },
   {
     accessorKey: "topSpanType",
