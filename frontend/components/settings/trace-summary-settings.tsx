@@ -3,15 +3,16 @@
 import { isEmpty } from "lodash";
 import { Loader2, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
 
@@ -22,7 +23,19 @@ interface SummaryTriggerSpan {
   projectId: string;
 }
 
-export default function TraceSummarySettings() {
+interface SlackIntegration {
+  id: string;
+  teamName: string | null;
+  createdAt: string;
+}
+
+export default function TraceSummarySettings({
+  slackClientId,
+  slackRedirectUri,
+}: {
+  slackClientId?: string;
+  slackRedirectUri?: string;
+}) {
   const { projectId } = useParams();
   const { toast } = useToast();
 
@@ -32,9 +45,32 @@ export default function TraceSummarySettings() {
     isLoading: isFetching,
   } = useSWR<SummaryTriggerSpan[]>(`/api/projects/${projectId}/summary-trigger-spans/unassigned`, swrFetcher);
 
+  const {
+    data: slackIntegration,
+    mutate: mutateSlack,
+    isLoading: isFetchingSlack,
+  } = useSWR<SlackIntegration | null>(`/api/projects/${projectId}/slack`, swrFetcher);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newSpanName, setNewSpanName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const slackURL = useMemo(() => {
+    if (!slackClientId || !slackRedirectUri) {
+      return;
+    }
+    const scope = ["chat:write", "channels:read", "groups:read", "mpim:read", "incoming-webhook"].join(",");
+
+    const sp = new URLSearchParams({
+      scope,
+      client_id: slackClientId,
+      state: projectId as string,
+      // TODO: uncomment
+      // redirect_uri: slackRedirectUri,
+      redirect_uri: `https://8d2649bade41.ngrok-free.app/api/integrations/slack`,
+    });
+    return `https://slack.com/oauth/v2/authorize?${sp}`;
+  }, [projectId, slackClientId, slackRedirectUri]);
 
   const addSpanName = useCallback(async () => {
     if (!newSpanName.trim()) return;
@@ -126,58 +162,91 @@ export default function TraceSummarySettings() {
   );
 
   return (
-    <SettingsSection>
-      <SettingsSectionHeader
-        title="Trace Summary"
-        description="Add span names that should trigger trace summary generation when they complete. Use name of span that ends last in your trace."
-      />
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogTrigger asChild>
-          <Button icon="plus" variant="outline" className="w-fit">
-            Span
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add span</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label>Name</Label>
-            <Input
-              autoFocus
-              placeholder="Enter span name..."
-              value={newSpanName}
-              onChange={(e) => setNewSpanName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newSpanName.trim() && !isLoading) {
-                  addSpanName();
-                }
-              }}
-              disabled={isLoading}
-            />
-          </div>
-          <DialogFooter>
-            <Button disabled={!newSpanName.trim() || isLoading} onClick={addSpanName} handleEnter>
-              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <SettingsTable isLoading={isFetching} isEmpty={isEmpty(triggerSpans)} emptyMessage="No trigger spans found.">
-        {triggerSpans.map((span) => (
-          <SettingsTableRow key={span.id}>
-            <td className="px-4 text-sm font-medium">{span.spanName}</td>
-            <td className="px-4">
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteSpanName(span.id)}>
-                  <Trash2 size={14} />
-                </Button>
+    <>
+      <SettingsSectionHeader title="Trace Summary" description="Configure trace summary." />
+      <div className="flex flex-col gap-8">
+        <SettingsSection>
+          <SettingsSectionHeader
+            title="Trigger spans"
+            description="Add span names that should trigger trace summary generation when they complete. Use name of span that ends last in your trace."
+            size="sm"
+          />
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button icon="plus" variant="outline" className="w-fit">
+                Span
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add span</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-2">
+                <Label>Name</Label>
+                <Input
+                  autoFocus
+                  placeholder="Enter span name..."
+                  value={newSpanName}
+                  onChange={(e) => setNewSpanName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newSpanName.trim() && !isLoading) {
+                      addSpanName();
+                    }
+                  }}
+                  disabled={isLoading}
+                />
               </div>
-            </td>
-          </SettingsTableRow>
-        ))}
-      </SettingsTable>
-    </SettingsSection>
+              <DialogFooter>
+                <Button disabled={!newSpanName.trim() || isLoading} onClick={addSpanName} handleEnter>
+                  {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Add
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <SettingsTable isLoading={isFetching} isEmpty={isEmpty(triggerSpans)} emptyMessage="No trigger spans found.">
+            {triggerSpans.map((span) => (
+              <SettingsTableRow key={span.id}>
+                <td className="px-4 text-sm font-medium">{span.spanName}</td>
+                <td className="px-4">
+                  <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteSpanName(span.id)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </td>
+              </SettingsTableRow>
+            ))}
+          </SettingsTable>
+        </SettingsSection>
+        <SettingsSection>
+          <SettingsSectionHeader
+            title="Slack Integration"
+            description="Add slackbot to receive announcements in slack."
+            size="sm"
+          />
+          <div className="flex items-center gap-2">
+            {isFetchingSlack ? (
+              <Skeleton className="h-8 w-full" />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {slackIntegration && (
+                  <p className={cn("text-xs", slackIntegration ? "text-success" : "text-secondary-foreground")}>
+                    Connected to {slackIntegration?.teamName || "Slack"}
+                  </p>
+                )}
+                {slackIntegration ? (
+                  <Button variant="destructive">Disconnect</Button>
+                ) : (
+                  <a href={slackURL}>
+                    <Button variant="outlinePrimary">Connect Slack</Button>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </SettingsSection>
+      </div>
+    </>
   );
 }

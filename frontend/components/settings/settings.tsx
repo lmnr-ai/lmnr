@@ -25,6 +25,8 @@ import TraceSummarySettings from "./trace-summary-settings";
 
 interface SettingsProps {
   apiKeys: ProjectApiKey[];
+  slackClientId?: string;
+  slackRedirectUri?: string;
 }
 
 type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace-summary";
@@ -38,7 +40,7 @@ const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
-export default function Settings({ apiKeys }: SettingsProps) {
+export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   const { workspace } = useProjectContext();
@@ -67,7 +69,7 @@ export default function Settings({ apiKeys }: SettingsProps) {
       case "provider-api-keys":
         return <ProviderApiKeys />;
       case "trace-summary":
-        return <TraceSummarySettings />;
+        return <TraceSummarySettings slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
     }
   };
 
