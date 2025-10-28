@@ -193,7 +193,6 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
 
   const {
     data: traces,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
@@ -223,7 +222,6 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       isFetching={isFetching}
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
-      totalItemsCount={totalCount}
     />
   );
 }

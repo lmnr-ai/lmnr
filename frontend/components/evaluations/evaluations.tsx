@@ -148,7 +148,6 @@ function EvaluationsContent() {
 
   const {
     data: evaluations,
-    totalCount,
     hasMore,
     isFetching,
     isLoading,
@@ -249,7 +248,6 @@ function EvaluationsContent() {
                 isFetching={isFetching}
                 isLoading={isLoading}
                 fetchNextPage={fetchNextPage}
-                totalItemsCount={totalCount}
                 estimatedRowHeight={41}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}

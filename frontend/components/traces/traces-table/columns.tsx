@@ -9,7 +9,7 @@ import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -116,25 +116,27 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     cell: (row) => {
       if (row.getValue() > 0) {
         return (
-          <Tooltip>
-            <TooltipTrigger asChild className="relative p-0">
-              <div className="truncate">{format.format(row.getValue())}</div>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Input cost</span>
-                    <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild className="relative p-0">
+                <div className="truncate">{format.format(row.getValue())}</div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border">
+                  <div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Input cost</span>
+                      <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+                    </div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Output cost</span>
+                      <span>{detailedFormat.format(row.row.original.outputCost)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Output cost</span>
-                    <span>{detailedFormat.format(row.row.original.outputCost)}</span>
-                  </div>
-                </div>
-              </TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
 

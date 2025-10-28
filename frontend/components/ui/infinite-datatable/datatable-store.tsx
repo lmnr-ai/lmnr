@@ -6,7 +6,6 @@ import { createStore } from "zustand";
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
-  totalCount: number;
   currentPage: number;
   isFetching: boolean;
   isLoading: boolean;
@@ -18,7 +17,6 @@ export interface InfiniteScrollState<TData> {
 
 export interface InfiniteScrollActions<TData> {
   setData: (updater: (prev: TData[]) => TData[]) => void;
-  setTotalCount: (count: number) => void;
   setCurrentPage: (page: number) => void;
   setIsFetching: (fetching: boolean) => void;
   setIsLoading: (loading: boolean) => void;
@@ -49,7 +47,6 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
 const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number = 50) =>
   createStore<DataTableStore<TData>>((set) => ({
     data: [],
-    totalCount: 0,
     currentPage: 0,
     isFetching: false,
     isLoading: false,
@@ -59,7 +56,6 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     pageSize,
 
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
-    setTotalCount: (totalCount) => set({ totalCount }),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
     setIsLoading: (isLoading) => set({ isLoading }),
@@ -73,7 +69,6 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
 
         return {
           data: uniqueData,
-          totalCount: count,
           isFetching: false,
           isLoading: false,
           error: null,
@@ -84,7 +79,6 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     replaceData: (items, count) =>
       set((state) => ({
         data: uniqBy(items, state.uniqueKey),
-        totalCount: count,
         isFetching: false,
         isLoading: false,
         error: null,
@@ -94,7 +88,6 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     resetInfiniteScroll: () =>
       set((state) => ({
         data: [],
-        totalCount: 0,
         currentPage: 0,
         isFetching: false,
         isLoading: false,
