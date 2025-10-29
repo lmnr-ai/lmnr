@@ -713,10 +713,11 @@ fn main() -> anyhow::Result<()> {
                     for _ in 0..num_notification_workers {
                         let worker_handle =
                             worker_tracker_clone.register_worker(WorkerType::Notifications);
+                        let db_clone = db_for_consumer.clone();
                         let mq_clone = mq_for_consumer.clone();
                         tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_notifications(mq_clone).await;
+                            let _handle = worker_handle;
+                            process_notifications(db_clone, mq_clone).await;
                         });
                     }
 

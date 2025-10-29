@@ -1,5 +1,5 @@
 use sodiumoxide::{
-    crypto::aead::xchacha20poly1305_ietf::{gen_nonce, seal, Key},
+    crypto::aead::xchacha20poly1305_ietf::{Key, gen_nonce, seal},
     hex,
 };
 

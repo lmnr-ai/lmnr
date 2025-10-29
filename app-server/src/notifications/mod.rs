@@ -5,10 +5,13 @@ use backoff::ExponentialBackoffBuilder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::db::DB;
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
     MessageQueueTrait,
 };
+
+mod slack;
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
@@ -62,14 +65,14 @@ pub async fn push_to_notification_queue(
 }
 
 /// Main worker function to process notification messages
-pub async fn process_notifications(queue: Arc<MessageQueue>) {
+pub async fn process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
     loop {
-        inner_process_notifications(queue.clone()).await;
+        inner_process_notifications(db.clone(), queue.clone()).await;
         log::warn!("Notification listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_notifications(queue: Arc<MessageQueue>) {
+async fn inner_process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -124,8 +127,7 @@ async fn inner_process_notifications(queue: Arc<MessageQueue>) {
                 }
             };
 
-        // Process the notification
-        if let Err(e) = process_single_notification(notification_message, acker).await {
+        if let Err(e) = process_single_notification(&db.pool, notification_message, acker).await {
             log::error!("Failed to process notification: {:?}", e);
         }
     }
@@ -134,6 +136,7 @@ async fn inner_process_notifications(queue: Arc<MessageQueue>) {
 }
 
 async fn process_single_notification(
+    pool: &sqlx::PgPool,
     message: NotificationMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
@@ -146,11 +149,52 @@ async fn process_single_notification(
         message.event_name
     );
 
-    // TODO: Implement actual notification processing logic here
+    let result = match message.notification_type.as_str() {
+        "slack" => {
+            let payload: TraceAnalysisPayload = serde_json::from_value(message.payload.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to parse TraceAnalysisPayload: {}", e))?;
 
-    // Acknowledge the message
-    if let Err(e) = acker.ack().await {
-        log::error!("Failed to ack notification message: {:?}", e);
+            let integration =
+                crate::db::slack_integrations::get_integration_by_id(pool, &payload.integration_id)
+                    .await?;
+
+            if let Some(integration) = integration {
+                let decrypted_token = slack::decode_slack_token(
+                    &integration.team_id,
+                    &integration.nonce_hex,
+                    &integration.token,
+                )?;
+
+                slack::send_message(&decrypted_token, &payload.channel_id, &payload).await?;
+
+                log::info!(
+                    "Successfully sent Slack notification for trace_id={} to channel={}",
+                    message.trace_id,
+                    payload.channel_id
+                );
+            }
+
+            Ok(())
+        }
+        _ => {
+            log::warn!("Unknown notification type: {}", message.notification_type);
+            Ok(())
+        }
+    };
+
+    match result {
+        Ok(_) => {
+            if let Err(e) = acker.ack().await {
+                log::error!("Failed to ack notification message: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!("Error processing notification: {:?}", e);
+            if let Err(e) = acker.reject(false).await {
+                log::error!("Failed to reject notification message: {:?}", e);
+            }
+            return Err(e);
+        }
     }
 
     Ok(())
