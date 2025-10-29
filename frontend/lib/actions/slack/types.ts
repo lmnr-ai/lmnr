@@ -11,12 +11,14 @@ const SlackOauthSuccessResponseSchema = z.object({
     name: z.string(),
   }),
   bot_user_id: z.string(),
-  incoming_webhook: z.object({
-    url: z.string(),
-    channel: z.string(),
-    channel_id: z.string(),
-    configuration_url: z.string(),
-  }).optional(),
+  incoming_webhook: z
+    .object({
+      url: z.string(),
+      channel: z.string(),
+      channel_id: z.string(),
+      configuration_url: z.string(),
+    })
+    .optional(),
 });
 
 const SlackOauthErrorResponseSchema = z.object({
@@ -40,10 +42,7 @@ const SlackTokensRevokedEventSchema = z.object({
   }),
 });
 
-export const SlackEventSchema = z.union([
-  SlackAppUninstalledEventSchema,
-  SlackTokensRevokedEventSchema,
-]);
+export const SlackEventSchema = z.union([SlackAppUninstalledEventSchema, SlackTokensRevokedEventSchema]);
 
 export const SlackUrlVerificationRequestSchema = z.object({
   type: z.literal("url_verification"),
@@ -80,13 +79,3 @@ export const SlackSlashCommandSchema = z.object({
 });
 
 export const SlackWebhookRequestSchema = z.union([SlackUrlVerificationRequestSchema, SlackEventCallbackSchema]);
-
-// Type exports
-export type SlackOauthResponse = z.infer<typeof SlackOauthResponseSchema>;
-export type SlackEvent = z.infer<typeof SlackEventSchema>;
-export type SlackAppUninstalledEvent = z.infer<typeof SlackAppUninstalledEventSchema>;
-export type SlackTokensRevokedEvent = z.infer<typeof SlackTokensRevokedEventSchema>;
-export type SlackUrlVerificationRequest = z.infer<typeof SlackUrlVerificationRequestSchema>;
-export type SlackEventCallback = z.infer<typeof SlackEventCallbackSchema>;
-export type SlackWebhookRequest = z.infer<typeof SlackWebhookRequestSchema>;
-export type SlackSlashCommand = z.infer<typeof SlackSlashCommandSchema>;
