@@ -65,9 +65,7 @@ export default function TraceSummarySettings({
       scope,
       client_id: slackClientId,
       state: projectId as string,
-      // TODO: uncomment
-      // redirect_uri: slackRedirectUri,
-      redirect_uri: `https://780ecb5b4527.ngrok-free.app/api/integrations/slack`,
+      redirect_uri: slackRedirectUri,
     });
     return `https://slack.com/oauth/v2/authorize?${sp}`;
   }, [projectId, slackClientId, slackRedirectUri]);

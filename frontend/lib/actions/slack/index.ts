@@ -46,9 +46,7 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
   if (!clientId || !clientSecret) {
     throw new Error("No client id/secret provided.");
   }
-  // TODO: uncomment
-  // const redirectUri = `${process.env.NEXT_PUBLIC_URL}/integrations/slack`;
-  const redirectUri = `https://780ecb5b4527.ngrok-free.app/api/integrations/slack`;
+  const redirectUri = `${process.env.NEXT_PUBLIC_URL}/api/integrations/slack`;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
