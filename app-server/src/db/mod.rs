@@ -59,7 +59,7 @@ fn get_pg_connect_options() -> anyhow::Result<sqlx::postgres::PgConnectOptions> 
 fn options_from_database_url(
     database_url: &str,
 ) -> anyhow::Result<sqlx::postgres::PgConnectOptions> {
-    let re = Regex::new(r"^postgres(?:ql)://([^:]+):([^@]+)@([^:]+):(\d*)/(.+)$").unwrap();
+    let re = Regex::new(r"^postgres(?:ql)?g://([^:]+):([^@]+)@([^:]+):(\d*)/(.+)$").unwrap();
     let caps = re.captures(database_url).expect("Invalid database URL");
     let username = caps.get(1).map(|m| m.as_str()).unwrap_or("postgres");
     let password = caps
