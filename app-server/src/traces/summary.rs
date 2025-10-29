@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 
@@ -17,6 +18,16 @@ pub struct TraceSummaryMessage {
     pub project_id: Uuid,
     pub trigger_span_id: Uuid,
     pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceSummaryResponse {
+    pub summary: String,
+    pub status: String,
+    pub analysis: String,
+    pub analysis_preview: String,
+    pub span_ids_map: HashMap<String, String>,
 }
 
 /// Push a trace completion message to the trace summary queue
@@ -137,68 +148,165 @@ async fn process_single_trace_summary(
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    let summarizer_service_url = if let Ok(url) = env::var("TRACE_SUMMARIZER_URL") {
-        url
+    // Route to appropriate service based on whether event_definition is present
+    if message.event_definition.is_some() {
+        process_event_identification(client, message, acker).await
     } else {
-        log::error!("TRACE_SUMMARIZER_URL environment variable not set");
-        if let Err(e) = acker.reject(false).await {
-            log::error!("Failed to reject trace summary message: {:?}", e);
+        process_trace_summary(client, message, acker).await
+    }
+}
+
+/// Process trace summary generation (without event definition)
+async fn process_trace_summary(
+    client: &reqwest::Client,
+    message: TraceSummaryMessage,
+    acker: MessageQueueAcker,
+) -> anyhow::Result<()> {
+    let service_url = match env::var("TRACE_SUMMARIZER_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_URL environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
         }
-        return Ok(());
     };
 
-    let auth_token = if let Ok(token) = env::var("TRACE_SUMMARIZER_SECRET_KEY") {
-        token
-    } else {
-        log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
-        if let Err(e) = acker.reject(false).await {
-            log::error!("Failed to reject trace summary message: {:?}", e);
+    let auth_token = match env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        Ok(token) => token,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
         }
-        return Ok(());
     };
 
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
         "trigger_span_id": message.trigger_span_id.to_string(),
-        "event_definition": message.event_definition.as_ref().map(|ed| serde_json::to_value(ed).unwrap())
     });
 
-    let call_summarizer_service = || async {
+    match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
+    {
+        Ok(_) => {
+            if let Err(e) = acker.ack().await {
+                log::error!("Failed to ack trace summary message: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to process trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
+                message.trace_id,
+                message.project_id,
+                message.trigger_span_id,
+                e
+            );
+            reject_message(&acker).await;
+        }
+    }
+
+    Ok(())
+}
+
+/// Process event identification (with event definition)
+async fn process_event_identification(
+    client: &reqwest::Client,
+    message: TraceSummaryMessage,
+    acker: MessageQueueAcker,
+) -> anyhow::Result<()> {
+    let event_definition = message
+        .event_definition
+        .as_ref()
+        .expect("event_definition should be Some");
+
+    let service_url = match env::var("TRACE_EVENT_IDENTIFIER_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            log::error!("TRACE_EVENT_IDENTIFIER_URL environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
+        }
+    };
+
+    let auth_token = match env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        Ok(token) => token,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
+        }
+    };
+
+    let request_body = serde_json::json!({
+        "project_id": message.project_id.to_string(),
+        "trace_id": message.trace_id.to_string(),
+        "trigger_span_id": message.trigger_span_id.to_string(),
+        "event_definition": serde_json::to_value(event_definition).unwrap(),
+    });
+
+    match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
+    {
+        Ok(_response_text) => {
+            if let Err(e) = acker.ack().await {
+                log::error!("Failed to ack event identification message: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to process event identification after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
+                message.trace_id,
+                message.project_id,
+                message.trigger_span_id,
+                e
+            );
+            reject_message(&acker).await;
+        }
+    }
+
+    Ok(())
+}
+
+/// Helper function to call service with retry logic
+/// Returns the response text on success, or an error on failure
+async fn call_service_with_retry(
+    client: &reqwest::Client,
+    service_url: &str,
+    auth_token: &str,
+    request_body: &serde_json::Value,
+    message: &TraceSummaryMessage,
+) -> anyhow::Result<String> {
+    let call_service = || async {
         let response = client
-            .post(&summarizer_service_url)
+            .post(service_url)
             .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
-            .json(&request_body)
+            .json(request_body)
             .send()
             .await
             .map_err(|e| {
-                log::warn!(
-                    "Failed to call summarizer service for trace summary: {:?}",
-                    e
-                );
+                log::warn!("Failed to call service: {:?}", e);
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
         if response.status().is_success() {
             let response_text = response.text().await.unwrap_or_default();
             log::debug!(
-                "Summarizer service response for trace_id={}, project_id={}: {}",
+                "Service response for trace_id={}, project_id={}: {}",
                 message.trace_id,
                 message.project_id,
                 response_text
             );
-            Ok(())
+            Ok(response_text)
         } else {
             let status = response.status();
             let response_text = response.text().await.unwrap_or_default();
             log::warn!(
-                "Summarizer service returned error status for trace summary: {}, Response: {}",
+                "Service returned error status: {}, Response: {}",
                 status,
                 response_text
             );
             Err(backoff::Error::transient(anyhow::anyhow!(
-                "Summarizer service error: {}, Response: {}",
+                "Service error: {}, Response: {}",
                 status,
                 response_text
             )))
@@ -208,28 +316,17 @@ async fn process_single_trace_summary(
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_max_interval(std::time::Duration::from_secs(30))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(60 * 5))) // 5 minutes max
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(60))) // 1 minute max
         .build();
 
-    match backoff::future::retry(backoff, call_summarizer_service).await {
-        Ok(_) => {
-            if let Err(e) = acker.ack().await {
-                log::error!("Failed to ack trace summary message: {:?}", e);
-            }
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to generate trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
-                message.trace_id,
-                message.project_id,
-                message.trigger_span_id,
-                e
-            );
-            if let Err(e) = acker.reject(false).await {
-                log::error!("Failed to reject trace summary message: {:?}", e);
-            }
-        }
-    }
+    backoff::future::retry(backoff, call_service)
+        .await
+        .map_err(Into::into)
+}
 
-    Ok(())
+/// Helper function to reject a message
+async fn reject_message(acker: &MessageQueueAcker) {
+    if let Err(e) = acker.reject(false).await {
+        log::error!("Failed to reject message: {:?}", e);
+    }
 }

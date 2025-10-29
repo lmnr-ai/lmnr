@@ -321,7 +321,7 @@ ${analysis}`;
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 top-1 h-7 w-7 rounded-full border bg-primary"
+                className="absolute right-1 top-0 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
                 disabled={input.trim() === "" || summary === null || status === "streaming"}
                 onClick={() => {
