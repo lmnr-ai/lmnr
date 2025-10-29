@@ -68,7 +68,7 @@ fn options_from_database_url(
         .as_str();
     let host = caps
         .get(3)
-        .ok_or(anyhow::anyhow!("Invalid database URL. Can't find port"))?
+        .ok_or(anyhow::anyhow!("Invalid database URL. Can't find host"))?
         .as_str();
     let port = caps
         .get(4)
