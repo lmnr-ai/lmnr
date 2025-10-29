@@ -55,17 +55,10 @@ const getDatabaseConfigFromEnv = (): DatabaseConfig => {
   const port = env.DATABASE_PORT ? parseInt(env.DATABASE_PORT) : 5432;
   const database = env.DATABASE_DATABASE || username;
 
-  if (!password) {
-    throw new Error('DATABASE_PASSWORD is required');
-  }
-  if (!host) {
-    throw new Error('DATABASE_HOST is required');
-  }
-
   return {
     username,
-    password,
-    host,
+    password: password || '',
+    host: host || '',
     port,
     database
   };
