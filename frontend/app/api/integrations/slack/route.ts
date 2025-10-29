@@ -19,12 +19,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL}/sign-in?callbackUrl=/project/${projectId}/settings`);
   }
 
-  const result = await connectSlackIntegration({ code, projectId });
-
-  if (result.success) {
+  try {
+    await connectSlackIntegration({ code, projectId });
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?slack=success`);
-  } else {
-    console.error("Slack OAuth error:", result.error);
+  } catch (e) {
+    console.error(e);
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?slack=error`);
   }
 }

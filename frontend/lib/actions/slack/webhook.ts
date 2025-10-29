@@ -1,11 +1,8 @@
 import crypto from "crypto";
-import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { createSlackChannelIntegration, deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
+import { deleteSlackIntegration } from "@/lib/actions/slack/index.ts";
 import { SlackEventSchema } from "@/lib/actions/slack/types.ts";
-import { db } from "@/lib/db/drizzle";
-import { slackIntegrations } from "@/lib/db/migrations/schema";
 
 const VerifySlackRequestSchema = z.object({
   body: z.string(),
@@ -61,33 +58,7 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
       break;
 
     case "tokens_revoked":
-      console.log(`Tokens revoked for team ${teamId}`);
       await deleteSlackIntegration({ teamId });
-      break;
-
-    case "member_joined_channel":
-      const integration = await db.query.slackIntegrations.findFirst({
-        where: eq(slackIntegrations.teamId, teamId),
-        columns: { projectId: true },
-      });
-
-      if (!integration) {
-        console.error(`No integration found for team ${teamId} to create channel integration`);
-        break;
-      }
-
-      await createSlackChannelIntegration({
-        projectId: integration.projectId,
-        teamId,
-        channelId: event.channel,
-      });
-      break;
-
-    case "member_left_channel":
-      await deleteSlackIntegration({
-        teamId,
-        channelId: event.channel,
-      });
       break;
 
     default:

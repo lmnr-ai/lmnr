@@ -6,13 +6,14 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
 
@@ -45,11 +46,10 @@ export default function TraceSummarySettings({
     isLoading: isFetching,
   } = useSWR<SummaryTriggerSpan[]>(`/api/projects/${projectId}/summary-trigger-spans/unassigned`, swrFetcher);
 
-  const {
-    data: slackIntegration,
-    mutate: mutateSlack,
-    isLoading: isFetchingSlack,
-  } = useSWR<SlackIntegration | null>(`/api/projects/${projectId}/slack`, swrFetcher);
+  const { data: slackIntegration, isLoading: isFetchingSlack } = useSWR<SlackIntegration | null>(
+    `/api/projects/${projectId}/slack`,
+    swrFetcher
+  );
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newSpanName, setNewSpanName] = useState("");
@@ -59,7 +59,7 @@ export default function TraceSummarySettings({
     if (!slackClientId || !slackRedirectUri) {
       return;
     }
-    const scope = ["chat:write", "channels:read", "groups:read", "mpim:read", "incoming-webhook"].join(",");
+    const scope = ["chat:write", "channels:read", "groups:read", "commands", "mpim:read"].join(",");
 
     const sp = new URLSearchParams({
       scope,
@@ -67,7 +67,7 @@ export default function TraceSummarySettings({
       state: projectId as string,
       // TODO: uncomment
       // redirect_uri: slackRedirectUri,
-      redirect_uri: `https://8d2649bade41.ngrok-free.app/api/integrations/slack`,
+      redirect_uri: `https://780ecb5b4527.ngrok-free.app/api/integrations/slack`,
     });
     return `https://slack.com/oauth/v2/authorize?${sp}`;
   }, [projectId, slackClientId, slackRedirectUri]);
@@ -227,22 +227,15 @@ export default function TraceSummarySettings({
           />
           <div className="flex items-center gap-2">
             {isFetchingSlack ? (
-              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-32" />
+            ) : slackIntegration ? (
+              <Badge className="py-1.5 border-success bg-success/80" variant="outline">
+                Connected
+              </Badge>
             ) : (
-              <div className="flex flex-col gap-2">
-                {slackIntegration && (
-                  <p className={cn("text-xs", slackIntegration ? "text-success" : "text-secondary-foreground")}>
-                    Connected to {slackIntegration?.teamName || "Slack"}
-                  </p>
-                )}
-                {slackIntegration ? (
-                  <Button variant="destructive">Disconnect</Button>
-                ) : (
-                  <a href={slackURL}>
-                    <Button variant="outlinePrimary">Connect Slack</Button>
-                  </a>
-                )}
-              </div>
+              <a href={slackURL}>
+                <Button variant="outlinePrimary">Connect</Button>
+              </a>
             )}
           </div>
         </SettingsSection>

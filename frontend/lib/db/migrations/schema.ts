@@ -66,7 +66,6 @@ export const slackIntegrations = pgTable(
     teamName: text("team_name"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     nonceHex: text("nonce_hex").notNull(),
-    channelId: text("channel_id").notNull(),
   },
   (table) => [
     foreignKey({
@@ -74,6 +73,31 @@ export const slackIntegrations = pgTable(
       foreignColumns: [projects.id],
       name: "slack_integrations_project_id_fkey",
     }).onDelete("cascade"),
+    unique("slack_integrations_project_id_key").on(table.projectId),
+  ]
+);
+
+export const slackChannelToEvents = pgTable(
+  "slack_channel_to_events",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    channelId: text("channel_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    eventName: text("event_name").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_to_events_integration_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_channel_to_events_integration_channel_event_key").on(
+      table.channelId,
+      table.eventName,
+      table.integrationId
+    ),
   ]
 );
 

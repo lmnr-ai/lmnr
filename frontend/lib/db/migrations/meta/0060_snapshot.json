@@ -1,5 +1,5 @@
 {
-  "id": "60428385-c29b-4c4c-b710-0824e7243714",
+  "id": "6984654e-711e-421d-8e59-2c56694592fa",
   "prevId": "796ce0a9-dee4-4c2e-83dd-cc58277fb6d5",
   "version": "7",
   "dialect": "postgresql",
@@ -1771,6 +1771,81 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.slack_channel_to_events": {
+      "name": "slack_channel_to_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integration_id": {
+          "name": "integration_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "slack_channel_to_events_integration_id_fkey": {
+          "name": "slack_channel_to_events_integration_id_fkey",
+          "tableFrom": "slack_channel_to_events",
+          "tableTo": "slack_integrations",
+          "columnsFrom": [
+            "integration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "slack_channel_to_events_integration_channel_event_key": {
+          "name": "slack_channel_to_events_integration_channel_event_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "channel_id",
+            "event_name",
+            "integration_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.slack_integrations": {
       "name": "slack_integrations",
       "schema": "",
@@ -1818,12 +1893,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {},
@@ -1843,7 +1912,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "slack_integrations_project_id_key": {
+          "name": "slack_integrations_project_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

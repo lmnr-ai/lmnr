@@ -1,12 +1,13 @@
 import { relations } from "drizzle-orm/relations";
 
-import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackIntegrations, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
-export const slackIntegrationsRelations = relations(slackIntegrations, ({one}) => ({
+export const slackIntegrationsRelations = relations(slackIntegrations, ({one, many}) => ({
   project: one(projects, {
     fields: [slackIntegrations.projectId],
     references: [projects.id]
   }),
+  slackChannelToEvents: many(slackChannelToEvents),
 }));
 
 export const projectsRelations = relations(projects, ({one, many}) => ({
@@ -38,6 +39,13 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   traces: many(traces),
   tagClasses: many(tagClasses),
   spans: many(spans),
+}));
+
+export const slackChannelToEventsRelations = relations(slackChannelToEvents, ({one}) => ({
+  slackIntegration: one(slackIntegrations, {
+    fields: [slackChannelToEvents.integrationId],
+    references: [slackIntegrations.id]
+  }),
 }));
 
 export const datasetsRelations = relations(datasets, ({one, many}) => ({
