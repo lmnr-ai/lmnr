@@ -19,7 +19,5 @@ CREATE TABLE "slack_integrations" (
 	CONSTRAINT "slack_integrations_project_id_key" UNIQUE("project_id")
 );
 --> statement-breakpoint
-ALTER TABLE "project_settings" ALTER COLUMN "project_id" DROP DEFAULT;--> statement-breakpoint
 ALTER TABLE "slack_channel_to_events" ADD CONSTRAINT "slack_channel_to_events_integration_id_fkey" FOREIGN KEY ("integration_id") REFERENCES "public"."slack_integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "slack_integrations" ADD CONSTRAINT "slack_integrations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "event_definitions" ADD CONSTRAINT "event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
