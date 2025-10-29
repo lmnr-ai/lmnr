@@ -218,7 +218,7 @@ const buildHavingClause = (options: HavingClauseOptions): QueryResult => {
 export interface SelectQueryOptions extends WhereClauseOptions, HavingClauseOptions {
   select: SelectOptions;
   groupBy?: string[];
-  orderBy?: OrderByOptions;
+  orderBy?: OrderByOptions[];
   pagination?: PaginationOptions;
 }
 
@@ -241,8 +241,13 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
     query += ` ${havingResult.query}`;
   }
 
-  if (orderBy) {
-    query += ` ORDER BY ${orderBy.column} ${orderBy.direction || "DESC"}`;
+  if (orderBy && orderBy.length > 0) {
+    query += " ORDER BY ";
+    for (const orderByOption of orderBy) {
+      query += `${orderByOption.column} ${orderByOption.direction || "DESC"}, `;
+    }
+    // remove the last comma and space
+    query = query.replace(/,\s*$/, "");
   }
 
   const allParams = { ...whereResult.parameters, ...havingResult.parameters };

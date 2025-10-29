@@ -10,7 +10,7 @@ export default function NotFound() {
         href={'/projects'}
         className="flex h-10 mb-8 items-center justify-center"
       >
-        <Image alt="Laminar AI icon" src={icon} width={80} />
+        <Image alt="Laminar icon" src={icon} width={80} />
       </Link>
       <h1 className="mb-4 text-lg">Page not found</h1>
     </div>

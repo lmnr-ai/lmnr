@@ -23,7 +23,6 @@ import {
   ListFilter,
   Loader2,
   LogOut,
-  LucideIcon,
   Minus,
   MoreHorizontal,
   PanelLeft,
@@ -32,6 +31,7 @@ import {
   PlayIcon,
   Plus,
   Rows2,
+  Rows4,
   Search,
   Settings,
   SlidersHorizontal,
@@ -77,7 +77,7 @@ const buttonVariants = cva(
   }
 );
 
-const iconMap: Record<string, LucideIcon> = {
+const iconMap = {
   plus: Plus,
   close: X,
   braces: Braces,
@@ -120,6 +120,7 @@ const iconMap: Record<string, LucideIcon> = {
   chart: ChartNoAxesGantt,
   filter: ListFilter,
   minus: Minus,
+  rows4: Rows4,
 };
 
 type HandledKey = {
@@ -130,7 +131,7 @@ type HandledKey = {
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment

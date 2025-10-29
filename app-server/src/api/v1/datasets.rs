@@ -68,7 +68,10 @@ async fn get_datapoints(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateDatapointsRequest {
+    // The alias is added to support the old endpoint (dataset_name)
+    #[serde(alias = "dataset_name")]
     pub dataset_name: String,
     pub datapoints: Vec<CreateDatapointRequest>,
 }
@@ -119,7 +122,8 @@ async fn create_datapoints(
         .datapoints
         .into_iter()
         .map(|dp_req| Datapoint {
-            id: Uuid::new_v4(),
+            // now_v7 is guaranteed to be sorted by creation time
+            id: Uuid::now_v7(),
             dataset_id,
             data: dp_req.data,
             target: dp_req.target,

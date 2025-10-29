@@ -52,7 +52,7 @@ const downloadImage = async (
   if (payloadId) {
     const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, "image");
     return {
-      blob: new Blob([bytes]),
+      blob: new Blob([Buffer.from(bytes)]),
       mediaType: headers.get("Content-Type") || undefined,
     };
   }

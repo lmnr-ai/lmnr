@@ -145,10 +145,10 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     filters,
     columnFilterConfig: spansColumnFilterConfig,
     customConditions,
-    orderBy: {
+    orderBy: [{
       column: "start_time",
       direction: "DESC",
-    },
+    }],
     ...(!isNil(limit) &&
       !isNil(offset) && {
       pagination: {

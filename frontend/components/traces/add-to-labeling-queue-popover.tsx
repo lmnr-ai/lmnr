@@ -25,6 +25,8 @@ interface AddToLabelingQueuePopoverProps {
   datapointIds?: string[];
   datasetId?: string;
   spanId?: string;
+  buttonVariant?: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive";
+  buttonSize?: "default" | "sm" | "lg" | "icon";
 }
 
 export default function AddToLabelingQueuePopover({
@@ -32,6 +34,8 @@ export default function AddToLabelingQueuePopover({
   datapointIds,
   datasetId,
   spanId,
+  buttonVariant = "secondary",
+  buttonSize = "sm",
   children,
 }: PropsWithChildren<AddToLabelingQueuePopoverProps>) {
   const [selectedQueue, setSelectedQueue] = useState<string>("");
@@ -126,7 +130,7 @@ export default function AddToLabelingQueuePopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {children || (
-          <Button size="sm" icon="pen" className="w-fit" variant="secondary">
+          <Button size={buttonSize} icon="pen" className="w-fit" variant={buttonVariant}>
             <span className="text-xs truncate block min-w-0">Add to labeling queue</span>
           </Button>
         )}

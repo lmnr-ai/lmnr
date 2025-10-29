@@ -1,8 +1,8 @@
 import { type NextRequest } from 'next/server';
 import Papa from 'papaparse';
-import { v4 as uuidv4 } from 'uuid';
 
 import { createDatapoints } from '@/lib/clickhouse/datapoints';
+import { generateSequentialUuidsV7 } from '@/lib/utils';
 
 // 25MB file size limit
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -106,14 +106,16 @@ export async function POST(
       return Response.json({ error: 'No valid records found in file' }, { status: 400 });
     }
 
+    const ids = generateSequentialUuidsV7(records.length);
+
     // Prepare datapoints for ClickHouse
-    const datapointsWithIds = records.map((record) => {
+    const datapointsWithIds = records.map((record, index) => {
       // Extract data, target, and metadata from the record
       // If record has these specific keys, use them; otherwise put everything in data
       const { data, target, metadata, ...rest } = record;
 
       return {
-        id: uuidv4(),
+        id: ids[index],
         data: data !== undefined ? data : (Object.keys(rest).length > 0 ? rest : record),
         target: target || {},
         metadata: metadata || {},

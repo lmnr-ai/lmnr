@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
@@ -31,12 +31,19 @@ interface DatasetProps {
   publicApiBaseUrl?: string;
 }
 
+const FETCH_SIZE = 50;
+
 const columns: ColumnDef<Datapoint>[] = [
   {
+    cell: ({ row }) => <div>{row.index + 1}</div>,
+    header: "Index",
+    size: 80,
+  },
+  {
     accessorKey: "createdAt",
-    header: "Created at",
+    header: "Updated at",
     size: 150,
-    cell: (row) => <ClientTimestampFormatter timestamp={String(`${row.getValue()}Z`)} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
   },
   {
     accessorFn: (row) => row.data,
@@ -65,11 +72,34 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const { projectId } = useParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();
+  const [totalCount, setTotalCount] = useState(0);
+
+  const fetchCount = useCallback(async () => {
+    const url = `/api/projects/${projectId}/datasets/${dataset.id}/count`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch count");
+    }
+
+    const data = await res.json();
+    return data.totalCount;
+  }, [projectId, dataset.id, toast]);
+
+  useEffect(() => {
+    fetchCount().then((count) => {
+      setTotalCount(count);
+    });
+  }, [fetchCount]);
 
   const datapointId = searchParams.get("datapointId");
   const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(null);
-
-  const FETCH_SIZE = 50;
+  const [isEditingDatapoint, setIsEditingDatapoint] = useState(false);
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
@@ -131,17 +161,22 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     [pathName, router, searchParams]
   );
 
-  const handlePanelClose = useCallback(
-    (updatedDatapoint?: Datapoint) => {
-      if (updatedDatapoint) {
-        updateData((currentData) =>
-          currentData.map((datapoint) => (datapoint.id === updatedDatapoint.id ? updatedDatapoint : datapoint))
-        );
-      }
+  const handleDatapointUpdate = useCallback(
+    (updatedDatapoint: Datapoint) => {
+      // Update the datapoint in the table in place
+      updateData((currentData) =>
+        currentData.map((datapoint) => (datapoint.id === updatedDatapoint.id ? updatedDatapoint : datapoint))
+      );
+    },
+    [updateData]
+  );
 
+  const handlePanelClose = useCallback(
+    () => {
+      setIsEditingDatapoint(false);
       handleDatapointSelect(null);
     },
-    [updateData, handleDatapointSelect]
+    [handleDatapointSelect]
   );
 
   const handleDeleteDatapoints = useCallback(
@@ -179,7 +214,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         });
       }
     },
-    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData, refetch]
+    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData]
   );
 
   const revalidateDatapoints = useCallback(() => {
@@ -198,7 +233,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   return (
     <>
       <Header path={"datasets/" + dataset.name} />
-      <div className="flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1">
+      <div className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
+        "pointer-events-none opacity-60": isEditingDatapoint
+      })}>
         <div className="flex flex-wrap items-end gap-2">
           <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
@@ -264,6 +301,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             )}
           />
         </div>
+        <div className="flex text-secondary-foreground text-sm">
+          {totalCount} datapoints
+        </div>
       </div>
 
       {selectedDatapoint && (
@@ -273,11 +313,17 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               left: true,
             }}
             defaultSize={{
-              width: 800,
+              width: 1000,
             }}
           >
             <div className="w-full h-full flex">
-              <DatasetPanel datasetId={dataset.id} datapointId={selectedDatapoint.id} onClose={handlePanelClose} />
+              <DatasetPanel
+                datasetId={dataset.id}
+                datapointId={selectedDatapoint.id}
+                onClose={handlePanelClose}
+                onEditingStateChange={setIsEditingDatapoint}
+                onDatapointUpdate={handleDatapointUpdate}
+              />
             </div>
           </Resizable>
         </div>

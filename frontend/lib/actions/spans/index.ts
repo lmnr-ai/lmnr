@@ -62,10 +62,10 @@ function buildTraceSubquery({
         params: { traceType: "DEFAULT" },
       },
     ],
-    orderBy: {
+    orderBy: [{
       column: "start_time",
       direction: "DESC" as const,
-    },
+    }],
   };
 
   const { query, parameters } = buildSelectQuery(queryOptions);

@@ -157,7 +157,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
       <div className="flex flex-col h-full w-full overflow-hidden">
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
           <Link className="mr-2" href="/projects">
-            <Image alt="Laminar AI logo" src={fullLogo} width={120} height={20} />
+            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
           </Link>
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">

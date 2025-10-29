@@ -50,15 +50,3 @@ export async function PATCH(
     );
   }
 }
-
-export async function DELETE(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
-  await db.delete(datasets).where(and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)));
-
-  return new Response("Dataset deleted successfully", { status: 200 });
-}
