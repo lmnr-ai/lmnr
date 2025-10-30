@@ -92,9 +92,6 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
 export async function deleteDatasets(input: z.infer<typeof deleteDatasetsSchema>) {
   const { projectId, datasetIds } = deleteDatasetsSchema.parse(input);
 
-  console.log("datasetIds", datasetIds);
-  console.log("projectId", projectId);
-
   await db.delete(datasets).where(and(inArray(datasets.id, datasetIds), eq(datasets.projectId, projectId)));
 
   await deleteDatapointsByDatasetIds(projectId, datasetIds);

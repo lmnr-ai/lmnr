@@ -133,7 +133,7 @@ export async function POST(
       ...datapoint,
       data: await materializeAttachments(datapoint.data as JSONValue, projectId),
       target: await materializeAttachments(datapoint.target as JSONValue, projectId),
-      metadata: await materializeAttachments(datapoint.metadata as JSONValue, projectId),
+      metadata: await materializeAttachments(datapoint.metadata as JSONValue, projectId) as Record<string, any> | undefined,
     }))
   );
 
