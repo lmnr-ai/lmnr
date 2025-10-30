@@ -13,6 +13,7 @@ use crate::mq::{
 };
 
 mod slack;
+use slack::SlackMessagePayload;
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
@@ -169,12 +170,16 @@ async fn process_single_notification(
 
     let result = match message.notification_type.as_str() {
         "slack" => {
-            let payload: TraceAnalysisPayload = serde_json::from_value(message.payload.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to parse TraceAnalysisPayload: {}", e))?;
+            let slack_payload: SlackMessagePayload =
+                serde_json::from_value(message.payload.clone())
+                    .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
+
+            let integration_id = match &slack_payload {
+                SlackMessagePayload::TraceAnalysis(payload) => payload.integration_id,
+            };
 
             let integration =
-                crate::db::slack_integrations::get_integration_by_id(pool, &payload.integration_id)
-                    .await?;
+                crate::db::slack_integrations::get_integration_by_id(pool, &integration_id).await?;
 
             if let Some(integration) = integration {
                 let decrypted_token = slack::decode_slack_token(
@@ -186,21 +191,16 @@ async fn process_single_notification(
                 slack::send_message(
                     slack_client,
                     &decrypted_token,
-                    &payload.channel_id,
+                    &slack_payload,
                     &message.project_id.to_string(),
                     &message.trace_id.to_string(),
                     &message.event_name,
-                    &payload.status,
-                    &payload.summary,
-                    &payload.analysis,
-                    &payload.span_ids_map,
                 )
                 .await?;
 
                 log::debug!(
-                    "Successfully sent Slack notification for trace_id={} to channel={}",
-                    message.trace_id,
-                    payload.channel_id
+                    "Successfully sent Slack notification for trace_id={}",
+                    message.trace_id
                 );
             }
 

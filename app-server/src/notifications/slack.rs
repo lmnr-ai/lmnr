@@ -9,7 +9,14 @@ use sodiumoxide::{
     hex,
 };
 
+use super::TraceAnalysisPayload;
+
 const SLACK_API_BASE: &str = "https://slack.com/api";
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum SlackMessagePayload {
+    TraceAnalysis(TraceAnalysisPayload),
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -47,10 +54,7 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
-pub async fn send_message(
-    slack_client: &Client,
-    token: &str,
-    channel_id: &str,
+fn format_trace_analysis_blocks(
     project_id: &str,
     trace_id: &str,
     event_name: &str,
@@ -58,7 +62,7 @@ pub async fn send_message(
     summary: &str,
     analysis: &str,
     span_ids_map: &HashMap<String, String>,
-) -> Result<()> {
+) -> serde_json::Value {
     let emoji = match status {
         "error" => "🚨",
         "warning" => "⚠️",
@@ -71,7 +75,6 @@ pub async fn send_message(
         analysis.to_string()
     };
 
-    // Replace backticked span names with clickable Slack links
     for (span_name, span_id) in span_ids_map {
         let link_url = format!(
             "https://laminar.sh/project/{}/traces?trace_id={}&span_id={}",
@@ -82,7 +85,7 @@ pub async fn send_message(
         analysis_text = analysis_text.replace(&backticked_span, &slack_link);
     }
 
-    let blocks = json!([
+    json!([
         {
             "type": "section",
             "text": {
@@ -97,7 +100,41 @@ pub async fn send_message(
                 "text": analysis_text
             }
         }
-    ]);
+    ])
+}
+
+fn format_message_blocks(
+    payload: &SlackMessagePayload,
+    project_id: &str,
+    trace_id: &str,
+    event_name: &str,
+) -> serde_json::Value {
+    match payload {
+        SlackMessagePayload::TraceAnalysis(trace_payload) => format_trace_analysis_blocks(
+            project_id,
+            trace_id,
+            event_name,
+            &trace_payload.status,
+            &trace_payload.summary,
+            &trace_payload.analysis,
+            &trace_payload.span_ids_map,
+        ),
+    }
+}
+
+pub async fn send_message(
+    slack_client: &Client,
+    token: &str,
+    payload: &SlackMessagePayload,
+    project_id: &str,
+    trace_id: &str,
+    event_name: &str,
+) -> Result<()> {
+    let channel_id = match payload {
+        SlackMessagePayload::TraceAnalysis(trace_payload) => &trace_payload.channel_id,
+    };
+
+    let blocks = format_message_blocks(payload, project_id, trace_id, event_name);
 
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
