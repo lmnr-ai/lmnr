@@ -17,8 +17,19 @@ export async function GET(
       });
     }
 
+    // Parse query parameters from the incoming request
+    const url = new URL(request.url);
+    const key = url.searchParams.get('key') || 'traces'; // Default to 'traces'
+
+    // Build query string for app-server
+    const queryParams = new URLSearchParams();
+    queryParams.set('key', key);
+
+    const queryString = queryParams.toString();
+    const endpoint = `/projects/${projectId}/realtime?${queryString}`;
+
     // Forward the request to the app-server SSE endpoint
-    const response = await fetcherRealTime(`/projects/${projectId}/realtime`, {
+    const response = await fetcherRealTime(endpoint, {
       method: "GET",
       headers: {
         "Accept": "text/event-stream",

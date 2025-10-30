@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
@@ -15,8 +15,10 @@ import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
+import { Label } from "@/components/ui/label";
 
 const presetFilters: DatatableFilter[] = [];
 
@@ -48,6 +50,8 @@ function TracesTableContent() {
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
+
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -123,95 +127,23 @@ function TracesTableContent() {
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
-  const updateRealtimeTracesFromSpan = useCallback(
-    async (spanData: Record<string, any>) => {
-      const traceId = spanData.traceId;
-      if (!traceId) return;
-
-      const isTopSpan = spanData.parentSpanId === null;
-
-      // Extract inferred top span name from lmnr.span.path (first element)
-      const spanPath = spanData.attributes?.["lmnr.span.path"];
-      const inferredTopSpanName = Array.isArray(spanPath) && spanPath.length > 0 ? spanPath[0] : undefined;
-
-      // Use the updater function parameter instead of ref!
+  const updateRealtimeTrace = useCallback(
+    (traceData: TraceRow) => {
       updateData((currentTraces) => {
         if (!currentTraces || currentTraces.length === 0) return currentTraces;
 
-        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceId);
+        const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceData.id);
 
         if (existingTraceIndex !== -1) {
           // Update existing trace
           const newTraces = [...currentTraces];
-          const existingTrace = newTraces[existingTraceIndex];
-
-          // Update trace metrics from span data
-          const spanInputTokens = spanData.attributes?.["gen_ai.usage.input_tokens"] || 0;
-          const spanOutputTokens = spanData.attributes?.["gen_ai.usage.output_tokens"] || 0;
-          const spanInputCost = spanData.attributes?.["gen_ai.usage.input_cost"] || 0;
-          const spanOutputCost = spanData.attributes?.["gen_ai.usage.output_cost"] || 0;
-
-          const newTopSpanName = isTopSpan ? spanData.name : (inferredTopSpanName ?? existingTrace.topSpanName);
-
-          newTraces[existingTraceIndex] = {
-            ...existingTrace,
-            startTime:
-              new Date(existingTrace.startTime).getTime() < new Date(spanData.startTime).getTime()
-                ? existingTrace.startTime
-                : spanData.startTime,
-            endTime:
-              new Date(existingTrace.endTime).getTime() > new Date(spanData.endTime).getTime()
-                ? existingTrace.endTime
-                : spanData.endTime,
-            totalTokens: existingTrace.totalTokens + spanInputTokens + spanOutputTokens,
-            inputTokens: existingTrace.inputTokens + spanInputTokens,
-            outputTokens: existingTrace.outputTokens + spanOutputTokens,
-            inputCost: existingTrace.inputCost + spanInputCost,
-            outputCost: existingTrace.outputCost + spanOutputCost,
-            totalCost: existingTrace.totalCost + spanInputCost + spanOutputCost,
-            topSpanName: newTopSpanName,
-            topSpanId: isTopSpan ? spanData.spanId : existingTrace.topSpanId,
-            topSpanType: isTopSpan ? spanData.spanType : existingTrace.topSpanType,
-            userId: spanData.attributes?.["lmnr.association.properties.user_id"] || existingTrace.userId,
-            tags: Array.from(
-              new Set([...existingTrace.tags, ...(spanData.attributes?.["lmnr.association.properties.tags"] || [])])
-            ),
-            status: existingTrace.status !== "error" ? spanData.status : existingTrace.status,
-            sessionId: spanData.attributes?.["lmnr.association.properties.session_id"] || existingTrace.sessionId,
-          };
-
+          newTraces[existingTraceIndex] = traceData;
           return newTraces;
         } else {
-          // New trace
-          const newTrace: TraceRow = {
-            id: traceId,
-            startTime: spanData.startTime,
-            endTime: spanData.endTime,
-            sessionId: spanData.attributes?.["session.id"] || null,
-            inputTokens: spanData.attributes?.["gen_ai.usage.input_tokens"] || 0,
-            outputTokens: spanData.attributes?.["gen_ai.usage.output_tokens"] || 0,
-            totalTokens:
-              (spanData.attributes?.["gen_ai.usage.input_tokens"] || 0) +
-              (spanData.attributes?.["gen_ai.usage.output_tokens"] || 0),
-            inputCost: spanData.attributes?.["gen_ai.usage.input_cost"] || 0,
-            outputCost: spanData.attributes?.["gen_ai.usage.output_cost"] || 0,
-            totalCost:
-              (spanData.attributes?.["gen_ai.usage.input_cost"] || 0) +
-              (spanData.attributes?.["gen_ai.usage.output_cost"] || 0),
-            metadata: spanData.attributes?.["metadata"] || null,
-            topSpanId: isTopSpan ? spanData.spanId : null,
-            traceType: "DEFAULT",
-            topSpanName: isTopSpan ? spanData.name : inferredTopSpanName,
-            topSpanType: isTopSpan ? spanData.spanType : null,
-            status: spanData.status,
-            userId: spanData.attributes?.["lmnr.association.properties.user_id"] || null,
-            tags: spanData.attributes?.["lmnr.association.properties.tags"] || [],
-          };
+          // New trace - insert at the beginning
+          const newTraces = [traceData, ...currentTraces];
 
-          const newTraces = [...currentTraces];
-          const insertIndex = newTraces.findIndex((trace) => trace.startTime <= newTrace.startTime);
-          newTraces.splice(Math.max(insertIndex ?? 0, 0), 0, newTrace);
-
+          // Keep only the first FETCH_SIZE traces
           if (newTraces.length > FETCH_SIZE) {
             newTraces.splice(FETCH_SIZE);
           }
@@ -223,8 +155,13 @@ function TracesTableContent() {
     [updateData]
   );
 
-  // SSE connection for realtime updates
+  // SSE connection for realtime trace updates
   useEffect(() => {
+    // Only connect if realtime is enabled
+    if (!realtimeEnabled) {
+      return;
+    }
+
     // Disable realtime updates if there are filters or search
     if (filter.length > 0 || !!textSearchFilter) {
       return;
@@ -234,20 +171,19 @@ function TracesTableContent() {
       return;
     }
 
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=traces`);
 
-    eventSource.addEventListener("new_spans", async (event) => {
+    eventSource.addEventListener("trace_update", (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.spans && Array.isArray(payload.spans)) {
-          for (const span of payload.spans) {
-            if (span.traceId) {
-              await updateRealtimeTracesFromSpan(span);
-            }
+        if (payload.traces && Array.isArray(payload.traces)) {
+          // Process batched trace updates
+          for (const trace of payload.traces) {
+            updateRealtimeTrace(trace);
           }
         }
       } catch (error) {
-        console.error("Error processing SSE message:", error);
+        console.error("Error processing trace update:", error);
       }
     });
 
@@ -259,7 +195,7 @@ function TracesTableContent() {
     return () => {
       eventSource.close();
     };
-  }, [projectId, isCurrentTimestampIncluded, filter.length, textSearchFilter, updateRealtimeTracesFromSpan]);
+  }, [projectId, isCurrentTimestampIncluded, filter.length, textSearchFilter, realtimeEnabled, updateRealtimeTrace]);
 
   // Initialize with default time range if needed
   useEffect(() => {
@@ -314,6 +250,12 @@ function TracesTableContent() {
             variant="outline"
             className="text-xs text-secondary-foreground"
           />
+          <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
+            <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
+            <span className="text-xs cursor-pointer font-medium text-secondary-foreground">
+              Realtime
+            </span>
+          </div>
           <SearchTracesInput />
         </div>
         <DataTableFilterList />

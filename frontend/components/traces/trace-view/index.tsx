@@ -347,20 +347,20 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       return;
     }
 
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=trace_${traceId}`);
 
-    eventSource.addEventListener("new_spans", (event) => {
+    eventSource.addEventListener("span_update", (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
+          // Process batched span updates
           for (const span of payload.spans) {
-            if (span.traceId === traceId) {
-              onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
-            }
+            console.log("trace id", span.traceId);
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
           }
         }
       } catch (error) {
-        console.error("Error processing SSE message:", error);
+        console.error("Error processing span update:", error);
       }
     });
 
