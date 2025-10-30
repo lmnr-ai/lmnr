@@ -51,12 +51,16 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
 
   const { workspace } = useProjectContext();
 
-  const menuTabs = useMemo(() => {
-    if (workspace?.tierName !== "Free") {
-      return tabs;
-    }
-    return tabs.filter((t) => t.id !== "trace-summary");
-  }, [workspace]);
+  const menuTabs = useMemo(
+    () =>
+      tabs.filter((t) => {
+        if (t.id === "trace-summary" && workspace?.tierName === "Free") {
+          return false;
+        }
+        return !(t.id === "integrations" && workspace?.tierName !== "Pro");
+      }),
+    [workspace]
+  );
 
   const renderContent = () => {
     switch (activeTab) {
