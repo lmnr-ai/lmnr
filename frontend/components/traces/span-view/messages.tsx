@@ -12,7 +12,6 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { createStorageKey } from "@/components/traces/span-view/span-view-store";
 import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
@@ -99,9 +98,9 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
   };
 
   return (
-    <ScrollArea
+    <div
       ref={parentRef}
-      className="h-full relative"
+      className="h-full relative overflow-y-auto styled-scrollbar"
       style={{
         width: "100%",
         contain: "strict",
@@ -139,7 +138,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
       >
         <ChevronDown className="w-4 h-4" />
       </Button>
-    </ScrollArea>
+    </div>
   );
 }
 

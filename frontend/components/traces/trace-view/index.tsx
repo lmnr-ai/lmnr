@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
@@ -347,20 +346,18 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       return;
     }
 
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime`);
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=trace_${traceId}`);
 
-    eventSource.addEventListener("new_spans", (event) => {
+    eventSource.addEventListener("span_update", (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
           for (const span of payload.spans) {
-            if (span.traceId === traceId) {
-              onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
-            }
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
           }
         }
       } catch (error) {
-        console.error("Error processing SSE message:", error);
+        console.error("Error processing span update:", error);
       }
     });
 
@@ -411,79 +408,76 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
               <Header handleClose={handleClose} />
               <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
-                <ScrollArea className="w-full">
-                  <div className="flex items-center gap-2 w-max flex-nowrap">
-                    <StatefulFilter columns={filterColumns}>
-                      <Button variant="outline" className="h-6 text-xs">
-                        <ListFilter size={14} className="mr-1" />
-                        Filters
+                <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
+                  <StatefulFilter columns={filterColumns}>
+                    <Button variant="outline" className="h-6 text-xs">
+                      <ListFilter size={14} className="mr-1" />
+                      Filters
+                    </Button>
+                  </StatefulFilter>
+                  <Button
+                    onClick={handleToggleSearch}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": search || searchEnabled,
+                    })}
+                  >
+                    <Search size={14} className="mr-1" />
+                    <span>Search</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("timeline")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "timeline",
+                    })}
+                  >
+                    <ChartNoAxesGantt size={14} className="mr-1" />
+                    <span>Timeline</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("metadata")}
+                    variant="outline"
+                    className={cn("h-6 text-xs px-1.5", {
+                      "border-primary text-primary": tab === "metadata",
+                    })}
+                  >
+                    <FileText size={14} className="mr-1" />
+                    <span>Metadata</span>
+                  </Button>
+                  <Button
+                    onClick={() => setTab("chat")}
+                    variant="outline"
+                    className={cn("h-6 text-xs text-primary px-1.5", {
+                      "border-primary": tab === "chat",
+                    })}
+                  >
+                    <Sparkles size={14} className="mr-1" />
+                    <span className="truncate min-w-0">Ask AI</span>
+                  </Button>
+                  {tab === "timeline" && (
+                    <>
+                      <Button
+                        disabled={zoom === MAX_ZOOM}
+                        className="size-6 min-w-6 ml-auto"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleZoom("in")}
+                      >
+                        <Plus className="w-4 h-4" />
                       </Button>
-                    </StatefulFilter>
-                    <Button
-                      onClick={handleToggleSearch}
-                      variant="outline"
-                      className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": search || searchEnabled,
-                      })}
-                    >
-                      <Search size={14} className="mr-1" />
-                      <span>Search</span>
-                    </Button>
-                    <Button
-                      onClick={() => setTab("timeline")}
-                      variant="outline"
-                      className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": tab === "timeline",
-                      })}
-                    >
-                      <ChartNoAxesGantt size={14} className="mr-1" />
-                      <span>Timeline</span>
-                    </Button>
-                    <Button
-                      onClick={() => setTab("metadata")}
-                      variant="outline"
-                      className={cn("h-6 text-xs px-1.5", {
-                        "border-primary text-primary": tab === "metadata",
-                      })}
-                    >
-                      <FileText size={14} className="mr-1" />
-                      <span>Metadata</span>
-                    </Button>
-                    <Button
-                      onClick={() => setTab("chat")}
-                      variant="outline"
-                      className={cn("h-6 text-xs text-primary px-1.5", {
-                        "border-primary": tab === "chat",
-                      })}
-                    >
-                      <Sparkles size={14} className="mr-1" />
-                      <span className="truncate min-w-0">Ask AI</span>
-                    </Button>
-                    {tab === "timeline" && (
-                      <>
-                        <Button
-                          disabled={zoom === MAX_ZOOM}
-                          className="h-6 w-6 ml-auto"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleZoom("in")}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          disabled={zoom === MIN_ZOOM}
-                          className="h-6 w-6"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleZoom("out")}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                  <ScrollBar orientation="horizontal" />
-                </ScrollArea>
+                      <Button
+                        disabled={zoom === MIN_ZOOM}
+                        className="size-6 min-w-6"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleZoom("out")}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <StatefulFilterList className="py-[3px] text-xs px-1" />
               </div>
               {(search || searchEnabled) && (
