@@ -4,6 +4,7 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::db::DB;
@@ -182,15 +183,33 @@ async fn process_single_notification(
                     &integration.token,
                 )?;
 
-                slack::send_message(
-                    slack_client,
-                    &decrypted_token,
-                    &payload.channel_id,
-                    &payload,
-                )
-                .await?;
+                let analysis = if payload.analysis.is_empty() {
+                    "No analysis available".to_string()
+                } else {
+                    payload.analysis.clone()
+                };
 
-                log::info!(
+                let blocks = json!([
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format!("*{}*", payload.summary)
+                        }
+                    },
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format!("*{}*", analysis)
+                        }
+                    }
+                ]);
+
+                slack::send_message(slack_client, &decrypted_token, &payload.channel_id, blocks)
+                    .await?;
+
+                log::debug!(
                     "Successfully sent Slack notification for trace_id={} to channel={}",
                     message.trace_id,
                     payload.channel_id

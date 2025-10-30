@@ -204,7 +204,6 @@ async fn process_trace_summary(
     {
         Ok(response_text) => {
             let response = serde_json::from_str::<TraceSummaryResponse>(&response_text).unwrap();
-            log::info!("Trace summary response: {:?}", response);
 
             // Check if status is error or warning and push to notification queue
             let event_name = match response.status.as_str() {
@@ -245,7 +244,7 @@ async fn process_trace_summary(
                                     project_id: message.project_id,
                                     trace_id: message.trace_id,
                                     span_id: message.trigger_span_id,
-                                    notification_type: "trace_analysis".to_string(),
+                                    notification_type: "slack".to_string(),
                                     event_name: event_name.to_string(),
                                     payload: serde_json::to_value(&payload).unwrap(),
                                 };

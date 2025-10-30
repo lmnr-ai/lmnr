@@ -7,8 +7,6 @@ use sodiumoxide::{
     hex,
 };
 
-use super::TraceAnalysisPayload;
-
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -51,37 +49,15 @@ pub async fn send_message(
     slack_client: &Client,
     token: &str,
     channel_id: &str,
-    payload: &TraceAnalysisPayload,
+    blocks: serde_json::Value,
 ) -> Result<()> {
-    let blocks = json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("*{}*", payload.summary)
-            }
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": payload.analysis_preview
-            }
-        }
-    ]);
-
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
         .header("Authorization", format!("Bearer {}", token))
         .header("Content-Type", "application/json")
-        .json(&json!({
-            "channel": channel_id,
-            "text": &payload.summary,
-            "blocks": blocks,
-        }))
+        .json(&json!({ "channel": channel_id, "blocks": blocks }))
         .send()
         .await?;
-
     let status = response.status();
     let body = response.text().await?;
 

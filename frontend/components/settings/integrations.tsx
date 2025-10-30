@@ -54,7 +54,7 @@ export default function Integrations({
         <SettingsSection>
           <SettingsSectionHeader
             title="Slack Integration"
-            description="Add slackbot to receive announcements in slack."
+            description="Add Slack integration to receive notifications in Slack."
             size="sm"
           />
           <div className="flex flex-col items-start gap-2">
