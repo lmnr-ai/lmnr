@@ -235,6 +235,7 @@ async fn process_trace_summary(
                                     summary: response.summary.clone(),
                                     analysis: response.analysis.clone(),
                                     analysis_preview: response.analysis_preview.clone(),
+                                    status: response.status.clone(),
                                     span_ids_map: response.span_ids_map.clone(),
                                     channel_id: channel.channel_id.clone(),
                                     integration_id: channel.integration_id,

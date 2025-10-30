@@ -4,7 +4,6 @@ use std::sync::Arc;
 use backoff::ExponentialBackoffBuilder;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use crate::db::DB;
@@ -24,6 +23,7 @@ pub struct TraceAnalysisPayload {
     pub summary: String,
     pub analysis: String,
     pub analysis_preview: String,
+    pub status: String,
     pub span_ids_map: HashMap<String, String>,
     pub channel_id: String,
     pub integration_id: Uuid,
@@ -183,31 +183,19 @@ async fn process_single_notification(
                     &integration.token,
                 )?;
 
-                let analysis = if payload.analysis.is_empty() {
-                    "No analysis available".to_string()
-                } else {
-                    payload.analysis.clone()
-                };
-
-                let blocks = json!([
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": format!("*{}*", payload.summary)
-                        }
-                    },
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": format!("*{}*", analysis)
-                        }
-                    }
-                ]);
-
-                slack::send_message(slack_client, &decrypted_token, &payload.channel_id, blocks)
-                    .await?;
+                slack::send_message(
+                    slack_client,
+                    &decrypted_token,
+                    &payload.channel_id,
+                    &message.project_id.to_string(),
+                    &message.trace_id.to_string(),
+                    &message.event_name,
+                    &payload.status,
+                    &payload.summary,
+                    &payload.analysis,
+                    &payload.span_ids_map,
+                )
+                .await?;
 
                 log::debug!(
                     "Successfully sent Slack notification for trace_id={} to channel={}",

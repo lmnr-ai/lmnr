@@ -9,9 +9,10 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get("error");
 
   if (error || !code || !projectId) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?tab=integrations&slack=error`
-    );
+    const redirectUrl = projectId
+      ? `${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?tab=integrations&slack=error`
+      : `${process.env.NEXT_PUBLIC_URL}/projects?slack=error`;
+    return NextResponse.redirect(redirectUrl);
   }
 
   try {
@@ -19,8 +20,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?tab=integrations`);
   } catch (e) {
     console.error(e);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?tab=integrations&slack=error`
-    );
+    const redirectUrl = projectId
+      ? `${process.env.NEXT_PUBLIC_URL}/project/${projectId}/settings?tab=integrations&slack=error`
+      : `${process.env.NEXT_PUBLIC_URL}/projects?slack=error`;
+    return NextResponse.redirect(redirectUrl);
   }
 }

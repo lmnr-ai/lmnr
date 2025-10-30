@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -49,8 +51,54 @@ pub async fn send_message(
     slack_client: &Client,
     token: &str,
     channel_id: &str,
-    blocks: serde_json::Value,
+    project_id: &str,
+    trace_id: &str,
+    event_name: &str,
+    status: &str,
+    summary: &str,
+    analysis: &str,
+    span_ids_map: &HashMap<String, String>,
 ) -> Result<()> {
+    let emoji = match status {
+        "error" => "🚨",
+        "warning" => "⚠️",
+        _ => "ℹ️",
+    };
+
+    let mut analysis_text = if analysis.is_empty() {
+        "No analysis available".to_string()
+    } else {
+        analysis.to_string()
+    };
+
+    // Replace backticked span names with clickable Slack links
+    for (span_name, span_id) in span_ids_map {
+        let link_url = format!(
+            "https://laminar.sh/project/{}/traces?trace_id={}&span_id={}",
+            project_id, trace_id, span_id
+        );
+        let slack_link = format!("<{}|`{}`>", link_url, span_name);
+        let backticked_span = format!("`{}`", span_name);
+        analysis_text = analysis_text.replace(&backticked_span, &slack_link);
+    }
+
+    let blocks = json!([
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("{} *Event: {}*\n{}", emoji, event_name, summary)
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": analysis_text
+            }
+        }
+    ]);
+
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
         .header("Authorization", format!("Bearer {}", token))
