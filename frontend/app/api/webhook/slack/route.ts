@@ -35,6 +35,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       return NextResponse.json(response, { status: 200 });
     }
 
+    console.log("received event payload:", payload);
     const data = SlackWebhookRequestSchema.parse(payload);
     if (data.type === "url_verification") {
       return NextResponse.json({ challenge: data.challenge });
