@@ -203,7 +203,14 @@ async fn process_trace_summary(
     match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
     {
         Ok(response_text) => {
-            let response = serde_json::from_str::<TraceSummaryResponse>(&response_text).unwrap();
+            let response = match serde_json::from_str::<TraceSummaryResponse>(&response_text) {
+                Ok(resp) => resp,
+                Err(e) => {
+                    log::error!("Failed to parse trace summary response: {}", e);
+                    reject_message(&acker).await;
+                    return Ok(());
+                }
+            };
 
             // Check if status is error or warning and push to notification queue
             let event_name = match response.status.as_str() {
