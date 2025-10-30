@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ proj
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update dataset. Please try again." },
+      {
+        error: error instanceof Error ? error.message : "Failed to retrieve Slack integration data. Please try again.",
+      },
       { status: 500 }
     );
   }
