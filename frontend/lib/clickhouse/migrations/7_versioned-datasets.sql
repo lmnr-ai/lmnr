@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS default.new_dataset_datapoints
     `metadata` String CODEC(ZSTD(3))
 )
 ENGINE = MergeTree()
-ORDER BY (project_id, dataset_id, id, created_at)
+ORDER BY (project_id, dataset_id, toUInt128(id), created_at)
 SETTINGS index_granularity = 8192;
 
 INSERT INTO default.new_dataset_datapoints
@@ -46,8 +46,7 @@ CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
         metadata
     FROM dataset_datapoints
     WHERE project_id={project_id:UUID}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, dataset_id, id ORDER BY created_at DESC) = 1
-    ORDER BY dataset_id, toUInt128(id), created_at;
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, dataset_id, id ORDER BY created_at DESC) = 1;
 
 CREATE VIEW IF NOT EXISTS dataset_datapoints_versions_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -59,5 +58,4 @@ CREATE VIEW IF NOT EXISTS dataset_datapoints_versions_v0 SQL SECURITY INVOKER AS
         metadata,
         project_id
     FROM dataset_datapoints
-    WHERE project_id={project_id:UUID}
-    ORDER BY dataset_id, toUInt128(id), created_at;
+    WHERE project_id={project_id:UUID};
