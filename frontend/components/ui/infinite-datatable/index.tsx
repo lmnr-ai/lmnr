@@ -4,7 +4,6 @@ import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@t
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
 
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -138,36 +137,40 @@ export function InfiniteDataTable<TData extends RowData>({
       />
 
       {children && <div className={cn("flex items-center space-x-2 h-12", childrenClassName)}>{children}</div>}
-      <ScrollArea ref={tableContainerRef} className={cn("flex max-h-full relative", scrollContentClassName)}>
-        <Table
-          className="grid border-collapse border-spacing-0 rounded bg-secondary"
-          style={{
-            width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
-          }}
-        >
-          <InfiniteDatatableHeader table={table} />
-          <InfiniteDatatableBody
-            table={table}
-            rowVirtualizer={rowVirtualizer}
-            virtualItems={virtualItems}
-            isLoading={isLoading}
-            hasMore={hasMore}
-            onRowClick={onRowClick}
-            focusedRowId={focusedRowId}
-            loadMoreRef={loadMoreRef}
-            emptyRow={emptyRow}
-            loadingRow={loadingRow}
-            error={error}
-          />
-        </Table>
+      <div
+        ref={tableContainerRef}
+        className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
+      >
+        <div className="size-full">
+          <Table
+            className="grid border-collapse border-spacing-0 rounded bg-secondary"
+            style={{
+              width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
+            }}
+          >
+            <InfiniteDatatableHeader table={table} />
+            <InfiniteDatatableBody
+              table={table}
+              rowVirtualizer={rowVirtualizer}
+              virtualItems={virtualItems}
+              isLoading={isLoading}
+              hasMore={hasMore}
+              onRowClick={onRowClick}
+              focusedRowId={focusedRowId}
+              loadMoreRef={loadMoreRef}
+              emptyRow={emptyRow}
+              loadingRow={loadingRow}
+              error={error}
+            />
+          </Table>
 
-        {isFetching && !isLoading && (
-          <div className="flex justify-center p-2 bg-secondary">
-            <Skeleton className="w-full h-8" />
-          </div>
-        )}
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+          {isFetching && !isLoading && (
+            <div className="flex justify-center p-2 bg-secondary">
+              <Skeleton className="w-full h-8" />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
