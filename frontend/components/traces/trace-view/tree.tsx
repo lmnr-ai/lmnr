@@ -3,7 +3,6 @@ import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useScrollContext } from "./scroll-context";
 import { SpanCard } from "./span-card";
@@ -63,7 +62,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   }
 
   return (
-    <ScrollArea ref={scrollRef} className="overflow-x-hidden grow relative h-full w-full">
+    <div ref={scrollRef} className="overflow-x-hidden grow relative h-full w-full styled-scrollbar">
       <div className="flex flex-col pb-4 pt-1">
         <div
           className="relative"
@@ -103,7 +102,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
           </div>
         </div>
       </div>
-    </ScrollArea>
+    </div>
   );
 };
 

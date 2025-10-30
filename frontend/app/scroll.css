@@ -1,0 +1,21 @@
+.styled-scrollbar {
+    scrollbar-color: hsl(var(--border)) hsl(var(--border) / 0.2);
+}
+
+.styled-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 1px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--secondary));
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 10px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--border) / 0.8);
+}
