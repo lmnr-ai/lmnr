@@ -11,7 +11,7 @@ interface SlackCommandResponse {
   blocks?: unknown[];
 }
 
-const availableEvents = ["summary"];
+const availableEvents = ["error_trace_analysis", "warning_trace_analysis"];
 
 export async function processSlashCommand(
   payload: z.infer<typeof SlackSlashCommandSchema>

@@ -35,7 +35,7 @@ export default async function ApiKeysPage(props: { params: Promise<{ projectId: 
     <>
       <Settings
         slackClientId={process.env.SLACK_CLIENT_ID}
-        slackRedirectUri={`${process.env.NEXT_PUBLIC_URL}/api/integrations/slack`}
+        slackRedirectUri={process.env.SLACK_REDIRECT_URL}
         apiKeys={apiKeys}
       />
     </>

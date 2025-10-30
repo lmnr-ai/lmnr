@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { prettifyError, ZodError } from "zod/v4";
 
 import { getSlackIntegration } from "@/lib/actions/slack";
-import { authOptions } from "@/lib/auth";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
 
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const integration = await getSlackIntegration(projectId);
+    return NextResponse.json(integration);
+  } catch (error) {
+    console.error(error);
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update dataset. Please try again." },
+      { status: 500 }
+    );
   }
-
-  const integration = await getSlackIntegration(projectId);
-
-  return NextResponse.json(integration);
 }

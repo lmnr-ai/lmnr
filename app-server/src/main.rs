@@ -428,7 +428,10 @@ fn main() -> anyhow::Result<()> {
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
-    // ==== 3.6 Worker tracker ====
+    // ==== Slack client ====
+    let slack_client = Arc::new(reqwest::Client::new());
+
+    // ==== 3.7 Worker tracker ====
     let worker_tracker = Arc::new(WorkerTracker::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -715,9 +718,10 @@ fn main() -> anyhow::Result<()> {
                             worker_tracker_clone.register_worker(WorkerType::Notifications);
                         let db_clone = db_for_consumer.clone();
                         let mq_clone = mq_for_consumer.clone();
+                        let slack_client_clone = slack_client.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle;
-                            process_notifications(db_clone, mq_clone).await;
+                            process_notifications(db_clone, slack_client_clone, mq_clone).await;
                         });
                     }
 

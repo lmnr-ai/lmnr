@@ -20,22 +20,21 @@ export interface SlackIntegration {
   projectId: string;
   teamId: string;
   teamName: string | null;
-  createdAt: string;
 }
 
 export async function getSlackIntegration(projectId: string): Promise<SlackIntegration | null> {
-  const integration = await db.query.slackIntegrations.findFirst({
-    where: eq(slackIntegrations.projectId, projectId),
-    columns: {
-      id: true,
-      projectId: true,
-      teamId: true,
-      teamName: true,
-      createdAt: true,
-    },
-  });
+  const [result] = await db
+    .select({
+      id: slackIntegrations.id,
+      projectId: slackIntegrations.projectId,
+      teamId: slackIntegrations.teamId,
+      teamName: slackIntegrations.teamName,
+    })
+    .from(slackIntegrations)
+    .where(eq(slackIntegrations.projectId, projectId))
+    .limit(1);
 
-  return integration ?? null;
+  return result || null;
 }
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
@@ -46,8 +45,12 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
   if (!clientId || !clientSecret) {
     throw new Error("No client id/secret provided.");
   }
-  const redirectUri = `${process.env.NEXT_PUBLIC_URL}/api/integrations/slack`;
+  const redirectUri = process.env.SLACK_REDIRECT_URL;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  if (!redirectUri) {
+    throw new Error("No redirect uri set.");
+  }
 
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",

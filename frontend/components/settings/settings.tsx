@@ -1,6 +1,8 @@
 "use client";
 
-import { FileText, Key, Settings2, Sparkles } from "lucide-react";
+import { FileText, Key, Settings2, Sparkles, Unplug } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { CSSProperties, ReactNode, useMemo, useState } from "react";
 
 import { useProjectContext } from "@/contexts/project-context.tsx";
@@ -17,6 +19,7 @@ import {
   SidebarProvider,
 } from "../ui/sidebar";
 import DeleteProject from "./delete-project";
+import Integrations from "./integrations";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
@@ -29,19 +32,22 @@ interface SettingsProps {
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace-summary";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace-summary" | "integrations";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
   { id: "trace-summary", label: "Trace Summary", icon: <FileText /> },
+  { id: "integrations", label: "Integrations", icon: <Unplug /> },
 ];
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
 export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
+  const pathName = usePathname();
 
   const { workspace } = useProjectContext();
 
@@ -69,7 +75,9 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
       case "provider-api-keys":
         return <ProviderApiKeys />;
       case "trace-summary":
-        return <TraceSummarySettings slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
+        return <TraceSummarySettings />;
+      case "integrations":
+        return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
     }
   };
 
@@ -91,10 +99,10 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
                         onClick={() => setActiveTab(tab.id)}
                         tooltip={tab.label}
                       >
-                        <div className="cursor-pointer">
+                        <Link href={`${pathName}?tab=${tab.id}`}>
                           {tab.icon}
                           <span className="mr-2">{tab.label}</span>
-                        </div>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}

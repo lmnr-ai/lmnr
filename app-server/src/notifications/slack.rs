@@ -1,5 +1,6 @@
 use anyhow::Result;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sodiumoxide::{
     crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
@@ -9,6 +10,13 @@ use sodiumoxide::{
 use super::TraceAnalysisPayload;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SlackApiResponse {
+    ok: bool,
+    #[serde(default)]
+    error: Option<String>,
+}
 
 pub fn decode_slack_token(
     team_id: &str,
@@ -40,12 +48,11 @@ pub fn decode_slack_token(
 }
 
 pub async fn send_message(
+    slack_client: &Client,
     token: &str,
     channel_id: &str,
     payload: &TraceAnalysisPayload,
 ) -> Result<()> {
-    let client = Client::new();
-
     let blocks = json!([
         {
             "type": "section",
@@ -63,7 +70,7 @@ pub async fn send_message(
         }
     ]);
 
-    let response = client
+    let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
         .header("Authorization", format!("Bearer {}", token))
         .header("Content-Type", "application/json")
@@ -80,9 +87,26 @@ pub async fn send_message(
 
     if !status.is_success() {
         return Err(anyhow::anyhow!(
-            "Failed to send Slack message. Status: {}, Response: {}",
+            "Failed to send Slack message. HTTP Status: {}, Response: {}",
             status,
             body
+        ));
+    }
+
+    let slack_response: SlackApiResponse = serde_json::from_str(&body).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to parse Slack API response: {}. Raw response: {}",
+            e,
+            body
+        )
+    })?;
+
+    if !slack_response.ok {
+        return Err(anyhow::anyhow!(
+            "Slack API returned error: {}",
+            slack_response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())
         ));
     }
 

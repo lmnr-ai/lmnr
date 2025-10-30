@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -65,14 +66,22 @@ pub async fn push_to_notification_queue(
 }
 
 /// Main worker function to process notification messages
-pub async fn process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
+pub async fn process_notifications(
+    db: Arc<DB>,
+    slack_client: Arc<Client>,
+    queue: Arc<MessageQueue>,
+) {
     loop {
-        inner_process_notifications(db.clone(), queue.clone()).await;
+        inner_process_notifications(db.clone(), slack_client.clone(), queue.clone()).await;
         log::warn!("Notification listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
+async fn inner_process_notifications(
+    db: Arc<DB>,
+    slack_client: Arc<Client>,
+    queue: Arc<MessageQueue>,
+) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -127,7 +136,14 @@ async fn inner_process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
                 }
             };
 
-        if let Err(e) = process_single_notification(&db.pool, notification_message, acker).await {
+        if let Err(e) = process_single_notification(
+            &db.pool,
+            slack_client.as_ref(),
+            notification_message,
+            acker,
+        )
+        .await
+        {
             log::error!("Failed to process notification: {:?}", e);
         }
     }
@@ -137,6 +153,7 @@ async fn inner_process_notifications(db: Arc<DB>, queue: Arc<MessageQueue>) {
 
 async fn process_single_notification(
     pool: &sqlx::PgPool,
+    slack_client: &Client,
     message: NotificationMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
@@ -165,7 +182,13 @@ async fn process_single_notification(
                     &integration.token,
                 )?;
 
-                slack::send_message(&decrypted_token, &payload.channel_id, &payload).await?;
+                slack::send_message(
+                    slack_client,
+                    &decrypted_token,
+                    &payload.channel_id,
+                    &payload,
+                )
+                .await?;
 
                 log::info!(
                     "Successfully sent Slack notification for trace_id={} to channel={}",

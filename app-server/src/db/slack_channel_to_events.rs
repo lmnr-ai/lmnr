@@ -29,23 +29,3 @@ pub async fn get_channels_for_event(
 
     Ok(records)
 }
-
-pub async fn event_exists_for_project(
-    pool: &PgPool,
-    project_id: Uuid,
-    event_name: &str,
-) -> anyhow::Result<bool> {
-    let count: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(*)
-        FROM slack_channel_to_events
-        WHERE project_id = $1 AND event_name = $2
-        "#,
-    )
-    .bind(project_id)
-    .bind(event_name)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(count > 0)
-}
