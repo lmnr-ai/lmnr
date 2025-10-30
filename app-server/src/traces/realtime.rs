@@ -26,7 +26,7 @@ struct RealtimeTrace {
     total_cost: f64,
     metadata: Option<Value>,
     top_span_id: Option<Uuid>,
-    trace_type: &'static str,
+    trace_type: String,
     top_span_name: Option<String>,
     top_span_type: Option<i16>,
     status: Option<String>,
@@ -134,7 +134,7 @@ impl RealtimeTrace {
             total_cost: trace.cost(),
             metadata: trace.metadata().cloned(),
             top_span_id: trace.top_span_id(),
-            trace_type: "DEFAULT", // Simplified for now
+            trace_type: trace.trace_type().to_string(),
             top_span_name: trace.top_span_name(),
             top_span_type: trace.top_span_type(),
             status: trace.status(),
