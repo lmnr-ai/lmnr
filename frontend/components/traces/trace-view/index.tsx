@@ -353,9 +353,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       try {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
-          // Process batched span updates
           for (const span of payload.spans) {
-            console.log("trace id", span.traceId);
             onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
           }
         }

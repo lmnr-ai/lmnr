@@ -18,7 +18,6 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
-import { Label } from "@/components/ui/label";
 
 const presetFilters: DatatableFilter[] = [];
 
