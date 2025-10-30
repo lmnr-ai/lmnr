@@ -11,7 +11,8 @@ const Trace = ({ trace }: { trace: TraceViewTrace }) => (
   <>
     <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-1 mr-2" />
     <FiltersContextProvider>
-      <TraceView propsTrace={trace} onClose={() => {}} traceId={trace.id} />
+      <div className="border-b"></div>
+      <TraceView propsTrace={trace} onClose={() => { }} traceId={trace.id} />
     </FiltersContextProvider>
   </>
 );
