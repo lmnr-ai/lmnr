@@ -210,7 +210,7 @@ function SessionsTableContent() {
         data={sessions}
         getRowId={(session) => get(session, ["id"], session.sessionId)}
         onRowClick={handleRowClick}
-        focusedRowId={searchParams.get("sessionId")}
+        focusedRowId={traceId || searchParams.get("traceId")}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
