@@ -8,14 +8,33 @@ use sodiumoxide::{
     crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
     hex,
 };
-
-use super::TraceAnalysisPayload;
+use uuid::Uuid;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceAnalysisPayload {
+    pub summary: String,
+    pub analysis: String,
+    pub analysis_preview: String,
+    pub status: String,
+    pub span_ids_map: HashMap<String, String>,
+    pub channel_id: String,
+    pub integration_id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EventIdentificationPayload {
+    pub event_name: String,
+    pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
+    pub channel_id: String,
+    pub integration_id: Uuid,
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SlackMessagePayload {
     TraceAnalysis(TraceAnalysisPayload),
+    EventIdentification(EventIdentificationPayload),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -61,7 +80,7 @@ fn format_trace_analysis_blocks(
     status: &str,
     summary: &str,
     analysis: &str,
-    span_ids_map: &HashMap<String, String>,
+    _span_ids_map: &HashMap<String, String>,
 ) -> serde_json::Value {
     let emoji = match status {
         "error" => "🚨",
@@ -69,21 +88,16 @@ fn format_trace_analysis_blocks(
         _ => "ℹ️",
     };
 
-    let mut analysis_text = if analysis.is_empty() {
+    let analysis_text = if analysis.is_empty() {
         "No analysis available".to_string()
     } else {
         analysis.to_string()
     };
 
-    for (span_name, span_id) in span_ids_map {
-        let link_url = format!(
-            "https://laminar.sh/project/{}/traces?trace_id={}&span_id={}",
-            project_id, trace_id, span_id
-        );
-        let slack_link = format!("<{}|`{}`>", link_url, span_name);
-        let backticked_span = format!("`{}`", span_name);
-        analysis_text = analysis_text.replace(&backticked_span, &slack_link);
-    }
+    let trace_link = format!(
+        "https://laminar.sh/project/{}/traces/{}",
+        project_id, trace_id
+    );
 
     json!([
         {
@@ -99,11 +113,63 @@ fn format_trace_analysis_blocks(
                 "type": "mrkdwn",
                 "text": analysis_text
             }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View Trace",
+                        "emoji": true
+                    },
+                    "url": trace_link,
+                    "action_id": "view_trace"
+                }
+            ]
         }
     ])
 }
 
-fn format_message_blocks(
+fn format_event_identification_blocks(
+    project_id: &str,
+    trace_id: &str,
+    event_name: &str,
+    _event_definition: &Option<crate::db::summary_trigger_spans::EventDefinition>,
+) -> serde_json::Value {
+    let trace_link = format!(
+        "https://laminar.sh/project/{}/traces/{}",
+        project_id, trace_id
+    );
+
+    json!([
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("✅ *Event Detected: {}*", event_name)
+            }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View Trace",
+                        "emoji": true
+                    },
+                    "url": trace_link,
+                    "action_id": "view_trace"
+                }
+            ]
+        }
+    ])
+}
+
+pub fn format_message_blocks(
     payload: &SlackMessagePayload,
     project_id: &str,
     trace_id: &str,
@@ -119,23 +185,30 @@ fn format_message_blocks(
             &trace_payload.analysis,
             &trace_payload.span_ids_map,
         ),
+        SlackMessagePayload::EventIdentification(event_payload) => {
+            format_event_identification_blocks(
+                project_id,
+                trace_id,
+                event_name,
+                &event_payload.event_definition,
+            )
+        }
+    }
+}
+
+pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
+    match payload {
+        SlackMessagePayload::TraceAnalysis(trace_payload) => &trace_payload.channel_id,
+        SlackMessagePayload::EventIdentification(event_payload) => &event_payload.channel_id,
     }
 }
 
 pub async fn send_message(
     slack_client: &Client,
     token: &str,
-    payload: &SlackMessagePayload,
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
+    channel_id: &str,
+    blocks: serde_json::Value,
 ) -> Result<()> {
-    let channel_id = match payload {
-        SlackMessagePayload::TraceAnalysis(trace_payload) => &trace_payload.channel_id,
-    };
-
-    let blocks = format_message_blocks(payload, project_id, trace_id, event_name);
-
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
         .header("Authorization", format!("Bearer {}", token))

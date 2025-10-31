@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
@@ -13,30 +12,23 @@ use crate::mq::{
 };
 
 mod slack;
-use slack::SlackMessagePayload;
+pub use slack::{EventIdentificationPayload, SlackMessagePayload, TraceAnalysisPayload};
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
 pub const NOTIFICATIONS_ROUTING_KEY: &str = "notifications";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TraceAnalysisPayload {
-    pub summary: String,
-    pub analysis: String,
-    pub analysis_preview: String,
-    pub status: String,
-    pub span_ids_map: HashMap<String, String>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
+pub enum NotificationType {
+    Slack,
 }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NotificationMessage {
     pub project_id: Uuid,
     pub trace_id: Uuid,
     pub span_id: Uuid,
     #[serde(rename = "type")]
-    pub notification_type: String,
+    pub notification_type: NotificationType,
     pub event_name: String,
     pub payload: serde_json::Value,
 }
@@ -160,22 +152,22 @@ async fn process_single_notification(
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
     log::info!(
-        "Processing notification: project_id={}, trace_id={}, span_id={}, type={}, event_name={}",
+        "Processing notification: project_id={}, trace_id={}, span_id={}, event_name={}",
         message.project_id,
         message.trace_id,
         message.span_id,
-        message.notification_type,
         message.event_name
     );
 
-    let result = match message.notification_type.as_str() {
-        "slack" => {
+    let result = match message.notification_type {
+        NotificationType::Slack => {
             let slack_payload: SlackMessagePayload =
                 serde_json::from_value(message.payload.clone())
                     .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
 
             let integration_id = match &slack_payload {
                 SlackMessagePayload::TraceAnalysis(payload) => payload.integration_id,
+                SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
             };
 
             let integration =
@@ -188,15 +180,19 @@ async fn process_single_notification(
                     &integration.token,
                 )?;
 
-                slack::send_message(
-                    slack_client,
-                    &decrypted_token,
+                // Build blocks from the payload
+                let blocks = slack::format_message_blocks(
                     &slack_payload,
                     &message.project_id.to_string(),
                     &message.trace_id.to_string(),
                     &message.event_name,
-                )
-                .await?;
+                );
+
+                // Get the channel ID from the payload
+                let channel_id = slack::get_channel_id(&slack_payload);
+
+                // Send the message with blocks and channel_id
+                slack::send_message(slack_client, &decrypted_token, channel_id, blocks).await?;
 
                 log::debug!(
                     "Successfully sent Slack notification for trace_id={}",
@@ -207,7 +203,7 @@ async fn process_single_notification(
             Ok(())
         }
         _ => {
-            log::warn!("Unknown notification type: {}", message.notification_type);
+            log::warn!("Unknown notification type: {:?}", message.notification_type);
             Ok(())
         }
     };

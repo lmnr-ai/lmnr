@@ -12,7 +12,9 @@ use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
     MessageQueueTrait,
 };
-use crate::notifications;
+use crate::notifications::{
+    self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TraceSummaryMessage {
@@ -30,6 +32,20 @@ pub struct TraceSummaryResponse {
     pub analysis: String,
     pub analysis_preview: String,
     pub span_ids_map: HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtractedEventInformation {
+    pub is_event_present: bool,
+    pub extracted_information: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EventIdentificationResponse {
+    pub success: bool,
+    pub event: ExtractedEventInformation,
+    pub error: Option<String>,
 }
 
 /// Push a trace completion message to the trace summary queue
@@ -162,7 +178,7 @@ async fn process_single_trace_summary(
 ) -> anyhow::Result<()> {
     // Route to appropriate service based on whether event_definition is present
     if message.event_definition.is_some() {
-        process_event_identification(client, message, acker).await
+        process_event_identification(client, message, acker, db, queue).await
     } else {
         process_trace_summary(client, db, queue, message, acker).await
     }
@@ -252,9 +268,12 @@ async fn process_trace_summary(
                                     project_id: message.project_id,
                                     trace_id: message.trace_id,
                                     span_id: message.trigger_span_id,
-                                    notification_type: "slack".to_string(),
+                                    notification_type: NotificationType::Slack,
                                     event_name: event_name.to_string(),
-                                    payload: serde_json::to_value(&payload).unwrap(),
+                                    payload: serde_json::to_value(
+                                        SlackMessagePayload::TraceAnalysis(payload),
+                                    )
+                                    .unwrap(),
                                 };
 
                                 if let Err(e) = notifications::push_to_notification_queue(
@@ -302,6 +321,8 @@ async fn process_event_identification(
     client: &reqwest::Client,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let event_definition = message
         .event_definition
@@ -335,7 +356,81 @@ async fn process_event_identification(
 
     match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
     {
-        Ok(_response_text) => {
+        Ok(response_text) => {
+            let response = match serde_json::from_str::<EventIdentificationResponse>(&response_text)
+            {
+                Ok(resp) => resp,
+                Err(e) => {
+                    log::error!("Failed to parse event identification response: {}", e);
+                    reject_message(&acker).await;
+                    return Ok(());
+                }
+            };
+
+            if response.success {
+                if response.event.is_event_present {
+                    match db::slack_channel_to_events::get_channels_for_event(
+                        &db.pool,
+                        message.project_id,
+                        event_definition.name.as_str(),
+                    )
+                    .await
+                    {
+                        Ok(channels) => {
+                            if channels.is_empty() {
+                                log::debug!(
+                                    "Event {} not configured for project {}",
+                                    event_definition.name,
+                                    message.project_id
+                                );
+                            } else {
+                                // Push a notification for each configured channel
+                                for channel in channels {
+                                    let payload = EventIdentificationPayload {
+                                        event_name: event_definition.name.clone(),
+                                        event_definition: Some(event_definition.clone()),
+                                        channel_id: channel.channel_id.clone(),
+                                        integration_id: channel.integration_id,
+                                    };
+
+                                    let notification_message = notifications::NotificationMessage {
+                                        project_id: message.project_id,
+                                        trace_id: message.trace_id,
+                                        span_id: message.trigger_span_id,
+                                        notification_type: NotificationType::Slack,
+                                        event_name: event_definition.name.clone(),
+                                        payload: serde_json::to_value(
+                                            SlackMessagePayload::EventIdentification(payload),
+                                        )
+                                        .unwrap(),
+                                    };
+
+                                    if let Err(e) = notifications::push_to_notification_queue(
+                                        notification_message,
+                                        queue.clone(),
+                                    )
+                                    .await
+                                    {
+                                        log::error!(
+                                            "Failed to push to notification queue for channel {}: {:?}",
+                                            channel.channel_id,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to fetch event configuration: {:?}", e);
+                        }
+                    }
+                }
+            } else {
+                log::error!("Event identification failed: {:?}", response.error);
+                reject_message(&acker).await;
+                return Ok(());
+            }
+
             if let Err(e) = acker.ack().await {
                 log::error!("Failed to ack event identification message: {:?}", e);
             }
