@@ -36,14 +36,17 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const data = SlackWebhookRequestSchema.parse(payload);
-    if (data.type === "url_verification") {
-      return NextResponse.json({ challenge: data.challenge });
-    }
 
-    if (data.type === "event_callback") {
-      const { event, team_id } = data;
-      await processSlackEvent({ event, teamId: team_id });
-      return NextResponse.json({ ok: true }, { status: 200 });
+    if ("type" in data) {
+      if (data.type === "url_verification") {
+        return NextResponse.json({ challenge: data.challenge });
+      }
+
+      if (data.type === "event_callback") {
+        const { event, team_id } = data;
+        await processSlackEvent({ event, teamId: team_id });
+        return NextResponse.json({ ok: true }, { status: 200 });
+      }
     }
 
     return NextResponse.json({ ok: true }, { status: 200 });
