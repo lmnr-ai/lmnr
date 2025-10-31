@@ -143,19 +143,42 @@ fn format_event_identification_blocks(
         project_id, trace_id
     );
 
+    let extracted_information_text =
+        serde_json::to_string_pretty(&extracted_information).unwrap_or_default();
+
+    if extracted_information_text.is_empty() && extracted_information_text != "null".to_string() {
+        return json!([
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("✅ *Event Detected: {}*", event_name)
+                }
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "View Trace",
+                            "emoji": true
+                        },
+                        "url": trace_link,
+                        "action_id": "view_trace"
+                    }
+                ]
+            }
+        ]);
+    }
+
     json!([
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": format!("✅ *Event Detected: {}*", event_name)
-            }
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("{} ", serde_json::to_string_pretty(&extracted_information).unwrap_or_default())
             }
         },
         {
