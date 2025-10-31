@@ -151,14 +151,6 @@ async fn process_single_notification(
     message: NotificationMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    log::info!(
-        "Processing notification: project_id={}, trace_id={}, span_id={}, event_name={}",
-        message.project_id,
-        message.trace_id,
-        message.span_id,
-        message.event_name
-    );
-
     let result = match message.notification_type {
         NotificationType::Slack => {
             let slack_payload: SlackMessagePayload =

@@ -159,7 +159,7 @@ fn format_event_identification_blocks(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!("✅ *Payload:*\n{}", extracted_information_text)
+                    "text": format!("*Payload:*\n{}", extracted_information_text)
                 }
             },
             {
