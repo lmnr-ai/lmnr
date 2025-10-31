@@ -87,4 +87,12 @@ export const SlackSlashCommandSchema = z.looseObject({
   is_enterprise_install: z.string().optional(),
 });
 
-export const SlackWebhookRequestSchema = z.union([SlackUrlVerificationRequestSchema, SlackEventCallbackSchema]);
+export const SlackBlockActionsSchema = z.object({
+  payload: z.string(),
+});
+
+export const SlackWebhookRequestSchema = z.union([
+  SlackUrlVerificationRequestSchema,
+  SlackEventCallbackSchema,
+  SlackBlockActionsSchema,
+]);
