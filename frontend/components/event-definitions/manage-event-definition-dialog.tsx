@@ -276,7 +276,7 @@ function ManageEventDefinitionDialogContent({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading || !isValid} onClick={handleSubmit(submit)}>
+          <Button type="submit" disabled={isLoading || !isValid}>
             <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
             {id ? "Save" : "Create"}
           </Button>
