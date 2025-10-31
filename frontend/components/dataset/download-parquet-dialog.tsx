@@ -1,8 +1,7 @@
-import { CopyIcon, Download, Loader2, Rows2 } from "lucide-react";
+import { CopyIcon, Download, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -118,10 +117,9 @@ export default function DownloadParquetDialog({ datasetId, publicApiBaseUrl }: D
       }}
     >
       <DialogTrigger asChild>
-        <Badge className="cursor-pointer py-1 px-2" variant="secondary">
-          <Rows2 className="size-3 mr-2" />
-          <span className="text-xs">Parquets</span>
-        </Badge>
+        <Button icon="rows4" variant="secondary">
+          Parquets
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[900px]">
         <DialogHeader>

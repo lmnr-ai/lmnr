@@ -170,10 +170,10 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
     customConditions,
-    orderBy: {
+    orderBy: [{
       column: "start_time",
       direction: "DESC",
-    },
+    }],
     pagination: {
       limit,
       offset,

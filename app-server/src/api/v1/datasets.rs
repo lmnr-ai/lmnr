@@ -1,21 +1,27 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, get, post, web};
+use chrono::Utc;
 use futures_util::StreamExt;
 use serde::Deserialize;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    ch::datapoints as ch_datapoints,
-    datasets::datapoints::Datapoint,
+    ch::datapoints::{self as ch_datapoints},
+    datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
     db::{self, DB, project_api_keys::ProjectApiKey},
+    query_engine::QueryEngine,
     routes::{PaginatedResponse, types::ResponseResult},
+    sql::{self, ClickhouseReadonlyClient},
     storage::{Storage, StorageTrait},
 };
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetDatapointsRequestParams {
-    name: String,
+    #[serde(alias = "dataset_name", alias = "name")]
+    dataset_name: String,
     limit: i64,
     offset: i64,
 }
@@ -24,16 +30,24 @@ pub struct GetDatapointsRequestParams {
 async fn get_datapoints(
     params: web::Query<GetDatapointsRequestParams>,
     db: web::Data<DB>,
-    clickhouse: web::Data<clickhouse::Client>,
+    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
+    query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
-    let clickhouse = clickhouse.into_inner().as_ref().clone();
+    let clickhouse_ro = if let Some(clickhouse_ro) = clickhouse_ro.as_ref() {
+        clickhouse_ro.clone()
+    } else {
+        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "ClickHouse read-only client is not configured"
+        })));
+    };
+    let query_engine = query_engine.into_inner().as_ref().clone();
     let query = params.into_inner();
 
     let dataset_id =
-        db::datasets::get_dataset_id_by_name(&db.pool, &query.name, project_id).await?;
+        db::datasets::get_dataset_id_by_name(&db.pool, &query.dataset_name, project_id).await?;
 
     let Some(dataset_id) = dataset_id else {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -41,22 +55,68 @@ async fn get_datapoints(
         })));
     };
 
-    // Get datapoints from ClickHouse
-    let ch_datapoints = ch_datapoints::get_datapoints_paginated(
-        clickhouse.clone(),
+    let select_query = "
+        SELECT
+            id,
+            dataset_id,
+            created_at,
+            data,
+            target,
+            metadata
+        FROM dataset_datapoints
+        WHERE dataset_id = {dataset_id:UUID}
+        ORDER BY toUInt128(id) ASC
+        LIMIT {limit:Int64}
+        OFFSET {offset:Int64}
+    ";
+    let parameters = HashMap::from([
+        (
+            "dataset_id".to_string(),
+            Value::String(dataset_id.to_string()),
+        ),
+        ("limit".to_string(), Value::Number(query.limit.into())),
+        ("offset".to_string(), Value::Number(query.offset.into())),
+    ]);
+
+    let select_query_result = sql::execute_sql_query(
+        select_query.to_string(),
         project_id,
-        dataset_id,
-        Some(query.limit),
-        Some(query.offset),
+        parameters.clone(),
+        clickhouse_ro.clone(),
+        query_engine.clone(),
     )
     .await?;
 
-    let total_count = ch_datapoints::count_datapoints(clickhouse, project_id, dataset_id).await?;
+    let total_count_query = "
+        SELECT COUNT(*) as count FROM dataset_datapoints
+        WHERE dataset_id = {dataset_id:UUID}
+    ";
 
-    let datapoints: Vec<Datapoint> = ch_datapoints
+    let total_count_result = sql::execute_sql_query(
+        total_count_query.to_string(),
+        project_id,
+        HashMap::from([(
+            "dataset_id".to_string(),
+            Value::String(dataset_id.to_string()),
+        )]),
+        clickhouse_ro,
+        query_engine,
+    )
+    .await?;
+
+    let total_count = total_count_result
+        .first()
+        .and_then(|v| v.get("count").and_then(|v| v.as_i64()).map(|v| v as u64))
+        .unwrap_or_default();
+
+    let datapoints: Vec<Datapoint> = select_query_result
         .into_iter()
-        .map(|ch_dp| ch_dp.into())
-        .collect();
+        .map(|ch_dp| {
+            serde_json::from_value::<CHQueryEngineDatapoint>(ch_dp)
+                .map_err(anyhow::Error::from)
+                .and_then(|ch_dp| ch_dp.try_into())
+        })
+        .collect::<Result<Vec<Datapoint>, anyhow::Error>>()?;
 
     let response = PaginatedResponse {
         total_count,
@@ -68,13 +128,18 @@ async fn get_datapoints(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateDatapointsRequest {
+    // The alias is added to support the old endpoint (dataset_name)
+    #[serde(alias = "dataset_name")]
     pub dataset_name: String,
     pub datapoints: Vec<CreateDatapointRequest>,
 }
 
 #[derive(Deserialize)]
 pub struct CreateDatapointRequest {
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub data: serde_json::Value,
     pub target: Option<serde_json::Value>,
     #[serde(default)]
@@ -119,7 +184,9 @@ async fn create_datapoints(
         .datapoints
         .into_iter()
         .map(|dp_req| Datapoint {
-            id: Uuid::new_v4(),
+            // now_v7 is guaranteed to be sorted by creation time
+            id: dp_req.id.unwrap_or(Uuid::now_v7()),
+            created_at: Utc::now(),
             dataset_id,
             data: dp_req.data,
             target: dp_req.target,

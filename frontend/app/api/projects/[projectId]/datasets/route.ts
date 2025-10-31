@@ -1,12 +1,7 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { clickhouseClient } from "@/lib/clickhouse/client";
-import { DatasetInfo } from "@/lib/dataset/types";
-import { db } from "@/lib/db/drizzle";
-import { datasets } from "@/lib/db/migrations/schema";
-import { paginatedGet } from "@/lib/db/utils";
-import { PaginatedResponse } from "@/lib/types";
+import { createDataset, deleteDatasets, getDatasets } from "@/lib/actions/datasets";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -14,22 +9,15 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const body = await req.json();
   const { name } = body;
 
-  const dataset = await db
-    .insert(datasets)
-    .values({
-      name,
-      projectId,
-    })
-    .returning()
-    .then((res) => res[0]);
-
-  if (!dataset) {
-    return new Response(JSON.stringify({ error: "Failed to create dataset" }), {
-      status: 500,
-    });
+  try {
+    const dataset = await createDataset({ name, projectId });
+    return NextResponse.json(dataset, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to create dataset" }, { status: 500 });
   }
-
-  return new Response(JSON.stringify(dataset), { status: 200 });
 }
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -38,48 +26,17 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
   const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
-  const filters = [eq(datasets.projectId, projectId)];
 
-  const datasetsData: PaginatedResponse<DatasetInfo> = await paginatedGet({
-    table: datasets,
-    pageNumber,
-    pageSize,
-    filters,
-    orderBy: [desc(datasets.createdAt)],
-  });
+  try {
+    const response = await getDatasets({ projectId, pageNumber, pageSize });
+    return NextResponse.json(response, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to get datasets" }, { status: 500 });
+  }
 
-  const datasetIds = datasetsData.items.map((dataset) => (dataset as DatasetInfo).id);
-
-  const chResult = await clickhouseClient.query({
-    query: `
-      SELECT dataset_id, COUNT(*) as count
-      FROM dataset_datapoints
-      WHERE project_id = {projectId: UUID}
-      AND dataset_id IN {datasetIds: Array(UUID)}
-      GROUP BY dataset_id
-    `,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      datasetIds,
-    },
-  });
-
-  const chResultJson = await chResult.json();
-
-  const datapointCounts = Object.fromEntries(chResultJson.map((row: any) => [row.dataset_id, row.count]));
-
-  const items = datasetsData.items.map((dataset: any) => ({
-    ...dataset,
-    datapointsCount: parseInt(datapointCounts[dataset.id] ?? "0"),
-  })) as DatasetInfo[];
-
-  const response: PaginatedResponse<DatasetInfo> = {
-    items,
-    totalCount: datasetsData.totalCount,
-  };
-
-  return new Response(JSON.stringify(response));
 }
 
 export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -90,15 +47,15 @@ export async function DELETE(req: Request, props: { params: Promise<{ projectId:
   const datasetIds = searchParams.get("datasetIds")?.split(",");
 
   if (!datasetIds) {
-    return new Response("At least one Dataset ID is required", { status: 400 });
+    return NextResponse.json({ error: "At least one Dataset ID is required" }, { status: 400 });
   }
 
   try {
-    await db.delete(datasets).where(and(inArray(datasets.id, datasetIds), eq(datasets.projectId, projectId)));
+    await deleteDatasets({ projectId, datasetIds });
 
-    return new Response("datasets deleted successfully", { status: 200 });
+    return NextResponse.json({ message: "datasets deleted successfully" }, { status: 200 });
   } catch (error) {
     console.error("Error deleting datasets:", error);
-    return new Response("Error deleting datasets", { status: 500 });
+    return NextResponse.json({ error: "Error deleting datasets" }, { status: 500 });
   }
 }

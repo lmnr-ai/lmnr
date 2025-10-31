@@ -87,10 +87,10 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: {
+    orderBy: [{
       column: "timestamp",
       direction: "DESC",
-    },
+    }],
     pagination: {
       limit,
       offset,

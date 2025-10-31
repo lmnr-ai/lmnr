@@ -1,14 +1,19 @@
-import { v4 as uuidv4 } from "uuid";
 import { z } from "zod/v4";
 
+import {
+  buildAllDatapointsQueryWithParams,
+  buildDatapointCountQueryWithParams,
+  buildDatapointsByIdsQueryWithParams,
+  buildDatapointsQueryWithParams,
+} from "@/lib/actions/datapoints/utils";
 import { pushQueueItems } from "@/lib/actions/queue";
+import { executeQuery } from "@/lib/actions/sql";
 import {
   createDatapoints as createClickHouseDatapoints,
+  DatapointResult,
   deleteDatapoints as deleteClickHouseDatapoints,
-  getDatapointCount,
-  getDatapoints as getClickHouseDatapoints,
-  getDatapointsByIds,
 } from "@/lib/clickhouse/datapoints";
+import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({
   projectId: z.string(),
@@ -20,9 +25,10 @@ export const ListDatapointsSchema = z.object({
 export const CreateDatapointsSchema = z.object({
   datapoints: z.array(
     z.object({
+      id: z.string().optional(),
       data: z.any(),
       target: z.any().optional(),
-      metadata: z.any().optional(),
+      metadata: z.record(z.string(), z.any()).optional(),
     })
   ),
   sourceSpanId: z.string().optional(),
@@ -48,26 +54,52 @@ export const PushDatapointsToQueueSchema = z.object({
   queueId: z.string(),
 });
 
+export const CountDatapointsSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string(),
+});
+
+export async function countDatapoints(input: z.infer<typeof CountDatapointsSchema>) {
+  const { projectId, datasetId } = CountDatapointsSchema.parse(input);
+
+  // Get total count for pagination
+  const { query: countQuery, parameters: countParams } = buildDatapointCountQueryWithParams({
+    datasetId,
+  });
+
+  const countResult = await executeQuery<{ count: number }>({
+    query: countQuery,
+    parameters: countParams,
+    projectId,
+  });
+
+  const totalCount = countResult[0]?.count || 0;
+
+  return {
+    totalCount,
+  };
+}
 export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>) {
   const { projectId, datasetId, pageNumber, pageSize } = ListDatapointsSchema.parse(input);
 
-  // Get datapoints from ClickHouse
-  const datapointsData = await getClickHouseDatapoints({
-    projectId,
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  // Get datapoints using SQL endpoint
+  const { query: datapointsQuery, parameters: datapointsParams } = buildDatapointsQueryWithParams({
     datasetId,
     pageSize,
-    offset: pageNumber * pageSize,
+    offset,
   });
 
-  // Get total count for pagination
-  const totalCount = await getDatapointCount({
+  const datapointsData = await executeQuery<Record<string, unknown>>({
+    query: datapointsQuery,
+    parameters: datapointsParams,
     projectId,
-    datasetId,
-  });
+  }) as unknown as DatapointResult[];
+
 
   return {
     items: datapointsData,
-    totalCount,
     pageNumber,
     pageSize,
   };
@@ -76,10 +108,23 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
 export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapointsToQueueSchema>) {
   const { datapointIds, projectId, datasetId, queueId } = PushDatapointsToQueueSchema.parse(input);
 
-  // Get datapoints from ClickHouse
-  const datapoints = await getDatapointsByIds(projectId, datapointIds, datasetId);
+  if (datapointIds.length === 0) {
+    return { success: true, count: 0 };
+  }
 
-  const queueItems = datapoints.map((datapoint, index) => ({
+  // Get datapoints using SQL endpoint
+  const { query, parameters } = buildDatapointsByIdsQueryWithParams({
+    datapointIds,
+    datasetId,
+  });
+
+  const datapoints = await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  }) as unknown as DatapointResult[];
+
+  const queueItems = datapoints.map((datapoint) => ({
     payload: {
       data: JSON.parse(datapoint.data),
       target: datapoint.target ? JSON.parse(datapoint.target) : null,
@@ -90,7 +135,7 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
       datasetId: datasetId,
       id: datapoint.id,
     },
-    createdAt: new Date(Date.now() + index).toISOString(),
+    createdAt: new Date().toISOString(),
   }));
 
   const result = await pushQueueItems({
@@ -102,11 +147,14 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
 }
 
 export async function createDatapoints(input: z.infer<typeof CreateDatapointsInputSchema>) {
-  const { projectId, datasetId, datapoints, sourceSpanId } = CreateDatapointsInputSchema.parse(input);
+  const { projectId, datasetId, datapoints } = CreateDatapointsInputSchema.parse(input);
+
+  // The table is sorted by id (within each dataset), so we need to generate sequential UUIDs.
+  const ids = generateSequentialUuidsV7(datapoints.length);
 
   // Generate IDs and prepare datapoints for ClickHouse
-  const datapointsWithIds = datapoints.map((datapoint: any) => ({
-    id: uuidv4(),
+  const datapointsWithIds = datapoints.map((datapoint: any, index: number) => ({
+    id: ids[index],
     data: datapoint.data,
     target: datapoint.target,
     metadata: datapoint.metadata || {},
@@ -117,15 +165,31 @@ export async function createDatapoints(input: z.infer<typeof CreateDatapointsInp
   await createClickHouseDatapoints(
     projectId,
     datasetId,
-    datapointsWithIds
+    datapointsWithIds,
   );
 
-  return datapointsWithIds[0];
+  return datapointsWithIds;
 }
 
 export async function deleteDatapoints(input: z.infer<typeof DeleteDatapointsSchema>) {
   const { projectId, datasetId, datapointIds } = DeleteDatapointsSchema.parse(input);
 
   // Delete from ClickHouse only
-  await deleteClickHouseDatapoints(projectId, datapointIds);
+  await deleteClickHouseDatapoints(projectId, datasetId, datapointIds);
+}
+
+export async function getAllDatapointsForDataset(projectId: string, datasetId: string) {
+  // Get all datapoints using SQL endpoint
+  const { query, parameters } = buildAllDatapointsQueryWithParams({
+    projectId,
+    datasetId,
+  });
+
+  const datapoints = await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  }) as unknown as DatapointResult[];
+
+  return datapoints;
 }

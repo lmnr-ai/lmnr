@@ -29,7 +29,7 @@ export default function ClientTimestampFormatter({
     } else {
       setFormattedTimestamp(formatTimestamp(timestamp));
     }
-  }, []);
+  }, [format, timestamp]);
 
   return <span>{formattedTimestamp}</span>;
 }

@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { v4 as uuidv4 } from "uuid";
+import {v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
 
@@ -361,4 +361,22 @@ export const generateUuid = (): string => {
   } catch (e) {
     return uuidv4();
   }
+};
+
+export const generateSequentialUuidsV7 = (count: number = 1): string[] => {
+  if (count <= 0) {
+    return [];
+  }
+
+  // From uuid library docs:
+  // 32-bit sequence Number between 0 - 0xffffffff.
+  // This may be provided to help ensure uniqueness for UUIDs generated within the same millisecond time interval.
+  // Default = random value.
+
+  // UUID v7 has 12 + 62 random bits, and seq seems to map the 74 bits space to
+  // 2^32 sequential spaces, within each of which the rest is random.
+
+  // Most often, this will result in IDs that have 7000-800 in the middle,
+  // but that is ok.
+  return Array.from({ length: count }, (_, i) => uuidv7({ seq: i }));
 };

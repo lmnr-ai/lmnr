@@ -56,7 +56,7 @@ tracing = {version = "0.1.41", features = ["attributes"]}
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 url = "2.5.4"
-uuid = {version = "1.18.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"]}
+uuid = {version = "1.18.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
 [build-dependencies]
 tonic-build = "0.13"

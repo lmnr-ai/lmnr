@@ -210,10 +210,10 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
     customConditions,
     groupBy: ["session_id"],
-    orderBy: {
+    orderBy: [{
       column: "MIN(start_time)",
       direction: "DESC",
-    },
+    }],
     ...(!isNil(limit) &&
       !isNil(offset) && {
       pagination: {
