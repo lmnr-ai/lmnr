@@ -23,6 +23,7 @@ use lapin::{
 };
 use mq::MessageQueue;
 use names::NameGenerator;
+use notifications::{NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, process_notifications};
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use query_engine::{
     QueryEngine, query_engine::query_engine_service_client::QueryEngineServiceClient,
@@ -66,6 +67,7 @@ mod instrumentation;
 mod language_model;
 mod mq;
 mod names;
+mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
 mod provider_api_keys;
@@ -362,6 +364,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.6 Notifications message queue ====
+            channel
+                .exchange_declare(
+                    NOTIFICATIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    NOTIFICATIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -389,6 +417,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
         // ==== 3.5 Trace summary message queue ====
         queue.register_queue(TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE);
+        // ==== 3.6 Notifications message queue ====
+        queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -398,7 +428,10 @@ fn main() -> anyhow::Result<()> {
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
-    // ==== 3.6 Worker tracker ====
+    // ==== Slack client ====
+    let slack_client = Arc::new(reqwest::Client::new());
+
+    // ==== 3.7 Worker tracker ====
     let worker_tracker = Arc::new(WorkerTracker::new());
 
     let runtime_handle_for_http = runtime_handle.clone();
@@ -565,13 +598,19 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_notification_workers = env::var("NUM_NOTIFICATION_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
         log::info!(
-            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}",
+            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}",
             num_spans_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
-            num_trace_summary_workers
+            num_trace_summary_workers,
+            num_notification_workers
         );
 
         let connection_for_health_clone = connection_for_health.clone();
@@ -593,6 +632,7 @@ fn main() -> anyhow::Result<()> {
                         num_evaluators_workers as usize,
                         num_payload_workers as usize,
                         num_trace_summary_workers as usize,
+                        num_notification_workers as usize,
                     );
                     for _ in 0..num_spans_workers {
                         let worker_handle = worker_tracker_clone.register_worker(WorkerType::Spans);
@@ -665,10 +705,23 @@ fn main() -> anyhow::Result<()> {
                     for _ in 0..num_trace_summary_workers {
                         let worker_handle =
                             worker_tracker_clone.register_worker(WorkerType::TraceSummaries);
+                        let db_clone = db_for_consumer.clone();
                         let mq_clone = mq_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_trace_summaries(mq_clone).await;
+                            process_trace_summaries(db_clone, mq_clone).await;
+                        });
+                    }
+
+                    for _ in 0..num_notification_workers {
+                        let worker_handle =
+                            worker_tracker_clone.register_worker(WorkerType::Notifications);
+                        let db_clone = db_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        let slack_client_clone = slack_client.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle;
+                            process_notifications(db_clone, slack_client_clone, mq_clone).await;
                         });
                     }
 

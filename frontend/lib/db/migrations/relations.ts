@@ -1,17 +1,17 @@
 import { relations } from "drizzle-orm/relations";
 
-import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
-export const projectSettingsRelations = relations(projectSettings, ({one}) => ({
+export const slackIntegrationsRelations = relations(slackIntegrations, ({one, many}) => ({
   project: one(projects, {
-    fields: [projectSettings.projectId],
+    fields: [slackIntegrations.projectId],
     references: [projects.id]
   }),
+  slackChannelToEvents: many(slackChannelToEvents),
 }));
 
 export const projectsRelations = relations(projects, ({one, many}) => ({
-  projectSettings: many(projectSettings),
-  summaryTriggerSpans: many(summaryTriggerSpans),
+  slackIntegrations: many(slackIntegrations),
   datasets: many(datasets),
   workspace: one(workspaces, {
     fields: [projects.workspaceId],
@@ -20,7 +20,6 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   projectApiKeys: many(projectApiKeys),
   providerApiKeys: many(providerApiKeys),
   renderTemplates: many(renderTemplates),
-  traces: many(traces),
   evaluators: many(evaluators),
   evaluatorSpanPaths: many(evaluatorSpanPaths),
   evaluations: many(evaluations),
@@ -34,14 +33,18 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   tracesAgentMessages: many(tracesAgentMessages),
   tracesSummaries: many(tracesSummaries),
   sharedTraces: many(sharedTraces),
+  projectSettings: many(projectSettings),
+  eventDefinitions: many(eventDefinitions),
+  summaryTriggerSpans: many(summaryTriggerSpans),
+  traces: many(traces),
   tagClasses: many(tagClasses),
   spans: many(spans),
 }));
 
-export const summaryTriggerSpansRelations = relations(summaryTriggerSpans, ({one}) => ({
-  project: one(projects, {
-    fields: [summaryTriggerSpans.projectId],
-    references: [projects.id]
+export const slackChannelToEventsRelations = relations(slackChannelToEvents, ({one}) => ({
+  slackIntegration: one(slackIntegrations, {
+    fields: [slackChannelToEvents.integrationId],
+    references: [slackIntegrations.id]
   }),
 }));
 
@@ -134,13 +137,6 @@ export const evaluationResultsRelations = relations(evaluationResults, ({one, ma
 export const renderTemplatesRelations = relations(renderTemplates, ({one}) => ({
   project: one(projects, {
     fields: [renderTemplates.projectId],
-    references: [projects.id]
-  }),
-}));
-
-export const tracesRelations = relations(traces, ({one}) => ({
-  project: one(projects, {
-    fields: [traces.projectId],
     references: [projects.id]
   }),
 }));
@@ -264,6 +260,34 @@ export const tracesSummariesRelations = relations(tracesSummaries, ({one}) => ({
 export const sharedTracesRelations = relations(sharedTraces, ({one}) => ({
   project: one(projects, {
     fields: [sharedTraces.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const projectSettingsRelations = relations(projectSettings, ({one}) => ({
+  project: one(projects, {
+    fields: [projectSettings.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const eventDefinitionsRelations = relations(eventDefinitions, ({one}) => ({
+  project: one(projects, {
+    fields: [eventDefinitions.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const summaryTriggerSpansRelations = relations(summaryTriggerSpans, ({one}) => ({
+  project: one(projects, {
+    fields: [summaryTriggerSpans.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const tracesRelations = relations(traces, ({one}) => ({
+  project: one(projects, {
+    fields: [traces.projectId],
     references: [projects.id]
   }),
 }));

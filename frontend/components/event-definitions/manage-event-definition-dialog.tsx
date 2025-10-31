@@ -266,23 +266,22 @@ function ManageEventDefinitionDialogContent({
           )}
           {errors.structuredOutput && <p className="text-sm text-red-500">{errors.structuredOutput.message}</p>}
         </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setOpen(false);
+              reset(getDefaultValues(String(projectId)));
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading || !isValid} onClick={handleSubmit(submit)}>
+            <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
+            {id ? "Save" : "Create"}
+          </Button>
+        </DialogFooter>
       </form>
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setOpen(false);
-            reset(getDefaultValues(String(projectId)));
-          }}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isLoading || !isValid} handleEnter>
-          <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
-          {id ? "Save" : "Create"}
-        </Button>
-      </DialogFooter>
     </DialogContent>
   );
 }
