@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -73,6 +74,34 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+fn replace_span_tags_with_links(
+    text: &str,
+    project_id: &str,
+    trace_id: &str,
+    span_ids_map: &HashMap<String, String>,
+) -> String {
+    // Regex to match <span id='X' name='Y' ... />
+    let re = Regex::new(r#"`<span\s+id='(\d+)'\s+name='([^']+)'[^>]*/?>`"#).unwrap();
+
+    re.replace_all(text, |caps: &regex::Captures| {
+        let index_id = &caps[1];
+        let name = &caps[2];
+
+        // Look up the actual span_id from the map
+        if let Some(actual_span_id) = span_ids_map.get(index_id) {
+            // Create Slack link: <url|text>
+            format!(
+                "[{}](https://laminar.sh/project/{}/traces/{}?spanId={})",
+                name, project_id, trace_id, actual_span_id
+            )
+        } else {
+            // If span_id not found in map, just return the name without a link (but don't replace)
+            name.to_string()
+        }
+    })
+    .to_string()
+}
+
 fn format_trace_analysis_blocks(
     project_id: &str,
     trace_id: &str,
@@ -80,7 +109,7 @@ fn format_trace_analysis_blocks(
     status: &str,
     summary: &str,
     analysis: &str,
-    _span_ids_map: &HashMap<String, String>,
+    span_ids_map: &HashMap<String, String>,
 ) -> serde_json::Value {
     let emoji = match status {
         "error" => "🚨",
@@ -91,7 +120,7 @@ fn format_trace_analysis_blocks(
     let analysis_text = if analysis.is_empty() {
         "No analysis available".to_string()
     } else {
-        analysis.to_string()
+        replace_span_tags_with_links(analysis, project_id, trace_id, span_ids_map)
     };
 
     let trace_link = format!(
@@ -108,11 +137,8 @@ fn format_trace_analysis_blocks(
             }
         },
         {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": analysis_text
-            }
+            "type": "markdown",
+            "text": analysis_text
         },
         {
             "type": "actions",
