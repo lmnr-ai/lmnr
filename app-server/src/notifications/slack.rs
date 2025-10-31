@@ -26,7 +26,7 @@ pub struct TraceAnalysisPayload {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventIdentificationPayload {
     pub event_name: String,
-    pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
+    pub extracted_information: Option<serde_json::Value>,
     pub channel_id: String,
     pub integration_id: Uuid,
 }
@@ -136,7 +136,7 @@ fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
     event_name: &str,
-    _event_definition: &Option<crate::db::summary_trigger_spans::EventDefinition>,
+    extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let trace_link = format!(
         "https://laminar.sh/project/{}/traces/{}",
@@ -149,6 +149,13 @@ fn format_event_identification_blocks(
             "text": {
                 "type": "mrkdwn",
                 "text": format!("✅ *Event Detected: {}*", event_name)
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("{} ", serde_json::to_string_pretty(&extracted_information).unwrap_or_default())
             }
         },
         {
@@ -190,7 +197,7 @@ pub fn format_message_blocks(
                 project_id,
                 trace_id,
                 event_name,
-                &event_payload.event_definition,
+                event_payload.extracted_information.clone(),
             )
         }
     }

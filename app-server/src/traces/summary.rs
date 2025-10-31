@@ -35,7 +35,6 @@ pub struct TraceSummaryResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ExtractedEventInformation {
     pub is_event_present: bool,
     pub extracted_information: Option<serde_json::Value>,
@@ -388,7 +387,10 @@ async fn process_event_identification(
                                 for channel in channels {
                                     let payload = EventIdentificationPayload {
                                         event_name: event_definition.name.clone(),
-                                        event_definition: Some(event_definition.clone()),
+                                        extracted_information: response
+                                            .event
+                                            .extracted_information
+                                            .clone(),
                                         channel_id: channel.channel_id.clone(),
                                         integration_id: channel.integration_id,
                                     };
