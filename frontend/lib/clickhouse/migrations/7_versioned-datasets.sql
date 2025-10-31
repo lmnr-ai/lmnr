@@ -48,7 +48,7 @@ CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
     WHERE project_id={project_id:UUID}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, dataset_id, id ORDER BY created_at DESC) = 1;
 
-CREATE VIEW IF NOT EXISTS dataset_datapoints_versions_v0 SQL SECURITY INVOKER AS
+CREATE VIEW IF NOT EXISTS dataset_datapoint_versions_v0 SQL SECURITY INVOKER AS
     SELECT
         id,
         created_at,

@@ -71,7 +71,7 @@ class TableRegistry:
         self.tables['dataset_datapoints'] = TableSchema('dataset_datapoints', dataset_datapoints_columns, 'created_at')
         # same as dataset_datapoints, but dataset_datapoints_v0 view only exposes
         # the latest version of each datapoint
-        self.tables['dataset_datapoints_versions'] = TableSchema('dataset_datapoints_versions', dataset_datapoints_columns, 'created_at')
+        self.tables['dataset_datapoint_versions'] = TableSchema('dataset_datapoint_versions', dataset_datapoints_columns, 'created_at')
         self.tables['evaluation_datapoints'] = TableSchema('evaluation_datapoints', evaluation_datapoints_columns, 'created_at')
         self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
         self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')

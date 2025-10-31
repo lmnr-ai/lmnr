@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { buildSelectQuery, QueryParams, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
-import { createDatapoints,DatapointResult } from "@/lib/clickhouse/datapoints";
+import { createDatapoints, DatapointResult } from "@/lib/clickhouse/datapoints";
 import { tryParseJson } from "@/lib/utils";
 
 // Schema for listing versions of a datapoint
@@ -54,7 +54,7 @@ const buildDatapointVersionsQueryWithParams = (
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: datapointVersionSelectColumns,
-      table: "dataset_datapoints_versions",
+      table: "dataset_datapoint_versions",
     },
     customConditions,
     orderBy: [
@@ -97,7 +97,7 @@ const buildSpecificDatapointVersionQueryWithParams = (
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: datapointVersionSelectColumns,
-      table: "dataset_datapoints_versions",
+      table: "dataset_datapoint_versions",
     },
     customConditions,
     pagination: {

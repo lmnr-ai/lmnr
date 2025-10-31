@@ -243,11 +243,7 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
 
   if (orderBy && orderBy.length > 0) {
     query += " ORDER BY ";
-    for (const orderByOption of orderBy) {
-      query += `${orderByOption.column} ${orderByOption.direction || "DESC"}, `;
-    }
-    // remove the last comma and space
-    query = query.replace(/,\s*$/, "");
+    query += orderBy.map((o) => `${o.column} ${o.direction || "ASC"}`).join(", ");
   }
 
   const allParams = { ...whereResult.parameters, ...havingResult.parameters };
