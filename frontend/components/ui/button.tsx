@@ -48,7 +48,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm leading-none font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm leading-none font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -141,7 +141,10 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, handleEnter, handleKeys, icon, children, ...props }, ref) => {
+  (
+    { className, variant, size, asChild = false, handleEnter, handleKeys, icon, children, type = "button", ...props },
+    ref
+  ) => {
     const Comp = asChild ? Slot : "button";
 
     const handleKeysUp = React.useMemo(() => {
@@ -195,7 +198,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const IconComponent = icon ? iconMap[icon] : null;
 
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && <IconComponent className={cn("-ml-1 mr-1", size === "sm" ? "size-3" : "size-3.5")} />}
         {children}
       </Comp>
