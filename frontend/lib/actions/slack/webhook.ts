@@ -62,6 +62,6 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
       break;
 
     default:
-      console.log(`Unhandled Slack event type: ${event}`);
+      console.log(`Unhandled Slack event type: ${event.type}`);
   }
 }

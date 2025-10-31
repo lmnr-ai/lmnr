@@ -42,7 +42,16 @@ const SlackTokensRevokedEventSchema = z.looseObject({
   }),
 });
 
-export const SlackEventSchema = z.union([SlackAppUninstalledEventSchema, SlackTokensRevokedEventSchema]);
+const SlackGenericEventSchema = z.looseObject({
+  type: z.string(),
+  event_ts: z.string().optional(),
+});
+
+export const SlackEventSchema = z.union([
+  SlackAppUninstalledEventSchema,
+  SlackTokensRevokedEventSchema,
+  SlackGenericEventSchema,
+]);
 
 export const SlackUrlVerificationRequestSchema = z.looseObject({
   type: z.literal("url_verification"),
