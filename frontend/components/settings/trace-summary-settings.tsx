@@ -148,11 +148,6 @@ export default function TraceSummarySettings() {
                 placeholder="Enter span name..."
                 value={newSpanName}
                 onChange={(e) => setNewSpanName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newSpanName.trim() && !isLoading) {
-                    addSpanName();
-                  }
-                }}
                 disabled={isLoading}
               />
             </div>

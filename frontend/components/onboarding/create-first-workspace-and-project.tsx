@@ -74,11 +74,6 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
               placeholder="Enter workspace name"
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
-                  handleButtonClick();
-                }
-              }}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -91,15 +86,11 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
               placeholder="Enter project name"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && workspaceName && projectName && !isLoading) {
-                  handleButtonClick();
-                }
-              }}
             />
           </div>
           <div className="flex justify-end">
             <Button
+              handleEnter
               type="button"
               onClick={handleButtonClick}
               disabled={!workspaceName || !projectName || isLoading}
