@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { buildDatapointQueryWithParams } from "@/lib/actions/datapoints/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { createDatapoints,DatapointResult } from "@/lib/clickhouse/datapoints";
+import { createDatapoints, DatapointResult } from "@/lib/clickhouse/datapoints";
 
 export const GetDatapointSchema = z.object({
   projectId: z.string(),

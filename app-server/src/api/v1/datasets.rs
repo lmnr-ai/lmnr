@@ -138,6 +138,8 @@ pub struct CreateDatapointsRequest {
 
 #[derive(Deserialize)]
 pub struct CreateDatapointRequest {
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub data: serde_json::Value,
     pub target: Option<serde_json::Value>,
     #[serde(default)]
@@ -183,7 +185,7 @@ async fn create_datapoints(
         .into_iter()
         .map(|dp_req| Datapoint {
             // now_v7 is guaranteed to be sorted by creation time
-            id: Uuid::now_v7(),
+            id: dp_req.id.unwrap_or(Uuid::now_v7()),
             created_at: Utc::now(),
             dataset_id,
             data: dp_req.data,

@@ -40,7 +40,6 @@ CREATE VIEW IF NOT EXISTS dataset_datapoints_v0 SQL SECURITY INVOKER AS
         id,
         created_at,
         dataset_id,
-        project_id,
         data,
         target,
         metadata
@@ -55,7 +54,6 @@ CREATE VIEW IF NOT EXISTS dataset_datapoint_versions_v0 SQL SECURITY INVOKER AS
         dataset_id,
         data,
         target,
-        metadata,
-        project_id
+        metadata
     FROM dataset_datapoints
     WHERE project_id={project_id:UUID};
