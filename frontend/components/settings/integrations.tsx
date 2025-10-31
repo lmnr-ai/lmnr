@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import useSWR from "swr";
 
 import { Badge } from "@/components/ui/badge.tsx";
@@ -47,6 +47,30 @@ export default function Integrations({
     return `https://slack.com/oauth/v2/authorize?${sp}`;
   }, [projectId, slackClientId, slackRedirectUri]);
 
+  const renderSlackStatus = useCallback(() => {
+    if (isFetchingSlack) {
+      return <Skeleton className="h-8 w-32" />;
+    }
+
+    if (slackIntegration) {
+      return (
+        <Badge className="py-1.5 border-success bg-success/80" variant="outline">
+          Connected
+        </Badge>
+      );
+    }
+
+    if (slackURL) {
+      return (
+        <a href={slackURL}>
+          <Button variant="outlinePrimary">Connect</Button>
+        </a>
+      );
+    }
+
+    return null;
+  }, [isFetchingSlack, slackIntegration, slackURL]);
+
   return (
     <>
       <SettingsSectionHeader title="Integrations" description="Manage your project integrations" />
@@ -58,17 +82,7 @@ export default function Integrations({
             size="sm"
           />
           <div className="flex flex-col items-start gap-2">
-            {isFetchingSlack ? (
-              <Skeleton className="h-8 w-32" />
-            ) : slackIntegration ? (
-              <Badge className="py-1.5 border-success bg-success/80" variant="outline">
-                Connected
-              </Badge>
-            ) : (
-              <a href={slackURL}>
-                <Button variant="outlinePrimary">Connect</Button>
-              </a>
-            )}
+            {renderSlackStatus()}
             {searchParams.get("slack") === "error" && (
               <span className="text-destructive text-xs">Failed to connect to slack. Please try again.</span>
             )}
