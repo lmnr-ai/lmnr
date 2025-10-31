@@ -146,13 +146,20 @@ fn format_event_identification_blocks(
     let extracted_information_text =
         serde_json::to_string_pretty(&extracted_information).unwrap_or_default();
 
-    if extracted_information_text.is_empty() && extracted_information_text != "null".to_string() {
+    if !extracted_information_text.is_empty() && extracted_information_text != "null".to_string() {
         return json!([
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": format!("✅ *Event Detected: {}*", event_name)
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("✅ *Payload:*\n{}", extracted_information_text)
                 }
             },
             {
