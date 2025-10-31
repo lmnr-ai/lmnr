@@ -272,11 +272,18 @@ pub async fn send_message(
     channel_id: &str,
     blocks: serde_json::Value,
 ) -> Result<()> {
+    let body = json!({
+        "channel": channel_id,
+        "blocks": blocks,
+        "unfurl_links": false,
+        "unfurl_media": false
+    });
+
     let response = slack_client
         .post(format!("{}/chat.postMessage", SLACK_API_BASE))
         .header("Authorization", format!("Bearer {}", token))
         .header("Content-Type", "application/json")
-        .json(&json!({ "channel": channel_id, "blocks": blocks }))
+        .json(&body)
         .send()
         .await?;
     let status = response.status();
