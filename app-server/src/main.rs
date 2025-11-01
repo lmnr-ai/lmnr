@@ -177,24 +177,8 @@ fn main() -> anyhow::Result<()> {
     let cache = Arc::new(cache);
 
     // === 2. Database ===
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-
-    let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
-        .unwrap_or(String::from("10"))
-        .parse()
-        .unwrap_or(10);
-
-    log::info!("Database max connections: {}", max_connections);
-
-    let pool = runtime_handle.block_on(async {
-        sqlx::postgres::PgPoolOptions::new()
-            .max_connections(max_connections)
-            .connect(&db_url)
-            .await
-            .unwrap()
-    });
-
-    let db = Arc::new(db::DB::new(pool));
+    let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
+    let db = Arc::new(inner_db);
 
     // === 3. Message queues ===
     // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
@@ -440,7 +424,7 @@ fn main() -> anyhow::Result<()> {
     let mq_for_http = queue.clone();
     let worker_tracker_for_http = worker_tracker.clone();
 
-    // == AWS config for S3 and Bedrock ==
+    // == AWS config for S3 ==
     let aws_sdk_config = runtime_handle.block_on(async {
         aws_config::defaults(BehaviorVersion::latest())
             .region(aws_config::Region::new(
