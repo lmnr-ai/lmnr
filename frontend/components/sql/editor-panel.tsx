@@ -24,7 +24,7 @@ import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import ParametersPanel from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -257,7 +257,7 @@ export default function EditorPanel() {
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
                 success: (
-                  <CodeHighlighter
+                  <ContentRenderer
                     readOnly
                     className="rounded"
                     value={JSON.stringify(results, null, 2)}

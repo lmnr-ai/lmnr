@@ -137,7 +137,7 @@ export const languageExtensions = {
   html: () => html(),
 };
 
-export const modes = ["TEXT", "YAML", "JSON", "CUSTOM"];
+export const modes = ["TEXT", "YAML", "JSON", "CUSTOM", "MESSAGES"];
 
 // Interface for image data
 export interface ImageData {

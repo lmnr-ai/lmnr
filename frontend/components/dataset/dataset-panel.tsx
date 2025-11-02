@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Datapoint } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
@@ -335,7 +335,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
               <div className="grow flex flex-col space-y-4 p-4 h-full w-full">
                 <div className="flex flex-col space-y-2">
                   <Label className="font-medium">Data</Label>
-                  <CodeHighlighter
+                  <ContentRenderer
                     presetKey={`dataset-data-${datasetId}`}
                     className="max-h-[400px] rounded"
                     value={JSON.stringify(newData, null, 2)}
@@ -366,7 +366,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
                 </div>
                 <div className="flex flex-col space-y-2">
                   <Label className="font-medium">Target</Label>
-                  <CodeHighlighter
+                  <ContentRenderer
                     presetKey={`dataset-target-${datasetId}`}
                     className="max-h-[400px] rounded w-full"
                     value={JSON.stringify(newTarget, null, 2)}
@@ -384,7 +384,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
                 </div>
                 <div className="flex flex-col space-y-2 pb-4">
                   <Label className="font-medium">Metadata</Label>
-                  <CodeHighlighter
+                  <ContentRenderer
                     presetKey={`dataset-metadata-${datasetId}`}
                     className="rounded max-h-[400px]"
                     value={JSON.stringify(newMetadata, null, 2)}

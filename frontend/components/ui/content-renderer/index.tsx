@@ -2,10 +2,10 @@ import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuer
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
+import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -14,7 +14,7 @@ import {
   modes as defaultModes,
   renderText,
   theme,
-} from "@/components/ui/code-highlighter/utils";
+} from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import TemplateRenderer from "@/components/ui/template-renderer";
 import { cn } from "@/lib/utils";
 
-interface CodeEditorProps {
+interface ContentRendererProps {
   onChange?: ReactCodeMirrorProps["onChange"];
   readOnly?: boolean;
   modes?: string[];
@@ -37,6 +37,8 @@ interface CodeEditorProps {
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
   searchTerm?: string;
+  spanPath?: string;
+  spanType?: "input" | "output";
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -51,7 +53,7 @@ function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<strin
   return restoredText;
 }
 
-const PureCodeHighlighter = ({
+const PureContentRenderer = ({
   onChange,
   readOnly,
   modes = defaultModes,
@@ -66,7 +68,10 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
   defaultShowLineNumbers = false,
   searchTerm = "",
-}: CodeEditorProps) => {
+  spanPath,
+  spanType,
+  children,
+}: PropsWithChildren<ContentRendererProps>) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -262,17 +267,21 @@ const PureCodeHighlighter = ({
     <div
       className={cn("w-full min-h-7 h-full flex flex-col border relative group/code-highlighter", className)}
     >
-      <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-muted/50")}>
+      <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
         <div className="grow flex bg-muted/50 overflow-auto w-full h-full">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
+      ) : mode === "messages" ? (
+        <div className="grow flex w-full h-full">
+          {children}
+        </div>
       ) : (
         <div
           className={cn(
-            "grow flex bg-muted/50 overflow-auto w-full h-full",
+            "grow flex overflow-auto w-full h-full styled-scrollbar",
             !showLineNumbers && "pl-1",
             codeEditorClassName
           )}
@@ -299,6 +308,7 @@ const PureCodeHighlighter = ({
   );
 };
 
-const CodeHighlighter = memo(PureCodeHighlighter);
+const ContentRenderer = memo(PureContentRenderer);
 
-export default CodeHighlighter;
+export default ContentRenderer;
+export { ContentRenderer as CodeHighlighter }; // Backward compatibility alias

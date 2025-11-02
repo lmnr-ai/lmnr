@@ -50,7 +50,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <div className="flex flex-col px-4 pt-4 gap-2">
+      <div className="flex flex-col px-2 pt-2 gap-2">
         <div className="flex flex-none items-center space-x-2">
           <SpanTypeIcon spanType={span.spanType} />
           <TooltipProvider delayDuration={0}>

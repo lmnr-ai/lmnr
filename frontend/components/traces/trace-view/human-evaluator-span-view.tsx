@@ -7,7 +7,7 @@ import { SpanControls } from "@/components/traces/span-controls";
 import SpanMessages from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
@@ -96,7 +96,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
               </SpanMessages>
             </TabsContent>
             <TabsContent value="attributes" className="h-full w-full">
-              <CodeHighlighter
+              <ContentRenderer
                 className="border-none"
                 readOnly
                 value={JSON.stringify(span.attributes)}
@@ -104,7 +104,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
               />
             </TabsContent>
             <TabsContent value="events" className="h-full w-full mt-0">
-              <CodeHighlighter
+              <ContentRenderer
                 className="border-none"
                 readOnly
                 value={JSON.stringify(cleanedEvents)}

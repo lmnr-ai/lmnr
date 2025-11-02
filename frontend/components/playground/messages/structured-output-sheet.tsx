@@ -4,7 +4,7 @@ import { PropsWithChildren, useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaygroundForm } from "@/lib/playground/types";
@@ -108,7 +108,7 @@ export default function StructuredOutputSheet({
           <div className="p-1 flex flex-1 overflow-hidden">
             <Controller
               render={({ field: { onChange } }) => (
-                <CodeHighlighter
+                <ContentRenderer
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {

@@ -1,7 +1,7 @@
 import React from "react";
 
 import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 
 interface MetadataProps {
   trace: TraceViewTrace;
@@ -13,7 +13,7 @@ const Metadata = ({ trace }: MetadataProps) => {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex-1">
-        <CodeHighlighter
+        <ContentRenderer
           value={metadataValue}
           readOnly={true}
           defaultMode="json"

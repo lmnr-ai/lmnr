@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { theme } from "@/components/ui/code-highlighter/utils";
+import { theme } from "@/components/ui/content-renderer/utils";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";

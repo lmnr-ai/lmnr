@@ -7,7 +7,7 @@ import { createStorageKey, useSpanViewStore } from "@/components/traces/span-vie
 import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
@@ -88,13 +88,13 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
         {toolName}
       </span>
       <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
-        <CodeHighlighter
+        <ContentRenderer
           readOnly
           defaultMode="json"
           codeEditorClassName="rounded"
           value={JSON.stringify(content, null, 2)}
           presetKey={createStorageKey.editor(type, presetKey)}
-          className="border-0"
+          className="border-0 bg-muted/50"
           searchTerm={search}
         />
       </ResizableWrapper>
@@ -166,12 +166,12 @@ const PureTextContentPart = ({
 
   return (
     <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
-      <CodeHighlighter
+      <ContentRenderer
         defaultMode="json"
         readOnly
         value={content}
         presetKey={createStorageKey.editor(type, presetKey)}
-        className="border-0"
+        className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
         searchTerm={search}
       />

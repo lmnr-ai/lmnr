@@ -8,7 +8,7 @@ import { SpanControls } from "@/components/traces/span-controls";
 import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Event } from "@/lib/events/types";
 import { Span } from "@/lib/traces/types";
@@ -48,7 +48,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col space-y-2 p-4">
+      <div className="flex flex-col space-y-2 p-2">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -87,7 +87,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
           <Tabs className="flex flex-1 overflow-hidden gap-0" defaultValue="span-input">
-            <div className="px-4 pb-2 mt-2 border-b w-full">
+            <div className="px-2 pb-2 mt-2 border-b w-full">
               <TabsList className="border-none text-xs h-7">
                 <TabsTrigger value="span-input" className="text-xs">
                   Span Input
@@ -110,17 +110,19 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               <TabsContent value="span-output" className="w-full h-full">
                 <SpanContent span={span} type="output" />
               </TabsContent>
-              <TabsContent value="attributes" className="w-full h-full p-4">
-                <CodeHighlighter
-                  className="rounded"
+              <TabsContent value="attributes" className="w-full h-full">
+                <ContentRenderer
+                  className="rounded-none border-0"
+                  codeEditorClassName="rounded-none border-none bg-background"
                   readOnly
                   value={JSON.stringify(span.attributes)}
                   defaultMode="yaml"
                 />
               </TabsContent>
-              <TabsContent value="events" className="w-full h-full p-4">
-                <CodeHighlighter
-                  className="rounded"
+              <TabsContent value="events" className="w-full h-full">
+                <ContentRenderer
+                  className="rounded-none border-0"
+                  codeEditorClassName="rounded-none border-none bg-background"
                   readOnly
                   value={JSON.stringify(cleanedEvents)}
                   defaultMode="yaml"

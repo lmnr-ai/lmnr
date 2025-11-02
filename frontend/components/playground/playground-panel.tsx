@@ -20,7 +20,7 @@ import { Provider } from "@/components/playground/types";
 import Usage from "@/components/playground/usage";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -202,7 +202,7 @@ export default function PlaygroundPanel({
                     <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 group-data-[state=open]:rotate-90 transition-transform duration-200" />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="flex flex-1 overflow-hidden max-h-40">
-                    <CodeHighlighter
+                    <ContentRenderer
                       codeEditorClassName="rounded-b border-none"
                       className="rounded-b border-none"
                       value={reasoning}
@@ -216,7 +216,7 @@ export default function PlaygroundPanel({
                 <div className="flex flex-col flex-1 overflow-hidden">
                   {!isEmpty(toolCalls) ? (
                     text && (
-                      <CodeHighlighter
+                      <ContentRenderer
                         codeEditorClassName="border-b"
                         className="border-none h-fit border-b"
                         value={text}
@@ -224,7 +224,7 @@ export default function PlaygroundPanel({
                       />
                     )
                   ) : (
-                    <CodeHighlighter
+                    <ContentRenderer
                       codeEditorClassName="rounded-b border-none"
                       className="rounded-b border-none"
                       value={text}
@@ -236,7 +236,7 @@ export default function PlaygroundPanel({
                       <span className="flex items-center font-medium text-sm text-secondary-foreground px-2 py-1.5">
                         <Bolt size={12} className="min-w-3 mr-2" /> Tool Calls
                       </span>
-                      <CodeHighlighter
+                      <ContentRenderer
                         codeEditorClassName="rounded-b"
                         className="rounded-b border-x-0 border-b-0"
                         value={JSON.stringify(toolCalls)}

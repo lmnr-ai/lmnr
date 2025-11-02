@@ -9,7 +9,7 @@ import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
-import { theme } from "@/components/ui/code-highlighter/utils";
+import { theme } from "@/components/ui/content-renderer/utils";
 import {
   Dialog,
   DialogContent,

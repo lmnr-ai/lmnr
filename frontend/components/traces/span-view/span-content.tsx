@@ -1,8 +1,11 @@
-import React, { memo, PropsWithChildren, useCallback, useEffect, useState } from "react";
+import React, { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { Span } from "@/lib/traces/types";
 
 interface SpanMessagesProps {
@@ -51,9 +54,22 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
   const spanPathString = spanPathArray.join(".");
 
+  // Check if data should be rendered as messages
+  const shouldRenderAsMessages = useMemo(() => {
+    if (!spanData) return false;
+
+    // Try to parse as OpenAI or LangChain messages
+    const openAIMessageResult = OpenAIMessageSchema.safeParse(spanData);
+    const openAIResult = OpenAIMessagesSchema.safeParse(spanData);
+    const langchainMessageResult = LangChainMessageSchema.safeParse(spanData);
+    const langchainResult = LangChainMessagesSchema.safeParse(spanData);
+
+    return openAIMessageResult.success || openAIResult.success || langchainMessageResult.success || langchainResult.success;
+  }, [spanData]);
+
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2 p-4 justify-center items-center">
+      <div className="flex flex-col gap-2 p-2 justify-center items-center">
         <Skeleton className="w-full h-8" />
         <Skeleton className="w-full h-8" />
         <Skeleton className="w-full h-8" />
@@ -61,10 +77,38 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
     );
   }
 
+  // Render as messages if it matches message schema
+  if (shouldRenderAsMessages) {
+    return (
+      <ContentRenderer
+        className="rounded border-0"
+        readOnly
+        codeEditorClassName="rounded-none border-none bg-background"
+        value={JSON.stringify(spanData)}
+        defaultMode="messages"
+        modes={["MESSAGES", "JSON", "YAML", "TEXT"]}
+        spanPath={spanPathString}
+        spanType={type}
+      >
+        <Messages messages={spanData} spanPath={spanPathString} type={type}>
+          {children}
+        </Messages>
+      </ContentRenderer>
+    );
+  }
+
+  // Otherwise render as regular code
   return (
-    <Messages messages={spanData} spanPath={spanPathString} type={type}>
-      {children}
-    </Messages>
+    <ContentRenderer
+      className="rounded-none border-none bg-background"
+      readOnly
+      value={JSON.stringify(spanData)}
+      defaultMode="json"
+    >
+      <Messages messages={spanData} spanPath={spanPathString} type={type}>
+        {children}
+      </Messages>
+    </ContentRenderer>
   );
 };
 
