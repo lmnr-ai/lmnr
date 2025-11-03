@@ -4,6 +4,7 @@ use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectApiKey {
     pub project_id: Uuid,
     pub name: Option<String>,
