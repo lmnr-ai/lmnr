@@ -421,6 +421,13 @@
       "when": 1761141201098,
       "tag": "0059_brief_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1762184523550,
+      "tag": "0060_mighty_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

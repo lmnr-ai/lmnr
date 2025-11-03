@@ -34,6 +34,7 @@ const getParquetInfo = async (projectId: string, datasetId: string) => {
     .innerJoin(datasets, eq(datasetParquets.datasetId, datasets.id))
     .where(and(eq(datasets.projectId, projectId), eq(datasetParquets.datasetId, datasetId)))
     .orderBy(asc(datasetParquets.createdAt), asc(datasetParquets.id));
+
   return parquets.map((parquet) => ({
     path: parquet.dataset_parquets.parquetPath,
     datasetId: parquet.dataset_parquets.datasetId,
@@ -42,7 +43,15 @@ const getParquetInfo = async (projectId: string, datasetId: string) => {
   }));
 };
 
-export const startParquetExportJob = async (projectId: string, datasetId: string) => {
+export const startParquetExportJob = async (
+  projectId: string,
+  datasetId: string
+): Promise<{
+  jobId: string;
+  status: string;
+  datasetId: string;
+  projectId: string;
+}> => {
   if (!process.env.DATASET_EXPORT_WORKER_URL || !process.env.DATASET_EXPORT_SECRET_KEY) {
     throw new Error("DATASET_EXPORT_WORKER_URL or DATASET_EXPORT_SECRET_KEY is not set");
   }
@@ -76,6 +85,7 @@ export const getParquets = async (projectId: string, datasetId: string) => {
       };
     })
   );
+
   const parquets = result.filter((r) => r.status === "fulfilled").map((r) => r.value);
   return parquets;
 };
