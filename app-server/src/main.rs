@@ -745,6 +745,8 @@ fn main() -> anyhow::Result<()> {
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
+                        let project_ingestion_auth =
+                            HttpAuthentication::bearer(auth::project_ingestion_validator);
 
                         App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -768,27 +770,36 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(connection_for_health.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
+                            // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
                                     web::scope("")
-                                        .wrap(project_auth.clone())
+                                        .wrap(project_ingestion_auth.clone())
                                         .service(api::v1::browser_sessions::create_session_event),
                                 ),
                             )
                             .service(
+                                web::scope("/v1/tag")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(api::v1::tag::tag_trace),
+                            )
+                            .service(
+                                web::scope("/v1/traces")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(api::v1::traces::process_traces),
+                            )
+                            // Default endpoints block ingest-only keys
+                            .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
-                                    .service(api::v1::traces::process_traces)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
                                     .service(api::v1::datasets::get_parquet)
                                     .service(api::v1::metrics::process_metrics)
-                                    .service(api::v1::browser_sessions::create_session_event)
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::evaluators::create_evaluator_score)
-                                    .service(api::v1::tag::tag_trace)
                                     .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::payloads::get_payload),
                             )

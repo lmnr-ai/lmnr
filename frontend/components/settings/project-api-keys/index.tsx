@@ -2,15 +2,15 @@ import { isEmpty } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { CopyButton } from "@/components/ui/copy-button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
 
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import RevokeDialog from "./revoke-dialog";
-import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
+import { Button } from "../../ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import RevokeDialog from "../revoke-dialog";
+import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
+import { DisplayKeyDialogContent } from "./display-key-dialog-content";
+import { GenerateKeyDialogContent } from "./generate-key-dialog-content";
 
 interface ApiKeysProps {
   apiKeys: ProjectApiKey[];
@@ -20,15 +20,16 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [isGenerateKeyDialogOpen, setIsGenerateKeyDialogOpen] = useState(false);
   const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
   const [newApiKeyName, setNewApiKeyName] = useState<string>("");
+  const [keyType, setKeyType] = useState<"default" | "ingest_only">("default");
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(
-    async (newName: string) => {
+    async (newName: string, isIngestOnly: boolean) => {
       const res = await fetch(`/api/projects/${projectId}/api-keys`, {
         method: "POST",
-        body: JSON.stringify({ name: newName }),
+        body: JSON.stringify({ name: newName, isIngestOnly }),
       });
       const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
 
@@ -69,6 +70,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         onOpenChange={() => {
           setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
           setNewApiKeyName("");
+          setKeyType("default");
           setNewApiKey(null);
           setIsGenerated(false);
         }}
@@ -97,10 +99,12 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           ) : (
             <GenerateKeyDialogContent
               onClick={() => {
-                generateNewAPIKey(newApiKeyName);
+                generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
                 setIsGenerated(true);
               }}
               onNameChange={(name) => setNewApiKeyName(name)}
+              keyType={keyType}
+              onKeyTypeChange={(type) => setKeyType(type)}
             />
           )}
         </DialogContent>
@@ -111,6 +115,11 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
             <td className="px-4 text-sm font-medium">{apiKey.name}</td>
             <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
             <td className="px-4">
+              {apiKey.isIngestOnly && (
+                <Badge variant="outline">Ingest Only</Badge>
+              )}
+            </td>
+            <td className="px-4">
               <div className="flex justify-end">
                 <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />
               </div>
@@ -119,50 +128,5 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         ))}
       </SettingsTable>
     </SettingsSection>
-  );
-}
-
-function GenerateKeyDialogContent({
-  onClick,
-  onNameChange,
-}: {
-  onClick: () => void;
-  onNameChange: (name: string) => void;
-}) {
-  return (
-    <>
-      <div className="flex flex-col gap-2">
-        <Label className="text-xs">Name</Label>
-        <Input autoFocus placeholder="API key name" onChange={(e) => onNameChange(e.target.value)} />
-      </div>
-      <DialogFooter>
-        <Button onClick={onClick} handleEnter>
-          Create
-        </Button>
-      </DialogFooter>
-    </>
-  );
-}
-
-function DisplayKeyDialogContent({ apiKey, onClose }: { apiKey: GenerateProjectApiKeyResponse; onClose?: () => void }) {
-  return (
-    <>
-      <div className="flex flex-col space-y-2">
-        <p className="text-secondary-foreground">
-          {" "}
-          For security reasons, you will not be able to see this key again. Make sure to copy and save it somewhere
-          safe.{" "}
-        </p>
-        <div className="flex gap-x-2">
-          <Input className="flex h-8 text-sm" value={apiKey.value} readOnly />
-          <CopyButton size="icon" className="min-w-8 h-8" text={apiKey.value} />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button onClick={onClose} handleEnter variant="secondary">
-          Close
-        </Button>
-      </DialogFooter>
-    </>
   );
 }

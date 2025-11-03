@@ -1,4 +1,4 @@
-use actix_web::{post, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, post};
 
 use crate::routes::types::ResponseResult;
 

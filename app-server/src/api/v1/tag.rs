@@ -37,7 +37,8 @@ pub enum TagRequest {
     WithSpanId(TagRequestWithSpanId),
 }
 
-#[post("tag")]
+// /v1/tag
+#[post("")]
 pub async fn tag_trace(
     req: Json<TagRequest>,
     clickhouse: web::Data<clickhouse::Client>,

@@ -9,6 +9,7 @@ import { projectApiKeys } from '@/lib/db/migrations/schema';
 const CreateProjectApiKeySchema = z.object({
   projectId: z.string(),
   name: z.string().optional().nullable(),
+  isIngestOnly: z.boolean().optional(),
 });
 
 const GetProjectApiKeysSchema = z.object({
@@ -30,7 +31,7 @@ export interface ProjectApiKeyResponse {
 export async function createApiKey(
   input: z.infer<typeof CreateProjectApiKeySchema>
 ): Promise<ProjectApiKeyResponse> {
-  const { projectId, name } = CreateProjectApiKeySchema.parse(input);
+  const { projectId, name, isIngestOnly } = CreateProjectApiKeySchema.parse(input);
 
   const { value, hash, shorthand } = createProjectApiKey();
 
@@ -41,6 +42,7 @@ export async function createApiKey(
       name: name || null,
       hash,
       shorthand,
+      isIngestOnly: isIngestOnly ?? false,
     })
     .returning();
 
@@ -51,6 +53,7 @@ export async function createApiKey(
     name: key.name,
     hash: key.hash,
     shorthand: key.shorthand,
+    isIngestOnly: key.isIngestOnly,
   });
 
   return {
@@ -63,7 +66,7 @@ export async function createApiKey(
 
 export async function getApiKeys(
   input: z.infer<typeof GetProjectApiKeysSchema>
-): Promise<Array<{ id: string; projectId: string; name?: string; shorthand: string }>> {
+): Promise<Array<{ id: string; projectId: string; name?: string; shorthand: string; isIngestOnly?: boolean }>> {
   const { projectId } = GetProjectApiKeysSchema.parse(input);
 
   const apiKeys = await db
@@ -72,6 +75,7 @@ export async function getApiKeys(
       projectId: projectApiKeys.projectId,
       name: projectApiKeys.name,
       shorthand: projectApiKeys.shorthand,
+      isIngestOnly: projectApiKeys.isIngestOnly,
     })
     .from(projectApiKeys)
     .where(eq(projectApiKeys.projectId, projectId));

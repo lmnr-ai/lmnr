@@ -82,6 +82,9 @@ impl TraceService for ProcessTracesService {
     }
 }
 
+/// Authenticates gRPC trace ingestion requests.
+/// Note: This endpoint accepts both default and ingest-only API keys,
+/// as it's used for writing trace data to the project.
 async fn authenticate_request(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
