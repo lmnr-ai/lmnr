@@ -48,8 +48,7 @@ pub async fn project_validator(
 
     match get_api_key_from_raw_value(&db.pool, cache, credentials.token().to_string()).await {
         Ok(api_key) => {
-            req.extensions_mut()
-                .insert(api_key.into_with_raw(credentials.token().to_string()));
+            req.extensions_mut().insert(api_key);
             Ok(req)
         }
         Err(e) => {

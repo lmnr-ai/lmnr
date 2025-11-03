@@ -11,7 +11,6 @@ pub mod events;
 pub mod prices;
 pub mod project_api_keys;
 pub mod projects;
-pub mod provider_api_keys;
 pub mod slack_channel_to_events;
 pub mod slack_integrations;
 pub mod spans;

@@ -4,13 +4,13 @@ import { buildDatapointQueryWithParams } from "@/lib/actions/datapoints/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { createDatapoints, DatapointResult } from "@/lib/clickhouse/datapoints";
 
-export const GetDatapointSchema = z.object({
+const GetDatapointSchema = z.object({
   projectId: z.string(),
   datapointId: z.string(),
   datasetId: z.string(),
 });
 
-export const UpdateDatapointSchema = z.object({
+const UpdateDatapointSchema = z.object({
   projectId: z.string(),
   datapointId: z.string(),
   datasetId: z.string(),
@@ -19,8 +19,6 @@ export const UpdateDatapointSchema = z.object({
   metadata: z.record(z.string(), z.any()),
   createdAt: z.string(),
 });
-
-export const UpdateDatapointRequestSchema = UpdateDatapointSchema.omit({ projectId: true, datapointId: true, datasetId: true });
 
 export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
   const { projectId, datapointId, datasetId } = GetDatapointSchema.parse(input);
