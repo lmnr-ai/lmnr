@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
+
 import { Slider } from "../ui/slider";
 
 interface SessionPlayerProps {
@@ -239,7 +240,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
             className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
               ? "border-secondary-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+            }`}
           >
             Session
           </button>
@@ -250,7 +251,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
           className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "images"
             ? "border-secondary-foreground text-foreground"
             : "border-transparent text-muted-foreground hover:text-foreground"
-            } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
+          } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
         >
           Images
         </button>

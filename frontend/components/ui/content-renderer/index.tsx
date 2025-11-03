@@ -2,8 +2,9 @@ import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuer
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import Messages from "@/components/traces/span-view/messages";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
@@ -20,7 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import TemplateRenderer from "@/components/ui/template-renderer";
-import { cn } from "@/lib/utils";
+import { cn, tryParseJson } from "@/lib/utils";
 
 interface ContentRendererProps {
   onChange?: ReactCodeMirrorProps["onChange"];
@@ -37,8 +38,6 @@ interface ContentRendererProps {
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
   searchTerm?: string;
-  spanPath?: string;
-  spanType?: "input" | "output";
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -68,10 +67,7 @@ const PureContentRenderer = ({
   renderBase64Images = true,
   defaultShowLineNumbers = false,
   searchTerm = "",
-  spanPath,
-  spanType,
-  children,
-}: PropsWithChildren<ContentRendererProps>) => {
+}: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -113,7 +109,7 @@ const PureContentRenderer = ({
 
   const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     // Only set hover if this is the direct target, not bubbled from a child
-    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+    if (e.currentTarget === e.target || (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget))) {
       setIsHovered(true);
     }
   }, []);
@@ -215,7 +211,7 @@ const PureContentRenderer = ({
   const renderHeaderContent = () => (
     <>
       <Select value={mode} onValueChange={handleModeChange}>
-        <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
+        <SelectTrigger className="h-4 px-1.5 bg-muted font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
         <SelectContent>
@@ -293,7 +289,7 @@ const PureContentRenderer = ({
         </div>
       ) : mode === "messages" ? (
         <div className="grow flex w-full h-full">
-          {children}
+          <Messages messages={tryParseJson(value) ?? []} presetKey={presetKey ?? ""} />
         </div>
       ) : (
         <div

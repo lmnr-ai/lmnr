@@ -9,7 +9,6 @@ import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
-import { createStorageKey } from "@/components/traces/span-view/span-view-store";
 import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
@@ -18,11 +17,10 @@ import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/ope
 
 interface MessagesProps {
   messages: any;
-  spanPath: string;
-  type: "input" | "output";
+  presetKey: string;
 }
 
-function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<MessagesProps>) {
+function PureMessages({ children, messages, presetKey }: PropsWithChildren<MessagesProps>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const processedResult = useMemo(() => {
@@ -98,36 +96,36 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
   };
 
   return (
-    <div
-      ref={parentRef}
-      className="h-full relative overflow-y-auto styled-scrollbar"
-      style={{
-        width: "100%",
-        contain: "strict",
-      }}
-    >
+    <>
       <div
+        ref={parentRef}
+        className="h-full relative overflow-y-auto styled-scrollbar"
         style={{
-          height: virtualizer.getTotalSize(),
           width: "100%",
-          position: "relative",
+          contain: "strict",
         }}
       >
         <div
           style={{
-            transform: `translateY(${items[0]?.start ?? 0}px)`,
-            willChange: "transform",
+            height: virtualizer.getTotalSize(),
+            width: "100%",
           }}
-          className="p-2 absolute top-0 left-0 w-full"
         >
-          <MessagesRenderer
-            {...processedResult}
-            ref={virtualizer.measureElement}
-            virtualItems={items}
-            spanType={type}
-            spanPath={spanPath}
-          />
-          {children}
+          <div
+            style={{
+              transform: `translateY(${items[0]?.start ?? 0}px)`,
+              willChange: "transform",
+            }}
+            className="p-2 absolute top-0 left-0 w-full"
+          >
+            <MessagesRenderer
+              {...processedResult}
+              ref={virtualizer.measureElement}
+              virtualItems={items}
+              presetKey={presetKey}
+            />
+            {children}
+          </div>
         </div>
       </div>
       <Button
@@ -138,7 +136,7 @@ function PureMessages({ children, messages, type, spanPath }: PropsWithChildren<
       >
         <ChevronDown className="w-4 h-4" />
       </Button>
-    </div>
+    </>
   );
 }
 
@@ -150,13 +148,11 @@ type MessageRendererProps =
 const MessagesRenderer = ({
   messages,
   type,
-  spanType,
-  spanPath,
+  presetKey,
   ref,
   virtualItems,
 }: MessageRendererProps & {
-  spanPath: string;
-  spanType: "input" | "output";
+  presetKey: string;
   virtualItems: VirtualItem[];
   ref: Ref<HTMLDivElement>;
 }) => {
@@ -168,9 +164,9 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper
               role={message.role}
-              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+              presetKey={`collapse-${row.index}-${presetKey}`}
             >
-              <OpenAIContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
+              <OpenAIContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -183,9 +179,9 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper
               role={message.role}
-              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+              presetKey={`collapse-${row.index}-${presetKey}`}
             >
-              <LangChainContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
+              <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );
@@ -198,9 +194,9 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper
               role={message.role}
-              presetKey={createStorageKey.collapse(spanType, `${row.index}-${spanPath}`)}
+              presetKey={`collapse-${row.index}-${presetKey}`}
             >
-              <ContentParts parentIndex={row.index} type={spanType} spanPath={spanPath} message={message} />
+              <ContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );

@@ -86,7 +86,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanControls events={cleanedEvents} span={span}>
-          <Tabs className="flex flex-1 overflow-hidden gap-0" defaultValue="span-input">
+          <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
             <div className="px-2 pb-2 mt-2 border-b w-full">
               <TabsList className="border-none text-xs h-7">
                 <TabsTrigger value="span-input" className="text-xs">
@@ -103,7 +103,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
                 </TabsTrigger>
               </TabsList>
             </div>
-            <div className="flex-1 flex overflow-hidden">
+            <div className="grow flex overflow-hidden">
               <TabsContent value="span-input" className="w-full h-full">
                 <SpanContent span={span} type="input" />
               </TabsContent>
@@ -113,7 +113,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               <TabsContent value="attributes" className="w-full h-full">
                 <ContentRenderer
                   className="rounded-none border-0"
-                  codeEditorClassName="rounded-none border-none bg-background"
+                  codeEditorClassName="rounded-none border-none bg-background contain-strict"
                   readOnly
                   value={JSON.stringify(span.attributes)}
                   defaultMode="yaml"
@@ -122,7 +122,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               <TabsContent value="events" className="w-full h-full">
                 <ContentRenderer
                   className="rounded-none border-0"
-                  codeEditorClassName="rounded-none border-none bg-background"
+                  codeEditorClassName="rounded-none border-none bg-background contain-strict"
                   readOnly
                   value={JSON.stringify(cleanedEvents)}
                   defaultMode="yaml"

@@ -3,12 +3,12 @@ import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { createStorageKey, useSpanViewStore } from "@/components/traces/span-view/span-view-store";
+import { useSpanViewStore } from "@/components/traces/span-view/span-view-store";
 import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { isStorageUrl } from "@/lib/s3";
@@ -65,12 +65,11 @@ export const ResizableWrapper = ({
 interface ToolCallContentPartProps {
   toolName: string;
   content: unknown;
-  type: "input" | "output";
   presetKey: string;
 }
 
-const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCallContentPartProps) => {
-  const storageKey = createStorageKey.resize(type, presetKey);
+const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallContentPartProps) => {
+  const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
 
@@ -93,7 +92,7 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
           defaultMode="json"
           codeEditorClassName="rounded"
           value={JSON.stringify(content, null, 2)}
-          presetKey={createStorageKey.editor(type, presetKey)}
+          presetKey={`editor-${presetKey}`}
           className="border-0 bg-muted/50"
           searchTerm={search}
         />
@@ -105,19 +104,17 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
 interface ToolResultContentPartProps {
   toolCallId: string;
   content: string | any;
-  type: "input" | "output";
   presetKey: string;
   children?: ReactNode;
 }
 
-const PureToolResultContentPart = ({ toolCallId, content, type, presetKey, children }: ToolResultContentPartProps) => (
+const PureToolResultContentPart = ({ toolCallId, content, presetKey, children }: ToolResultContentPartProps) => (
   <div className="flex flex-col">
     <Badge className="w-fit m-1 font-medium" variant="secondary">
       ID: {toolCallId}
     </Badge>
     {children || (
       <TextContentPart
-        type={type}
         content={typeof content === "string" ? content : JSON.stringify(content, null, 2)}
         presetKey={presetKey}
       />
@@ -142,19 +139,17 @@ const PureFileContentPart = ({ data, filename, className }: FileContentPartProps
 interface TextContentPartProps {
   content: string;
   presetKey: string;
-  type: "input" | "output";
   className?: string;
   codeEditorClassName?: string;
 }
 
 const PureTextContentPart = ({
   content,
-  type,
   presetKey,
   className = "border-0",
   codeEditorClassName,
 }: TextContentPartProps) => {
-  const storageKey = createStorageKey.resize(type, presetKey);
+  const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
   const { search } = useOptionalTraceViewStoreContext(
@@ -170,7 +165,7 @@ const PureTextContentPart = ({
         defaultMode="json"
         readOnly
         value={content}
-        presetKey={createStorageKey.editor(type, presetKey)}
+        presetKey={`editor-${presetKey}`}
         className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
         searchTerm={search}

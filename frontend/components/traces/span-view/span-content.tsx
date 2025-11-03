@@ -1,14 +1,13 @@
-import React, { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import Messages from "@/components/traces/span-view/messages";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
-import { Span } from "@/lib/traces/types";
+import { Span, SpanType } from "@/lib/traces/types";
 
-interface SpanMessagesProps {
+interface SpanContentProps {
   span: Span;
   type: "input" | "output";
 }
@@ -21,7 +20,7 @@ const extractPayloadUrl = (data: any): string | null => {
   return null;
 };
 
-const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesProps>) => {
+const SpanContent = ({ span, type }: SpanContentProps) => {
   const initialData = type === "input" ? span.input : span.output;
   const { toast } = useToast();
   const [spanData, setSpanData] = useState(initialData);
@@ -50,9 +49,11 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
     loadData();
   }, [loadData]);
 
+  // Create preset key that includes the type
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
   const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
   const spanPathString = spanPathArray.join(".");
+  const presetKey = `${type}-${spanPathString}`;
 
   // Check if data should be rendered as messages
   const shouldRenderAsMessages = useMemo(() => {
@@ -60,11 +61,11 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
 
     // Try to parse as OpenAI or LangChain messages
     const openAIMessageResult = OpenAIMessageSchema.safeParse(spanData);
-    const openAIResult = OpenAIMessagesSchema.safeParse(spanData);
+    const openAIMessagesResult = OpenAIMessagesSchema.safeParse(spanData);
     const langchainMessageResult = LangChainMessageSchema.safeParse(spanData);
-    const langchainResult = LangChainMessagesSchema.safeParse(spanData);
+    const langchainMessagesResult = LangChainMessagesSchema.safeParse(spanData);
 
-    return openAIMessageResult.success || openAIResult.success || langchainMessageResult.success || langchainResult.success;
+    return openAIMessageResult.success || openAIMessagesResult.success || langchainMessageResult.success || langchainMessagesResult.success;
   }, [spanData]);
 
   if (isLoading) {
@@ -78,7 +79,7 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
   }
 
   // Render as messages if it matches message schema
-  if (shouldRenderAsMessages) {
+  if (shouldRenderAsMessages && span.spanType === SpanType.LLM) {
     return (
       <ContentRenderer
         className="rounded border-0"
@@ -86,14 +87,9 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
         codeEditorClassName="rounded-none border-none bg-background"
         value={JSON.stringify(spanData)}
         defaultMode="messages"
-        modes={["MESSAGES", "JSON", "YAML", "TEXT"]}
-        spanPath={spanPathString}
-        spanType={type}
-      >
-        <Messages messages={spanData} spanPath={spanPathString} type={type}>
-          {children}
-        </Messages>
-      </ContentRenderer>
+        modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
+        presetKey={presetKey}
+      />
     );
   }
 
@@ -102,13 +98,11 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
     <ContentRenderer
       className="rounded-none border-none bg-background"
       readOnly
+      modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
       value={JSON.stringify(spanData)}
-      defaultMode="messages"
-    >
-      <Messages messages={spanData} spanPath={spanPathString} type={type}>
-        {children}
-      </Messages>
-    </ContentRenderer>
+      presetKey={presetKey}
+      defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
+    />
   );
 };
 
