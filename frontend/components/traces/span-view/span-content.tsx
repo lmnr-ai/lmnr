@@ -103,7 +103,7 @@ const SpanContent = ({ children, span, type }: PropsWithChildren<SpanMessagesPro
       className="rounded-none border-none bg-background"
       readOnly
       value={JSON.stringify(spanData)}
-      defaultMode="json"
+      defaultMode="messages"
     >
       <Messages messages={spanData} spanPath={spanPathString} type={type}>
         {children}

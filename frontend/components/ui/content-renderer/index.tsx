@@ -85,6 +85,7 @@ const PureContentRenderer = ({
 
   const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const {
     text: renderedValue,
@@ -108,6 +109,17 @@ const PureContentRenderer = ({
 
   const toggleLineNumbers = useCallback(() => {
     setShowLineNumbers((prev) => !prev);
+  }, []);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only set hover if this is the direct target, not bubbled from a child
+    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsHovered(true);
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
   }, []);
 
   const handleChange = useCallback(
@@ -216,8 +228,8 @@ const PureContentRenderer = ({
       </Select>
       <CopyButton
         className={cn(
-          "h-7 w-7 ml-auto text-foreground/80 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
-          isSettingsOpen && "opacity-100"
+          "h-7 w-7 ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
         size="icon"
@@ -226,8 +238,8 @@ const PureContentRenderer = ({
       />
       <div
         className={cn(
-          "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
-          isSettingsOpen && "opacity-100"
+          "transition-opacity data-[state=open]:opacity-100",
+          (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
         )}
       >
         <CodeSheet
@@ -244,7 +256,10 @@ const PureContentRenderer = ({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-foreground/70 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100"
+            className={cn(
+              "h-6 w-6 text-foreground/70 transition-opacity data-[state=open]:opacity-100",
+              (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
+            )}
           >
             <Settings size={16} />
           </Button>
@@ -265,7 +280,9 @@ const PureContentRenderer = ({
 
   return (
     <div
-      className={cn("w-full min-h-7 h-full flex flex-col border relative group/code-highlighter", className)}
+      className={cn("w-full min-h-7 h-full flex flex-col border relative", className)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
         {renderHeaderContent()}
