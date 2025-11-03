@@ -194,10 +194,6 @@ async fn process_single_notification(
 
             Ok(())
         }
-        _ => {
-            log::warn!("Unknown notification type: {:?}", message.notification_type);
-            Ok(())
-        }
     };
 
     match result {

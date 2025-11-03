@@ -18,6 +18,31 @@ async function getSlackKeyFromEnv(): Promise<Uint8Array> {
   return Buffer.from(keyHex, "hex");
 }
 
+export async function encodeApiKey(name: string, value: string): Promise<{ value: string; nonce: string }> {
+  try {
+    await _sodium.ready;
+    const key = await getKeyFromEnv();
+
+    const nonce = _sodium.randombytes_buf(_sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+    const additionalData = new TextEncoder().encode(name);
+
+    const encrypted = _sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+      new TextEncoder().encode(value),
+      additionalData,
+      null,
+      nonce,
+      key
+    );
+
+    return {
+      value: Buffer.from(encrypted).toString("hex"),
+      nonce: Buffer.from(nonce).toString("hex"),
+    };
+  } catch (error) {
+    throw new Error(`Failed to encode api_key ${name}`);
+  }
+}
+
 export async function decodeApiKey(name: string, nonce: string, value: string): Promise<string> {
   try {
     await _sodium.ready;

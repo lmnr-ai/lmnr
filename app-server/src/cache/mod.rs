@@ -30,6 +30,7 @@ pub trait CacheTrait {
     async fn insert<T>(&self, key: &str, value: T) -> Result<(), CacheError>
     where
         T: Serialize + Send;
+    #[allow(dead_code)]
     async fn remove(&self, key: &str) -> Result<(), CacheError>;
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError>;
     async fn insert_with_ttl<T>(&self, key: &str, value: T, seconds: u64) -> Result<(), CacheError>
