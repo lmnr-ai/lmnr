@@ -41,19 +41,23 @@ export const datasetParquets = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    datasetId: uuid("dataset_id").defaultRandom().notNull(),
+    datasetId: uuid("dataset_id").notNull(),
     parquetPath: text("parquet_path").notNull(),
-    jobId: uuid("job_id").defaultRandom().notNull(),
+    jobId: uuid("job_id").notNull(),
     name: text(),
+    projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.datasetId],
       foreignColumns: [datasets.id],
       name: "dataset_parquets_dataset_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dataset_parquets_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -182,26 +186,6 @@ export const evaluators = pgTable(
       foreignColumns: [projects.id],
       name: "evaluators_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const userCookies = pgTable(
-  "user_cookies",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    userId: uuid("user_id").notNull(),
-    cookies: text().notNull(),
-    nonce: text().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: "user_cookies_user_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
   ]
 );
 
@@ -1168,25 +1152,6 @@ export const projectSettings = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const machines = pgTable(
-  "machines",
-  {
-    id: uuid().defaultRandom().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "machines_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    primaryKey({ columns: [table.id, table.projectId], name: "machines_pkey" }),
   ]
 );
 

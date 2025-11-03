@@ -24,5 +24,3 @@ export async function GET(
     );
   }
 }
-
-

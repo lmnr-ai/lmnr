@@ -75,10 +75,3 @@ Laminar.initialize({projectApiKey: "<YOUR_PROJECT_API_KEY>"});
     </Tabs>
   );
 }
-
-
-
-
-
-
-

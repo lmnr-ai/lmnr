@@ -31,15 +31,14 @@ const getParquetInfo = async (projectId: string, datasetId: string) => {
   const parquets = await db
     .select()
     .from(datasetParquets)
-    .innerJoin(datasets, eq(datasetParquets.datasetId, datasets.id))
-    .where(and(eq(datasets.projectId, projectId), eq(datasetParquets.datasetId, datasetId)))
+    .where(and(eq(datasetParquets.projectId, projectId), eq(datasetParquets.datasetId, datasetId)))
     .orderBy(asc(datasetParquets.createdAt), asc(datasetParquets.id));
 
   return parquets.map((parquet) => ({
-    path: parquet.dataset_parquets.parquetPath,
-    datasetId: parquet.dataset_parquets.datasetId,
-    projectId: parquet.datasets.projectId,
-    id: parquet.dataset_parquets.id,
+    path: parquet.parquetPath,
+    datasetId: parquet.datasetId,
+    projectId: parquet.projectId,
+    id: parquet.id,
   }));
 };
 
