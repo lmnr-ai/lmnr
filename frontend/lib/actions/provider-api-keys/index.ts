@@ -61,7 +61,7 @@ export async function deleteProviderApiKey(
     .where(and(eq(providerApiKeys.name, name), eq(providerApiKeys.projectId, projectId)))
     .returning();
 
-  if (res.length !== 1) {
-    throw new Error('Provider API key not found');
+  if (!res || res.length === 0) {
+    throw new Error("Provider API key not found");
   }
 }
