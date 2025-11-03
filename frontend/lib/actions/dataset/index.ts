@@ -47,7 +47,7 @@ export const startParquetExportJob = async (
   projectId: string,
   datasetId: string
 ): Promise<{
-  jobId: string;
+  id: string;
   status: string;
   datasetId: string;
   projectId: string;
