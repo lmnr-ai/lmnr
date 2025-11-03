@@ -77,7 +77,6 @@ class CacheManager {
 
   async set<T>(key: string, value: T, options: RedisSetOptions = {}): Promise<void> {
     if (this.useRedis) {
-      console.log("Setting cache entry in Redis", key, value, options);
       const client = await this.getRedisClient();
       let args: any[] = [];
       if (options.expireAfterSeconds) {
