@@ -70,7 +70,6 @@ mod names;
 mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
-mod provider_api_keys;
 mod query_engine;
 mod realtime;
 mod routes;
@@ -743,7 +742,7 @@ fn main() -> anyhow::Result<()> {
                     // == Name generator ==
                     let name_generator = Arc::new(NameGenerator::new());
 
-                    log::info!("Enabling producer mode, spinning up full HTTP server");
+                    log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
 
@@ -796,12 +795,8 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
                                 web::scope("/api/v1/projects/{project_id}")
-                                    .service(routes::api_keys::create_project_api_key)
-                                    .service(routes::api_keys::get_api_keys_for_project)
-                                    .service(routes::api_keys::revoke_project_api_key)
                                     .service(routes::evaluations::get_evaluation_score_stats)
                                     .service(routes::evaluations::get_evaluation_score_distribution)
-                                    .service(routes::provider_api_keys::save_api_key)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query),
@@ -821,7 +816,7 @@ fn main() -> anyhow::Result<()> {
             .name("grpc".to_string())
             .spawn(move || {
                 runtime_handle.block_on(async {
-                    log::info!("Enabling producer mode, spinning up gRPC server");
+                    log::info!("Spinning up gRPC server");
 
                     let process_traces_service = ProcessTracesService::new(
                         db.clone(),

@@ -10,7 +10,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   return NextResponse.json(parquets);
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ projectId: string; datasetId: string }> }
+) {
   const { projectId, datasetId } = await params;
 
   const job = await startParquetExportJob(projectId, datasetId);

@@ -135,7 +135,7 @@ pub struct WorkerHandle {
 
 impl Drop for WorkerHandle {
     fn drop(&mut self) {
-        log::error!("Dropping worker handle for worker {}", self.id);
+        log::warn!("Dropping worker handle for worker {}", self.id);
         self.tracker.unregister_worker(self.id);
     }
 }
