@@ -68,7 +68,6 @@ function SpanSearchBar() {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           className="pl-7 pr-8 text-xs placeholder:text-xs"
-          autoFocus
         />
         {searchTerm && (
           <Button
