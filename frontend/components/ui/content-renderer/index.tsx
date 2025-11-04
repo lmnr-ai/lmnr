@@ -109,7 +109,10 @@ const PureContentRenderer = ({
 
   const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     // Only set hover if this is the direct target, not bubbled from a child
-    if (e.currentTarget === e.target || (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget))) {
+    if (
+      e.currentTarget === e.target ||
+      (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget))
+    ) {
       setIsHovered(true);
     }
   }, []);
@@ -224,8 +227,8 @@ const PureContentRenderer = ({
       </Select>
       <CopyButton
         className={cn(
-          "h-7 w-7 ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
-          (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
+          "ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
         size="icon"
@@ -235,7 +238,7 @@ const PureContentRenderer = ({
       <div
         className={cn(
           "transition-opacity data-[state=open]:opacity-100",
-          (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
+          isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
       >
         <CodeSheet
@@ -253,8 +256,8 @@ const PureContentRenderer = ({
             variant="ghost"
             size="icon"
             className={cn(
-              "h-6 w-6 text-foreground/70 transition-opacity data-[state=open]:opacity-100",
-              (isHovered || isSettingsOpen) ? "opacity-100" : "opacity-0"
+              "text-foreground/70 transition-opacity data-[state=open]:opacity-100",
+              isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
             )}
           >
             <Settings size={16} />
@@ -276,30 +279,23 @@ const PureContentRenderer = ({
 
   return (
     <div
-      className={cn("w-full min-h-7 h-full flex flex-col border relative", className)}
+      className={cn("size-full min-h-7 flex flex-col border relative", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
+      <div className={cn("flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <div className="grow flex bg-muted/50 overflow-auto w-full h-full">
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
       ) : mode === "messages" ? (
-        <div className="grow flex w-full h-full">
+        <div className="flex-1 flex w-full min-h-0">
           <Messages messages={tryParseJson(value) ?? []} presetKey={presetKey ?? ""} />
         </div>
       ) : (
-        <div
-          className={cn(
-            "grow flex overflow-auto w-full h-full styled-scrollbar",
-            !showLineNumbers && "pl-1",
-            codeEditorClassName
-          )}
-          style={{ overflowX: "hidden" }}
-        >
+        <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
           <CodeMirror
             ref={editorRef}
             className="w-full"
@@ -324,4 +320,3 @@ const PureContentRenderer = ({
 const ContentRenderer = memo(PureContentRenderer);
 
 export default ContentRenderer;
-export { ContentRenderer as CodeHighlighter }; // Backward compatibility alias

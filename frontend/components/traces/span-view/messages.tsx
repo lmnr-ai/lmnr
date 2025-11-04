@@ -99,9 +99,8 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
     <>
       <div
         ref={parentRef}
-        className="h-full relative overflow-y-auto styled-scrollbar"
+        className="size-full relative overflow-y-auto styled-scrollbar"
         style={{
-          width: "100%",
           contain: "strict",
         }}
       >
@@ -109,6 +108,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
           style={{
             height: virtualizer.getTotalSize(),
             width: "100%",
+            position: "relative",
           }}
         >
           <div
@@ -162,10 +162,7 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper
-              role={message.role}
-              presetKey={`collapse-${row.index}-${presetKey}`}
-            >
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <OpenAIContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
@@ -177,10 +174,7 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper
-              role={message.role}
-              presetKey={`collapse-${row.index}-${presetKey}`}
-            >
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
@@ -192,10 +186,7 @@ const MessagesRenderer = ({
         const message = messages[row.index];
         return (
           <div key={row.key} data-index={row.index} ref={ref}>
-            <MessageWrapper
-              role={message.role}
-              presetKey={`collapse-${row.index}-${presetKey}`}
-            >
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <ContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>

@@ -34,6 +34,12 @@ export const ResizableWrapper = ({
     <Resizable
       size={{ width: "100%", height: currentHeight }}
       maxHeight={height !== null ? undefined : maxHeight}
+      onResizeStart={(_e, _direction, ref) => {
+        if (height === null) {
+          const actualHeight = ref.offsetHeight;
+          onHeightChange(actualHeight);
+        }
+      }}
       onResizeStop={(_e, _direction, ref, _d) => {
         const newHeight = ref.offsetHeight;
         onHeightChange(newHeight);
@@ -43,21 +49,23 @@ export const ResizableWrapper = ({
       }}
       handleComponent={{
         bottom: (
-          <div className="flex items-center justify-center w-full h-2">
+          <div className="flex items-end justify-center w-full overflow-hidden h-2">
             <GripHorizontal className="w-4 h-4 text-muted-foreground" />
           </div>
         ),
       }}
       handleStyles={{
         bottom: {
+          position: "absolute",
           bottom: 0,
           height: "4px",
           cursor: "ns-resize",
+          zIndex: 10,
         },
       }}
-      className={cn("relative flex h-full w-full", className)}
+      className={cn("relative flex w-full", className)}
     >
-      {children}
+      <div className="overflow-auto w-full">{children}</div>
     </Resizable>
   );
 };
@@ -238,7 +246,7 @@ export const MessageWrapper = ({
         className="group/message-wrapper divide-y flex flex-col flex-1 w-full"
       >
         <RoleHeader role={role} />
-        <CollapsibleContent className="flex h-full flex-col divide-y overflow-hidden">{children}</CollapsibleContent>
+        <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
       </Collapsible>
     </div>
   );

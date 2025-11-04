@@ -94,18 +94,9 @@ export const baseExtensions = [
       fontSize: "0.75rem !important",
     },
     "&.cm-editor": {
-      flex: 1,
       height: "100%",
       width: "100%",
       position: "relative",
-    },
-    "&.cm-scroller": {
-      position: "absolute !important",
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
-      overflow: "auto",
     },
     // Enhanced search match styling
     ".cm-searchMatch": {

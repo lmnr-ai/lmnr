@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
@@ -516,27 +516,26 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     </div>
                   ) : (
                     <ResizablePanelGroup direction="vertical">
-                      <ResizablePanel>
-                        <div className="flex flex-col h-full">
-                          <div className="flex flex-1 overflow-hidden relative">
-                            <Tree onSpanSelect={handleSpanSelect} />
-                            <Minimap onSpanSelect={handleSpanSelect} />
-                          </div>
-                        </div>
+                      <ResizablePanel className="flex flex-1 h-full overflow-hidden relative">
+                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Minimap onSpanSelect={handleSpanSelect} />
                       </ResizablePanel>
-                      <ResizableHandle className="z-50" withHandle />
-                      {
-                        browserSession && <ResizablePanel>
-                          {!isLoading && (
-                            <SessionPlayer
-                              onClose={() => setBrowserSession(false)}
-                              hasBrowserSession={hasBrowserSession}
-                              traceId={traceId}
-                              llmSpanIds={llmSpanIds}
-                            />
-                          )}
-                        </ResizablePanel>
-                      }
+                      {browserSession && (
+                        <>
+                          <ResizableHandle className="z-50" withHandle />
+                          <ResizablePanel>
+                            {!isLoading && (
+                              <SessionPlayer
+                                onClose={() => setBrowserSession(false)}
+                                hasBrowserSession={hasBrowserSession}
+                                traceId={traceId}
+                                llmSpanIds={llmSpanIds}
+                              />
+                            )}
+                          </ResizablePanel>
+                        </>
+                      )}
+                      {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
                     </ResizablePanelGroup>
                   ))}
               </>
@@ -574,8 +573,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           )}
         </div>
       </div>
-      {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-    </ScrollContextProvider >
+    </ScrollContextProvider>
   );
 };
 
