@@ -1,16 +1,15 @@
 import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { ModelMessage } from "ai";
 import { isEqual, isNil } from "lodash";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import React, { createContext, memo, PropsWithChildren, Ref, useContext, useMemo, useRef } from "react";
+import { ChevronDown } from "lucide-react";
+import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
 import { z } from "zod/v4";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
-import { useMultiEditorSearch } from "@/components/traces/span-view/use-multi-editor-search";
-import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
@@ -19,13 +18,6 @@ import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/ope
 interface MessagesProps {
   messages: any;
   presetKey: string;
-}
-
-// Create context for multi-editor search
-export const MultiEditorSearchContext = createContext<ReturnType<typeof useMultiEditorSearch> | null>(null);
-
-export function useMultiEditorSearchContext() {
-  return useContext(MultiEditorSearchContext);
 }
 
 function PureMessages({ children, messages, presetKey }: PropsWithChildren<MessagesProps>) {
@@ -69,20 +61,14 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
     };
   }, [messages]);
 
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
-
-  const searchCoordinator = useMultiEditorSearch(search);
+  const searchContext = useSpanSearchContext();
+  const searchTerm = searchContext?.searchTerm || "";
 
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: search ? 128 : 32,
+    overscan: searchTerm ? 128 : 32,
     gap: 16,
   });
 
@@ -106,33 +92,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
   };
 
   return (
-    <MultiEditorSearchContext.Provider value={searchCoordinator}>
-      {searchCoordinator.totalMatches > 0 && (
-        <div className="absolute top-2 right-14 z-10 flex items-center gap-1 bg-background border rounded-md px-2 py-1 shadow-sm">
-          <span className="text-xs text-muted-foreground">
-            {searchCoordinator.currentIndex} of {searchCoordinator.totalMatches}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={searchCoordinator.goToPrev}
-            aria-label="Previous match"
-          >
-            <ChevronUp className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={searchCoordinator.goToNext}
-            aria-label="Next match"
-          >
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-
+    <>
       <div
         ref={parentRef}
         className="size-full relative overflow-y-auto styled-scrollbar"
@@ -172,7 +132,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       >
         <ChevronDown className="w-4 h-4" />
       </Button>
-    </MultiEditorSearchContext.Provider>
+    </>
   );
 }
 

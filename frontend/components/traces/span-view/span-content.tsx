@@ -1,13 +1,12 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { Span, SpanType } from "@/lib/traces/types";
-
-import { useOptionalTraceViewStoreContext } from "../trace-view/trace-view-store";
 
 interface SpanContentProps {
   span: Span;
@@ -75,12 +74,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     );
   }, [spanData]);
 
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   if (isLoading) {
     return (
@@ -103,7 +97,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
-        searchTerm={search}
+        searchTerm={searchContext?.searchTerm || ""}
       />
     );
   }
@@ -117,7 +111,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       value={JSON.stringify(spanData)}
       presetKey={presetKey}
       defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
-      searchTerm={search}
+      searchTerm={searchContext?.searchTerm || ""}
     />
   );
 };

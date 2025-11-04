@@ -4,7 +4,8 @@ import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import Messages, { useMultiEditorSearchContext } from "@/components/traces/span-view/messages";
+import Messages from "@/components/traces/span-view/messages";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
@@ -75,7 +76,7 @@ const PureContentRenderer = ({
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorIdRef = useRef(`editor-${Math.random().toString(36).substring(7)}`);
-  const searchCoordinator = useMultiEditorSearchContext();
+  const searchCoordinator = useSpanSearchContext();
 
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -155,8 +156,11 @@ const PureContentRenderer = ({
       extensions.push(createImageDecorationPlugin(imageMap));
     }
 
+    if (readOnly) {
+      extensions.push(EditorView.editable.of(false));
+    }
     return extensions;
-  }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap, searchTerm]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap]);
 
   const clearSearch = (view: EditorView) => {
     closeSearchPanel(view);

@@ -1,6 +1,6 @@
 import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 interface EditorInstance {
   id: string;
@@ -10,6 +10,27 @@ interface EditorInstance {
   matchCount: number;
   containerElement: HTMLElement;
 }
+
+interface SpanSearchContextValue {
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  totalMatches: number;
+  currentIndex: number;
+  goToNext: () => void;
+  goToPrev: () => void;
+  registerEditor: (
+    id: string,
+    view: EditorView,
+    messageIndex: number,
+    contentPartIndex: number,
+    containerElement: HTMLElement
+  ) => void;
+  unregisterEditor: (id: string) => void;
+}
+
+const SpanSearchContext = createContext<SpanSearchContextValue | null>(null);
+
+export const useSpanSearchContext = () => useContext(SpanSearchContext);
 
 function countMatches(text: string, search: string): number {
   if (!search.trim()) return 0;
@@ -48,7 +69,6 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
     ),
   });
 
-  // Navigate to the nth match
   requestAnimationFrame(() => {
     for (let i = 0; i <= localIndex; i++) {
       findNext(view);
@@ -56,28 +76,12 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
   });
 }
 
-export function useMultiEditorSearch(searchTerm: string) {
+export function SpanSearchProvider({ children }: PropsWithChildren) {
   const editors = useRef<Map<string, EditorInstance>>(new Map());
+  const updateTimerRef = useRef<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
-
-  const registerEditor = useCallback(
-    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number, containerElement: HTMLElement) => {
-      editors.current.set(id, {
-        id,
-        view,
-        messageIndex,
-        contentPartIndex,
-        matchCount: 0,
-        containerElement,
-      });
-    },
-    []
-  );
-
-  const unregisterEditor = useCallback((id: string) => {
-    editors.current.delete(id);
-  }, []);
 
   const updateTotalMatches = useCallback(() => {
     let total = 0;
@@ -90,20 +94,51 @@ export function useMultiEditorSearch(searchTerm: string) {
     setTotalMatches(total);
   }, [searchTerm]);
 
-  const getSortedEditors = useCallback((): EditorInstance[] => {
-    // Update match counts before sorting
-    editors.current.forEach((editor) => {
-      const doc = editor.view.state.doc.toString();
-      editor.matchCount = countMatches(doc, searchTerm);
+  const scheduleUpdate = useCallback(() => {
+    if (updateTimerRef.current !== null) {
+      cancelAnimationFrame(updateTimerRef.current);
+    }
+    updateTimerRef.current = requestAnimationFrame(() => {
+      updateTotalMatches();
+      updateTimerRef.current = null;
     });
+  }, [updateTotalMatches]);
 
-    return Array.from(editors.current.values())
-      .filter((e) => e.matchCount > 0)
-      .sort((a, b) => {
-        if (a.messageIndex !== b.messageIndex) return a.messageIndex - b.messageIndex;
-        return a.contentPartIndex - b.contentPartIndex;
+  const registerEditor = useCallback(
+    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number, containerElement: HTMLElement) => {
+      editors.current.set(id, {
+        id,
+        view,
+        messageIndex,
+        contentPartIndex,
+        matchCount: 0,
+        containerElement,
       });
-  }, [searchTerm]);
+      if (searchTerm) {
+        scheduleUpdate();
+      }
+    },
+    [searchTerm, scheduleUpdate]
+  );
+
+  const unregisterEditor = useCallback(
+    (id: string) => {
+      editors.current.delete(id);
+      scheduleUpdate();
+    },
+    [scheduleUpdate]
+  );
+
+  const getSortedEditors = useCallback(
+    (): EditorInstance[] =>
+      Array.from(editors.current.values())
+        .filter((e) => e.matchCount > 0)
+        .sort((a, b) => {
+          if (a.messageIndex !== b.messageIndex) return a.messageIndex - b.messageIndex;
+          return a.contentPartIndex - b.contentPartIndex;
+        }),
+    []
+  );
 
   const getEditorForGlobalIndex = useCallback(
     (globalIndex: number): { editor: EditorInstance; localIndex: number } | null => {
@@ -161,8 +196,20 @@ export function useMultiEditorSearch(searchTerm: string) {
   }, [totalMatches, currentGlobalIndex, goToGlobalMatch]);
 
   useEffect(() => {
-    const timer = setTimeout(updateTotalMatches, 100);
-    return () => clearTimeout(timer);
+    if (updateTimerRef.current !== null) {
+      cancelAnimationFrame(updateTimerRef.current);
+    }
+    updateTimerRef.current = requestAnimationFrame(() => {
+      updateTotalMatches();
+      updateTimerRef.current = null;
+    });
+
+    return () => {
+      if (updateTimerRef.current !== null) {
+        cancelAnimationFrame(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+    };
   }, [searchTerm, updateTotalMatches]);
 
   useEffect(() => {
@@ -173,12 +220,29 @@ export function useMultiEditorSearch(searchTerm: string) {
     }
   }, [totalMatches, currentGlobalIndex]);
 
-  return {
-    registerEditor,
-    unregisterEditor,
-    totalMatches,
-    currentIndex: currentGlobalIndex,
-    goToNext,
-    goToPrev,
-  };
+  const value = useMemo(
+    () => ({
+      searchTerm,
+      setSearchTerm,
+      totalMatches,
+      currentIndex: currentGlobalIndex,
+      goToNext,
+      goToPrev,
+      registerEditor,
+      unregisterEditor,
+    }),
+    [searchTerm, totalMatches, currentGlobalIndex, goToNext, goToPrev, registerEditor, unregisterEditor]
+  );
+
+  useEffect(
+    () => () => {
+      if (updateTimerRef.current !== null) {
+        cancelAnimationFrame(updateTimerRef.current);
+      }
+      editors.current.clear();
+    },
+    []
+  );
+
+  return <SpanSearchContext.Provider value={value}>{children}</SpanSearchContext.Provider>;
 }

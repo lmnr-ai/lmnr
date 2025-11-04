@@ -3,8 +3,8 @@ import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { useSpanViewStore } from "@/components/traces/span-view/span-view-store";
-import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -88,13 +88,7 @@ const PureToolCallContentPart = ({
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <div className="flex flex-col gap-2 p-2 bg-background">
@@ -110,7 +104,7 @@ const PureToolCallContentPart = ({
           value={JSON.stringify(content, null, 2)}
           presetKey={`editor-${presetKey}`}
           className="border-0 bg-muted/50"
-          searchTerm={search}
+          searchTerm={searchContext?.searchTerm || ""}
           messageIndex={messageIndex}
           contentPartIndex={contentPartIndex}
         />
@@ -174,12 +168,7 @@ const PureTextContentPart = ({
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
@@ -190,7 +179,7 @@ const PureTextContentPart = ({
         presetKey={`editor-${presetKey}`}
         className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
-        searchTerm={search}
+        searchTerm={searchContext?.searchTerm || ""}
         messageIndex={messageIndex}
         contentPartIndex={contentPartIndex}
       />
