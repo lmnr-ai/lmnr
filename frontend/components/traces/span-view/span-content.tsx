@@ -7,6 +7,8 @@ import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/typ
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { Span, SpanType } from "@/lib/traces/types";
 
+import { useOptionalTraceViewStoreContext } from "../trace-view/trace-view-store";
+
 interface SpanContentProps {
   span: Span;
   type: "input" | "output";
@@ -65,8 +67,20 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     const langchainMessageResult = LangChainMessageSchema.safeParse(spanData);
     const langchainMessagesResult = LangChainMessagesSchema.safeParse(spanData);
 
-    return openAIMessageResult.success || openAIMessagesResult.success || langchainMessageResult.success || langchainMessagesResult.success;
+    return (
+      openAIMessageResult.success ||
+      openAIMessagesResult.success ||
+      langchainMessageResult.success ||
+      langchainMessagesResult.success
+    );
   }, [spanData]);
+
+  const { search } = useOptionalTraceViewStoreContext(
+    (state) => ({
+      search: state.search,
+    }),
+    { search: "" }
+  );
 
   if (isLoading) {
     return (
@@ -89,6 +103,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
+        searchTerm={search}
       />
     );
   }
@@ -102,6 +117,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       value={JSON.stringify(spanData)}
       presetKey={presetKey}
       defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
+      searchTerm={search}
     />
   );
 };
