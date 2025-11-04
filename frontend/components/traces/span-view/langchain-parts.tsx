@@ -28,7 +28,9 @@ const PureLangChainContentParts = ({
     case "system":
     case "user":
     case "human":
-      return <LangChainContentPart presetKey={presetKey} parentIndex={parentIndex} part={message.content} />;
+      return (
+        <LangChainContentPart presetKey={presetKey} parentIndex={parentIndex} part={message.content} messageIndex={parentIndex} />
+      );
 
     case "tool":
       return (
@@ -38,7 +40,7 @@ const PureLangChainContentParts = ({
             content={message.content}
             presetKey={`${parentIndex}-tool-0-${presetKey}`}
           >
-            <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} />
+            <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} messageIndex={parentIndex} />
           </ToolResultContentPart>
         </>
       );
@@ -46,13 +48,15 @@ const PureLangChainContentParts = ({
     case "ai":
       return (
         <>
-          <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} />
+          <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} messageIndex={parentIndex} />
           {(message?.tool_calls || []).map((part, index) => (
             <ToolCallContentPart
               key={`${parentIndex}-tool-${index}-${presetKey}`}
               toolName={part.name}
               content={part}
               presetKey={`${parentIndex}-tool-${index}-${presetKey}`}
+              messageIndex={parentIndex}
+              contentPartIndex={index}
             />
           ))}
           {(message?.invalid_tool_calls || []).map((part, index) => (
@@ -61,6 +65,8 @@ const PureLangChainContentParts = ({
               content={part}
               presetKey={`${parentIndex}-tool-${index}-${presetKey}`}
               toolName="Invalid Tool Call"
+              messageIndex={parentIndex}
+              contentPartIndex={(message?.tool_calls || []).length + index}
             />
           ))}
         </>
@@ -72,10 +78,12 @@ const PureLangChainContentPart = ({
   part,
   presetKey,
   parentIndex,
+  messageIndex = 0,
 }: {
   part: z.infer<typeof LangChainContentPartSchema> | null;
   parentIndex: number;
   presetKey: string;
+  messageIndex?: number;
 }) => {
   if (typeof part === "string" || !part) {
     return (
@@ -83,6 +91,8 @@ const PureLangChainContentPart = ({
         content={part || JSON.stringify(part)}
         presetKey={`${parentIndex}-text-0-${presetKey}`}
         className="max-h-[400px] border-0"
+        messageIndex={messageIndex}
+        contentPartIndex={0}
       />
     );
   }
@@ -98,6 +108,8 @@ const PureLangChainContentPart = ({
             content={item.text}
             presetKey={`${parentIndex}-${item.type}-${index}-${presetKey}`}
             className="max-h-[400px] border-0"
+            messageIndex={messageIndex}
+            contentPartIndex={index}
           />
         );
       case "image":
@@ -113,6 +125,8 @@ const PureLangChainContentPart = ({
             content={item.id}
             presetKey={`${parentIndex}-${item.type}-${index}-${presetKey}`}
             className="max-h-[400px] border-0"
+            messageIndex={messageIndex}
+            contentPartIndex={index}
           />
         );
 
@@ -130,6 +144,8 @@ const PureLangChainContentPart = ({
               content={item.text}
               presetKey={`${parentIndex}-${item.type}-${index}-${presetKey}`}
               className="max-h-[400px] border-0"
+              messageIndex={messageIndex}
+              contentPartIndex={index}
             />
           );
         }
@@ -139,6 +155,8 @@ const PureLangChainContentPart = ({
             content={item.id}
             presetKey={`${parentIndex}-${item.type}-${index}-${presetKey}`}
             className="max-h-[400px] border-0"
+            messageIndex={messageIndex}
+            contentPartIndex={index}
           />
         );
 
@@ -149,6 +167,8 @@ const PureLangChainContentPart = ({
             content={JSON.stringify(item)}
             presetKey={`${parentIndex}-${item.type}-${index}-${presetKey}`}
             className="max-h-[400px] border-0"
+            messageIndex={messageIndex}
+            contentPartIndex={index}
           />
         );
 

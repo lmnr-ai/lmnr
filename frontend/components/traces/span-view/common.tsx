@@ -74,9 +74,17 @@ interface ToolCallContentPartProps {
   toolName: string;
   content: unknown;
   presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
-const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallContentPartProps) => {
+const PureToolCallContentPart = ({
+  toolName,
+  content,
+  presetKey,
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ToolCallContentPartProps) => {
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
@@ -103,6 +111,8 @@ const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallConte
           presetKey={`editor-${presetKey}`}
           className="border-0 bg-muted/50"
           searchTerm={search}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
         />
       </ResizableWrapper>
     </div>
@@ -149,6 +159,8 @@ interface TextContentPartProps {
   presetKey: string;
   className?: string;
   codeEditorClassName?: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
 const PureTextContentPart = ({
@@ -156,6 +168,8 @@ const PureTextContentPart = ({
   presetKey,
   className = "border-0",
   codeEditorClassName,
+  messageIndex = 0,
+  contentPartIndex = 0,
 }: TextContentPartProps) => {
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
@@ -177,6 +191,8 @@ const PureTextContentPart = ({
         className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
         searchTerm={search}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
       />
     </ResizableWrapper>
   );
