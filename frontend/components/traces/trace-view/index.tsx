@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
-import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
+import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
@@ -402,178 +402,176 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   return (
     <ScrollContextProvider>
-      <div className="flex flex-col h-full w-full overflow-hidden">
-        <ResizablePanelGroup direction="vertical">
-          <ResizablePanel className="flex size-full">
-            <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-              <Header handleClose={handleClose} />
-              <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
-                <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
-                  <StatefulFilter columns={filterColumns}>
-                    <Button variant="outline" className="h-6 text-xs">
-                      <ListFilter size={14} className="mr-1" />
-                      Filters
-                    </Button>
-                  </StatefulFilter>
-                  <Button
-                    onClick={handleToggleSearch}
-                    variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": search || searchEnabled,
-                    })}
-                  >
-                    <Search size={14} className="mr-1" />
-                    <span>Search</span>
-                  </Button>
-                  <Button
-                    onClick={() => setTab("timeline")}
-                    variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": tab === "timeline",
-                    })}
-                  >
-                    <ChartNoAxesGantt size={14} className="mr-1" />
-                    <span>Timeline</span>
-                  </Button>
-                  <Button
-                    onClick={() => setTab("metadata")}
-                    variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": tab === "metadata",
-                    })}
-                  >
-                    <FileText size={14} className="mr-1" />
-                    <span>Metadata</span>
-                  </Button>
-                  <Button
-                    onClick={() => setTab("chat")}
-                    variant="outline"
-                    className={cn("h-6 text-xs text-primary px-1.5", {
-                      "border-primary": tab === "chat",
-                    })}
-                  >
-                    <Sparkles size={14} className="mr-1" />
-                    <span className="truncate min-w-0">Ask AI</span>
-                  </Button>
-                  {tab === "timeline" && (
-                    <>
-                      <Button
-                        disabled={zoom === MAX_ZOOM}
-                        className="size-6 min-w-6 ml-auto"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleZoom("in")}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        disabled={zoom === MIN_ZOOM}
-                        className="size-6 min-w-6"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleZoom("out")}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-                <StatefulFilterList className="py-[3px] text-xs px-1" />
-              </div>
-              {(search || searchEnabled) && (
-                <SearchSpansInput
-                  submit={fetchSpans}
-                  filterBoxClassName="top-10"
-                  className="rounded-none w-full border-0 border-b ring-0 bg-background"
-                />
-              )}
-              {spansError ? (
-                <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-                  <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
-                  <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
-                  <p className="text-xs text-muted-foreground">{spansError}</p>
-                </div>
-              ) : (
+      <div className="flex h-full w-full">
+        <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
+          <Header handleClose={handleClose} />
+          <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
+            <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
+              <StatefulFilter columns={filterColumns}>
+                <Button variant="outline" className="h-6 text-xs">
+                  <ListFilter size={14} className="mr-1" />
+                  Filters
+                </Button>
+              </StatefulFilter>
+              <Button
+                onClick={handleToggleSearch}
+                variant="outline"
+                className={cn("h-6 text-xs px-1.5", {
+                  "border-primary text-primary": search || searchEnabled,
+                })}
+              >
+                <Search size={14} className="mr-1" />
+                <span>Search</span>
+              </Button>
+              <Button
+                onClick={() => setTab("timeline")}
+                variant="outline"
+                className={cn("h-6 text-xs px-1.5", {
+                  "border-primary text-primary": tab === "timeline",
+                })}
+              >
+                <ChartNoAxesGantt size={14} className="mr-1" />
+                <span>Timeline</span>
+              </Button>
+              <Button
+                onClick={() => setTab("metadata")}
+                variant="outline"
+                className={cn("h-6 text-xs px-1.5", {
+                  "border-primary text-primary": tab === "metadata",
+                })}
+              >
+                <FileText size={14} className="mr-1" />
+                <span>Metadata</span>
+              </Button>
+              <Button
+                onClick={() => setTab("chat")}
+                variant="outline"
+                className={cn("h-6 text-xs text-primary px-1.5", {
+                  "border-primary": tab === "chat",
+                })}
+              >
+                <Sparkles size={14} className="mr-1" />
+                <span className="truncate min-w-0">Ask AI</span>
+              </Button>
+              {tab === "timeline" && (
                 <>
-                  {tab === "metadata" && trace && <Metadata trace={trace} />}
-                  {tab === "chat" && trace && (
-                    <Chat
-                      trace={trace}
-                      onSetSpanId={(spanId) => {
-                        const span = spans.find((span) => span.spanId === spanId);
-                        if (span) {
-                          handleSpanSelect(span);
-                        }
-                      }}
-                    />
-                  )}
-                  <>
-                    {tab === "timeline" && <Timeline />}
-                    {tab === "tree" &&
-                      (isSpansLoading ? (
-                        <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                        </div>
-                      ) : (
-                        <div className="flex flex-1 overflow-hidden relative">
-                          <Tree onSpanSelect={handleSpanSelect} />
-                          <Minimap onSpanSelect={handleSpanSelect} />
-                        </div>
-                      ))}
-                  </>
+                  <Button
+                    disabled={zoom === MAX_ZOOM}
+                    className="size-6 min-w-6 ml-auto"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleZoom("in")}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    disabled={zoom === MIN_ZOOM}
+                    className="size-6 min-w-6"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleZoom("out")}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
                 </>
               )}
-              <div
-                className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-                onMouseDown={handleResizeTreeView}
-              >
-                <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
-              </div>
             </div>
-            <div className="grow overflow-hidden flex-wrap">
-              {isSpansLoading ? (
-                <div className="flex flex-col space-y-2 p-4">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ) : selectedSpan ? (
-                selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView
-                    traceId={selectedSpan.traceId}
-                    spanId={selectedSpan.spanId}
-                    key={selectedSpan.spanId}
-                  />
-                ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
-                )
-              ) : (
-                <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
-                  <span className="text-xl font-medium mb-2">No span selected</span>
-                  <span className="text-base">Select a span from the trace tree to view its details</span>
-                </div>
-              )}
+            <StatefulFilterList className="py-[3px] text-xs px-1" />
+          </div>
+          {(search || searchEnabled) && (
+            <SearchSpansInput
+              submit={fetchSpans}
+              filterBoxClassName="top-10"
+              className="rounded-none w-full border-0 border-b ring-0 bg-background"
+            />
+          )}
+          {spansError ? (
+            <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
+              <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+              <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+              <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
-          </ResizablePanel>
-          {browserSession && (
+          ) : (
             <>
-              <ResizableHandle className="z-50" withHandle />
-              <ResizablePanel>
-                {!isLoading && (
-                  <SessionPlayer
-                    onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={hasBrowserSession}
-                    traceId={traceId}
-                    llmSpanIds={llmSpanIds}
-                  />
-                )}
-              </ResizablePanel>
+              {tab === "metadata" && trace && <Metadata trace={trace} />}
+              {tab === "chat" && trace && (
+                <Chat
+                  trace={trace}
+                  onSetSpanId={(spanId) => {
+                    const span = spans.find((span) => span.spanId === spanId);
+                    if (span) {
+                      handleSpanSelect(span);
+                    }
+                  }}
+                />
+              )}
+              <>
+                {tab === "timeline" && <Timeline />}
+                {tab === "tree" &&
+                  (isSpansLoading ? (
+                    <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : (
+                    <ResizablePanelGroup direction="vertical">
+                      <ResizablePanel className="flex flex-1 h-full overflow-hidden relative">
+                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Minimap onSpanSelect={handleSpanSelect} />
+                      </ResizablePanel>
+                      {browserSession && (
+                        <>
+                          <ResizableHandle className="z-50" withHandle />
+                          <ResizablePanel>
+                            {!isLoading && (
+                              <SessionPlayer
+                                onClose={() => setBrowserSession(false)}
+                                hasBrowserSession={hasBrowserSession}
+                                traceId={traceId}
+                                llmSpanIds={llmSpanIds}
+                              />
+                            )}
+                          </ResizablePanel>
+                        </>
+                      )}
+                      {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+                    </ResizablePanelGroup>
+                  ))}
+              </>
             </>
           )}
-          {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-        </ResizablePanelGroup>
+          <div
+            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+            onMouseDown={handleResizeTreeView}
+          >
+            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+          </div>
+        </div>
+        <div className="grow overflow-hidden flex-wrap h-full w-full">
+          {isSpansLoading ? (
+            <div className="flex flex-col space-y-2 p-4">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : selectedSpan ? (
+            selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+              <HumanEvaluatorSpanView
+                traceId={selectedSpan.traceId}
+                spanId={selectedSpan.spanId}
+                key={selectedSpan.spanId}
+              />
+            ) : (
+              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
+              <span className="text-xl font-medium mb-2">No span selected</span>
+              <span className="text-base">Select a span from the trace tree to view its details</span>
+            </div>
+          )}
+        </div>
       </div>
     </ScrollContextProvider>
   );

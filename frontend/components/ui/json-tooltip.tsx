@@ -2,7 +2,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import React, { memo, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 
-import { githubDarkSyntaxHighlighter } from "@/components/ui/code-highlighter/utils.ts";
+import { githubDarkSyntaxHighlighter } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { isValidJsonObject } from "@/lib/utils";

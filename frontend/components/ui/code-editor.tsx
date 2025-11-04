@@ -10,7 +10,7 @@ import { debounce } from "lodash";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { githubDarkStyle } from "@/components/ui/code-highlighter/utils";
+import { githubDarkStyle } from "@/components/ui/content-renderer/utils";
 import { cn } from "@/lib/utils";
 
 interface CodeEditorProps {

@@ -4,8 +4,9 @@ import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import Messages from "@/components/traces/span-view/messages";
 import { Button } from "@/components/ui/button";
-import CodeSheet from "@/components/ui/code-highlighter/code-sheet";
+import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
   baseExtensions,
   createImageDecorationPlugin,
@@ -14,15 +15,15 @@ import {
   modes as defaultModes,
   renderText,
   theme,
-} from "@/components/ui/code-highlighter/utils";
+} from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import TemplateRenderer from "@/components/ui/template-renderer";
-import { cn } from "@/lib/utils";
+import { cn, tryParseJson } from "@/lib/utils";
 
-interface CodeEditorProps {
+interface ContentRendererProps {
   onChange?: ReactCodeMirrorProps["onChange"];
   readOnly?: boolean;
   modes?: string[];
@@ -51,7 +52,7 @@ function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<strin
   return restoredText;
 }
 
-const PureCodeHighlighter = ({
+const PureContentRenderer = ({
   onChange,
   readOnly,
   modes = defaultModes,
@@ -66,7 +67,7 @@ const PureCodeHighlighter = ({
   renderBase64Images = true,
   defaultShowLineNumbers = false,
   searchTerm = "",
-}: CodeEditorProps) => {
+}: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -80,6 +81,7 @@ const PureCodeHighlighter = ({
 
   const [showLineNumbers, setShowLineNumbers] = useState(defaultShowLineNumbers);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const {
     text: renderedValue,
@@ -103,6 +105,20 @@ const PureCodeHighlighter = ({
 
   const toggleLineNumbers = useCallback(() => {
     setShowLineNumbers((prev) => !prev);
+  }, []);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only set hover if this is the direct target, not bubbled from a child
+    if (
+      e.currentTarget === e.target ||
+      (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget))
+    ) {
+      setIsHovered(true);
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
   }, []);
 
   const handleChange = useCallback(
@@ -198,7 +214,7 @@ const PureCodeHighlighter = ({
   const renderHeaderContent = () => (
     <>
       <Select value={mode} onValueChange={handleModeChange}>
-        <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
+        <SelectTrigger className="h-4 px-1.5 bg-muted font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
           <SelectValue className="w-fit" placeholder="Select mode" />
         </SelectTrigger>
         <SelectContent>
@@ -211,8 +227,8 @@ const PureCodeHighlighter = ({
       </Select>
       <CopyButton
         className={cn(
-          "h-7 w-7 ml-auto text-foreground/80 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
-          isSettingsOpen && "opacity-100"
+          "ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
+          isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
         iconClassName="h-3.5 w-3.5"
         size="icon"
@@ -221,8 +237,8 @@ const PureCodeHighlighter = ({
       />
       <div
         className={cn(
-          "transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100",
-          isSettingsOpen && "opacity-100"
+          "transition-opacity data-[state=open]:opacity-100",
+          isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
         )}
       >
         <CodeSheet
@@ -239,7 +255,10 @@ const PureCodeHighlighter = ({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-foreground/70 transition-opacity opacity-0 group-hover/code-highlighter:opacity-100 data-[state=open]:opacity-100"
+            className={cn(
+              "text-foreground/70 transition-opacity data-[state=open]:opacity-100",
+              isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+            )}
           >
             <Settings size={16} />
           </Button>
@@ -260,24 +279,23 @@ const PureCodeHighlighter = ({
 
   return (
     <div
-      className={cn("w-full min-h-7 h-full flex flex-col border relative group/code-highlighter", className)}
+      className={cn("size-full min-h-7 flex flex-col border relative", className)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      <div className={cn("h-7 flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-muted/50")}>
+      <div className={cn("flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <div className="grow flex bg-muted/50 overflow-auto w-full h-full">
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
+      ) : mode === "messages" ? (
+        <div className="flex-1 flex w-full min-h-0">
+          <Messages messages={tryParseJson(value) ?? []} presetKey={presetKey ?? ""} />
+        </div>
       ) : (
-        <div
-          className={cn(
-            "grow flex bg-muted/50 overflow-auto w-full h-full",
-            !showLineNumbers && "pl-1",
-            codeEditorClassName
-          )}
-          style={{ overflowX: "hidden" }}
-        >
+        <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
           <CodeMirror
             ref={editorRef}
             className="w-full"
@@ -299,6 +317,6 @@ const PureCodeHighlighter = ({
   );
 };
 
-const CodeHighlighter = memo(PureCodeHighlighter);
+const ContentRenderer = memo(PureContentRenderer);
 
-export default CodeHighlighter;
+export default ContentRenderer;

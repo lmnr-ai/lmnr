@@ -7,7 +7,7 @@ import { SpanControls } from "@/components/traces/span-controls";
 import SpanMessages from "@/components/traces/span-view/span-content";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Event } from "@/lib/events/types";
@@ -40,7 +40,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
       if (options) {
         return JSON.parse(options) as { value: number; label: string }[];
       }
-    } catch {}
+    } catch { }
   }, [span?.attributes]);
 
   if (isLoading || !span) {
@@ -65,38 +65,41 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
     <SpanViewStateProvider>
       <SpanControls span={span}>
         <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
-          <div className="border-b shrink-0">
-            <TabsList className="border-none text-sm px-4">
-              <TabsTrigger value="span" className="truncate">
-                Span
+          <div className="px-2 pb-2 mt-2 border-b w-full">
+            <TabsList className="border-none text-xs h-7">
+              <TabsTrigger value="span" className="text-xs">
+                Span Input
               </TabsTrigger>
-              <TabsTrigger value="attributes" className="truncate">
+              <TabsTrigger value="attributes" className="text-xs">
                 Attributes
               </TabsTrigger>
-              <TabsTrigger value="events" className="truncate">
+              <TabsTrigger value="events" className="text-xs">
                 Events
               </TabsTrigger>
             </TabsList>
           </div>
           <div className="flex-1 flex overflow-hidden">
             <TabsContent value="span" className="w-full h-full">
-              <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
+              <div className="flex flex-col h-full">
+                <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
+                </SpanMessages>
                 {datapointId && evaluationId && (
-                  <HumanEvaluationScore
-                    traceId={traceId}
-                    options={humanEvaluatorOptions}
-                    key={`${datapointId}-${spanId}`}
-                    evaluationId={evaluationId as string}
-                    spanId={span.spanId}
-                    resultId={datapointId}
-                    name={span.name}
-                    projectId={projectId as string}
-                  />
+                  <div className="flex flex-col p-2 pt-0">
+                    <HumanEvaluationScore
+                      traceId={traceId}
+                      options={humanEvaluatorOptions}
+                      evaluationId={evaluationId as string}
+                      spanId={span.spanId}
+                      resultId={datapointId}
+                      name={span.name}
+                      projectId={projectId as string}
+                    />
+                  </div>
                 )}
-              </SpanMessages>
+              </div>
             </TabsContent>
             <TabsContent value="attributes" className="h-full w-full">
-              <CodeHighlighter
+              <ContentRenderer
                 className="border-none"
                 readOnly
                 value={JSON.stringify(span.attributes)}
@@ -104,7 +107,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
               />
             </TabsContent>
             <TabsContent value="events" className="h-full w-full mt-0">
-              <CodeHighlighter
+              <ContentRenderer
                 className="border-none"
                 readOnly
                 value={JSON.stringify(cleanedEvents)}

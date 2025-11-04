@@ -4,7 +4,7 @@ import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { createTheme } from "@uiw/codemirror-themes";
 
-import { baseExtensions, defaultThemeSettings, githubDarkStyle } from "@/components/ui/code-highlighter/utils";
+import { baseExtensions, defaultThemeSettings, githubDarkStyle } from "@/components/ui/content-renderer/utils";
 
 const tableSchemas = {
   spans: [

@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { theme } from "@/components/ui/code-highlighter/utils.ts";
+import { theme } from "@/components/ui/content-renderer/utils";
 import { Label } from "@/components/ui/label.tsx";
 import { isValidJsonObject } from "@/lib/utils";
 

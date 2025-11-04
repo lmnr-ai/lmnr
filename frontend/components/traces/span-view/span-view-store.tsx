@@ -21,13 +21,6 @@ interface SerializableState {
 }
 
 export type SpanViewStore = SpanViewState & SpanViewActions;
-type StorageKeyFn = (type: "input" | "output", presetKey: string) => string;
-
-export const createStorageKey: Record<"resize" | "collapse" | "editor", StorageKeyFn> = {
-  resize: (type, presetKey) => `${type}-resize-${presetKey}`,
-  collapse: (type, presetKey) => `${type}-collapse-${presetKey}`,
-  editor: (type, presetKey) => `${type}-editor-${presetKey}`,
-};
 
 const createSpanViewStore = () =>
   createStore<SpanViewStore>()(

@@ -9,7 +9,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { ResizableWrapper } from "@/components/traces/span-view/common";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -271,7 +271,7 @@ function QueueInner() {
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ResizableWrapper height={height} onHeightChange={setHeight}>
-                  <CodeHighlighter
+                  <ContentRenderer
                     presetKey={`labeling-queue-${storeQueue?.id}`}
                     codeEditorClassName="rounded-b"
                     className="rounded"
@@ -349,7 +349,7 @@ function QueueInner() {
                 JSON data that will be written to the target key of the payload object.
               </span>
               <div className="flex flex-1 min-h-fit overflow-hidden">
-                <CodeHighlighter
+                <ContentRenderer
                   codeEditorClassName="rounded-b"
                   className={cn("rounded", {
                     "border border-destructive/75": !isValid,

@@ -11,7 +11,7 @@ import { useSWRConfig } from "swr";
 
 import { defaultValues, ManageEvaluatorForm } from "@/components/evaluators/evaluators";
 import { Button } from "@/components/ui/button";
-import { theme } from "@/components/ui/code-highlighter/utils";
+import { theme } from "@/components/ui/content-renderer/utils";
 import { IconPython } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

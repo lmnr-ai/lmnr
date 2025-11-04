@@ -5,7 +5,7 @@ import { Controller, FieldArrayWithId, UseFieldArrayRemove, useFormContext } fro
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { IconMessage } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -105,7 +105,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                     render={({ field: { value, onChange } }) => (
                       <div className="flex flex-col gap-1">
                         <span className="text-secondary-foreground text-xs">Arguments</span>
-                        <CodeHighlighter
+                        <ContentRenderer
                           value={typeof value === "object" ? JSON.stringify(value, null, 2) : String(value || "{}")}
                           onChange={(v) => {
                             try {
@@ -250,7 +250,7 @@ const ToolResultOutput = ({
       {output.type === "content" ? (
         <Controller
           render={({ field: { value, onChange } }) => (
-            <CodeHighlighter
+            <ContentRenderer
               value={JSON.stringify(value, null, 2)}
               onChange={(v) => {
                 try {
@@ -269,7 +269,7 @@ const ToolResultOutput = ({
       ) : (
         <Controller
           render={({ field: { value, onChange } }) => (
-            <CodeHighlighter
+            <ContentRenderer
               value={value as string}
               onChange={onChange}
               defaultMode="json"

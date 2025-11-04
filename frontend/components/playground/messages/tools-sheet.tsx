@@ -4,7 +4,7 @@ import { PropsWithChildren, useCallback, useMemo } from "react";
 import { Controller, ControllerRenderProps, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -126,7 +126,7 @@ export default function ToolsSheet({
           <div className="p-1 flex flex-1 overflow-hidden">
             <Controller
               render={({ field: { onChange } }) => (
-                <CodeHighlighter
+                <ContentRenderer
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {

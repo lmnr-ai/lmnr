@@ -3,7 +3,7 @@ import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { createImageDecorationPlugin, modes, renderText, theme } from "@/components/ui/code-highlighter/utils";
+import { createImageDecorationPlugin, modes, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";

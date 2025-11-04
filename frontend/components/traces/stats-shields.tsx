@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getDurationString, pluralize } from "@/lib/utils";
 
-import CodeHighlighter from "../ui/code-highlighter/index";
+import ContentRenderer from "../ui/content-renderer/index";
 import { Label } from "../ui/label";
 
 interface TraceStatsShieldsProps {
@@ -59,7 +59,7 @@ const ToolsList = ({ tools }: { tools: Tool[] }) => {
                     <summary className="cursor-pointer text-muted-foreground hover:text-foreground mb-1">
                       Parameters
                     </summary>
-                    <CodeHighlighter readOnly value={tool.parameters} defaultMode="json" />
+                    <ContentRenderer readOnly value={tool.parameters} defaultMode="json" />
                   </details>
                 )}
               </div>
@@ -84,7 +84,7 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-w-[600px] p-0" align="end" side="bottom">
-        <CodeHighlighter readOnly value={schema} defaultMode="json" className="max-h-[70vh]" />
+        <ContentRenderer readOnly value={schema} defaultMode="json" className="max-h-[70vh]" />
       </DropdownMenuContent>
     </DropdownMenu>
   );
