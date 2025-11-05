@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import Settings from "@/components/settings/settings";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
 import { authOptions } from "@/lib/auth";
-import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Settings",

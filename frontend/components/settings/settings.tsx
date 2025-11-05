@@ -80,9 +80,15 @@ export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slack
       case "provider-api-keys":
         return <ProviderApiKeys />;
       case "trace-summary":
-        return <TraceSummarySettings />;
+        if (workspace?.tierName !== "Free") {
+          return <TraceSummarySettings />;
+        }
+        return null;
       case "integrations":
-        return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
+        if (workspace?.tierName === "Pro" && isSlackEnabled) {
+          return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
+        }
+        return null;
     }
   };
 
