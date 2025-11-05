@@ -156,8 +156,11 @@ const PureContentRenderer = ({
       extensions.push(createImageDecorationPlugin(imageMap));
     }
 
+    if (readOnly) {
+      extensions.push(EditorView.editable.of(false));
+    }
     return extensions;
-  }, [mode, shouldRenderImages, hasImages, imageMap]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap]);
 
   const clearSearch = (view: EditorView) => {
     closeSearchPanel(view);

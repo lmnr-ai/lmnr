@@ -1,5 +1,4 @@
 import { type ClassValue, clsx } from "clsx";
-import { Ref, RefCallback, RefObject } from "react";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
@@ -380,24 +379,4 @@ export const generateSequentialUuidsV7 = (count: number = 1): string[] => {
   // Most often, this will result in IDs that have 7000-800 in the middle,
   // but that is ok.
   return Array.from({ length: count }, (_, i) => uuidv7({ seq: i }));
-};
-
-export const mergeRefs = <T>(...inputRefs: (Ref<T> | undefined)[]): Ref<T> | RefCallback<T> => {
-  const filteredInputRefs = inputRefs.filter(Boolean);
-
-  if (filteredInputRefs.length <= 1) {
-    const firstRef = filteredInputRefs[0];
-
-    return firstRef || null;
-  }
-
-  return function mergedRefs(ref) {
-    for (const inputRef of filteredInputRefs) {
-      if (typeof inputRef === "function") {
-        inputRef(ref);
-      } else if (inputRef) {
-        (inputRef as RefObject<T | null>).current = ref;
-      }
-    }
-  };
 };

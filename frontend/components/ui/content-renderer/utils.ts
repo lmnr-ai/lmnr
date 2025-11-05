@@ -4,10 +4,9 @@ import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { yaml } from "@codemirror/lang-yaml";
 import { highlightSelectionMatches, search } from "@codemirror/search";
-import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, CreateThemeOptions } from "@uiw/codemirror-themes";
-import { Prec } from "@uiw/react-codemirror";
 import YAML from "yaml";
 
 import { inferImageType } from "@/lib/utils";
@@ -120,22 +119,6 @@ export const baseExtensions = [
   }),
   highlightSelectionMatches(),
   EditorView.lineWrapping,
-  Prec.highest(
-    keymap.of([
-      {
-        key: "Mod-f",
-        run: (view) => {
-          view.dom.dispatchEvent(
-            new CustomEvent("cm-s-req", {
-              bubbles: true,
-              composed: true,
-            })
-          );
-          return true;
-        },
-      },
-    ])
-  ),
 ];
 
 export const languageExtensions = {

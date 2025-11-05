@@ -1,7 +1,7 @@
 import { get, omit } from "lodash";
 import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
@@ -15,7 +15,6 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Event } from "@/lib/events/types";
 import { Span } from "@/lib/traces/types";
-import { mergeRefs } from "@/lib/utils.ts";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
@@ -58,26 +57,15 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     searchRef?.current?.focus();
   }, []);
 
-  const searchOpenRef: RefObject<HTMLDivElement> = useHotkeys("meta+f", openSearch, {
+  useHotkeys("meta+f", openSearch, {
     enableOnFormTags: ["input"],
     preventDefault: true,
   });
 
-  const searchExitRef: RefObject<HTMLDivElement> = useHotkeys("esc", () => setSearchOpen(false), {
+  useHotkeys("esc", () => setSearchOpen(false), {
     enableOnFormTags: ["input"],
     preventDefault: true,
   });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    container.addEventListener("cm-s-req", openSearch);
-
-    return () => {
-      container.removeEventListener("cm-s-req", openSearch);
-    };
-  }, [containerRef?.current, openSearch]);
 
   if (isLoading) {
     return (
@@ -120,12 +108,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanSearchProvider>
           <SpanControls events={cleanedEvents} span={span}>
-            <Tabs
-              className="flex flex-col grow overflow-hidden gap-0"
-              defaultValue="span-input"
-              ref={mergeRefs(containerRef, searchOpenRef, searchExitRef)}
-              tabIndex={0}
-            >
+            <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input" tabIndex={0}>
               <div className="px-2 pb-2 mt-2 border-b w-full">
                 <TabsList className="border-none text-xs h-7">
                   <TabsTrigger value="span-input" className="text-xs">

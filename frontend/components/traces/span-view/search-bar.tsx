@@ -1,6 +1,5 @@
-import { debounce } from "lodash";
 import { Search } from "lucide-react";
-import React, { RefObject, useEffect, useMemo } from "react";
+import React, { RefObject } from "react";
 
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -14,18 +13,6 @@ interface SpanViewSearchBarProps {
 const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
   const searchContext = useSpanSearchContext();
 
-  const debouncedSetSearchTerm = useMemo(
-    () => (searchContext ? debounce(searchContext.setSearchTerm, 300) : null),
-    [searchContext]
-  );
-
-  useEffect(
-    () => () => {
-      debouncedSetSearchTerm?.cancel();
-    },
-    [debouncedSetSearchTerm]
-  );
-
   if (!searchContext) return null;
 
   const { searchTerm, setSearchTerm, totalMatches, currentIndex, goToNext, goToPrev } = searchContext;
@@ -33,7 +20,6 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      debouncedSetSearchTerm?.cancel();
       setSearchTerm(e.currentTarget.value);
       goToNext();
     } else if (e.key === "Escape") {
@@ -43,7 +29,6 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
   };
 
   const handleClear = () => {
-    debouncedSetSearchTerm?.cancel();
     setSearchTerm("");
     setOpen(false);
   };
@@ -57,7 +42,7 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
             ref={ref}
             placeholder="Search in span..."
             defaultValue={searchTerm || ""}
-            onChange={(e) => debouncedSetSearchTerm?.(e.target.value)}
+            onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={handleKeyDown}
             className="pl-7 pr-8 text-xs placeholder:text-xs"
             autoFocus
