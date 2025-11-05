@@ -21,7 +21,7 @@ export default async function ApiKeysPage(props: { params: Promise<{ projectId: 
 
   const apiKeys = await getApiKeys({ projectId: params.projectId });
   const isSlackEnabled = isFeatureEnabled(Feature.SLACK);
-  console.log(isSlackEnabled);
+
   return (
     <Settings
       isSlackEnabled={isSlackEnabled}
