@@ -50,7 +50,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
   const searchRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const openSearch = useCallback(() => {
     setSearchOpen(true);
