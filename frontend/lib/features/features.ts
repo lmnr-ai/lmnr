@@ -61,7 +61,8 @@ export const isFeatureEnabled = (feature: Feature) => {
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
-      !!process.env.SLACK_SIGNING_SECRET
+      !!process.env.SLACK_SIGNING_SECRET &&
+      !!process.env.SLACK_REDIRECT_URL
     );
   }
 
