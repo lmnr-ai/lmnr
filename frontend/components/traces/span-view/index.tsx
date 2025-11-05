@@ -8,7 +8,7 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
-import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
+import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -33,6 +33,73 @@ const swrFetcher = async (url: string) => {
   }
 
   return res.json();
+};
+
+// Inner component that has access to SpanSearchContext
+const SpanViewTabs = ({
+  span,
+  cleanedEvents,
+  searchRef,
+  searchOpen,
+  setSearchOpen
+}: {
+  span: Span;
+  cleanedEvents: any;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  searchOpen: boolean;
+  setSearchOpen: (open: boolean) => void;
+}) => {
+  const searchContext = useSpanSearchContext();
+
+  return (
+    <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input" tabIndex={0}>
+      <div className="px-2 pb-2 mt-2 border-b w-full">
+        <TabsList className="border-none text-xs h-7">
+          <TabsTrigger value="span-input" className="text-xs">
+            Span Input
+          </TabsTrigger>
+          <TabsTrigger value="span-output" className="text-xs">
+            Span Output
+          </TabsTrigger>
+          <TabsTrigger value="attributes" className="text-xs">
+            Attributes
+          </TabsTrigger>
+          <TabsTrigger value="events" className="text-xs">
+            Events
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
+      <div className="grow flex overflow-hidden">
+        <TabsContent value="span-input" className="w-full h-full">
+          <SpanContent span={span} type="input" />
+        </TabsContent>
+        <TabsContent value="span-output" className="w-full h-full">
+          <SpanContent span={span} type="output" />
+        </TabsContent>
+        <TabsContent value="attributes" className="w-full h-full">
+          <ContentRenderer
+            className="rounded-none border-0"
+            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            readOnly
+            value={JSON.stringify(span.attributes)}
+            defaultMode="yaml"
+            searchTerm={searchContext?.searchTerm || ""}
+          />
+        </TabsContent>
+        <TabsContent value="events" className="w-full h-full">
+          <ContentRenderer
+            className="rounded-none border-0"
+            codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            readOnly
+            value={JSON.stringify(cleanedEvents)}
+            defaultMode="yaml"
+            searchTerm={searchContext?.searchTerm || ""}
+          />
+        </TabsContent>
+      </div>
+    </Tabs>
+  );
 };
 
 export function SpanView({ spanId, traceId }: SpanViewProps) {
@@ -107,51 +174,13 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanSearchProvider>
           <SpanControls events={cleanedEvents} span={span}>
-            <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input" tabIndex={0}>
-              <div className="px-2 pb-2 mt-2 border-b w-full">
-                <TabsList className="border-none text-xs h-7">
-                  <TabsTrigger value="span-input" className="text-xs">
-                    Span Input
-                  </TabsTrigger>
-                  <TabsTrigger value="span-output" className="text-xs">
-                    Span Output
-                  </TabsTrigger>
-                  <TabsTrigger value="attributes" className="text-xs">
-                    Attributes
-                  </TabsTrigger>
-                  <TabsTrigger value="events" className="text-xs">
-                    Events
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
-              <div className="grow flex overflow-hidden">
-                <TabsContent value="span-input" className="w-full h-full">
-                  <SpanContent span={span} type="input" />
-                </TabsContent>
-                <TabsContent value="span-output" className="w-full h-full">
-                  <SpanContent span={span} type="output" />
-                </TabsContent>
-                <TabsContent value="attributes" className="w-full h-full">
-                  <ContentRenderer
-                    className="rounded-none border-0"
-                    codeEditorClassName="rounded-none border-none bg-background contain-strict"
-                    readOnly
-                    value={JSON.stringify(span.attributes)}
-                    defaultMode="yaml"
-                  />
-                </TabsContent>
-                <TabsContent value="events" className="w-full h-full">
-                  <ContentRenderer
-                    className="rounded-none border-0"
-                    codeEditorClassName="rounded-none border-none bg-background contain-strict"
-                    readOnly
-                    value={JSON.stringify(cleanedEvents)}
-                    defaultMode="yaml"
-                  />
-                </TabsContent>
-              </div>
-            </Tabs>
+            <SpanViewTabs
+              span={span}
+              cleanedEvents={cleanedEvents}
+              searchRef={searchRef}
+              searchOpen={searchOpen}
+              setSearchOpen={setSearchOpen}
+            />
           </SpanControls>
         </SpanSearchProvider>
       </SpanViewStateProvider>
