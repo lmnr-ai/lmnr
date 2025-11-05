@@ -1,20 +1,21 @@
 import { get, omit } from "lodash";
-import { CircleAlert, Search } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useMemo, useState } from "react";
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
+import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
-import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
+import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
-import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Event } from "@/lib/events/types";
 import { Span } from "@/lib/traces/types";
+import { mergeRefs } from "@/lib/utils.ts";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
@@ -35,65 +36,9 @@ const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-function SpanSearchBar() {
-  const searchContext = useSpanSearchContext();
-  const [inputValue, setInputValue] = useState("");
-
-  if (!searchContext) return null;
-
-  const { searchTerm, setSearchTerm, totalMatches, currentIndex, goToNext, goToPrev } = searchContext;
-
-  const handleSearch = () => {
-    setSearchTerm(inputValue);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
-  };
-
-  const handleClear = () => {
-    setInputValue("");
-    setSearchTerm("");
-  };
-
-  return (
-    <div className="flex items-center gap-1 p-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search in span... (Press Enter)"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="pl-7 pr-8 text-xs placeholder:text-xs"
-        />
-        {searchTerm && (
-          <Button
-            icon="x"
-            variant="ghost"
-            size="icon"
-            className="absolute right-0 top-1/2 -translate-y-1/2"
-            onClick={handleClear}
-          />
-        )}
-      </div>
-      {totalMatches > 0 && (
-        <div className="flex items-center ml-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap mr-1">
-            {currentIndex}/{totalMatches}
-          </span>
-          <Button icon="chevronUp" variant="ghost" size="icon" className={"size-6 p-0"} onClick={goToPrev} />
-          <Button icon="chevronDown" variant="ghost" size="icon" className={"size-6 p-0"} onClick={goToNext} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function SpanView({ spanId, traceId }: SpanViewProps) {
   const { projectId } = useParams();
+  const [searchOpen, setSearchOpen] = useState(false);
   const {
     data: span,
     isLoading,
@@ -105,6 +50,34 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   );
 
   const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    searchRef?.current?.focus();
+  }, []);
+
+  const searchOpenRef: RefObject<HTMLDivElement> = useHotkeys("meta+f", openSearch, {
+    enableOnFormTags: ["input"],
+    preventDefault: true,
+  });
+
+  const searchExitRef: RefObject<HTMLDivElement> = useHotkeys("esc", () => setSearchOpen(false), {
+    enableOnFormTags: ["input"],
+    preventDefault: true,
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener("cm-s-req", openSearch);
+
+    return () => {
+      container.removeEventListener("cm-s-req", openSearch);
+    };
+  }, [containerRef?.current, openSearch]);
 
   if (isLoading) {
     return (
@@ -147,7 +120,12 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanSearchProvider>
           <SpanControls events={cleanedEvents} span={span}>
-            <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
+            <Tabs
+              className="flex flex-col grow overflow-hidden gap-0"
+              defaultValue="span-input"
+              ref={mergeRefs(containerRef, searchOpenRef, searchExitRef)}
+              tabIndex={0}
+            >
               <div className="px-2 pb-2 mt-2 border-b w-full">
                 <TabsList className="border-none text-xs h-7">
                   <TabsTrigger value="span-input" className="text-xs">
@@ -164,7 +142,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
                   </TabsTrigger>
                 </TabsList>
               </div>
-              <SpanSearchBar />
+              <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
               <div className="grow flex overflow-hidden">
                 <TabsContent value="span-input" className="w-full h-full">
                   <SpanContent span={span} type="input" />

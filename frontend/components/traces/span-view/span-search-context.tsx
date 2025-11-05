@@ -169,9 +169,18 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
 
       setCurrentGlobalIndex(globalIndex + 1);
 
+      editors.current.forEach((ed) => {
+        if (ed.id !== editor.id) {
+          ed.view.dispatch({
+            selection: { anchor: 0, head: 0 },
+          });
+        }
+      });
+
       editor.containerElement.scrollIntoView({
         behavior: "smooth",
         block: "center",
+        inline: "nearest",
       });
 
       requestAnimationFrame(() => {
