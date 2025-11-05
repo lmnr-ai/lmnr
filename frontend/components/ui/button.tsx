@@ -131,7 +131,7 @@ type HandledKey = {
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-  VariantProps<typeof buttonVariants> {
+    VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment
@@ -200,7 +200,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
-        {IconComponent && <IconComponent className={cn("-ml-1 mr-1", size === "sm" ? "size-3" : "size-3.5")} />}
+        {IconComponent && (
+          <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "-ml-1 mr-1": !!children })} />
+        )}
         {children}
       </Comp>
     );

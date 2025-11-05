@@ -22,18 +22,41 @@ const GenericFileContentPart = ({ part }: { part: FilePart }) => {
 const GenericTextContentPart = ({
   part,
   presetKey,
+  messageIndex,
+  contentPartIndex,
 }: {
   part: TextPart;
   presetKey: string;
-}) => <TextContentPart content={part.text} presetKey={presetKey} />;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <TextContentPart
+    content={part.text}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
+);
 
 const GenericToolCallContentPart = ({
   part,
   presetKey,
+  messageIndex,
+  contentPartIndex,
 }: {
   part: ToolCallPart;
   presetKey: string;
-}) => <ToolCallContentPart toolName={part.toolName} content={omit(part, "type")} presetKey={presetKey} />;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <ToolCallContentPart
+    toolName={part.toolName}
+    content={omit(part, "type")}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
+);
 
 const GenericToolResultContentPart = ({
   part,
@@ -59,6 +82,8 @@ const PureContentParts = ({
       <GenericTextContentPart
         presetKey={`${parentIndex}-text-0-${presetKey}`}
         part={{ type: "text", text: message.content }}
+        messageIndex={parentIndex}
+        contentPartIndex={0}
       />
     );
   }
@@ -73,6 +98,8 @@ const PureContentParts = ({
             key={`${parentIndex}-text-${index}-${presetKey}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
           />
         );
       case "tool-call":
@@ -81,6 +108,8 @@ const PureContentParts = ({
             key={`${part.type}-${index}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
           />
         );
       case "tool-result":

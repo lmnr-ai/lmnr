@@ -5,6 +5,7 @@ import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
@@ -38,6 +39,8 @@ interface ContentRendererProps {
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
   searchTerm?: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -67,8 +70,14 @@ const PureContentRenderer = ({
   renderBase64Images = true,
   defaultShowLineNumbers = false,
   searchTerm = "",
+  messageIndex = 0,
+  contentPartIndex = 0,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorIdRef = useRef(`editor-${Math.random().toString(36).substring(7)}`);
+  const searchCoordinator = useSpanSearchContext();
+
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
       const savedMode = localStorage.getItem(`formatter-mode-${presetKey}`);
@@ -147,8 +156,11 @@ const PureContentRenderer = ({
       extensions.push(createImageDecorationPlugin(imageMap));
     }
 
+    if (readOnly) {
+      extensions.push(EditorView.editable.of(false));
+    }
     return extensions;
-  }, [mode, lineWrapping, renderedValue.length, shouldRenderImages, hasImages, imageMap, searchTerm]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap]);
 
   const clearSearch = (view: EditorView) => {
     closeSearchPanel(view);
@@ -210,6 +222,29 @@ const PureContentRenderer = ({
       applySearch(editorRef.current?.view);
     }
   }, [searchTerm, applySearch, editorRef]);
+
+  // Register this editor with the search coordinator
+  useEffect(() => {
+    if (
+      searchCoordinator &&
+      editorRef.current?.view &&
+      containerRef.current &&
+      mode !== "custom" &&
+      mode !== "messages"
+    ) {
+      searchCoordinator.registerEditor(
+        editorIdRef.current,
+        editorRef.current.view,
+        messageIndex,
+        contentPartIndex,
+        containerRef.current
+      );
+
+      return () => {
+        searchCoordinator.unregisterEditor(editorIdRef.current);
+      };
+    }
+  }, [searchCoordinator, messageIndex, contentPartIndex, mode]);
 
   const renderHeaderContent = () => (
     <>
@@ -279,6 +314,7 @@ const PureContentRenderer = ({
 
   return (
     <div
+      ref={containerRef}
       className={cn("size-full min-h-7 flex flex-col border relative", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

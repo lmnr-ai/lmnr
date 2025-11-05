@@ -107,7 +107,7 @@ export const baseExtensions = [
     ".cm-searchMatch-selected": {
       backgroundColor: "hsl(var(--primary))",
       color: "hsl(var(--primary-foreground))",
-      fontWeight: "500",
+      fontWeight: "600",
     },
   }),
   search({

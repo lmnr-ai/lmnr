@@ -9,7 +9,7 @@ import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
-import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
@@ -61,18 +61,14 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
     };
   }, [messages]);
 
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
+  const searchTerm = searchContext?.searchTerm || "";
 
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 500,
-    overscan: search ? 128 : 32,
+    overscan: searchTerm ? 128 : 32,
     gap: 16,
   });
 

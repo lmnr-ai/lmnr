@@ -3,8 +3,8 @@ import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { useSpanViewStore } from "@/components/traces/span-view/span-view-store";
-import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -49,19 +49,18 @@ export const ResizableWrapper = ({
       }}
       handleComponent={{
         bottom: (
-          <div className="flex items-end justify-center w-full overflow-hidden h-2">
-            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center w-full h-0 bg-background/90 backdrop-blur-sm">
+            <div className="flex items-end justify-center w-full overflow-hidden h-2">
+              <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+            </div>
           </div>
         ),
       }}
       handleStyles={{
-        bottom: {
-          position: "absolute",
-          bottom: 0,
-          height: "4px",
-          cursor: "ns-resize",
-          zIndex: 10,
-        },
+        bottom: { height: 0, bottom: 0 },
+      }}
+      handleWrapperStyle={{
+        height: 0,
       }}
       className={cn("relative flex w-full", className)}
     >
@@ -74,19 +73,21 @@ interface ToolCallContentPartProps {
   toolName: string;
   content: unknown;
   presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
-const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallContentPartProps) => {
+const PureToolCallContentPart = ({
+  toolName,
+  content,
+  presetKey,
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ToolCallContentPartProps) => {
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <div className="flex flex-col gap-2 p-2 bg-background">
@@ -102,7 +103,9 @@ const PureToolCallContentPart = ({ toolName, content, presetKey }: ToolCallConte
           value={JSON.stringify(content, null, 2)}
           presetKey={`editor-${presetKey}`}
           className="border-0 bg-muted/50"
-          searchTerm={search}
+          searchTerm={searchContext?.searchTerm || ""}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
         />
       </ResizableWrapper>
     </div>
@@ -149,6 +152,8 @@ interface TextContentPartProps {
   presetKey: string;
   className?: string;
   codeEditorClassName?: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
 const PureTextContentPart = ({
@@ -156,16 +161,13 @@ const PureTextContentPart = ({
   presetKey,
   className = "border-0",
   codeEditorClassName,
+  messageIndex = 0,
+  contentPartIndex = 0,
 }: TextContentPartProps) => {
   const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
@@ -176,7 +178,9 @@ const PureTextContentPart = ({
         presetKey={`editor-${presetKey}`}
         className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
-        searchTerm={search}
+        searchTerm={searchContext?.searchTerm || ""}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
       />
     </ResizableWrapper>
   );

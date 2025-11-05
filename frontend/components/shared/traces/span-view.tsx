@@ -4,10 +4,10 @@ import useSWR from "swr";
 
 import ErrorCard from "@/components/traces/error-card";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import SpanMessages from "@/components/traces/span-view/span-content";
+import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import SpanStatsShields from "@/components/traces/stats-shields";
-import Formatter from "@/components/ui/formatter";
+import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,7 +52,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   return (
     <SpanViewStateProvider>
       <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
-        <div className="border-b flex-none">
+        <div className="flex-none">
           <div className="flex flex-col px-4 pt-2 gap-1">
             <div className="flex flex-col gap-1">
               <div className="flex flex-none items-center space-x-2">
@@ -70,44 +70,48 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
           </div>
-          <TabsList className="border-none text-sm px-4">
-            <TabsTrigger value="span-input" className="z-50">
-              Span Input
-            </TabsTrigger>
-            <TabsTrigger value="span-output" className="z-50">
-              Span Output
-            </TabsTrigger>
-            <TabsTrigger value="attributes" className="z-50">
-              Attributes
-            </TabsTrigger>
-            <TabsTrigger value="events" className="z-50">
-              Events
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        <div className="grow flex h-0">
-          <div className="grow flex flex-col">
-            <TabsContent value="span-input" className="w-full h-full">
-              <SpanMessages span={span} type="input" />
-            </TabsContent>
-            <TabsContent value="span-output" className="w-full h-full">
-              <SpanMessages span={span} type="output" />
-            </TabsContent>
-            <TabsContent value="attributes" className="h-full w-full">
-              <Formatter
-                className="border-none rounded-none"
-                value={JSON.stringify(span.attributes)}
-                defaultMode="yaml"
-              />
-            </TabsContent>
-            <TabsContent value="events" className="h-full w-full mt-0">
-              <Formatter
-                className="h-full border-none rounded-none"
-                value={JSON.stringify(cleanedEvents)}
-                defaultMode="yaml"
-              />
-            </TabsContent>
+          <div className="px-2 pb-2 mt-2 border-b w-full">
+            <TabsList className="border-none text-xs h-7">
+              <TabsTrigger value="span-input" className="text-xs">
+                Span Input
+              </TabsTrigger>
+              <TabsTrigger value="span-output" className="text-xs">
+                Span Output
+              </TabsTrigger>
+              <TabsTrigger value="attributes" className="text-xs">
+                Attributes
+              </TabsTrigger>
+              <TabsTrigger value="events" className="text-xs">
+                Events
+              </TabsTrigger>
+            </TabsList>
           </div>
+        </div>
+        <div className="grow flex overflow-hidden">
+          <TabsContent value="span-input" className="w-full h-full">
+            <SpanContent span={span} type="input" />
+          </TabsContent>
+          <TabsContent value="span-output" className="w-full h-full">
+            <SpanContent span={span} type="output" />
+          </TabsContent>
+          <TabsContent value="attributes" className="w-full h-full">
+            <ContentRenderer
+              className="rounded-none border-0"
+              codeEditorClassName="rounded-none border-none bg-background contain-strict"
+              readOnly
+              value={JSON.stringify(span.attributes)}
+              defaultMode="yaml"
+            />
+          </TabsContent>
+          <TabsContent value="events" className="w-full h-full">
+            <ContentRenderer
+              className="rounded-none border-0"
+              codeEditorClassName="rounded-none border-none bg-background contain-strict"
+              readOnly
+              value={JSON.stringify(cleanedEvents)}
+              defaultMode="yaml"
+            />
+          </TabsContent>
         </div>
       </Tabs>
     </SpanViewStateProvider>
