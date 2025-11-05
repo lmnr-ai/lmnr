@@ -75,10 +75,10 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
         {totalMatches > 0 && (
           <>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {currentIndex}/{totalMatches}
+              {currentIndex} of {totalMatches}
             </span>
-            <Button icon="chevronUp" variant="outline" size="icon" onClick={goToPrev} />
-            <Button icon="chevronDown" variant="outline" size="icon" onClick={goToNext} />
+            <Button className="size-5" icon="chevronUp" variant="ghost" size="icon" onClick={goToPrev} />
+            <Button className="size-5" icon="chevronDown" variant="ghost" size="icon" onClick={goToNext} />
           </>
         )}
       </div>
