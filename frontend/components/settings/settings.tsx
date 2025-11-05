@@ -28,6 +28,7 @@ import TraceSummarySettings from "./trace-summary-settings";
 
 interface SettingsProps {
   apiKeys: ProjectApiKey[];
+  isSlackEnabled: boolean;
   slackClientId?: string;
   slackRedirectUri?: string;
 }
@@ -44,7 +45,7 @@ const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
-export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: SettingsProps) {
+export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slackRedirectUri }: SettingsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
   const pathName = usePathname();
@@ -57,9 +58,9 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
         if (t.id === "trace-summary" && workspace?.tierName === "Free") {
           return false;
         }
-        return !(t.id === "integrations" && workspace?.tierName !== "Pro");
+        return !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled));
       }),
-    [workspace]
+    [workspace, isSlackEnabled]
   );
 
   const renderContent = () => {
