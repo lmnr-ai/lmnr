@@ -49,19 +49,18 @@ export const ResizableWrapper = ({
       }}
       handleComponent={{
         bottom: (
-          <div className="flex items-end justify-center w-full overflow-hidden h-2">
-            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center w-full h-0 bg-background/90 backdrop-blur-sm">
+            <div className="flex items-end justify-center w-full overflow-hidden h-2">
+              <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+            </div>
           </div>
         ),
       }}
       handleStyles={{
-        bottom: {
-          position: "absolute",
-          bottom: 0,
-          height: "4px",
-          cursor: "ns-resize",
-          zIndex: 10,
-        },
+        bottom: { height: 0, bottom: 0 },
+      }}
+      handleWrapperStyle={{
+        height: 0,
       }}
       className={cn("relative flex w-full", className)}
     >
