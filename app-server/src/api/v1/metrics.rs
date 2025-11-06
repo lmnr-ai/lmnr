@@ -2,7 +2,8 @@ use actix_web::{HttpRequest, HttpResponse, post};
 
 use crate::routes::types::ResponseResult;
 
-#[post("metrics")]
+// /v1/metrics
+#[post("")]
 pub async fn process_metrics(req: HttpRequest) -> ResponseResult {
     // This is a placeholder that just returns ok, so that client otel exporters
     // don't fail when trying to send metrics to the server.

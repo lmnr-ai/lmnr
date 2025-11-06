@@ -788,6 +788,11 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::traces::process_traces),
                             )
+                            .service(
+                                web::scope("/v1/metrics")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(api::v1::metrics::process_metrics),
+                            )
                             // Default endpoints block ingest-only keys
                             .service(
                                 web::scope("/v1")
@@ -795,7 +800,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
                                     .service(api::v1::datasets::get_parquet)
-                                    .service(api::v1::metrics::process_metrics)
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
