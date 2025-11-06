@@ -779,11 +779,6 @@ fn main() -> anyhow::Result<()> {
                                 ),
                             )
                             .service(
-                                web::scope("/v1/tag")
-                                    .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::tag::tag_trace),
-                            )
-                            .service(
                                 web::scope("/v1/traces")
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::traces::process_traces),
@@ -794,6 +789,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::metrics::process_metrics),
                             )
                             // Default endpoints block ingest-only keys
+                            .service(
+                                web::scope("/v1/tag")
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::tag::tag_trace),
+                            )
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
