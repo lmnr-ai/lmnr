@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
@@ -23,6 +24,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [keyType, setKeyType] = useState<"default" | "ingest_only">("default");
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
   const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(
@@ -58,6 +61,18 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
     },
     [projectId, getProjectApiKeys]
   );
+
+  const handleGenerateKey = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
+      setIsGenerated(true);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to generate API key" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [newApiKeyName, keyType, generateNewAPIKey, toast, projectId]);
 
   return (
     <SettingsSection>
@@ -98,10 +113,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
             />
           ) : (
             <GenerateKeyDialogContent
-              onClick={() => {
-                generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
-                setIsGenerated(true);
-              }}
+              onClick={handleGenerateKey}
+              isLoading={isLoading}
               onNameChange={(name) => setNewApiKeyName(name)}
               keyType={keyType}
               onKeyTypeChange={(type) => setKeyType(type)}

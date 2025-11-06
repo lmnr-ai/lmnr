@@ -1,4 +1,7 @@
 import { InfoCircledIcon } from "@radix-ui/react-icons";
+import { Loader2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
 import { DialogFooter } from "../../ui/dialog";
@@ -12,10 +15,12 @@ interface GenerateKeyDialogContentProps {
   onNameChange: (name: string) => void;
   keyType: "default" | "ingest_only";
   onKeyTypeChange: (type: "default" | "ingest_only") => void;
+  isLoading: boolean;
 }
 
 export function GenerateKeyDialogContent({
   onClick,
+  isLoading,
   onNameChange,
   keyType,
   onKeyTypeChange,
@@ -55,7 +60,8 @@ export function GenerateKeyDialogContent({
         </div>
       </div>
       <DialogFooter>
-        <Button onClick={onClick} handleEnter>
+        <Button onClick={onClick} handleEnter disabled={isLoading}>
+          <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
           Create
         </Button>
       </DialogFooter>
