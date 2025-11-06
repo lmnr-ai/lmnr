@@ -68,7 +68,7 @@ export async function createApiKey(
 
 export async function getApiKeys(
   input: z.infer<typeof GetProjectApiKeysSchema>
-): Promise<Array<{ id: string; projectId: string; name?: string; shorthand: string; isIngestOnly?: boolean }>> {
+): Promise<Array<{ id: string; projectId: string; name?: string; shorthand: string; isIngestOnly: boolean }>> {
   const { projectId } = GetProjectApiKeysSchema.parse(input);
 
   const apiKeys = await db
