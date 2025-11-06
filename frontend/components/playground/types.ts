@@ -122,14 +122,14 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         label: "Claude 3 Opus",
       },
       {
-        id: "anthropic:claude-3-5-sonnet-20241022",
-        name: "claude-3-5-sonnet-20241022",
-        label: "Claude 3.5 Sonnet",
-      },
-      {
         id: "anthropic:claude-3-5-haiku-20241022",
         name: "claude-3-5-haiku-20241022",
         label: "Claude 3.5 Haiku",
+      },
+      {
+        id: "anthropic:claude-3-5-sonnet-20241022",
+        name: "claude-3-5-sonnet-20241022",
+        label: "Claude 3.5 Sonnet",
       },
       {
         id: "anthropic:claude-3-7-sonnet-20250219",
@@ -145,6 +145,21 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "anthropic:claude-opus-4-20250514",
         name: "claude-opus-4-20250514",
         label: "Claude 4 Opus",
+      },
+      {
+        id: "anthropic:claude-opus-4-1-20250805",
+        name: "claude-opus-4-1-20250805",
+        label: "Claude 4.1 Opus",
+      },
+      {
+        id: "anthropic:claude-haiku-4-5-20251001",
+        name: "claude-haiku-4-5-20251001",
+        label: "Claude 4.5 Haiku",
+      },
+      {
+        id: "anthropic:claude-sonnet-4-5-20250929",
+        name: "claude-sonnet-4-5-20250929",
+        label: "Claude 4.5 Sonnet",
       },
     ],
   },
