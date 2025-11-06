@@ -9,7 +9,7 @@ import { projectApiKeys } from '@/lib/db/migrations/schema';
 const CreateProjectApiKeySchema = z.object({
   projectId: z.string(),
   name: z.string().optional().nullable(),
-  isIngestOnly: z.boolean().optional(),
+  isIngestOnly: z.boolean(),
 });
 
 const GetProjectApiKeysSchema = z.object({
@@ -26,6 +26,7 @@ export interface ProjectApiKeyResponse {
   projectId: string;
   name: string | null;
   shorthand: string;
+  isIngestOnly: boolean;
 }
 
 export async function createApiKey(
@@ -61,6 +62,7 @@ export async function createApiKey(
     projectId,
     name: name || null,
     shorthand,
+    isIngestOnly,
   };
 }
 
@@ -102,4 +104,3 @@ export async function deleteApiKey(input: z.infer<typeof DeleteProjectApiKeySche
     await cache.remove(cacheKey);
   }
 }
-

@@ -3,7 +3,7 @@ export type ProjectApiKey = {
   projectId: string;
   name?: string;
   id: string;
-  isIngestOnly?: boolean;
+  isIngestOnly: boolean;
 };
 
 export type GenerateProjectApiKeyResponse = {
@@ -11,5 +11,5 @@ export type GenerateProjectApiKeyResponse = {
   name?: string;
   projectId: string;
   shorthand: string;
-  isIngestOnly?: boolean;
+  isIngestOnly: boolean;
 };
