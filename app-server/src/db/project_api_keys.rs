@@ -10,6 +10,7 @@ pub struct ProjectApiKey {
     pub name: Option<String>,
     pub hash: String,
     pub shorthand: String,
+    pub is_ingest_only: bool,
 }
 
 pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> {
@@ -19,7 +20,8 @@ pub async fn get_api_key(pool: &PgPool, hash: &String) -> Result<ProjectApiKey> 
             project_api_keys.project_id,
             project_api_keys.name,
             project_api_keys.id,
-            project_api_keys.shorthand
+            project_api_keys.shorthand,
+            project_api_keys.is_ingest_only
         FROM
             project_api_keys
         WHERE

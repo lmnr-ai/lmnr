@@ -20,7 +20,8 @@ pub struct RabbitMqSpanMessage {
     pub events: Vec<Event>,
 }
 
-#[post("traces")]
+// /v1/traces
+#[post("")]
 pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
