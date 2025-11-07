@@ -1,3 +1,4 @@
+import { isNil } from "lodash";
 import React from "react";
 
 import { chartConfig } from "@/components/traces/traces-chart/utils.ts";
@@ -18,7 +19,7 @@ const MIN_BAR_HEIGHT = 3;
 const RoundedBar = (props: CustomBarProps) => {
   const { fill, x, y, width, height = 0, payload } = props;
 
-  if (!x || !y || !width || !fill || !payload) return <></>;
+  if (isNil(x) || isNil(y) || isNil(width) || !fill || !payload) return <></>;
 
   const isSuccess = fill === chartConfig.successCount.color;
   const hasSuccess = payload.successCount > 0;

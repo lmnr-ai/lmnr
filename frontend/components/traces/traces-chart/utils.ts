@@ -5,11 +5,11 @@ import { ChartConfig } from "@/components/ui/chart.tsx";
 
 export const chartConfig: ChartConfig = {
   successCount: {
-    label: "Success",
+    label: "success",
     color: "#34d399",
   },
   errorCount: {
-    label: "Error",
+    label: "error",
     color: "#f87171",
   },
 };
@@ -67,13 +67,13 @@ export function calculateOptimalInterval(startDate: Date, endDate: Date, targetB
   const intervalMinutes = intervalMs / (1000 * 60);
 
   if (intervalMinutes < 60) {
-    return { value: intervalMinutes, unit: "minute" };
+    return { value: Math.round(intervalMinutes), unit: "minute" };
   } else if (intervalMinutes < 60 * 24) {
     const hours = intervalMinutes / 60;
-    return { value: hours, unit: "hour" };
+    return { value: Math.round(hours), unit: "hour" };
   } else {
     const days = intervalMinutes / (60 * 24);
-    return { value: days, unit: "day" };
+    return { value: Math.round(days), unit: "day" };
   }
 }
 
