@@ -2,16 +2,18 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import TracesChart from "@/components/traces/traces-chart";
+import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/traces/traces-chart/utils";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
-import DateRangeFilter from "@/components/ui/date-range-filter";
+import { CompactDateRangeFilter } from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -22,6 +24,7 @@ import { TraceRow } from "@/lib/traces/types";
 const presetFilters: DatatableFilter[] = [];
 
 const FETCH_SIZE = 50;
+const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
   return (
@@ -38,9 +41,22 @@ function TracesTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { traceId, setTraceId: onRowClick } = useTracesStoreContext((state) => ({
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    traceId,
+    setTraceId: onRowClick,
+    fetchStats,
+    incrementStat,
+    chartContainerWidth,
+    setChartContainerWidth,
+  } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
+    fetchStats: state.fetchStats,
+    incrementStat: state.incrementStat,
+    chartContainerWidth: state.chartContainerWidth,
+    setChartContainerWidth: state.setChartContainerWidth,
   }));
 
   const filter = searchParams.getAll("filter");
@@ -56,6 +72,64 @@ function TracesTableContent() {
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const shouldFetch = !!(pastHours || startDate || endDate);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setChartContainerWidth(width);
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [setChartContainerWidth]);
+
+  const interval = useMemo(() => {
+    const targetBars = chartContainerWidth
+      ? getTargetBarsForWidth(chartContainerWidth)
+      : DEFAULT_TARGET_BARS;
+
+    // Calculate date range
+    let range: { start: Date; end: Date } | null = null;
+
+    if (pastHours) {
+      const end = new Date();
+      const start = new Date(end.getTime() - parseInt(pastHours) * 60 * 60 * 1000);
+      range = { start, end };
+    } else if (startDate && endDate) {
+      range = { start: new Date(startDate), end: new Date(endDate) };
+    }
+
+    if (!range) {
+      return { value: 1, unit: "hour" as const };
+    }
+
+    return calculateOptimalInterval(range.start, range.end, targetBars);
+  }, [chartContainerWidth, startDate, endDate, pastHours]);
+
+  const statsUrl = useMemo(() => {
+    if (!shouldFetch) return null;
+
+    const urlParams = new URLSearchParams();
+    if (pastHours) urlParams.set("pastHours", pastHours);
+    if (startDate) urlParams.set("startDate", startDate);
+    if (endDate) urlParams.set("endDate", endDate);
+
+    filter.forEach((f) => urlParams.append("filter", f));
+    if (textSearchFilter) urlParams.set("search", textSearchFilter);
+    searchIn.forEach((si) => urlParams.append("searchIn", si));
+
+    urlParams.set("intervalValue", interval.value.toString());
+    urlParams.set("intervalUnit", interval.unit);
+
+    return `/api/projects/${projectId}/traces/stats?${urlParams.toString()}`;
+  }, [shouldFetch, pastHours, startDate, endDate, filter, textSearchFilter, searchIn, projectId, interval]);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -126,6 +200,12 @@ function TracesTableContent() {
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
+  useEffect(() => {
+    if (statsUrl) {
+      fetchStats(statsUrl);
+    }
+  }, [statsUrl, fetchStats]);
+
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {
       updateData((currentTraces) => {
@@ -179,6 +259,9 @@ function TracesTableContent() {
           // Process batched trace updates
           for (const trace of payload.traces) {
             updateRealtimeTrace(trace);
+            if (trace.startTime) {
+              incrementStat(trace.startTime, trace.status === "error");
+            }
           }
         }
       } catch (error) {
@@ -194,9 +277,16 @@ function TracesTableContent() {
     return () => {
       eventSource.close();
     };
-  }, [projectId, isCurrentTimestampIncluded, filter.length, textSearchFilter, realtimeEnabled, updateRealtimeTrace]);
+  }, [
+    projectId,
+    isCurrentTimestampIncluded,
+    filter.length,
+    textSearchFilter,
+    realtimeEnabled,
+    updateRealtimeTrace,
+    incrementStat,
+  ]);
 
-  // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
@@ -212,6 +302,13 @@ function TracesTableContent() {
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    if (statsUrl) {
+      fetchStats(statsUrl);
+    }
+  }, [refetch, statsUrl, fetchStats]);
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
@@ -242,22 +339,21 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <DateRangeFilter />
+          <CompactDateRangeFilter />
           <RefreshButton
             iconClassName="w-3.5 h-3.5 text-secondary-foreground"
-            onClick={refetch}
+            onClick={handleRefresh}
             variant="outline"
             className="text-xs text-secondary-foreground"
           />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
             <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
-            <span className="text-xs cursor-pointer font-medium text-secondary-foreground">
-              Realtime
-            </span>
+            <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
           </div>
           <SearchTracesInput />
         </div>
         <DataTableFilterList />
+        <TracesChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
       </InfiniteDataTable>
     </div>
   );

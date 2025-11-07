@@ -1,11 +1,12 @@
 "use client";
 
-import { formatDate, subYears } from "date-fns";
+import { differenceInHours, differenceInMinutes, formatDate, subHours, subYears } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
 
+import { Badge } from "@/components/ui/badge.tsx";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
@@ -256,6 +257,178 @@ function AbsoluteDateRangeFilter({
     </div>
   );
 }
+
+function getTimeDifference(from: Date, to: Date): string {
+  const totalHours = differenceInHours(to, from);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = differenceInMinutes(to, from) % 60;
+
+  if (days > 0) {
+    return `${days}d`;
+  } else if (hours > 0) {
+    return `${hours}h`;
+  } else {
+    return `${minutes}m`;
+  }
+}
+
+const COMPACT_RANGES: DateRange[] = [
+  {
+    name: "1 hour",
+    value: "1",
+  },
+  {
+    name: "3 hours",
+
+    value: "3",
+  },
+  {
+    name: "1 day",
+    value: "24",
+  },
+  {
+    name: "3 days",
+    value: (24 * 3).toString(),
+  },
+  {
+    name: "1 week",
+    value: (24 * 7).toString(),
+  },
+  {
+    name: "2 weeks",
+    value: (24 * 7 * 2).toString(),
+  },
+  {
+    name: "1 month",
+    value: (24 * 7 * 4).toString(),
+  },
+  {
+    name: "All",
+    value: "all",
+  },
+];
+
+export function CompactDateRangeFilter({
+  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+}: {
+  disabled?: CalendarProps["disabled"];
+}) {
+  const searchParams = new URLSearchParams(useSearchParams().toString());
+  const pathName = usePathname();
+  const router = useRouter();
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
+
+  const displayRange = useMemo(() => {
+    if (startDate && endDate) {
+      return { from: new Date(startDate), to: new Date(endDate) };
+    } else if (pastHours && pastHours !== "all") {
+      const to = new Date();
+      const from = subHours(to, parseInt(pastHours));
+      return { from, to };
+    } else if (pastHours === "all") {
+      return null;
+    }
+    const to = new Date();
+    const from = subHours(to, 24);
+    return { from, to };
+  }, [endDate, pastHours, startDate]);
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      setCalendarDate({ from: new Date(startDate), to: new Date(endDate) });
+    } else if (pastHours) {
+      setCalendarDate(undefined);
+    }
+  }, [startDate, endDate, pastHours]);
+
+  const handleQuickRangeSelect = (rangeValue: string) => {
+    setCalendarDate(undefined);
+    searchParams.delete("startDate");
+    searchParams.delete("endDate");
+    searchParams.delete("groupByInterval");
+    searchParams.set("pastHours", rangeValue);
+    searchParams.set("pageNumber", "0");
+    setIsPopoverOpen(false);
+    router.push(`${pathName}?${searchParams.toString()}`);
+  };
+
+  const handleCalendarSelect = (range: ReactDateRange | undefined) => {
+    setCalendarDate(range);
+
+    if (range?.from && range?.to) {
+      const from = new Date(range.from);
+      from.setHours(0, 0, 0, 0);
+
+      const to = new Date(range.to);
+      to.setHours(23, 59, 59, 999);
+
+      searchParams.delete("pastHours");
+      searchParams.set("pageNumber", "0");
+      searchParams.set("startDate", from.toISOString());
+      searchParams.set("endDate", to.toISOString());
+      setIsPopoverOpen(false);
+      router.push(`${pathName}?${searchParams.toString()}`);
+    }
+  };
+
+  return (
+    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("justify-between text-left font-normal text-xs", !displayRange && "text-muted-foreground")}
+        >
+          <div className="flex items-center space-x-2">
+            {displayRange ? (
+              <>
+                <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
+                  {getTimeDifference(displayRange.from, displayRange.to)}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
+                </span>
+              </>
+            ) : (
+              <span>All time</span>
+            )}
+          </div>
+          <CalendarIcon className="ml-2 size-3.5 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="p-3 border-b">
+          <Label className="text-xs mb-2 block">Quick ranges</Label>
+          <Select value={pastHours || undefined} onValueChange={handleQuickRangeSelect}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              {COMPACT_RANGES.map((range) => (
+                <SelectItem key={range.value} value={range.value}>
+                  {range.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Calendar
+          mode="range"
+          defaultMonth={calendarDate?.from}
+          selected={calendarDate}
+          onSelect={handleCalendarSelect}
+          disabled={disabled}
+          pagedNavigation
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function DateRangeFilter({
   disabled = { after: new Date(), before: subYears(new Date(), 1) },
 }: {
