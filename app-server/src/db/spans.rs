@@ -23,6 +23,21 @@ pub enum SpanType {
     TOOL,
 }
 
+impl std::fmt::Display for SpanType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpanType::DEFAULT => write!(f, "DEFAULT"),
+            SpanType::LLM => write!(f, "LLM"),
+            SpanType::PIPELINE => write!(f, "PIPELINE"),
+            SpanType::EXECUTOR => write!(f, "EXECUTOR"),
+            SpanType::EVALUATOR => write!(f, "EVALUATOR"),
+            SpanType::HUMAN_EVALUATOR => write!(f, "HUMAN_EVALUATOR"),
+            SpanType::EVALUATION => write!(f, "EVALUATION"),
+            SpanType::TOOL => write!(f, "TOOL"),
+        }
+    }
+}
+
 impl FromStr for SpanType {
     type Err = anyhow::Error;
 

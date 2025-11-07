@@ -28,7 +28,7 @@ struct RealtimeTrace {
     top_span_id: Option<Uuid>,
     trace_type: String,
     top_span_name: Option<String>,
-    top_span_type: Option<i16>,
+    top_span_type: Option<String>,
     status: Option<String>,
     user_id: Option<String>,
     tags: Vec<String>,
@@ -136,7 +136,9 @@ impl RealtimeTrace {
             top_span_id: trace.top_span_id(),
             trace_type: trace.trace_type().to_string(),
             top_span_name: trace.top_span_name(),
-            top_span_type: trace.top_span_type(),
+            top_span_type: trace
+                .top_span_type()
+                .map(|t| SpanType::from(t as u8).to_string()),
             status: trace.status(),
             user_id: trace.user_id(),
             tags: trace.tags().clone(),
