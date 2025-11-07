@@ -42,7 +42,7 @@ const ErrorCard = ({ attributes }: ErrorCardProps) => {
                 iconClassName="h-3 w-3 text-muted-foreground"
                 size="icon"
                 variant="ghost"
-                text={JSON.stringify(attributes)}
+                text={`${errorType}: ${errorMessage}\n\n${errorTrace}`}
               />
               <Button className="w-8 h-8" size="icon" variant="ghost">
                 <ChevronRight className="w-3 h-3 text-muted-foreground group-data-[state=open]:rotate-90 transition-transform duration-200" />
