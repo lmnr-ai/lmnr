@@ -17,12 +17,12 @@ export default function Footer() {
             >
               Join Discord
             </a>
-            <a target="_blank" href="https://laminar.sh/policies/privacy">
+            <a target="_blank" href="/policies/privacy">
               Privacy policy
             </a>
             <a
               target="_blank"
-              href="https://laminar.sh/policies/terms"
+              href="/policies/terms"
             >
               Terms of service
             </a>
