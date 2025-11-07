@@ -368,7 +368,11 @@ async fn process_batch(
                     send_trace_updates(&updated_traces, &sse_connections).await;
                 }
                 Err(e) => {
-                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    log::error!(
+                        "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
+                        project_id,
+                        e
+                    );
                 }
             }
         }
