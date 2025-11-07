@@ -64,6 +64,7 @@ pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>)
     match ch_insert {
         Ok(mut ch_insert) => {
             let mut total_size_bytes = 0;
+            ch_insert = ch_insert.with_option("wait_for_async_insert", "0");
             for event in events {
                 ch_insert.write(&event).await?;
                 total_size_bytes += event.size_bytes as usize;

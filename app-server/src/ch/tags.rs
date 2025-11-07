@@ -90,6 +90,7 @@ pub async fn insert_tags_batch(client: clickhouse::Client, tags: &[SpanTag]) -> 
     let ch_insert = client.insert("tags");
     match ch_insert {
         Ok(mut ch_insert) => {
+            ch_insert = ch_insert.with_option("wait_for_async_insert", "0");
             for span_tag in tags {
                 let id = Uuid::new_v4();
                 let tag = CHTag::new(
