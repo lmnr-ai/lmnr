@@ -7,10 +7,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
+import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
@@ -19,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
+import { CompactDateRangeFilter } from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -65,19 +68,31 @@ function EventsContentInner({
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const ref = useRef<Resizable>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const { workspace } = useProjectContext();
   const { toast } = useToast();
 
-  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId } = useEventsStoreContext(
-    (state) => ({
-      eventDefinition: state.eventDefinition,
-      setEventDefinition: state.setEventDefinition,
-      traceId: state.traceId,
-      spanId: state.spanId,
-      setTraceId: state.setTraceId,
-      setSpanId: state.setSpanId,
-    })
-  );
+  const {
+    eventDefinition,
+    setEventDefinition,
+    traceId,
+    spanId,
+    setTraceId,
+    setSpanId,
+    fetchStats,
+    setChartContainerWidth,
+    chartContainerWidth,
+  } = useEventsStoreContext((state) => ({
+    eventDefinition: state.eventDefinition,
+    setEventDefinition: state.setEventDefinition,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+    fetchStats: state.fetchStats,
+    setChartContainerWidth: state.setChartContainerWidth,
+    chartContainerWidth: state.chartContainerWidth,
+  }));
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
 
@@ -95,6 +110,55 @@ function EventsContentInner({
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filter = searchParams.getAll("filter");
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setChartContainerWidth(width);
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [setChartContainerWidth]);
+
+  const interval = useMemo(() => {
+    const targetBars = chartContainerWidth ? getTargetBarsForWidth(chartContainerWidth) : 24;
+
+    let range: { start: Date; end: Date } | null = null;
+
+    if (pastHours) {
+      const end = new Date();
+      const start = new Date(end.getTime() - parseInt(pastHours) * 60 * 60 * 1000);
+      range = { start, end };
+    } else if (startDate && endDate) {
+      range = { start: new Date(startDate), end: new Date(endDate) };
+    }
+
+    if (!range) {
+      return { value: 1, unit: "hour" as const };
+    }
+
+    return calculateOptimalInterval(range.start, range.end, targetBars);
+  }, [chartContainerWidth, startDate, endDate, pastHours]);
+
+  const statsUrl = useMemo(() => {
+    const urlParams = new URLSearchParams();
+    if (pastHours) urlParams.set("pastHours", pastHours);
+    if (startDate) urlParams.set("startDate", startDate);
+    if (endDate) urlParams.set("endDate", endDate);
+
+    urlParams.set("intervalValue", interval.value.toString());
+    urlParams.set("intervalUnit", interval.unit);
+
+    return `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats?${urlParams.toString()}`;
+  }, [pastHours, startDate, endDate, eventDefinition.projectId, eventDefinition.name, interval]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -160,6 +224,12 @@ function EventsContentInner({
       );
     }
   }, [events, setNavigationRefList]);
+
+  useEffect(() => {
+    if (statsUrl) {
+      fetchStats(statsUrl);
+    }
+  }, [statsUrl, fetchStats]);
 
   const handleEditEvent = useCallback(() => {
     setIsDialogOpen(true);
@@ -268,6 +338,7 @@ function EventsContentInner({
               )}
             </div>
           </div>
+          <EventsChart containerRef={chartContainerRef} />
         </div>
         <div className="p-4 flex overflow-hidden w-full">
           <InfiniteDataTable<EventRow>
@@ -283,6 +354,7 @@ function EventsContentInner({
             childrenClassName="flex flex-col h-fit"
           >
             <div className="flex flex-1 w-full space-x-2">
+              <CompactDateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
             </div>
             <DataTableFilterList />

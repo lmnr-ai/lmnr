@@ -1,19 +1,6 @@
 import { scaleUtc } from "d3-scale";
 import { differenceInHours } from "date-fns";
 
-import { ChartConfig } from "@/components/ui/chart.tsx";
-
-export const chartConfig: ChartConfig = {
-  successCount: {
-    label: "success",
-    color: "hsl(var(--success-bright))",
-  },
-  errorCount: {
-    label: "error",
-    color: "hsl(var(--destructive-bright))",
-  },
-};
-
 export type IntervalUnit = "minute" | "hour" | "day";
 
 export interface Interval {
@@ -22,24 +9,24 @@ export interface Interval {
 }
 
 export const TICK_COUNT_BREAKPOINTS = [
-  { minWidth: 1536, ticks: 16 }, // 2xl
-  { minWidth: 1280, ticks: 12 }, // xl
-  { minWidth: 1024, ticks: 12 }, // lg
-  { minWidth: 768, ticks: 8 }, // md
-  { minWidth: 640, ticks: 6 }, // sm
-  { minWidth: 0, ticks: 4 }, // xs
+  { minWidth: 1536, ticks: 16 },
+  { minWidth: 1280, ticks: 12 },
+  { minWidth: 1024, ticks: 12 },
+  { minWidth: 768, ticks: 8 },
+  { minWidth: 640, ticks: 6 },
+  { minWidth: 0, ticks: 4 },
 ] as const;
 
 export const getTickCountForWidth = (width: number): number =>
   TICK_COUNT_BREAKPOINTS.find((bp) => width >= bp.minWidth)?.ticks ?? 4;
 
 export const BAR_COUNT_BREAKPOINTS = [
-  { minWidth: 1536, bars: 72 }, // 2xl
-  { minWidth: 1280, bars: 64 }, // xl
-  { minWidth: 1024, bars: 56 }, // lg
-  { minWidth: 768, bars: 48 }, // md
-  { minWidth: 640, bars: 40 }, // sm
-  { minWidth: 0, bars: 24 }, // xs
+  { minWidth: 1536, bars: 72 },
+  { minWidth: 1280, bars: 64 },
+  { minWidth: 1024, bars: 56 },
+  { minWidth: 768, bars: 48 },
+  { minWidth: 640, bars: 40 },
+  { minWidth: 0, bars: 24 },
 ] as const;
 
 export const getTargetBarsForWidth = (containerWidth: number): number => {

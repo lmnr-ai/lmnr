@@ -6,33 +6,11 @@ import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recha
 import { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
-import {
-  chartConfig,
-  getTickCountForWidth,
-  isValidZoomRange,
-  normalizeTimeRange,
-} from "@/components/traces/traces-chart/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
 
 import RoundedBar from "./bar";
-
-interface ChartProps {
-  data: TracesStatsDataPoint[];
-  containerWidth?: number | null;
-}
-
-const countNumberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
-});
-
-const createDateRangeParams = (searchParams: URLSearchParams, startDate: string, endDate: string) => {
-  const params = new URLSearchParams(searchParams.toString());
-  params.delete("pastHours");
-  params.set("startDate", startDate);
-  params.set("endDate", endDate);
-  return params;
-};
+import { TimeSeriesChartProps, TimeSeriesDataPoint } from "./types";
+import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
 const formatter = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -42,7 +20,20 @@ const formatter = new Intl.DateTimeFormat("en-US", {
   minute: "numeric",
 });
 
-const Chart = ({ data, containerWidth }: ChartProps) => {
+const countNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 3,
+});
+
+export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
+  data,
+  chartConfig,
+  fields,
+  containerWidth,
+  onZoom,
+  customBarShape,
+  formatValue = numberFormatter.format,
+  showTotal = true,
+}: Omit<TimeSeriesChartProps<T>, "isLoading" | "className">) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -50,20 +41,26 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
 
   const targetTickCount = useMemo(() => {
     if (!containerWidth) return 8;
-
     return getTickCountForWidth(containerWidth);
   }, [containerWidth]);
 
   const smartTicksResult = useMemo(() => {
     if (!data || data.length === 0) return null;
-
     const timestamps = data.map((d) => d.timestamp);
     return selectNiceTicksFromData(timestamps, targetTickCount);
   }, [data, targetTickCount]);
 
   const totalCount = useMemo(() => {
     if (!data || data.length === 0) return 0;
-    return data.reduce((sum, d) => sum + d.successCount + d.errorCount, 0);
+    return data.reduce(
+      (sum, dataPoint) =>
+        sum +
+        Object.entries(dataPoint).reduce((rowSum, [key, value]) => {
+          if (key === "timestamp") return rowSum;
+          return rowSum + (typeof value === "number" ? value : 0);
+        }, 0),
+      0
+    );
   }, [data]);
 
   const zoom = useCallback(() => {
@@ -73,11 +70,19 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
     }
 
     const normalized = normalizeTimeRange(refArea.left!, refArea.right!);
-    const params = createDateRangeParams(searchParams, normalized.start, normalized.end);
 
-    router.push(`${pathName}?${params.toString()}`);
+    if (onZoom) {
+      onZoom(normalized.start, normalized.end);
+    } else {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("pastHours");
+      params.set("startDate", normalized.start);
+      params.set("endDate", normalized.end);
+      router.push(`${pathName}?${params.toString()}`);
+    }
+
     setRefArea({});
-  }, [refArea.left, refArea.right, pathName, router, searchParams]);
+  }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
     if (e && e.activeLabel) {
@@ -93,6 +98,8 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
     },
     [refArea.left]
   );
+
+  const BarShape = customBarShape || RoundedBar;
 
   return (
     <div className="flex flex-col items-start">
@@ -115,7 +122,7 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={numberFormatter.format} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
           <ChartTooltip
             content={
               <ChartTooltipContent
@@ -126,8 +133,14 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
               />
             }
           />
-          <Bar dataKey="successCount" fill={chartConfig.successCount.color} stackId="stack" shape={RoundedBar} />
-          <Bar dataKey="errorCount" fill={chartConfig.errorCount.color} stackId="stack" shape={RoundedBar} />
+          {fields.map((fieldKey) => {
+            const config = chartConfig[fieldKey];
+            if (!config) return null;
+
+            return (
+              <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} shape={BarShape} />
+            );
+          })}
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}
@@ -141,11 +154,11 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
           )}
         </BarChart>
       </ChartContainer>
-      <div className="text-xs text-muted-foreground text-center" title={String(totalCount)}>
-        Total: {countNumberFormatter.format(totalCount)}
-      </div>
+      {showTotal && (
+        <div className="text-xs text-muted-foreground text-center" title={String(totalCount)}>
+          Total: {countNumberFormatter.format(totalCount)}
+        </div>
+      )}
     </div>
   );
-};
-
-export default Chart;
+}

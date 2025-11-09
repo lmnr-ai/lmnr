@@ -4,11 +4,11 @@ import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
 import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
-import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/traces/traces-chart/utils";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
@@ -91,9 +91,7 @@ function TracesTableContent() {
   }, [setChartContainerWidth]);
 
   const interval = useMemo(() => {
-    const targetBars = chartContainerWidth
-      ? getTargetBarsForWidth(chartContainerWidth)
-      : DEFAULT_TARGET_BARS;
+    const targetBars = chartContainerWidth ? getTargetBarsForWidth(chartContainerWidth) : DEFAULT_TARGET_BARS;
 
     // Calculate date range
     let range: { start: Date; end: Date } | null = null;

@@ -87,7 +87,7 @@ export async function getTraceStats(
 
   const query = `
     SELECT 
-      toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
+      toStartOfInterval(start_time, toInterval({interval_value:UInt32}, {interval_unit:String})) as timestamp,
       countIf(status != 'error') as successCount,
       countIf(status = 'error') as errorCount,
     FROM traces
@@ -96,16 +96,16 @@ export async function getTraceStats(
     GROUP BY timestamp
     ORDER BY timestamp ASC
     WITH FILL
-    FROM toStartOfInterval(${withFillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))
-    TO toStartOfInterval(${withFillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))
-    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})
+    FROM toStartOfInterval(${withFillFrom}, toInterval({interval_value:UInt32}, {interval_unit:String}))
+    TO toStartOfInterval(${withFillTo}, toInterval({interval_value:UInt32}, {interval_unit:String}))
+    STEP toInterval({interval_value:UInt32}, {interval_unit:String})
   `;
 
   const parameters = {
     ...whereParams,
     ...timeParams,
-    intervalValue,
-    intervalUnit,
+    interval_value: intervalValue,
+    interval_unit: intervalUnit,
   };
 
   const items = await executeQuery<TracesStatsDataPoint>({

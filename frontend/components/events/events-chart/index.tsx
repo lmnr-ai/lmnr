@@ -4,32 +4,24 @@ import { RefObject } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
-import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { useEventsStoreContext } from "@/components/events/events-store";
 
-import TracesBar from "./bar";
-
-interface TracesChartProps {
+interface EventsChartProps {
   className?: string;
   containerRef: RefObject<HTMLDivElement | null>;
 }
 
 const chartConfig = {
-  successCount: {
-    label: "success",
-    color: "hsl(var(--success-bright))",
-    stackId: "stack",
-  },
-  errorCount: {
-    label: "error",
-    color: "hsl(var(--destructive-bright))",
-    stackId: "stack",
+  count: {
+    label: "events",
+    color: "hsl(var(--primary))",
   },
 } as const;
 
-const fields = ["successCount", "errorCount"] as const;
+const fields = ["count"] as const;
 
-export default function TracesChart({ className, containerRef }: TracesChartProps) {
-  const { stats, isLoadingStats, chartContainerWidth } = useTracesStoreContext((state) => ({
+export default function EventsChart({ className, containerRef }: EventsChartProps) {
+  const { stats, isLoadingStats, chartContainerWidth } = useEventsStoreContext((state) => ({
     stats: state.stats,
     isLoadingStats: state.isLoadingStats,
     chartContainerWidth: state.chartContainerWidth,
@@ -45,7 +37,6 @@ export default function TracesChart({ className, containerRef }: TracesChartProp
           chartConfig={chartConfig}
           fields={fields}
           containerWidth={chartContainerWidth}
-          customBarShape={TracesBar}
         />
       )}
     </div>

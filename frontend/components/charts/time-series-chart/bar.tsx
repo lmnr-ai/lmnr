@@ -1,7 +1,7 @@
 import { isNil } from "lodash";
 import React from "react";
 
-import { TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
+import { TimeSeriesDataPoint } from "./types";
 
 interface CustomBarProps {
   fill?: string;
@@ -9,33 +9,20 @@ interface CustomBarProps {
   y?: number;
   width?: number;
   height?: number;
-  payload?: TracesStatsDataPoint;
+  payload?: TimeSeriesDataPoint;
 }
 
 const MIN_BAR_HEIGHT = 3;
 
-const SUCCESS_COLOR = "hsl(var(--success-bright))";
-const ERROR_COLOR = "hsl(var(--destructive-bright))";
-
-const TracesBar = (props: CustomBarProps) => {
+const RoundedBar = (props: CustomBarProps) => {
   const { fill, x, y, width, height = 0, payload } = props;
 
   if (isNil(x) || isNil(y) || isNil(width) || !fill || !payload) return <></>;
 
-  const isSuccess = fill === SUCCESS_COLOR;
-  const hasSuccess = payload.successCount > 0;
-  const hasError = payload.errorCount > 0;
-
-  if (isSuccess && !hasSuccess) return <></>;
-  if (!isSuccess && !hasError) return <></>;
-
-  const hasBoth = hasSuccess && hasError;
-
   const barHeight = height > 0 && height < MIN_BAR_HEIGHT ? MIN_BAR_HEIGHT : height;
   const barY = barHeight > height ? y - (barHeight - height) : y;
 
-  const radius = isSuccess ? (hasBoth ? [0, 0, 4, 4] : [4, 4, 4, 4]) : hasBoth ? [4, 4, 0, 0] : [4, 4, 4, 4];
-
+  const radius = [4, 4, 4, 4];
   const [tl, tr, br, bl] = radius;
 
   return (
@@ -56,4 +43,5 @@ const TracesBar = (props: CustomBarProps) => {
   );
 };
 
-export default TracesBar;
+export default RoundedBar;
+
