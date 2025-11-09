@@ -73,7 +73,9 @@ export default function SpanTypeIcon({
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
-        backgroundColor: status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[spanType], // Red background for errors
+        backgroundColor: (status === "error")
+          ? "rgba(204, 51, 51, 1)" // Red background for errors
+          : (SPAN_TYPE_TO_COLOR?.[spanType] || SPAN_TYPE_TO_COLOR[SpanType.DEFAULT]),
         minWidth: containerWidth,
         minHeight: containerHeight,
         width: containerWidth,
