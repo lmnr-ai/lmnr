@@ -1,7 +1,7 @@
 "use client";
 
 import { differenceInHours, differenceInMinutes, formatDate, subHours, subYears } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
@@ -322,6 +322,7 @@ export function CompactDateRangeFilter({
   const endDate = searchParams.get("endDate");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const displayRange = useMemo(() => {
     if (startDate && endDate) {
@@ -345,6 +346,13 @@ export function CompactDateRangeFilter({
       setCalendarDate(undefined);
     }
   }, [startDate, endDate, pastHours]);
+
+  // Reset to quick ranges view when popover closes
+  useEffect(() => {
+    if (!isPopoverOpen) {
+      setShowCalendar(false);
+    }
+  }, [isPopoverOpen]);
 
   const handleQuickRangeSelect = (rangeValue: string) => {
     setCalendarDate(undefined);
@@ -400,30 +408,64 @@ export function CompactDateRangeFilter({
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <div className="p-3 border-b">
-          <Label className="text-xs mb-2 block">Quick ranges</Label>
-          <Select value={pastHours || undefined} onValueChange={handleQuickRangeSelect}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select range" />
-            </SelectTrigger>
-            <SelectContent>
+      <PopoverContent className="p-0 overflow-hidden w-auto relative" align="start">
+        <div
+          className={cn("transition-transform duration-300 ease-in-out w-full", showCalendar && "invisible")}
+          style={{ transform: showCalendar ? "translateX(-100%)" : "translateX(0)" }}
+        >
+          <div className="p-1 w-62">
+            <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
+            <div>
               {COMPACT_RANGES.map((range) => (
-                <SelectItem key={range.value} value={range.value}>
+                <div
+                  key={range.value}
+                  className={cn(
+                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                    pastHours === range.value && "bg-accent text-accent-foreground"
+                  )}
+                  onClick={() => handleQuickRangeSelect(range.value)}
+                >
                   {range.name}
-                </SelectItem>
+                </div>
               ))}
-            </SelectContent>
-          </Select>
+              <div
+                className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                onClick={() => setShowCalendar(true)}
+              >
+                <span>Absolute date</span>
+                <ChevronRight className="size-4" />
+              </div>
+            </div>
+          </div>
         </div>
-        <Calendar
-          mode="range"
-          defaultMonth={calendarDate?.from}
-          selected={calendarDate}
-          onSelect={handleCalendarSelect}
-          disabled={disabled}
-          pagedNavigation
-        />
+        <div
+          className={cn(
+            "absolute top-0 left-0 transition-transform duration-300 ease-in-out w-full",
+            !showCalendar && "invisible"
+          )}
+          style={{ transform: showCalendar ? "translateX(0)" : "translateX(100%)" }}
+        >
+          <div className="p-2 border-b flex items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-0 h-auto hover:bg-transparent"
+              onClick={() => setShowCalendar(false)}
+            >
+              <ArrowLeft className="size-3.5 mr-1" />
+              <span>Back</span>
+            </Button>
+          </div>
+          <Calendar
+            className="w-full"
+            mode="range"
+            defaultMonth={calendarDate?.from}
+            selected={calendarDate}
+            onSelect={handleCalendarSelect}
+            disabled={disabled}
+            pagedNavigation
+          />
+        </div>
       </PopoverContent>
     </Popover>
   );
