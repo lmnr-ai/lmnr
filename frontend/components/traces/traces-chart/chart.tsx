@@ -61,11 +61,6 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
     return selectNiceTicksFromData(timestamps, targetTickCount);
   }, [data, targetTickCount]);
 
-  const maxValue = useMemo(() => {
-    if (!data || data.length === 0) return 0;
-    return Math.max(...data.map((d) => d.successCount + d.errorCount));
-  }, [data]);
-
   const totalCount = useMemo(() => {
     if (!data || data.length === 0) return 0;
     return data.reduce((sum, d) => sum + d.successCount + d.errorCount, 0);
@@ -120,15 +115,13 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} domain={[0, maxValue]} tickFormatter={numberFormatter.format} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={numberFormatter.format} />
           <ChartTooltip
             content={
               <ChartTooltipContent
                 labelKey="timestamp"
                 labelFormatter={(_, payload) =>
-                  payload && payload[0]
-                    ? formatter.format(new Date(payload[0].payload.timestamp))
-                    : "-"
+                  payload && payload[0] ? formatter.format(new Date(payload[0].payload.timestamp)) : "-"
                 }
               />
             }
