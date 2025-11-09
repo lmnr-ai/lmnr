@@ -229,8 +229,8 @@ export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
   filters: FilterDef[];
-}): { conditions: string[]; params: Record<string, any> } => {
-  const conditions: string[] = [`trace_type = {traceType:String}`];
+}): { conditions: [string, ...string[]]; params: Record<string, any> } => {
+  const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };
 
   if (options.traceIds.length > 0) {
