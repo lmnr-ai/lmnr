@@ -1,9 +1,3 @@
-export enum EventType {
-  BOOLEAN = 'BOOLEAN',
-  STRING = 'STRING',
-  NUMBER = 'NUMBER'
-}
-
 export type Event = {
   id: string;
   spanId: string;
@@ -19,7 +13,6 @@ export type EventRow = {
   spanId: string;
   traceId: string;
   timestamp: string;
-  name: string;
   attributes: string;
   userId: string;
   sessionId: string;

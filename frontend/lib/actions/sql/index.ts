@@ -17,7 +17,7 @@ const ExecuteQuerySchema = z.object({
     .optional(),
 });
 
-export const executeQuery = async <T extends Record<string, unknown>>(input: z.infer<typeof ExecuteQuerySchema>) => {
+export const executeQuery = async <T extends object>(input: z.infer<typeof ExecuteQuerySchema>) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
 
   const res = (await fetcherJSON(`/projects/${projectId}/sql/query`, {

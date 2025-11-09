@@ -6,10 +6,10 @@ import { ManageEventDefinitionForm } from "@/components/event-definitions/manage
 import { EventDefinition } from "@/lib/actions/event-definitions";
 import { EventRow } from "@/lib/events/types";
 
-export interface EventsStatsDataPoint {
+export type EventsStatsDataPoint = {
   timestamp: string;
   count: number;
-}
+} & Record<string, number>;
 
 export type EventsState = {
   events?: EventRow[];

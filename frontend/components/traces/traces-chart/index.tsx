@@ -6,8 +6,6 @@ import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 
-import TracesBar from "./bar";
-
 interface TracesChartProps {
   className?: string;
   containerRef: RefObject<HTMLDivElement | null>;
@@ -45,7 +43,6 @@ export default function TracesChart({ className, containerRef }: TracesChartProp
           chartConfig={chartConfig}
           fields={fields}
           containerWidth={chartContainerWidth}
-          customBarShape={TracesBar}
         />
       )}
     </div>

@@ -16,12 +16,11 @@ export const GetTraceStatsSchema = GetTracesSchema.omit({
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
-export interface TracesStatsDataPoint {
+export type TracesStatsDataPoint = {
   timestamp: string;
   successCount: number;
   errorCount: number;
-  [key: string]: unknown;
-}
+} & Record<string, number>;
 
 export async function getTraceStats(
   input: z.infer<typeof GetTraceStatsSchema>

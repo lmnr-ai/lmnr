@@ -1,8 +1,7 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { formatRelative } from "date-fns";
-import { isEmpty } from "lodash";
+import { format, formatRelative } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +16,6 @@ import { useEventsStoreContext } from "@/components/events/events-store";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
@@ -25,11 +23,11 @@ import { CompactDateRangeFilter } from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils.ts";
 
 import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
 import Header from "../ui/header";
@@ -149,6 +147,8 @@ function EventsContentInner({
   }, [chartContainerWidth, startDate, endDate, pastHours]);
 
   const statsUrl = useMemo(() => {
+    if (!(pastHours || startDate || endDate)) return null;
+
     const urlParams = new URLSearchParams();
     if (pastHours) urlParams.set("pastHours", pastHours);
     if (startDate) urlParams.set("startDate", startDate);
@@ -157,8 +157,10 @@ function EventsContentInner({
     urlParams.set("intervalValue", interval.value.toString());
     urlParams.set("intervalUnit", interval.unit);
 
+    filter.forEach((f) => urlParams.append("filter", f));
+
     return `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats?${urlParams.toString()}`;
-  }, [pastHours, startDate, endDate, eventDefinition.projectId, eventDefinition.name, interval]);
+  }, [pastHours, startDate, endDate, eventDefinition.projectId, eventDefinition.name, interval, filter]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -281,11 +283,19 @@ function EventsContentInner({
     }
   }, [defaultTraceViewWidth]);
 
+  useEffect(() => {
+    if (!pastHours && !startDate && !endDate) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("pastHours", "24");
+      push(`${pathName}?${params.toString()}`);
+    }
+  }, [pastHours, startDate, endDate, searchParams, pathName, push]);
+
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
       <div className="flex flex-col overflow-hidden">
-        <div className="flex flex-col gap-4 px-4 pb-4">
+        <div className="flex items-center px-4 pb-4">
           <div className="flex items-center justify-between">
             {!isFreeTier && (
               <ManageEventDefinitionDialog
@@ -301,47 +311,19 @@ function EventsContentInner({
               </ManageEventDefinitionDialog>
             )}
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 border rounded bg-sidebar p-4">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Prompt</span>
-              {eventDefinition.prompt ? (
-                <div className="rounded-md">
-                  <p className="text-sm font-mono line-clamp-3">{eventDefinition.prompt}</p>
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Trigger Spans</span>
-              {!isEmpty(eventDefinition.triggerSpans) ? (
-                <ScrollArea>
-                  <div className="flex flex-wrap gap-1.5 max-h-24">
-                    {eventDefinition.triggerSpans.map((span) => (
-                      <Badge key={span.name} variant="secondary" className="font-mono text-xs">
-                        {span.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Last Event</span>
-              {lastEvent ? (
-                <span className="text-sm">{formatRelative(new Date(lastEvent.timestamp), new Date())}</span>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-          </div>
-          <EventsChart containerRef={chartContainerRef} />
+          <span className="text-xs text-muted-foreground font-medium ml-auto mr-2">Last event: </span>
+          <span
+            title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+            className={cn("text-xs", {
+              "text-muted-foreground": !lastEvent,
+            })}
+          >
+            {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+          </span>
         </div>
-        <div className="p-4 flex overflow-hidden w-full">
+        <div className="flex flex-1 overflow-hidden px-4 pb-4">
           <InfiniteDataTable<EventRow>
+            className="w-full"
             columns={eventsTableColumns}
             data={events}
             onRowClick={handleRowClick}
@@ -351,13 +333,14 @@ function EventsContentInner({
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}
-            childrenClassName="flex flex-col h-fit"
+            childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
           >
             <div className="flex flex-1 w-full space-x-2">
               <CompactDateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
             </div>
             <DataTableFilterList />
+            <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
           </InfiniteDataTable>
         </div>
       </div>

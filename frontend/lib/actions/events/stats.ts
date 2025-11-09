@@ -1,13 +1,16 @@
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { buildWhereClause, QueryParams } from "@/lib/actions/common/query-builder";
+import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { eventsColumnFilterConfig } from "@/lib/actions/events/utils";
 import { executeQuery } from "@/lib/actions/sql";
 
 export const GetEventStatsSchema = z.object({
+  ...FiltersSchema.shape,
+  ...TimeRangeSchema.shape,
   projectId: z.string(),
   eventName: z.string(),
-  pastHours: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
@@ -28,33 +31,45 @@ export async function getEventStats(
     endDate: endTime,
     intervalValue,
     intervalUnit,
+    filter,
   } = input;
 
-  let timeConditions = "";
-  const timeParams: Record<string, any> = {};
+  const filters = compact(filter);
+
+  // Build WHERE clause using the query builder for consistency with events table
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: "name = {eventName:String}",
+      params: { eventName },
+    },
+  ];
+
+  const whereResult = buildWhereClause({
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "timestamp",
+    },
+    filters,
+    columnFilterConfig: eventsColumnFilterConfig,
+    customConditions,
+  });
+
   let withFillFrom = "";
   let withFillTo = "";
 
   if (pastHours) {
     const hours = parseInt(pastHours);
-    timeConditions = `AND timestamp >= now() - INTERVAL ${hours} HOUR AND timestamp <= now()`;
     withFillFrom = `now() - INTERVAL ${hours} HOUR`;
     withFillTo = `now()`;
   } else if (startTime) {
-    timeConditions = `AND timestamp >= {startTime:String}`;
-    timeParams.startTime = startTime.replace("Z", "");
     withFillFrom = `toDateTime64({startTime:String}, 9)`;
-
-    if (endTime) {
-      timeConditions += ` AND timestamp <= {endTime:String}`;
-      timeParams.endTime = endTime.replace("Z", "");
-      withFillTo = `toDateTime64({endTime:String}, 9)`;
-    } else {
-      timeConditions += ` AND timestamp <= now()`;
-      withFillTo = `now()`;
-    }
+    withFillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
   } else {
-    timeConditions = `AND timestamp >= now() - INTERVAL 24 HOUR AND timestamp <= now()`;
     withFillFrom = `now() - INTERVAL 24 HOUR`;
     withFillTo = `now()`;
   }
@@ -66,8 +81,7 @@ export async function getEventStats(
       toStartOfInterval(timestamp, ${intervalFn}) as timestamp,
       count() as count
     FROM events
-    WHERE name = {eventName:String}
-      ${timeConditions}
+    ${whereResult.query}
     GROUP BY timestamp
     ORDER BY timestamp ASC
     WITH FILL
@@ -76,15 +90,9 @@ export async function getEventStats(
     STEP ${intervalFn}
   `;
 
-  const parameters = {
-    eventName,
-    ...timeParams,
-  };
-
-  console.log("query", query, parameters);
   const items = await executeQuery<EventsStatsDataPoint>({
     query,
-    parameters,
+    parameters: whereResult.parameters,
     projectId,
   });
 

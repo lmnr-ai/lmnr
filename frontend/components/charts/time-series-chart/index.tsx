@@ -30,7 +30,6 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   fields,
   containerWidth,
   onZoom,
-  customBarShape,
   formatValue = numberFormatter.format,
   showTotal = true,
 }: Omit<TimeSeriesChartProps<T>, "isLoading" | "className">) {
@@ -99,7 +98,10 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
-  const BarShape = customBarShape || RoundedBar;
+  const BarShapeWithConfig = useCallback(
+    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
+    [chartConfig, fields]
+  );
 
   return (
     <div className="flex flex-col items-start">
@@ -138,7 +140,13 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             if (!config) return null;
 
             return (
-              <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} shape={BarShape} />
+              <Bar
+                key={fieldKey}
+                dataKey={fieldKey}
+                fill={config.color}
+                stackId={config.stackId}
+                shape={BarShapeWithConfig}
+              />
             );
           })}
           {refArea.left && refArea.right && (

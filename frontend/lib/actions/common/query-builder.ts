@@ -260,4 +260,12 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   };
 };
 
-export { buildSelectQuery, createArrayFilter, createCustomFilter, createNumberFilter, createStringFilter };
+export {
+  buildColumnFilters,
+  buildSelectQuery,
+  buildWhereClause,
+  createArrayFilter,
+  createCustomFilter,
+  createNumberFilter,
+  createStringFilter,
+};

@@ -18,8 +18,6 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   className?: string;
   isLoading?: boolean;
   onZoom?: (startDate: string, endDate: string) => void;
-  customBarShape?: React.ComponentType<any>;
   formatValue?: (value: number) => string;
   showTotal?: boolean;
 }
-
