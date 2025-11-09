@@ -1,6 +1,7 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { buildTracesStatsWhereConditions, searchSpans } from "@/lib/actions/traces/utils";
@@ -60,29 +61,18 @@ export async function getTraceStats(
     filters,
   });
 
-  let timeConditions = "";
-  const timeParams: Record<string, any> = {};
-  let withFillFrom = "";
-  let withFillTo = "";
+  const { condition: timeCondition, params: timeParams, fillFrom, fillTo } = buildTimeRangeWithFill({
+    startTime,
+    endTime,
+    pastHours,
+    timeColumn: "start_time",
+    intervalValue,
+    intervalUnit,
+  });
 
-  if (pastHours) {
-    const hours = parseInt(pastHours);
-    timeConditions = `AND start_time >= now() - INTERVAL ${hours} HOUR AND start_time <= now()`;
-    withFillFrom = `now() - INTERVAL ${hours} HOUR`;
-    withFillTo = `now()`;
-  } else if (startTime) {
-    timeConditions = `AND start_time >= {startTime:String}`;
-    timeParams.startTime = startTime.replace("Z", "");
-    withFillFrom = `toDateTime64({startTime:String}, 9)`;
-
-    if (endTime) {
-      timeConditions += ` AND start_time <= {endTime:String}`;
-      timeParams.endTime = endTime.replace("Z", "");
-      withFillTo = `toDateTime64({endTime:String}, 9)`;
-    } else {
-      timeConditions += ` AND start_time <= now()`;
-      withFillTo = `now()`;
-    }
+  const allConditions = [...whereConditions];
+  if (timeCondition) {
+    allConditions.push(timeCondition);
   }
 
   const query = `
@@ -91,13 +81,12 @@ export async function getTraceStats(
       countIf(status != 'error') as successCount,
       countIf(status = 'error') as errorCount,
     FROM traces
-    WHERE ${whereConditions.join(" AND ")}
-    ${timeConditions}
+    WHERE ${allConditions.join(" AND ")}
     GROUP BY timestamp
     ORDER BY timestamp ASC
     WITH FILL
-    FROM toStartOfInterval(${withFillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))
-    TO toStartOfInterval(${withFillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))
+    FROM ${fillFrom}
+    TO ${fillTo}
     STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})
   `;
 
