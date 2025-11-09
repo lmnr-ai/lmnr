@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_s3::Client;
 use std::{pin::Pin, sync::Arc};
+use tracing::instrument;
 
 use crate::{
     mq::{MessageQueue, MessageQueueTrait},
@@ -53,6 +54,7 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
+    #[instrument(skip(self, data))]
     async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Direct storage method used by the payload worker
         self.client

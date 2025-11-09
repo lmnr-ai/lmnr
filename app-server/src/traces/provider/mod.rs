@@ -2,14 +2,12 @@ mod langchain;
 mod openai;
 
 use serde_json::Value;
-use tracing::instrument;
 
 use crate::{
     db::spans::{Span, SpanType},
     traces::provider::langchain::is_langchain_span,
 };
 
-#[instrument(skip(span))]
 pub fn convert_span_to_provider_format(span: &mut Span) {
     if span.span_type != SpanType::LLM {
         return;
