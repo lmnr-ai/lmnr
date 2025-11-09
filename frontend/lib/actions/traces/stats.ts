@@ -75,6 +75,13 @@ export async function getTraceStats(
     allConditions.push(timeCondition);
   }
 
+  const withFillClause = fillFrom && fillTo
+    ? `WITH FILL
+    FROM ${fillFrom}
+    TO ${fillTo}
+    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
+    : '';
+
   const query = `
     SELECT 
       toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
@@ -84,10 +91,7 @@ export async function getTraceStats(
     WHERE ${allConditions.join(" AND ")}
     GROUP BY timestamp
     ORDER BY timestamp ASC
-    WITH FILL
-    FROM ${fillFrom}
-    TO ${fillTo}
-    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})
+    ${withFillClause}
   `;
 
   const parameters = {

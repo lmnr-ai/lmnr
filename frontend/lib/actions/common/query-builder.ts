@@ -25,8 +25,8 @@ export interface TimeRangeOptions {
 export interface TimeRangeWithFillResult {
   condition: string | null;
   params: QueryParams;
-  fillFrom: string;
-  fillTo: string;
+  fillFrom: string | null;
+  fillTo: string | null;
 }
 
 export interface PaginationOptions {
@@ -123,7 +123,7 @@ const buildTimeRangeWithFill = (
     };
   }
 
-  return { condition: null, params: {}, fillFrom: "", fillTo: "" };
+  return { condition: null, params: {}, fillFrom: null, fillTo: null };
 };
 
 const createStringFilter: ColumnFilterProcessor = (filter, paramKey) => {
