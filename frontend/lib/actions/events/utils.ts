@@ -82,7 +82,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       startTime,
       endTime,
       pastHours,
-      timeColumn: "timestamp",
+      timeColumn: "events.timestamp",
     },
     filters,
     columnFilterConfig: eventsColumnFilterConfig,

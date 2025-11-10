@@ -7,9 +7,10 @@ import React, { useCallback, useState } from "react";
 import { columns } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
+import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -30,6 +31,7 @@ function EventDefinitionsContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { workspace } = useProjectContext();
   const { toast } = useToast();
+  const { rowSelection, onRowSelectionChange } = useSelection();
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
@@ -57,6 +59,7 @@ function EventDefinitionsContent() {
     isLoading,
     fetchNextPage,
     refetch,
+    updateData,
   } = useInfiniteScroll<EventDefinitionRow>({
     fetchFn: fetchEventDefinitions,
     enabled: true,
@@ -73,6 +76,39 @@ function EventDefinitionsContent() {
   const handleSuccess = useCallback(async () => {
     await refetch();
   }, [refetch]);
+
+  const handleDeleteEventDefinitions = useCallback(
+    async (selectedRowIds: string[]) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/event-definitions`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ids: selectedRowIds }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to delete event definitions");
+        }
+
+        updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
+        onRowSelectionChange({});
+
+        toast({
+          title: "Event definitions deleted",
+          description: `Successfully deleted ${selectedRowIds.length} event definition(s).`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to delete event definitions. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, toast, updateData, onRowSelectionChange]
+  );
 
   return (
     <>
@@ -95,6 +131,20 @@ function EventDefinitionsContent() {
           isLoading={isLoading}
           fetchNextPage={fetchNextPage}
           estimatedRowHeight={41}
+          enableRowSelection
+          state={{
+            rowSelection,
+          }}
+          onRowSelectionChange={onRowSelectionChange}
+          selectionPanel={(selectedRowIds) => (
+            <div className="flex flex-col space-y-2">
+              <DeleteSelectedRows
+                selectedRowIds={selectedRowIds}
+                onDelete={handleDeleteEventDefinitions}
+                entityName="event definitions"
+              />
+            </div>
+          )}
         />
       </div>
     </>

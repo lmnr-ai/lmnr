@@ -98,11 +98,11 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
       set({
         stats: stats.map((stat, idx) =>
           idx === bucketIndex
-            ? {
-              ...stat,
+            ? ({
+              timestamp: stat.timestamp,
               successCount: isError ? stat.successCount : stat.successCount + 1,
               errorCount: isError ? stat.errorCount + 1 : stat.errorCount,
-            }
+            } as TracesStatsDataPoint)
             : stat
         ),
       });

@@ -328,8 +328,10 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
 };
 
 export {
+  buildColumnFilters,
   buildSelectQuery,
   buildTimeRangeWithFill,
+  buildWhereClause,
   createArrayFilter,
   createCustomFilter,
   createNumberFilter,
