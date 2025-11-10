@@ -13,7 +13,7 @@ import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, filters } from "@/components/traces/traces-table/columns";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
-import { CompactDateRangeFilter } from "@/components/ui/date-range-filter";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -340,7 +340,7 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <CompactDateRangeFilter />
+          <DateRangeFilter />
           <RefreshButton
             iconClassName="w-3.5 h-3.5 text-secondary-foreground"
             onClick={handleRefresh}
