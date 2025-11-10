@@ -44,9 +44,12 @@ export const useDateRangeState = () => {
       return { from: new Date(startDate), to: new Date(endDate) };
     }
     if (pastHours && pastHours !== "all") {
-      const to = new Date();
-      const from = subHours(to, parseInt(pastHours));
-      return { from, to };
+      const parsedHours = parseInt(pastHours);
+      if (!isNaN(parsedHours)) {
+        const to = new Date();
+        const from = subHours(to, parsedHours);
+        return { from, to };
+      }
     }
     if (pastHours === "all") {
       return null;
