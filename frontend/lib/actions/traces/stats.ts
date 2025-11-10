@@ -91,7 +91,7 @@ export async function getTraceStats(
     SELECT 
       toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
       countIf(status != 'error') as successCount,
-      countIf(status = 'error') as errorCount,
+      countIf(status = 'error') as errorCount
     FROM traces
     WHERE ${allConditions.join(" AND ")}
     GROUP BY timestamp

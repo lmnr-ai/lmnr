@@ -1,4 +1,4 @@
-import { isWithinInterval, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
@@ -73,7 +73,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
         const bucketStart = parseISO(stat.timestamp);
         const bucketEnd = idx < stats.length - 1 ? parseISO(stats[idx + 1].timestamp) : new Date(8640000000000000);
 
-        return isWithinInterval(traceTime, { start: bucketStart, end: bucketEnd });
+        return traceTime >= bucketStart && traceTime < bucketEnd;
       });
 
       if (bucketIndex === -1) return;
