@@ -108,7 +108,7 @@ export default function WorkspaceUsers({
 
   const renderRoleCell = useCallback(
     (user: WorkspaceUser) => {
-      if (isOwner && user.role !== "owner" && !isCurrentUser(user)) {
+      if (canManageUsers && user.role !== "owner" && !isCurrentUser(user)) {
         return (
           <Select
             value={user.role}
@@ -128,7 +128,7 @@ export default function WorkspaceUsers({
 
       return <span className="text-sm">{user.role}</span>;
     },
-    [handleRoleChange, isCurrentUser, isOwner, updatingRoleUserId]
+    [canManageUsers, handleRoleChange, isCurrentUser, updatingRoleUserId]
   );
 
   const renderActionCell = useCallback(
@@ -193,7 +193,7 @@ export default function WorkspaceUsers({
     <>
       <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
 
-      {isOwner && (
+      {canManageUsers && (
         <SettingsSection>
           <SettingsSectionHeader
             size="sm"

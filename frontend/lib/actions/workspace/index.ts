@@ -249,7 +249,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
   const { workspaceId, userId, role } = UpdateRoleSchema.parse(input);
 
-  const currentRole = await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const [targetUser] = await db
     .select({ memberRole: membersOfWorkspaces.memberRole })
