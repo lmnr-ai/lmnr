@@ -18,6 +18,7 @@ export type TracesActions = {
   fetchStats: (url: string) => Promise<void>;
   incrementStat: (timestamp: string, isError: boolean) => void;
   setChartContainerWidth: (width: number) => void;
+  isTraceInTimeRange: (timestamp: string) => boolean;
 };
 
 export interface TracesProps {
@@ -61,6 +62,22 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
         console.error("Failed to fetch stats:", error);
         set({ isLoadingStats: false });
       }
+    },
+
+    isTraceInTimeRange: (timestamp: string) => {
+      const { stats } = get();
+      if (!stats || stats.length === 0) return false;
+
+      const traceTime = parseISO(timestamp);
+
+      const bucketIndex = stats.findIndex((stat, idx) => {
+        const bucketStart = parseISO(stat.timestamp);
+        const bucketEnd = idx < stats.length - 1 ? parseISO(stats[idx + 1].timestamp) : new Date(8640000000000000);
+
+        return traceTime >= bucketStart && traceTime < bucketEnd;
+      });
+
+      return bucketIndex !== -1;
     },
 
     incrementStat: (timestamp: string, isError: boolean) => {
