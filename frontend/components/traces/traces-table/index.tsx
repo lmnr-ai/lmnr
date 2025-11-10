@@ -96,10 +96,13 @@ function TracesTableContent() {
     // Calculate date range
     let range: { start: Date; end: Date } | null = null;
 
-    if (pastHours) {
-      const end = new Date();
-      const start = new Date(end.getTime() - parseInt(pastHours) * 60 * 60 * 1000);
-      range = { start, end };
+    if (pastHours && pastHours !== "all") {
+      const hours = parseInt(pastHours);
+      if (!isNaN(hours)) {
+        const end = new Date();
+        const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
+        range = { start, end };
+      }
     } else if (startDate && endDate) {
       range = { start: new Date(startDate), end: new Date(endDate) };
     }

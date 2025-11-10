@@ -1,7 +1,7 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { buildWhereClause, QueryParams } from "@/lib/actions/common/query-builder";
+import { buildTimeRangeWithFill, buildWhereClause, QueryParams } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { eventsColumnFilterConfig } from "@/lib/actions/events/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -59,40 +59,41 @@ export async function getEventStats(
     customConditions,
   });
 
-  let withFillFrom = "";
-  let withFillTo = "";
+  const { fillFrom, fillTo } = buildTimeRangeWithFill({
+    startTime,
+    endTime,
+    pastHours,
+    timeColumn: "timestamp",
+    intervalValue,
+    intervalUnit,
+  });
 
-  if (pastHours) {
-    const hours = parseInt(pastHours);
-    withFillFrom = `now() - INTERVAL ${hours} HOUR`;
-    withFillTo = `now()`;
-  } else if (startTime) {
-    withFillFrom = `toDateTime64({startTime:String}, 9)`;
-    withFillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
-  } else {
-    withFillFrom = `now() - INTERVAL 24 HOUR`;
-    withFillTo = `now()`;
-  }
-
-  const intervalFn = `INTERVAL ${intervalValue} ${intervalUnit.toUpperCase()}`;
+  const withFillClause =
+    fillFrom && fillTo
+      ? `WITH FILL
+    FROM ${fillFrom}
+    TO ${fillTo}
+    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
+      : "";
 
   const query = `
     SELECT 
-      toStartOfInterval(timestamp, ${intervalFn}) as timestamp,
+      toStartOfInterval(timestamp, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
       count() as count
     FROM events
     ${whereResult.query}
     GROUP BY timestamp
     ORDER BY timestamp ASC
-    WITH FILL
-    FROM toStartOfInterval(${withFillFrom}, ${intervalFn})
-    TO toStartOfInterval(${withFillTo}, ${intervalFn})
-    STEP ${intervalFn}
+    ${withFillClause}
   `;
 
   const items = await executeQuery<EventsStatsDataPoint>({
     query,
-    parameters: whereResult.parameters,
+    parameters: {
+      ...whereResult.parameters,
+      intervalValue,
+      intervalUnit,
+    },
     projectId,
   });
 

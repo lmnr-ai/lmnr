@@ -1,6 +1,7 @@
 "use client";
 
 import { differenceInHours, differenceInMinutes, formatDate, subHours, subYears } from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -408,64 +409,72 @@ export function CompactDateRangeFilter({
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 overflow-hidden w-auto relative" align="start">
-        <div
-          className={cn("transition-transform duration-300 ease-in-out w-full", showCalendar && "invisible")}
-          style={{ transform: showCalendar ? "translateX(-100%)" : "translateX(0)" }}
-        >
-          <div className="p-1 w-62">
-            <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
-            <div>
-              {COMPACT_RANGES.map((range) => (
-                <div
-                  key={range.value}
-                  className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                    pastHours === range.value && "bg-accent text-accent-foreground"
-                  )}
-                  onClick={() => handleQuickRangeSelect(range.value)}
-                >
-                  {range.name}
-                </div>
-              ))}
-              <div
-                className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                onClick={() => setShowCalendar(true)}
-              >
-                <span>Absolute date</span>
-                <ChevronRight className="size-4" />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          className={cn(
-            "absolute top-0 left-0 transition-transform duration-300 ease-in-out w-full",
-            !showCalendar && "invisible"
-          )}
-          style={{ transform: showCalendar ? "translateX(0)" : "translateX(100%)" }}
-        >
-          <div className="p-2 border-b flex items-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-0 h-auto hover:bg-transparent"
-              onClick={() => setShowCalendar(false)}
+      <PopoverContent className="p-0 overflow-hidden w-auto" align="start">
+        <AnimatePresence mode="wait" initial={false}>
+          {!showCalendar ? (
+            <motion.div
+              key="ranges"
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -20, opacity: 0 }}
+              transition={{ duration: 0.1 }}
             >
-              <ArrowLeft className="size-3.5 mr-1" />
-              <span>Back</span>
-            </Button>
-          </div>
-          <Calendar
-            className="w-full"
-            mode="range"
-            defaultMonth={calendarDate?.from}
-            selected={calendarDate}
-            onSelect={handleCalendarSelect}
-            disabled={disabled}
-            pagedNavigation
-          />
-        </div>
+              <div className="p-1 w-62">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
+                <div>
+                  {COMPACT_RANGES.map((range) => (
+                    <div
+                      key={range.value}
+                      className={cn(
+                        "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                        pastHours === range.value && "bg-accent text-accent-foreground"
+                      )}
+                      onClick={() => handleQuickRangeSelect(range.value)}
+                    >
+                      {range.name}
+                    </div>
+                  ))}
+                  <div
+                    className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                    onClick={() => setShowCalendar(true)}
+                  >
+                    <span>Absolute date</span>
+                    <ChevronRight className="size-4" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="calendar"
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 20, opacity: 0 }}
+              transition={{ duration: 0.1 }}
+            >
+              <div className="p-2 border-b flex items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-0 h-auto hover:bg-transparent"
+                  onClick={() => setShowCalendar(false)}
+                >
+                  <ArrowLeft className="size-3.5 mr-1" />
+                  <span>Back</span>
+                </Button>
+              </div>
+              <Calendar
+                className="w-full"
+                mode="range"
+                defaultMonth={calendarDate?.from}
+                selected={calendarDate}
+                onSelect={handleCalendarSelect}
+                disabled={disabled}
+                pagedNavigation
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </PopoverContent>
     </Popover>
   );

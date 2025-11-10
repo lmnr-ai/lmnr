@@ -11,21 +11,22 @@ interface EventsChartProps {
   containerRef: RefObject<HTMLDivElement | null>;
 }
 
-const chartConfig = {
-  count: {
-    label: "events",
-    color: "hsl(var(--primary))",
-  },
-} as const;
-
 const fields = ["count"] as const;
 
 export default function EventsChart({ className, containerRef }: EventsChartProps) {
-  const { stats, isLoadingStats, chartContainerWidth } = useEventsStoreContext((state) => ({
+  const { stats, isLoadingStats, chartContainerWidth, eventDefinition } = useEventsStoreContext((state) => ({
     stats: state.stats,
     isLoadingStats: state.isLoadingStats,
     chartContainerWidth: state.chartContainerWidth,
+    eventDefinition: state.eventDefinition,
   }));
+
+  const chartConfig = {
+    count: {
+      label: eventDefinition.name,
+      color: "hsl(var(--primary))",
+    },
+  } as const;
 
   return (
     <div ref={containerRef} className={className}>

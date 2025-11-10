@@ -22,6 +22,13 @@ export interface TimeRangeOptions {
   timeColumn?: string;
 }
 
+export interface TimeRangeWithFillResult {
+  condition: string | null;
+  params: QueryParams;
+  fillFrom: string | null;
+  fillTo: string | null;
+}
+
 export interface PaginationOptions {
   limit: number;
   offset: number;
@@ -72,6 +79,66 @@ const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult =>
   }
 
   return { condition: null, params: {} };
+};
+
+const buildTimeRangeWithFill = (
+  options: TimeRangeOptions & { intervalValue?: number; intervalUnit?: string }
+): TimeRangeWithFillResult => {
+  const { startTime, endTime, pastHours, timeColumn = "start_time", intervalValue, intervalUnit } = options;
+  const hasInterval = intervalValue && intervalUnit;
+
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    const hours = parseInt(pastHours);
+    const params: QueryParams = { pastHours: hours };
+
+    let fillFrom = `now() - INTERVAL {pastHours:UInt32} HOUR`;
+    let fillTo = `now()`;
+
+    if (hasInterval) {
+      params.intervalValue = intervalValue;
+      params.intervalUnit = intervalUnit;
+      fillFrom = `toStartOfInterval(${fillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      fillTo = `toStartOfInterval(${fillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+
+    return {
+      condition: `${timeColumn} >= now() - INTERVAL {pastHours:UInt32} HOUR`,
+      params,
+      fillFrom,
+      fillTo,
+    };
+  }
+
+  if (startTime) {
+    const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
+    const params: QueryParams = { startTime: startTime.replace("Z", "") };
+
+    let fillFrom = `toDateTime64({startTime:String}, 9)`;
+    let fillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
+
+    if (endTime) {
+      conditions.push(`${timeColumn} <= {endTime:String}`);
+      params.endTime = endTime.replace("Z", "");
+    } else {
+      conditions.push(`${timeColumn} <= now()`);
+    }
+
+    if (hasInterval) {
+      params.intervalValue = intervalValue;
+      params.intervalUnit = intervalUnit;
+      fillFrom = `toStartOfInterval(${fillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      fillTo = `toStartOfInterval(${fillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+
+    return {
+      condition: conditions.join(" AND "),
+      params,
+      fillFrom,
+      fillTo,
+    };
+  }
+
+  return { condition: null, params: {}, fillFrom: null, fillTo: null };
 };
 
 const createStringFilter: ColumnFilterProcessor = (filter, paramKey) => {
@@ -263,6 +330,7 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
 export {
   buildColumnFilters,
   buildSelectQuery,
+  buildTimeRangeWithFill,
   buildWhereClause,
   createArrayFilter,
   createCustomFilter,

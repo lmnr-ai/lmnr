@@ -108,6 +108,7 @@ function EventsContentInner({
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filter = searchParams.getAll("filter");
+  const shouldFetch = !!(pastHours || startDate || endDate);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -147,7 +148,7 @@ function EventsContentInner({
   }, [chartContainerWidth, startDate, endDate, pastHours]);
 
   const statsUrl = useMemo(() => {
-    if (!(pastHours || startDate || endDate)) return null;
+    if (!shouldFetch || !chartContainerWidth) return null;
 
     const urlParams = new URLSearchParams();
     if (pastHours) urlParams.set("pastHours", pastHours);
@@ -160,7 +161,18 @@ function EventsContentInner({
     filter.forEach((f) => urlParams.append("filter", f));
 
     return `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats?${urlParams.toString()}`;
-  }, [pastHours, startDate, endDate, eventDefinition.projectId, eventDefinition.name, interval, filter]);
+  }, [
+    shouldFetch,
+    chartContainerWidth,
+    pastHours,
+    startDate,
+    endDate,
+    interval.value,
+    interval.unit,
+    filter,
+    eventDefinition.projectId,
+    eventDefinition.name,
+  ]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -212,7 +224,7 @@ function EventsContentInner({
     fetchNextPage,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
-    enabled: true,
+    enabled: shouldFetch,
     deps: [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter],
   });
 
