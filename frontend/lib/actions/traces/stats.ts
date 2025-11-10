@@ -61,7 +61,12 @@ export async function getTraceStats(
     filters,
   });
 
-  const { condition: timeCondition, params: timeParams, fillFrom, fillTo } = buildTimeRangeWithFill({
+  const {
+    condition: timeCondition,
+    params: timeParams,
+    fillFrom,
+    fillTo,
+  } = buildTimeRangeWithFill({
     startTime,
     endTime,
     pastHours,
@@ -75,18 +80,19 @@ export async function getTraceStats(
     allConditions.push(timeCondition);
   }
 
-  const withFillClause = fillFrom && fillTo
-    ? `WITH FILL
+  const withFillClause =
+    fillFrom && fillTo
+      ? `WITH FILL
     FROM ${fillFrom}
     TO ${fillTo}
     STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
-    : '';
+      : "";
 
   const query = `
     SELECT 
       toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
       countIf(status != 'error') as successCount,
-      countIf(status = 'error') as errorCount,
+      countIf(status = 'error') as errorCount
     FROM traces
     WHERE ${allConditions.join(" AND ")}
     GROUP BY timestamp
