@@ -85,19 +85,27 @@ const buildTimeRangeWithFill = (
   options: TimeRangeOptions & { intervalValue?: number; intervalUnit?: string }
 ): TimeRangeWithFillResult => {
   const { startTime, endTime, pastHours, timeColumn = "start_time", intervalValue, intervalUnit } = options;
-
-  const wrapWithInterval = (expr: string) =>
-    intervalValue && intervalUnit
-      ? `toStartOfInterval(${expr}, toInterval(${intervalValue}, '${intervalUnit}'))`
-      : expr;
+  const hasInterval = intervalValue && intervalUnit;
 
   if (pastHours && !isNaN(parseFloat(pastHours))) {
     const hours = parseInt(pastHours);
+    const params: QueryParams = { pastHours: hours };
+
+    let fillFrom = `now() - INTERVAL {pastHours:UInt32} HOUR`;
+    let fillTo = `now()`;
+
+    if (hasInterval) {
+      params.intervalValue = intervalValue;
+      params.intervalUnit = intervalUnit;
+      fillFrom = `toStartOfInterval(${fillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      fillTo = `toStartOfInterval(${fillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+
     return {
       condition: `${timeColumn} >= now() - INTERVAL {pastHours:UInt32} HOUR`,
-      params: { pastHours: hours },
-      fillFrom: wrapWithInterval(`now() - INTERVAL ${hours} HOUR`),
-      fillTo: wrapWithInterval(`now()`),
+      params,
+      fillFrom,
+      fillTo,
     };
   }
 
@@ -105,8 +113,8 @@ const buildTimeRangeWithFill = (
     const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
     const params: QueryParams = { startTime: startTime.replace("Z", "") };
 
-    const baseFillFrom = `toDateTime64({startTime:String}, 9)`;
-    const baseFillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
+    let fillFrom = `toDateTime64({startTime:String}, 9)`;
+    let fillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
 
     if (endTime) {
       conditions.push(`${timeColumn} <= {endTime:String}`);
@@ -115,11 +123,18 @@ const buildTimeRangeWithFill = (
       conditions.push(`${timeColumn} <= now()`);
     }
 
+    if (hasInterval) {
+      params.intervalValue = intervalValue;
+      params.intervalUnit = intervalUnit;
+      fillFrom = `toStartOfInterval(${fillFrom}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+      fillTo = `toStartOfInterval(${fillTo}, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+
     return {
       condition: conditions.join(" AND "),
       params,
-      fillFrom: wrapWithInterval(baseFillFrom),
-      fillTo: wrapWithInterval(baseFillTo),
+      fillFrom,
+      fillTo,
     };
   }
 
