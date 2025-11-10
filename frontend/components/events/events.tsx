@@ -19,7 +19,7 @@ import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/tra
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
-import { CompactDateRangeFilter } from "@/components/ui/date-range-filter";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -307,31 +307,31 @@ function EventsContentInner({
     <>
       <Header path={`events/${eventDefinition.name}`} />
       <div className="flex flex-col overflow-hidden">
-        <div className="flex items-center px-4 pb-4">
-          <div className="flex items-center justify-between">
-            {!isFreeTier && (
-              <ManageEventDefinitionDialog
-                open={isDialogOpen}
-                setOpen={setIsDialogOpen}
-                defaultValues={eventDefinition}
-                key={eventDefinition.id}
-                onSuccess={handleSuccess}
-              >
-                <Button icon="edit" onClick={handleEditEvent}>
-                  Event Definition
-                </Button>
-              </ManageEventDefinitionDialog>
-            )}
+        <div className="flex items-center gap-2 px-4 pb-4">
+          {!isFreeTier && (
+            <ManageEventDefinitionDialog
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={eventDefinition}
+              key={eventDefinition.id}
+              onSuccess={handleSuccess}
+            >
+              <Button icon="edit" onClick={handleEditEvent}>
+                Event Definition
+              </Button>
+            </ManageEventDefinitionDialog>
+          )}
+          <div>
+            <span className="text-xs text-muted-foreground font-medium">Last event: </span>
+            <span
+              title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+              className={cn("text-xs", {
+                "text-muted-foreground": !lastEvent,
+              })}
+            >
+              {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground font-medium ml-auto mr-2">Last event: </span>
-          <span
-            title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-            className={cn("text-xs", {
-              "text-muted-foreground": !lastEvent,
-            })}
-          >
-            {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-          </span>
         </div>
         <div className="flex flex-1 overflow-hidden px-4 pb-4">
           <InfiniteDataTable<EventRow>
@@ -348,7 +348,7 @@ function EventsContentInner({
             childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
           >
             <div className="flex flex-1 w-full space-x-2">
-              <CompactDateRangeFilter />
+              <DateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
             </div>
             <DataTableFilterList />

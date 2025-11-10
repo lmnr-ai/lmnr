@@ -10,7 +10,6 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -754,7 +753,6 @@ impl Span {
         }
     }
 
-    #[instrument(skip(self, project_id, storage))]
     pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()

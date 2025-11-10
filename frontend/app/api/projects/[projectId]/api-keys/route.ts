@@ -1,5 +1,5 @@
 import { type NextRequest } from 'next/server';
-import { prettifyError,ZodError } from 'zod/v4';
+import { prettifyError, ZodError } from 'zod/v4';
 
 import { createApiKey, deleteApiKey, getApiKeys } from '@/lib/actions/project-api-keys';
 
@@ -15,6 +15,7 @@ export async function POST(
     const result = await createApiKey({
       projectId: params.projectId,
       name: body.name,
+      isIngestOnly: body.isIngestOnly,
     });
 
     return new Response(JSON.stringify(result), {

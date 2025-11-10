@@ -102,8 +102,8 @@ export async function getTraceStats(
   const parameters = {
     ...whereParams,
     ...timeParams,
-    interval_value: intervalValue,
-    interval_unit: intervalUnit,
+    intervalValue,
+    intervalUnit,
   };
 
   const items = await executeQuery<TracesStatsDataPoint>({

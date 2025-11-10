@@ -50,6 +50,7 @@ function TracesTableContent() {
     incrementStat,
     chartContainerWidth,
     setChartContainerWidth,
+    isTraceInTimeRange,
   } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
@@ -57,6 +58,7 @@ function TracesTableContent() {
     incrementStat: state.incrementStat,
     chartContainerWidth: state.chartContainerWidth,
     setChartContainerWidth: state.setChartContainerWidth,
+    isTraceInTimeRange: state.isTraceInTimeRange,
   }));
 
   const filter = searchParams.getAll("filter");
@@ -209,6 +211,10 @@ function TracesTableContent() {
 
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {
+      if (!traceData.startTime || !isTraceInTimeRange(traceData.startTime)) {
+        return;
+      }
+
       updateData((currentTraces) => {
         if (!currentTraces || currentTraces.length === 0) return currentTraces;
 
@@ -232,7 +238,7 @@ function TracesTableContent() {
         }
       });
     },
-    [updateData]
+    [updateData, isTraceInTimeRange]
   );
 
   // SSE connection for realtime trace updates
