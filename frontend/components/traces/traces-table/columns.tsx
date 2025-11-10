@@ -31,8 +31,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
-        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
-          "bg-destructive": row.getValue() === "error",
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
+          "bg-destructive-bright": row.getValue() === "error",
           "": row.getValue() === "info", // temporary color values
           "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}

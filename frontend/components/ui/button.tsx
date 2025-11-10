@@ -42,6 +42,7 @@ import {
   User,
   Users,
   X,
+  ZoomOut,
 } from "lucide-react";
 import * as React from "react";
 
@@ -78,6 +79,7 @@ const buttonVariants = cva(
 );
 
 const iconMap = {
+  zoomOut: ZoomOut,
   plus: Plus,
   close: X,
   braces: Braces,

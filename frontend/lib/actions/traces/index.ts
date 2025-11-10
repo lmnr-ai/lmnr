@@ -3,11 +3,10 @@ import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
+import { getTimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
@@ -81,42 +80,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     items,
   };
 }
-
-const searchSpans = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
-  });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
-};
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   const { projectId, traceIds } = input;
