@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
+import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
@@ -108,7 +108,6 @@ function EventsContentInner({
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filter = searchParams.getAll("filter");
-  const shouldFetch = !!(pastHours || startDate || endDate);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -127,52 +126,15 @@ function EventsContentInner({
     };
   }, [setChartContainerWidth]);
 
-  const interval = useMemo(() => {
-    const targetBars = chartContainerWidth ? getTargetBarsForWidth(chartContainerWidth) : 24;
-
-    let range: { start: Date; end: Date } | null = null;
-
-    if (pastHours) {
-      const end = new Date();
-      const start = new Date(end.getTime() - parseInt(pastHours) * 60 * 60 * 1000);
-      range = { start, end };
-    } else if (startDate && endDate) {
-      range = { start: new Date(startDate), end: new Date(endDate) };
-    }
-
-    if (!range) {
-      return { value: 1, unit: "hour" as const };
-    }
-
-    return calculateOptimalInterval(range.start, range.end, targetBars);
-  }, [chartContainerWidth, startDate, endDate, pastHours]);
-
-  const statsUrl = useMemo(() => {
-    if (!shouldFetch || !chartContainerWidth) return null;
-
-    const urlParams = new URLSearchParams();
-    if (pastHours) urlParams.set("pastHours", pastHours);
-    if (startDate) urlParams.set("startDate", startDate);
-    if (endDate) urlParams.set("endDate", endDate);
-
-    urlParams.set("intervalValue", interval.value.toString());
-    urlParams.set("intervalUnit", interval.unit);
-
-    filter.forEach((f) => urlParams.append("filter", f));
-
-    return `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats?${urlParams.toString()}`;
-  }, [
-    shouldFetch,
+  const statsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats`,
     chartContainerWidth,
     pastHours,
     startDate,
     endDate,
-    interval.value,
-    interval.unit,
-    filter,
-    eventDefinition.projectId,
-    eventDefinition.name,
-  ]);
+    filters: filter,
+    defaultTargetBars: 24,
+  });
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -224,7 +186,7 @@ function EventsContentInner({
     fetchNextPage,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
-    enabled: shouldFetch,
+    enabled: !!(pastHours || (startDate && endDate)),
     deps: [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter],
   });
 
