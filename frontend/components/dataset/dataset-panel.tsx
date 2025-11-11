@@ -1,5 +1,5 @@
 import { ChevronsRight, Loader2, Save } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
@@ -36,6 +36,10 @@ const safeParseJSON = (jsonString: string | null | undefined, fallback: any = nu
 
 export default function DatasetPanel({ datasetId, datapointId, onClose, onEditingStateChange, onDatapointUpdate }: DatasetPanelProps) {
   const { projectId } = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const { data: datapoint, isLoading, mutate } = useSWR<Datapoint>(
     `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
     swrFetcher
@@ -47,8 +51,10 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
     swrFetcher
   );
 
-  // Track selected version
-  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(null);
+  // Track selected version - initialize from URL param if present
+  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(() => {
+    return searchParams.get("createdAt");
+  });
 
   // Calculate if viewing an old version
   const isViewingOldVersion = useMemo(() => {
@@ -150,6 +156,12 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
 
     // Reset version selector to latest and refresh list
     setSelectedVersionCreatedAt(null);
+
+    // Remove createdAt from URL when saving (since we're now on the latest version)
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("createdAt");
+    router.push(`${pathname}?${params.toString()}`);
+
     mutateVersions();
 
     // Notify parent to update table
@@ -173,6 +185,9 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
     mutate,
     mutateVersions,
     onDatapointUpdate,
+    searchParams,
+    pathname,
+    router,
   ]);
 
   // Load version data into editors
@@ -199,18 +214,39 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
   const handleVersionChange = useCallback((createdAt: string) => {
     setSelectedVersionCreatedAt(createdAt);
 
+    // Update URL with the selected version's createdAt
+    const params = new URLSearchParams(searchParams.toString());
+    if (createdAt) {
+      params.set("createdAt", createdAt);
+    } else {
+      params.delete("createdAt");
+    }
+    router.push(`${pathname}?${params.toString()}`);
+
     // Find and load the selected version
     const version = versions?.find(v => v.createdAt === createdAt);
     if (version) {
       loadVersion(version);
     }
-  }, [versions, loadVersion]);
+  }, [versions, loadVersion, searchParams, pathname, router]);
 
-  // Initialize with latest version when datapoint first loads
+  // Initialize with specific version from URL or latest version when datapoint first loads
   useEffect(() => {
-    if (!datapoint) return;
+    if (!datapoint || !versions) return;
 
-    // Parse JSON strings and set state
+    const createdAtFromUrl = searchParams.get("createdAt");
+
+    // If there's a createdAt in the URL and it matches a version, load that version
+    if (createdAtFromUrl && versions.some(v => v.createdAt === createdAtFromUrl)) {
+      const version = versions.find(v => v.createdAt === createdAtFromUrl);
+      if (version) {
+        loadVersion(version);
+        setSelectedVersionCreatedAt(createdAtFromUrl);
+        return;
+      }
+    }
+
+    // Otherwise, load the latest version (current datapoint)
     const parsedData = safeParseJSON(datapoint.data, null);
     const parsedTarget = safeParseJSON(datapoint.target, null);
     const parsedMetadata = safeParseJSON(datapoint.metadata, {});
@@ -223,7 +259,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
     originalDataRef.current = parsedData;
     originalTargetRef.current = parsedTarget;
     originalMetadataRef.current = parsedMetadata;
-  }, [datapoint]);
+  }, [datapoint, versions, searchParams, loadVersion]);
 
   const discardChanges = useCallback(() => {
     // Restore to the original values (from refs)

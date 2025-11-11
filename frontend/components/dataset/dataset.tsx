@@ -228,7 +228,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         setSelectedDatapoint(datapoint);
       }
     }
-  }, []);
+  }, [datapointId, datapoints]);
 
   return (
     <>
