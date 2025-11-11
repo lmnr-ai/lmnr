@@ -13,10 +13,12 @@ import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
+
+import RefreshColumnsButton from "../ui/refresh-columns-button";
 
 const FETCH_SIZE = 50;
 
@@ -34,7 +36,6 @@ function SessionsTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-
   const { setTraceId, traceId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     traceId: state.traceId,
@@ -222,6 +223,7 @@ function SessionsTableContent() {
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
           <DateRangeFilter />
+          <RefreshColumnsButton />
           <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
           <SearchInput placeholder="Search in sessions..." />
         </div>

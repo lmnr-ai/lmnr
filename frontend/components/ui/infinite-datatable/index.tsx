@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { arrayMove } from "@dnd-kit/sortable";
 import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
@@ -8,10 +20,11 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { InfiniteDatatableBody } from "./body";
-import { InfiniteDatatableHeader } from "./header";
-import { SelectionPanel } from "./selection-panel";
+import { useColumnsStore } from "./model/columns-store";
 import { InfiniteDataTableProps } from "./types";
+import { InfiniteDatatableBody } from "./ui/body";
+import { InfiniteDatatableHeader } from "./ui/header";
+import { SelectionPanel } from "./ui/selection-panel";
 import { createCheckboxColumn, EMPTY_ARRAY } from "./utils";
 
 export function InfiniteDataTable<TData extends RowData>({
@@ -27,6 +40,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
+  lockedColumns = EMPTY_ARRAY as string[],
 
   // Styling
   className,
@@ -52,6 +66,36 @@ export function InfiniteDataTable<TData extends RowData>({
     [columns, enableRowSelection]
   );
 
+  const { columnVisibility, setColumnVisibility } = useColumnsStore();
+  const { columnOrder, setColumnOrder } = useColumnsStore();
+
+  // reorder columns after drag & drop
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      const oldIndex = columnOrder.indexOf(active.id as string);
+      const newIndex = columnOrder.indexOf(over.id as string);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setColumnOrder(arrayMove(columnOrder, oldIndex, newIndex) as string[]);
+      }
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before activating
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms delay for touch
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {})
+  );
+
   const table = useReactTable<TData>({
     ...tableOptions,
 
@@ -75,8 +119,9 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-
-    state: state,
+    state: { ...state, columnVisibility, columnOrder },
+    onColumnVisibilityChange: (visibility) => setColumnVisibility(visibility as Record<string, boolean>),
+    onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });
 
   const { rows } = table.getRowModel();
@@ -94,6 +139,12 @@ export function InfiniteDataTable<TData extends RowData>({
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
   });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const handleClearSelection = () => {
+    table.toggleAllRowsSelected(false);
+  };
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
@@ -121,13 +172,6 @@ export function InfiniteDataTable<TData extends RowData>({
       observer.disconnect();
     };
   }, [fetchNextPage, hasMore, isFetching, isLoading]);
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-
-  const handleClearSelection = () => {
-    table.toggleAllRowsSelected(false);
-  };
-
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
       <SelectionPanel
@@ -142,27 +186,42 @@ export function InfiniteDataTable<TData extends RowData>({
         className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
       >
         <div className="size-full">
-          <Table
-            className="grid border-collapse border-spacing-0 rounded bg-secondary"
-            style={{
-              width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
-            }}
+          <DndContext
+            collisionDetection={closestCenter}
+            modifiers={[restrictToHorizontalAxis]}
+            onDragEnd={handleDragEnd}
+            sensors={sensors}
           >
-            <InfiniteDatatableHeader table={table} />
-            <InfiniteDatatableBody
-              table={table}
-              rowVirtualizer={rowVirtualizer}
-              virtualItems={virtualItems}
-              isLoading={isLoading}
-              hasMore={hasMore}
-              onRowClick={onRowClick}
-              focusedRowId={focusedRowId}
-              loadMoreRef={loadMoreRef}
-              emptyRow={emptyRow}
-              loadingRow={loadingRow}
-              error={error}
-            />
-          </Table>
+            <Table
+              className="grid border-collapse border-spacing-0 rounded bg-secondary"
+              style={{
+                width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
+              }}
+            >
+              <InfiniteDatatableHeader
+                table={table}
+                columnOrder={columnOrder}
+                onHideColumn={(columnId) => {
+                  setColumnVisibility({ ...columnVisibility, [columnId]: false });
+                }}
+                lockedColumns={lockedColumns}
+              />
+              <InfiniteDatatableBody
+                table={table}
+                rowVirtualizer={rowVirtualizer}
+                virtualItems={virtualItems}
+                isLoading={isLoading}
+                hasMore={hasMore}
+                onRowClick={onRowClick}
+                focusedRowId={focusedRowId}
+                loadMoreRef={loadMoreRef}
+                emptyRow={emptyRow}
+                loadingRow={loadingRow}
+                error={error}
+                columnOrder={columnOrder}
+              />
+            </Table>
+          </DndContext>
 
           {isFetching && !isLoading && (
             <div className="flex justify-center p-2 bg-secondary">

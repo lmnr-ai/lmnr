@@ -9,7 +9,7 @@ import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue
 import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -171,13 +171,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     [updateData]
   );
 
-  const handlePanelClose = useCallback(
-    () => {
-      setIsEditingDatapoint(false);
-      handleDatapointSelect(null);
-    },
-    [handleDatapointSelect]
-  );
+  const handlePanelClose = useCallback(() => {
+    setIsEditingDatapoint(false);
+    handleDatapointSelect(null);
+  }, [handleDatapointSelect]);
 
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
@@ -233,9 +230,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   return (
     <>
       <Header path={"datasets/" + dataset.name} />
-      <div className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
-        "pointer-events-none opacity-60": isEditingDatapoint
-      })}>
+      <div
+        className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
+          "pointer-events-none opacity-60": isEditingDatapoint,
+        })}
+      >
         <div className="flex flex-wrap items-end gap-2">
           <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
@@ -301,9 +300,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             )}
           />
         </div>
-        <div className="flex text-secondary-foreground text-sm">
-          {totalCount} datapoints
-        </div>
+        <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
       </div>
 
       {selectedDatapoint && (

@@ -7,7 +7,7 @@ import { useCallback } from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
