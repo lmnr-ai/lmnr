@@ -29,6 +29,8 @@ export interface InfiniteScrollActions<TData> {
 
 export interface SelectionState {
   selectedRows: Set<string>;
+  columnVisibility: Record<string, boolean>;
+  columnOrder: string[];
 }
 
 export interface SelectionActions {
@@ -37,6 +39,8 @@ export interface SelectionActions {
   toggleRow: (id: string) => void;
   selectAll: (ids: string[]) => void;
   clearSelection: () => void;
+  setColumnVisibility: (visibility: Record<string, boolean>) => void;
+  setColumnOrder: (order: string[]) => void;
 }
 
 type DataTableStore<TData> = InfiniteScrollState<TData> &
@@ -45,7 +49,7 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
   SelectionActions;
 
 const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number = 50) =>
-  createStore<DataTableStore<TData>>((set) => ({
+  createStore<DataTableStore<TData>>((set, get) => ({
     data: [],
     currentPage: 0,
     isFetching: false,
@@ -54,14 +58,16 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     uniqueKey,
     hasMore: true,
     pageSize,
-
+    columnVisibility: {},
+    columnOrder: [],
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
     setIsLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error }),
     setHasMore: (hasMore) => set({ hasMore }),
-
+    setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
+    setColumnOrder: (order) => set({ columnOrder: order }),
     appendData: (items, count) =>
       set((state) => {
         const combined = [...state.data, ...items];
@@ -126,7 +132,6 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
       }),
     clearSelection: () => set({ selectedRows: new Set() }),
   }));
-
 type DataTableStoreApi<TData> = ReturnType<typeof createDataTableStore<TData>>;
 
 const DataTableContext = createContext<DataTableStoreApi<any> | undefined>(undefined);

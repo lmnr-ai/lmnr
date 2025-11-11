@@ -7,6 +7,7 @@ export interface InfiniteDataTableProps<TData extends RowData>
   data: TData[];
   columns: TableOptions<TData>["columns"];
 
+  lockedColumns?: string[];
   // Infinite scroll props
   hasMore: boolean;
   isFetching: boolean;
@@ -29,10 +30,16 @@ export interface InfiniteDataTableProps<TData extends RowData>
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
+
+  storageKey?: string;
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
   table: Table<TData>;
+  columnOrder: string[];
+  onHideColumn: (columnId: string) => void;
+
+  lockedColumns?: string[];
 }
 
 export interface InfiniteDataTableBodyProps<TData extends RowData> {
@@ -47,6 +54,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
+  columnOrder: string[];
 }
 
 export interface InfiniteDataTableRowProps<TData extends RowData> {
@@ -55,6 +63,7 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick?: (row: Row<TData>) => void;
   focusedRowId?: string | null;
+  columnOrder: string[];
 }
 
 export interface SelectionPanelProps {

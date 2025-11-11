@@ -21,7 +21,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
