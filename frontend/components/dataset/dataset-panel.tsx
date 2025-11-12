@@ -52,9 +52,7 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
   );
 
   // Track selected version - initialize from URL param if present
-  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(() => {
-    return searchParams.get("createdAt");
-  });
+  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(() => searchParams.get("createdAt"));
 
   // Calculate if viewing an old version
   const isViewingOldVersion = useMemo(() => {

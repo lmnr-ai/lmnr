@@ -71,6 +71,18 @@ pub async fn get_dataset_id_by_name(
     Ok(dataset_id)
 }
 
+pub async fn dataset_exists(pool: &PgPool, dataset_id: Uuid, project_id: Uuid) -> Result<bool> {
+    let dataset_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM datasets WHERE id = $1 AND project_id = $2)",
+    )
+    .bind(dataset_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(dataset_exists)
+}
+
 pub async fn get_parquet_path(
     pool: &PgPool,
     project_id: Uuid,

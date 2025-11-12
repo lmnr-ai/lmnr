@@ -1,6 +1,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { flow } from "lodash";
 import { ArrowRight, Check, X } from "lucide-react";
+
 import {
   calculateDuration,
   calculatePercentageChange,

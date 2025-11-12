@@ -255,6 +255,11 @@ async fn create_datapoints(
                     "error": "When creating a new dataset, the name must be provided"
                 })));
             }
+            if !db::datasets::dataset_exists(&db.pool, id.dataset_id, project_id).await? {
+                return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                    "error": "Dataset not found"
+                })));
+            }
             id.dataset_id
         }
     };

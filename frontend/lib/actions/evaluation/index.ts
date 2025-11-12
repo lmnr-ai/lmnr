@@ -208,7 +208,7 @@ export const getEvaluationDatapoints = async (
     allStatistics,
     allDistributions,
   };
-}
+};
 
 export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSchema>) => {
   const { evaluationId, projectId, name } = RenameEvaluationSchema.parse(input);
@@ -224,7 +224,7 @@ export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSch
   }
 
   return updated;
-}
+};
 
 const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
   if (!evaluationCreatedAt) {
