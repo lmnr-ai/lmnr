@@ -106,14 +106,15 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     [
       "pattern",
       createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(patterns, {${paramKey}:UUID})`;
+          } else {
+            return `NOT has(patterns, {${paramKey}:UUID})`;
+          }
+        },
         (filter, paramKey) =>
-          // The cluster_id will be passed as the value after resolution in getTraces
-          `has(patterns, {${paramKey}:UUID})`
-        ,
-        (filter, paramKey) =>
-          // Value should be cluster_id at this point (resolved in getTraces)
           ({ [paramKey]: filter.value })
-
       ),
     ],
   ]),
@@ -160,11 +161,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: `trace_type = {traceType:String}`,
-        params: { traceType },
-      },
-    ];
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType },
+    },
+  ];
 
   if (traceIds.length > 0) {
     customConditions.push({

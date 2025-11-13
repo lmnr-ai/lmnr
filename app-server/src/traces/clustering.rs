@@ -145,9 +145,22 @@ async fn process_single_clustering(
 ) -> anyhow::Result<()> {
     let lock_key = format!("clustering_lock:{}", message.project_id);
     let lock_ttl = 300; // 5 minutes
+    let max_wait_duration = Duration::from_secs(300); // 5 minutes max wait
+    let start_time = tokio::time::Instant::now();
 
-    // Try to acquire lock, wait if already locked
+    // Try to acquire lock, wait if already locked (with timeout)
     loop {
+        // Check if we've exceeded the max wait time
+        if start_time.elapsed() >= max_wait_duration {
+            log::warn!(
+                "Timeout waiting for clustering lock for project_id={}, requeuing message",
+                message.project_id
+            );
+            // Requeue the message to try again later
+            let _ = acker.reject(true).await; // true = requeue
+            return Ok(());
+        }
+
         match cache.try_acquire_lock(&lock_key, lock_ttl).await {
             Ok(true) => {
                 // Lock acquired, proceed with clustering
@@ -169,7 +182,9 @@ async fn process_single_clustering(
             Err(e) => {
                 log::error!("Failed to acquire clustering lock: {:?}", e);
                 // Log and continue without clustering
-                let _ = acker.ack().await;
+                if let Err(e) = acker.ack().await {
+                    log::error!("Failed to ack clustering message: {:?}", e);
+                }
                 return Ok(());
             }
         }
