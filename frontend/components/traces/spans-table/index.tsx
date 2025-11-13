@@ -23,7 +23,7 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider uniqueKey="spanId">
+    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId">
       <SpansTableContent />
     </DataTableStateProvider>
   );

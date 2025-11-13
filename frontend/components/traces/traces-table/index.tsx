@@ -30,7 +30,7 @@ const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="traces-table">
       <TracesTableContent />
     </DataTableStateProvider>
   );

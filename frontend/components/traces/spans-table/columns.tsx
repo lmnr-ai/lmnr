@@ -261,3 +261,15 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     id: "tags",
   },
 ];
+
+export const defaultSpansColumnOrder = [
+  "status",
+  "span_id",
+  "trace_id",
+  "span",
+  "path",
+  "input",
+  "output",
+  "start_time",
+  "duration",
+];

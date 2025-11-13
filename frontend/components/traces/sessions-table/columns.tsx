@@ -117,6 +117,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
       return row.duration.toFixed(2) + "s";
     },
     header: "Duration",
+    id: "duration",
     size: 100,
   },
   {
@@ -189,4 +190,20 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     accessorKey: "tags",
     id: "tags",
   },
+];
+
+export const defaultSessionsColumnOrder = [
+  "type",
+  "id",
+  "start_time",
+  "duration",
+  "input_cost",
+  "output_cost",
+  "total_cost",
+  "input_tokens",
+  "output_tokens",
+  "total_tokens",
+  "trace_count",
+  "user_id",
+  "tags",
 ];

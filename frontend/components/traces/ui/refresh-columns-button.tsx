@@ -1,11 +1,15 @@
 import { ListRestart } from "lucide-react";
+import { useStore } from "zustand";
 
 import { Button } from "@/components/ui/button";
-import { useColumnsStore } from "@/components/ui/infinite-datatable/model/columns-store";
+import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function RefreshColumnsButton() {
-  const { resetColumns } = useColumnsStore();
+  const store = useDataTableStore();
+  const { resetColumns } = useStore(store, (state) => ({
+    resetColumns: state.resetColumns,
+  }));
 
   return (
     <TooltipProvider>

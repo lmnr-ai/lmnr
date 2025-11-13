@@ -301,3 +301,17 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
 ];
+
+export const defaultTracesColumnOrder = [
+  "status",
+  "id",
+  "top_span_type",
+  "start_time",
+  "duration",
+  "cost",
+  "totalTokens",
+  "tags",
+  "metadata",
+  "session_id",
+  "user_id",
+];
