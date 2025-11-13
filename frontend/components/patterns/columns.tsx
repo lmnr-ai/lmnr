@@ -2,6 +2,7 @@ import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -26,23 +27,23 @@ export const columns: ColumnDef<PatternRow, any>[] = [
       row.original.numChildrenClusters > 0 ? (
         <div className="flex items-center gap-2">
           {row.getIsExpanded() ? (
-            <ChevronDownIcon className="text-secondary-foreground" />
+            <ChevronDownIcon className="min-w-4 min-h-4 text-secondary-foreground" />
           ) : (
-            <ChevronRightIcon className="text-secondary-foreground" />
+            <ChevronRightIcon className="min-w-4 min-h-4 text-secondary-foreground" />
           )}
         </div>
       ) : (
         <div className="w-4" />
       ),
     id: "expand",
-    size: 40,
+    size: 44,
   },
   {
     accessorFn: (row) => row.name,
     header: "Pattern",
     id: "name",
     cell: ({ row }) => {
-      const projectId = window.location.pathname.split("/")[2];
+      const { projectId } = useParams<{ projectId: string }>();
       const depth = row.depth; // Use actual nesting depth in the table
       const paddingLeft = depth * 24; // 24px per depth level
 

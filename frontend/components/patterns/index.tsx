@@ -27,7 +27,7 @@ function PatternsTableContent() {
   const { toast } = useToast();
 
   const fetchPatterns = useCallback(
-    async (pageNumber: number) => {
+    async (_pageNumber: number) => {
       try {
         const url = `/api/projects/${projectId}/patterns`;
 
@@ -44,7 +44,7 @@ function PatternsTableContent() {
         }
 
         const data = (await res.json()) as { items: PatternRow[] };
-        return { items: data.items, count: 0 };
+        return { items: data.items, count: data.items.length };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load patterns. Please try again.",
