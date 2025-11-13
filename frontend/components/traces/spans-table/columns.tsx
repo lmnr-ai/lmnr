@@ -1,15 +1,15 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
-import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanRow, SpanType } from "@/lib/traces/types";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -94,18 +94,18 @@ export const filters: ColumnFilter[] = [
 export const columns: ColumnDef<SpanRow, any>[] = [
   {
     cell: (row) => (
-      <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() === "error" ? (
-          <X className="self-center text-destructive" size={18} />
-        ) : (
-          <Check className="text-success" size={18} />
-        )}
-      </div>
+      <div
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
+          "bg-destructive-bright": row.getValue() === "error",
+          "": row.getValue() === "info", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning", // temporary color values
+        })}
+      />
     ),
     accessorKey: "status",
-    header: "Status",
+    header: () => <div />,
     id: "status",
-    size: 70,
+    size: 40,
   },
   {
     cell: (row) => <Mono>{row.getValue()}</Mono>,
@@ -138,14 +138,14 @@ export const columns: ColumnDef<SpanRow, any>[] = [
     size: 150,
   },
   {
-    cell: (row) => row.getValue(),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     accessorKey: "inputPreview",
     header: "Input",
     id: "input",
     size: 150,
   },
   {
-    cell: (row) => row.getValue(),
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     accessorKey: "outputPreview",
     header: "Output",
     id: "output",

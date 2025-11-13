@@ -82,15 +82,15 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       startTime,
       endTime,
       pastHours,
-      timeColumn: "timestamp",
+      timeColumn: "events.timestamp",
     },
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: {
+    orderBy: [{
       column: "timestamp",
       direction: "DESC",
-    },
+    }],
     pagination: {
       limit,
       offset,

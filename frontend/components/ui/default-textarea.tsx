@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 const DefaultTextarea = ({ className, ...props }: TextareaAutosizeProps) => (
   <TextareaAutosize
     className={cn(
-      'text-sm min-h-[8px] bg-background p-2 m-0 border rounded-md focus:outline-none resize-none',
+      'text-sm min-h-[8px] bg-background p-2 m-0 border rounded-md focus:outline-hidden resize-none',
       className
     )}
     {...props}

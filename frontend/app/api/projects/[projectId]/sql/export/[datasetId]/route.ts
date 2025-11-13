@@ -52,7 +52,7 @@ const downloadImage = async (
   if (payloadId) {
     const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, "image");
     return {
-      blob: new Blob([bytes]),
+      blob: new Blob([Buffer.from(bytes)]),
       mediaType: headers.get("Content-Type") || undefined,
     };
   }
@@ -133,7 +133,7 @@ export async function POST(
       ...datapoint,
       data: await materializeAttachments(datapoint.data as JSONValue, projectId),
       target: await materializeAttachments(datapoint.target as JSONValue, projectId),
-      metadata: await materializeAttachments(datapoint.metadata as JSONValue, projectId),
+      metadata: await materializeAttachments(datapoint.metadata as JSONValue, projectId) as Record<string, any> | undefined,
     }))
   );
 

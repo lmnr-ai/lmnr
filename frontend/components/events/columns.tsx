@@ -15,11 +15,6 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     size: 300,
   },
   {
-    accessorKey: "name",
-    header: "Name",
-    size: 200,
-  },
-  {
     accessorKey: "timestamp",
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
@@ -39,11 +34,13 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
   },
   {
     accessorKey: "userId",
+    cell: (row) => <span>{String(row.getValue()) || "-"}</span>,
     header: "User ID",
     size: 200,
   },
   {
     accessorKey: "sessionId",
+    cell: (row) => <span>{String(row.getValue()) || "-"}</span>,
     header: "Session ID",
     size: 200,
   },
@@ -59,11 +56,6 @@ export const eventsTableFilters: ColumnFilter[] = [
   {
     name: "ID",
     key: "id",
-    dataType: "string",
-  },
-  {
-    name: "Name",
-    key: "name",
     dataType: "string",
   },
   {

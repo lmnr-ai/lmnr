@@ -239,8 +239,8 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   }, [id, templates, setCurrentTemplate]);
 
   return (
-    <div className="flex flex-col max-w-60 w-full h-full">
-      <div className="flex items-center p-2 px-4 border-b flex-shrink-0">
+    <div className="flex flex-col max-w-60 w-full h-full rounded border bg-sidebar">
+      <div className="flex items-center p-2 px-4 border-b shrink-0">
         <span className="font-medium">Queries</span>
         <Link className="ml-auto" href={`/project/${projectId}/sql`}>
           <Button onClick={handleCreate} variant="outline" className="size-6 p-0 lg:flex">
@@ -249,7 +249,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         </Link>
       </div>
 
-      <ScrollArea className="flex-1 p-2 [&>*>div]:!block">
+      <ScrollArea className="flex-1 p-2 [&>*>div]:block!">
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (

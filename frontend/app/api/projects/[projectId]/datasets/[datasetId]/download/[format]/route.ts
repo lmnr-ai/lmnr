@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { json2csv } from 'json-2-csv';
 
-import { getAllDatapointsForDataset } from '@/lib/clickhouse/datapoints';
+import { getAllDatapointsForDataset } from '@/lib/actions/datapoints';
 import { db } from '@/lib/db/drizzle';
 import { datasets } from '@/lib/db/migrations/schema';
 import { DownloadFormat } from '@/lib/types';

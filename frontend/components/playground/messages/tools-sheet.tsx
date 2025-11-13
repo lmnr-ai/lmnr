@@ -4,7 +4,7 @@ import { PropsWithChildren, useCallback, useMemo } from "react";
 import { Controller, ControllerRenderProps, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -78,13 +78,8 @@ export default function ToolsSheet({
     if (toolsCount === 0) {
       return (
         <SheetTrigger asChild>
-          <Button
-            disabled={!model}
-            variant="outline"
-            size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
-          >
-            <Bolt className="w-3.5 h-3.5" />
+          <Button disabled={!model} variant="outline" size="icon" className={cn("focus-visible:ring-0", className)}>
+            <Bolt className="size-4" />
           </Button>
         </SheetTrigger>
       );
@@ -93,18 +88,13 @@ export default function ToolsSheet({
     return (
       <div className="flex flex-row [&>*:first-child]:border-r-0 [&>*:first-child]:rounded-l [&>*:first-child]:rounded-r-none [&>*:last-child]:rounded-r [&>*:last-child]:rounded-l-none">
         <SheetTrigger asChild>
-          <Button
-            disabled={!model}
-            variant="outlinePrimary"
-            size="icon"
-            className={cn("focus-visible:ring-0 h-8 w-fit p-2", className)}
-          >
-            <Bolt className="w-3.5 h-3.5" />
+          <Button disabled={!model} variant="outlinePrimary" className={cn("focus-visible:ring-0 w-fit", className)}>
+            <Bolt className="size-4" />
             <span className="ml-1 text-xs ">{pluralize(toolsCount, "tool", "tools")}</span>
           </Button>
         </SheetTrigger>
-        <Button onClick={() => setValue("tools", "")} className="w-8 h-8" variant="outlinePrimary" size="icon">
-          <X className="w-3.5 h-3.5" />
+        <Button onClick={() => setValue("tools", "")} className="size-7" variant="outlinePrimary" size="icon">
+          <X className="size-4" />
         </Button>
       </div>
     );
@@ -136,7 +126,7 @@ export default function ToolsSheet({
           <div className="p-1 flex flex-1 overflow-hidden">
             <Controller
               render={({ field: { onChange } }) => (
-                <CodeHighlighter
+                <ContentRenderer
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {

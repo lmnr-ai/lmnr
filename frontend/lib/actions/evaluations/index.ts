@@ -69,7 +69,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 }
 
 export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsSchema>) {
-  const { projectId, evaluationIds } = input;
+  const { projectId, evaluationIds } = DeleteEvaluationsSchema.parse(input);
 
   await db.delete(evaluations).where(and(inArray(evaluations.id, evaluationIds), eq(evaluations.projectId, projectId)));
 }

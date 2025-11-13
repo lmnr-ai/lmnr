@@ -67,11 +67,11 @@ const SearchEvaluationInput = ({ className }: { className?: string }) => {
 
   return (
     <div className="flex flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary w-full", className)}>
-        <Search size={16} className="text-secondary-foreground" />
+      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md w-full bg-secondary", className)}>
+        <Search size={14} className="text-secondary-foreground" />
         <Input
           defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs"
+          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
           type="text"
           placeholder="Search in data, targets, scores and spans..."
           onKeyDown={handleKeyPress}

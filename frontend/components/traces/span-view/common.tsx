@@ -3,12 +3,12 @@ import { Resizable } from "re-resizable";
 import React, { memo, PropsWithChildren, ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { createStorageKey, useSpanViewStore } from "@/components/traces/span-view/span-view-store";
-import { useOptionalTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
+import { useSpanViewStore } from "@/components/traces/span-view/span-view-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { isStorageUrl } from "@/lib/s3";
@@ -34,6 +34,12 @@ export const ResizableWrapper = ({
     <Resizable
       size={{ width: "100%", height: currentHeight }}
       maxHeight={height !== null ? undefined : maxHeight}
+      onResizeStart={(_e, _direction, ref) => {
+        if (height === null) {
+          const actualHeight = ref.offsetHeight;
+          onHeightChange(actualHeight);
+        }
+      }}
       onResizeStop={(_e, _direction, ref, _d) => {
         const newHeight = ref.offsetHeight;
         onHeightChange(newHeight);
@@ -43,21 +49,22 @@ export const ResizableWrapper = ({
       }}
       handleComponent={{
         bottom: (
-          <div className="flex items-center justify-center w-full h-2">
-            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center w-full h-0 bg-background/90 backdrop-blur-sm">
+            <div className="flex items-end justify-center w-full overflow-hidden h-2">
+              <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+            </div>
           </div>
         ),
       }}
       handleStyles={{
-        bottom: {
-          bottom: 0,
-          height: "4px",
-          cursor: "ns-resize",
-        },
+        bottom: { height: 0, bottom: 0 },
       }}
-      className={cn("relative flex h-full w-full", className)}
+      handleWrapperStyle={{
+        height: 0,
+      }}
+      className={cn("relative flex w-full", className)}
     >
-      {children}
+      <div className="overflow-auto w-full">{children}</div>
     </Resizable>
   );
 };
@@ -65,21 +72,22 @@ export const ResizableWrapper = ({
 interface ToolCallContentPartProps {
   toolName: string;
   content: unknown;
-  type: "input" | "output";
   presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
-const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCallContentPartProps) => {
-  const storageKey = createStorageKey.resize(type, presetKey);
+const PureToolCallContentPart = ({
+  toolName,
+  content,
+  presetKey,
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ToolCallContentPartProps) => {
+  const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <div className="flex flex-col gap-2 p-2 bg-background">
@@ -88,14 +96,16 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
         {toolName}
       </span>
       <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
-        <CodeHighlighter
+        <ContentRenderer
           readOnly
           defaultMode="json"
           codeEditorClassName="rounded"
           value={JSON.stringify(content, null, 2)}
-          presetKey={createStorageKey.editor(type, presetKey)}
-          className="border-0"
-          searchTerm={search}
+          presetKey={`editor-${presetKey}`}
+          className="border-0 bg-muted/50"
+          searchTerm={searchContext?.searchTerm || ""}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
         />
       </ResizableWrapper>
     </div>
@@ -105,19 +115,17 @@ const PureToolCallContentPart = ({ toolName, type, content, presetKey }: ToolCal
 interface ToolResultContentPartProps {
   toolCallId: string;
   content: string | any;
-  type: "input" | "output";
   presetKey: string;
   children?: ReactNode;
 }
 
-const PureToolResultContentPart = ({ toolCallId, content, type, presetKey, children }: ToolResultContentPartProps) => (
+const PureToolResultContentPart = ({ toolCallId, content, presetKey, children }: ToolResultContentPartProps) => (
   <div className="flex flex-col">
     <Badge className="w-fit m-1 font-medium" variant="secondary">
       ID: {toolCallId}
     </Badge>
     {children || (
       <TextContentPart
-        type={type}
         content={typeof content === "string" ? content : JSON.stringify(content, null, 2)}
         presetKey={presetKey}
       />
@@ -142,38 +150,37 @@ const PureFileContentPart = ({ data, filename, className }: FileContentPartProps
 interface TextContentPartProps {
   content: string;
   presetKey: string;
-  type: "input" | "output";
   className?: string;
   codeEditorClassName?: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
 }
 
 const PureTextContentPart = ({
   content,
-  type,
   presetKey,
   className = "border-0",
   codeEditorClassName,
+  messageIndex = 0,
+  contentPartIndex = 0,
 }: TextContentPartProps) => {
-  const storageKey = createStorageKey.resize(type, presetKey);
+  const storageKey = `resize-${presetKey}`;
   const setHeight = useSpanViewStore((state) => state.setHeight);
   const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
-  const { search } = useOptionalTraceViewStoreContext(
-    (state) => ({
-      search: state.search,
-    }),
-    { search: "" }
-  );
+  const searchContext = useSpanSearchContext();
 
   return (
     <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className={className}>
-      <CodeHighlighter
+      <ContentRenderer
         defaultMode="json"
         readOnly
         value={content}
-        presetKey={createStorageKey.editor(type, presetKey)}
-        className="border-0"
+        presetKey={`editor-${presetKey}`}
+        className="border-0 bg-muted/50"
         codeEditorClassName={codeEditorClassName}
-        searchTerm={search}
+        searchTerm={searchContext?.searchTerm || ""}
+        messageIndex={messageIndex}
+        contentPartIndex={contentPartIndex}
       />
     </ResizableWrapper>
   );
@@ -243,7 +250,7 @@ export const MessageWrapper = ({
         className="group/message-wrapper divide-y flex flex-col flex-1 w-full"
       >
         <RoleHeader role={role} />
-        <CollapsibleContent className="flex h-full flex-col divide-y overflow-hidden">{children}</CollapsibleContent>
+        <CollapsibleContent className="flex flex-col divide-y">{children}</CollapsibleContent>
       </Collapsible>
     </div>
   );

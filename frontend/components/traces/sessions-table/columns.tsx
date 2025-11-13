@@ -114,7 +114,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
         return getDurationString(row.startTime, row.endTime);
       }
 
-      return row.duration.toFixed(3) + "s";
+      return row.duration.toFixed(2) + "s";
     },
     header: "Duration",
     size: 100,

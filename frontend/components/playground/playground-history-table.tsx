@@ -2,16 +2,16 @@
 import { ColumnDef, Row } from "@tanstack/react-table";
 import { ArrowRight, Check, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { DataTable } from "@/components/ui/datatable";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
-import { PaginatedResponse } from "@/lib/types";
 
 // ... existing columns definition (unchanged) ...
 const renderCost = (val: any) => {
@@ -131,65 +131,77 @@ interface PlaygroundHistoryTableProps {
   onTraceSelect?: (traceId: string) => void;
 }
 
-const fetchTraces = async (url: string): Promise<PaginatedResponse<Trace>> => {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+const FETCH_SIZE = 50;
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
-  }
+export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
+  return (
+    <DataTableStateProvider uniqueKey="id">
+      <PlaygroundHistoryTableContent {...props} />
+    </DataTableStateProvider>
+  );
+}
 
-  return res.json();
-};
-
-export default function PlaygroundHistoryTable({
-  playgroundId,
-  onRowClick,
-  onTraceSelect,
-}: PlaygroundHistoryTableProps) {
+function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect }: PlaygroundHistoryTableProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const [pageNumber, setPageNumber] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const fetchTraces = useCallback(
+    async (pageNumber: number) => {
+      if (!projectId || !playgroundId) {
+        return { items: [], count: 0 };
+      }
 
-  const swrKey = useMemo(() => {
-    if (!projectId || !playgroundId) return null;
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+        urlParams.set("pastHours", "168");
+        urlParams.set("traceType", "PLAYGROUND");
 
-    const urlParams = new URLSearchParams();
-    urlParams.set("pageNumber", pageNumber.toString());
-    urlParams.set("pageSize", pageSize.toString());
-    urlParams.set("pastHours", "168");
-    urlParams.set("traceType", "PLAYGROUND");
+        urlParams.append(
+          "filter",
+          JSON.stringify({
+            column: "metadata",
+            operator: "eq",
+            value: `playgroundId=${playgroundId}`,
+          })
+        );
 
-    urlParams.append(
-      "filter",
-      JSON.stringify({
-        column: "metadata",
-        operator: "eq",
-        value: `playgroundId=${playgroundId}`,
-      })
-    );
+        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
-    return `/api/projects/${projectId}/traces?${urlParams.toString()}`;
-  }, [projectId, playgroundId, pageNumber, pageSize]);
+        if (!res.ok) {
+          throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
+        }
 
-  const { data } = useSWR(swrKey, fetchTraces, {
-    onError: (_) => {
-      toast({
-        title: "Failed to load playground history. Please try again.",
-        variant: "destructive",
-      });
+        const data = await res.json();
+        return { items: data.items, count: 0 };
+      } catch (error) {
+        toast({
+          title: "Failed to load playground history. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
     },
-  });
+    [projectId, playgroundId, toast]
+  );
 
-  const traces = data?.items;
-  const totalCount = data?.totalCount ?? 0;
-  const pageCount = useMemo(() => Math.ceil(totalCount / pageSize), [totalCount, pageSize]);
+  const {
+    data: traces,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+  } = useInfiniteScroll<Trace>({
+    fetchFn: fetchTraces,
+    enabled: !!projectId && !!playgroundId,
+    deps: [projectId, playgroundId],
+  });
 
   const handleRowClick = useCallback(
     (row: Row<Trace>) => {
@@ -199,26 +211,17 @@ export default function PlaygroundHistoryTable({
     [onRowClick, onTraceSelect]
   );
 
-  const onPageChange = useCallback((newPageNumber: number, newPageSize: number) => {
-    setPageNumber(newPageNumber);
-    setPageSize(newPageSize);
-  }, []);
-
   return (
-    <DataTable
-      className="border-none w-full"
+    <InfiniteDataTable<Trace>
+      className="w-full"
       columns={columns}
       data={traces}
       getRowId={(trace) => trace.id}
       onRowClick={handleRowClick}
-      paginated
-      manualPagination
-      pageCount={pageCount}
-      defaultPageSize={pageSize}
-      defaultPageNumber={pageNumber}
-      onPageChange={onPageChange}
-      totalItemsCount={totalCount}
-      enableRowSelection={false}
+      hasMore={hasMore}
+      isFetching={isFetching}
+      isLoading={isLoading}
+      fetchNextPage={fetchNextPage}
     />
   );
 }

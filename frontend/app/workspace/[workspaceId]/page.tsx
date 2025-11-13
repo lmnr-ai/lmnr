@@ -1,24 +1,20 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import WorkspacesNavbar from "@/components/projects/workspaces-navbar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
+import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { UserContextProvider } from "@/contexts/user-context";
+import { getWorkspace } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import {
-  membersOfWorkspaces,
-  subscriptionTiers,
-  users,
-  workspaceInvitations,
-  workspaces,
-} from "@/lib/db/migrations/schema";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
-import { cn } from "@/lib/utils";
-import { WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 export const metadata: Metadata = {
   title: "Workspace",
@@ -32,58 +28,43 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   }
   const user = session.user;
 
-  if (!isFeatureEnabled(Feature.WORKSPACE)) {
-    redirect("/projects");
-  }
-
   // check if user part of the workspace
-  const res = await db
-    .select({
-      id: workspaces.id,
-      name: workspaces.name,
-      tierName: subscriptionTiers.name,
-    })
-    .from(workspaces)
-    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-    .where(eq(workspaces.id, params.workspaceId))
-    .limit(1);
-
-  const workspace = res[0] as WorkspaceWithUsers;
-
-  if (!workspace) {
+  let workspace: WorkspaceWithOptionalUsers;
+  try {
+    workspace = await getWorkspace({ workspaceId: params.workspaceId });
+  } catch (error) {
     return notFound();
   }
 
-  // get all users in the workspace
-  const workspaceUsers = await db
+  const userId = user?.id;
+
+  if (!userId) {
+    return notFound();
+  }
+
+  const userMembership = await db
     .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
       role: membersOfWorkspaces.memberRole,
-      createdAt: membersOfWorkspaces.createdAt,
     })
-    .from(users)
-    .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
-    .where(eq(membersOfWorkspaces.workspaceId, params.workspaceId));
+    .from(membersOfWorkspaces)
+    .where(and(eq(membersOfWorkspaces.userId, userId), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
+    .limit(1)
+    .then((res) => res[0]);
 
-  workspace.users = workspaceUsers;
-
-  const isMember = workspaceUsers.find((u) => u.email === user.email);
-
-  if (!isMember) {
+  if (!userMembership) {
     return notFound();
   }
 
-  const currentUser = workspace.users.find((u) => u.email === user.email);
-  const isOwner = currentUser?.role === "owner";
-  const currentUserRole = currentUser?.role || "member";
+  const isOwner = userMembership.role === "owner";
+  const currentUserRole = userMembership.role || "member";
 
   const stats = await getWorkspaceStats(params.workspaceId);
 
   const invitations = await db.query.workspaceInvitations.findMany({
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
+
+  const workspaceFeatureEnabled = isFeatureEnabled(Feature.WORKSPACE);
 
   return (
     <UserContextProvider
@@ -93,23 +74,27 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
       username={user.name!}
       imageUrl={user.image!}
     >
-      <WorkspacesNavbar />
-      <div className="flex flex-col min-h-screen flex-grow overflow-auto ml-64">
-        <div className="flex flex-row justify-between items-center">
-          <div className="text-lg font-medium p-4 pb-2 flex items-center gap-2">
-            <span className="">{workspace.name}</span>
-            <div
-              className={cn(
-                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                workspace.tierName === "Pro" && "border-primary bg-primary/10 text-primary"
-              )}
-            >
-              {workspace.tierName}
-            </div>
-          </div>
+      <WorkspaceMenuProvider>
+        <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
+          <SidebarProvider className="bg-sidebar">
+            <WorkspaceSidebar
+              isOwner={isOwner}
+              workspace={workspace}
+              workspaceFeatureEnabled={workspaceFeatureEnabled}
+            />
+            <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
+              <WorkspaceComponent
+                invitations={invitations}
+                workspace={workspace}
+                workspaceStats={stats}
+                isOwner={isOwner}
+                currentUserRole={currentUserRole}
+                workspaceFeatureEnabled={workspaceFeatureEnabled}
+              />
+            </SidebarInset>
+          </SidebarProvider>
         </div>
-        <WorkspaceComponent invitations={invitations} workspace={workspace} workspaceStats={stats} isOwner={isOwner} currentUserRole={currentUserRole} />
-      </div>
+      </WorkspaceMenuProvider>
     </UserContextProvider>
   );
 }

@@ -31,6 +31,11 @@ pub struct CHEvaluationDatapoint {
     pub data: String,
     pub target: String,
     pub metadata: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub dataset_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub dataset_datapoint_id: Uuid,
+    pub dataset_datapoint_created_at: i64,
 }
 
 #[derive(Row, Deserialize)]
@@ -56,6 +61,22 @@ impl CHEvaluationDatapoint {
             target: json_value_to_string(&result.target),
             metadata: json_value_to_string(
                 &serde_json::to_value(result.metadata.unwrap_or_default()).unwrap_or_default(),
+            ),
+            dataset_id: result
+                .dataset_link
+                .as_ref()
+                .map(|link| link.dataset_id)
+                .unwrap_or_default(),
+            dataset_datapoint_id: result
+                .dataset_link
+                .as_ref()
+                .map(|link| link.datapoint_id)
+                .unwrap_or_default(),
+            dataset_datapoint_created_at: chrono_to_nanoseconds(
+                result
+                    .dataset_link
+                    .map(|link| link.created_at)
+                    .unwrap_or_default(),
             ),
         }
     }

@@ -75,7 +75,7 @@ const RenameEvaluationDialog = ({
       }}
     >
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-96">
         <DialogHeader>
           <DialogTitle>Rename evaluation</DialogTitle>
         </DialogHeader>

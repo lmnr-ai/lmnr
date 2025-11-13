@@ -4,7 +4,7 @@ import { PropsWithChildren, useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import CodeHighlighter from "@/components/ui/code-highlighter/index";
+import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaygroundForm } from "@/lib/playground/types";
@@ -50,9 +50,9 @@ export default function StructuredOutputSheet({
             disabled={!model}
             variant="outline"
             size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
+            className={cn("focus-visible:ring-0 size-7", className)}
           >
-            <BracesIcon className="w-3.5 h-3.5" />
+            <BracesIcon className="size-3.5" />
           </Button>
         </SheetTrigger>
       );
@@ -65,18 +65,18 @@ export default function StructuredOutputSheet({
             disabled={!model}
             variant="outlinePrimary"
             size="icon"
-            className={cn("focus-visible:ring-0 w-8 h-8 p-2", className)}
+            className={cn("focus-visible:ring-0 size-7", className)}
           >
-            <BracesIcon className="w-3.5 h-3.5" />
+            <BracesIcon className="size-4" />
           </Button>
         </SheetTrigger>
         <Button
           onClick={() => setValue("structuredOutput", undefined)}
-          className="w-8 h-8"
+          className="size-7"
           variant="outlinePrimary"
           size="icon"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="size-4" />
         </Button>
       </div>
     );
@@ -108,7 +108,7 @@ export default function StructuredOutputSheet({
           <div className="p-1 flex flex-1 overflow-hidden">
             <Controller
               render={({ field: { onChange } }) => (
-                <CodeHighlighter
+                <ContentRenderer
                   onChange={(v) => onChange(v)}
                   codeEditorClassName="rounded-b"
                   className={cn("rounded h-full", {

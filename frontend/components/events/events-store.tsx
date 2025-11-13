@@ -6,12 +6,20 @@ import { ManageEventDefinitionForm } from "@/components/event-definitions/manage
 import { EventDefinition } from "@/lib/actions/event-definitions";
 import { EventRow } from "@/lib/events/types";
 
+export type EventsStatsDataPoint = {
+  timestamp: string;
+  count: number;
+} & Record<string, number>;
+
 export type EventsState = {
   events?: EventRow[];
   totalCount: number;
   eventDefinition: ManageEventDefinitionForm;
   traceId: string | null;
   spanId: string | null;
+  stats?: EventsStatsDataPoint[];
+  isLoadingStats: boolean;
+  chartContainerWidth: number | null;
 };
 
 export type EventsActions = {
@@ -19,6 +27,8 @@ export type EventsActions = {
   setSpanId: (spanId: string | null) => void;
   fetchEvents: (params: URLSearchParams) => Promise<void>;
   setEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
+  fetchStats: (url: string) => Promise<void>;
+  setChartContainerWidth: (width: number) => void;
 };
 
 export interface EventsProps {
@@ -36,6 +46,9 @@ export const createEventsStore = (initProps: EventsProps) =>
     totalCount: 0,
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
+    stats: undefined,
+    isLoadingStats: false,
+    chartContainerWidth: null,
     eventDefinition: {
       ...initProps.eventDefinition,
       structuredOutput:
@@ -47,6 +60,7 @@ export const createEventsStore = (initProps: EventsProps) =>
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
+    setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
     fetchEvents: async (params: URLSearchParams) => {
       const { eventDefinition } = get();
 
@@ -65,6 +79,20 @@ export const createEventsStore = (initProps: EventsProps) =>
       } catch (error) {
         set({ events: [], totalCount: 0 });
         console.error("Error fetching events:", error);
+      }
+    },
+    fetchStats: async (url: string) => {
+      set({ isLoadingStats: true });
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch stats: ${response.status} ${response.statusText}`);
+        }
+        const data = (await response.json()) as { items: EventsStatsDataPoint[] };
+        set({ stats: data.items, isLoadingStats: false });
+      } catch (error) {
+        console.error("Failed to fetch event stats:", error);
+        set({ isLoadingStats: false });
       }
     },
   }));

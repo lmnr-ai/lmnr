@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import React, { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -52,15 +52,17 @@ export default function CreatePlaygroundDialog() {
         }}
       >
         <DialogTrigger asChild>
-          <Button variant="default">New playground</Button>
+          <Button icon="plus" className="w-fit">
+            Playground
+          </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Create new playground</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
             <Label>Name</Label>
-            <Input autoFocus placeholder="Name" onChange={(e) => setNewPlaygroundName(e.target.value)} />
+            <Input autoFocus placeholder="Enter name..." onChange={(e) => setNewPlaygroundName(e.target.value)} />
           </div>
           <DialogFooter>
             <Button onClick={createNewPlayground} disabled={!newPlaygroundName || isLoading} handleEnter>

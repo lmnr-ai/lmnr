@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
+import { generateUuid } from "@/lib/utils";
 
 export const MoveQueueSchema = z.object({
   queueId: z.string(),
@@ -21,7 +22,7 @@ export const PushQueueItemSchema = z.object({
       payload: z.object({
         data: z.any(),
         target: z.any(),
-        metadata: z.any(),
+        metadata: z.record(z.string(), z.any()),
       }),
       metadata: z.object({
         source: z.enum(["span", "datapoint"]),
@@ -42,7 +43,7 @@ export const RemoveQueueItemSchema = z.object({
   datasetId: z.string().optional(),
   data: z.any(),
   target: z.any(),
-  metadata: z.any(),
+  metadata: z.record(z.string(), z.any()),
   projectId: z.string(),
 });
 
@@ -148,7 +149,7 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
 
     await createDatapoints(projectId, datasetId, [
       {
-        id,
+        id: generateUuid(),
         data,
         target,
         metadata,

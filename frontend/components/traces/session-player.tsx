@@ -23,6 +23,8 @@ import {
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
+import { Slider } from "../ui/slider";
+
 interface SessionPlayerProps {
   hasBrowserSession?: boolean;
   traceId: string;
@@ -203,16 +205,15 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   }, [isPlaying]);
 
   const handleTimelineChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const time = parseFloat(e.target.value);
-      setSessionTime(time);
+    (value: number) => {
+      setSessionTime(value);
 
       if (playerRef.current) {
         const wasPlaying = isPlaying;
         if (wasPlaying) playerRef.current.pause();
 
         setTimeout(() => {
-          playerRef.current.goto(time * 1000);
+          playerRef.current.goto(value * 1000);
           if (wasPlaying) playerRef.current.play();
         }, 50);
       }
@@ -232,14 +233,13 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <div className="h-8 border-b pl-4 flex items-center gap-0 flex-shrink-0">
+      <div className="h-8 border-b pl-4 flex items-center gap-0 shrink-0">
         {hasBrowserSession && (
           <button
             onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
-              activeTab === "browser-session"
-                ? "border-secondary-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
+              ? "border-secondary-foreground text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             Session
@@ -248,10 +248,9 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
         <button
           onClick={() => setActiveTab("images")}
-          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
-            activeTab === "images"
-              ? "border-secondary-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "images"
+            ? "border-secondary-foreground text-foreground"
+            : "border-transparent text-muted-foreground hover:text-foreground"
           } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
         >
           Images
@@ -279,7 +278,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
             </div>
           ) : (
             <>
-              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b flex-shrink-0">
+              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
                 <button onClick={handlePlayPause} className="text-white py-1 rounded">
                   {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
                 </button>
@@ -297,14 +296,12 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <input
-                  type="range"
-                  className="flex-grow cursor-pointer"
-                  min="0"
-                  step="0.1"
+                <Slider
+                  min={0}
+                  step={0.1}
                   max={duration}
-                  value={sessionTime || 0}
-                  onChange={handleTimelineChange}
+                  value={[sessionTime || 0]}
+                  onValueChange={(value) => handleTimelineChange(value[0] as number)}
                 />
                 <span className="font-mono">
                   {formatSecondsToMinutesAndSeconds(sessionTime || 0)}/{formatSecondsToMinutesAndSeconds(duration)}
@@ -312,7 +309,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
               </div>
 
               {currentUrl && (
-                <div className="flex items-center px-4 py-1 border-b flex-shrink-0">
+                <div className="flex items-center px-4 py-1 border-b shrink-0">
                   <a
                     href={currentUrl}
                     target="_blank"

@@ -18,8 +18,12 @@ pub struct SseConnection {
     pub sender: mpsc::UnboundedSender<SseMessage>,
 }
 
-/// Global storage for SSE connections mapped by project_id
-pub type SseConnectionMap = Arc<DashMap<Uuid, Vec<SseConnection>>>;
+/// Subscription key that identifies what messages a client wants to receive
+/// Examples: "traces", "trace_123e4567-e89b-12d3-a456-426614174000"
+pub type SubscriptionKey = String;
+
+/// Global storage for SSE connections mapped by (project_id, subscription_key) tuple
+pub type SseConnectionMap = Arc<DashMap<(Uuid, SubscriptionKey), Vec<SseConnection>>>;
 
 /// SSE message receiver
 pub type SseReceiver = mpsc::UnboundedReceiver<SseMessage>;
@@ -36,6 +40,7 @@ pub struct SseStream {
     heartbeat_interval: tokio::time::Interval,
     project_id: Uuid,
     connection_id: Uuid,
+    subscription_key: SubscriptionKey,
     connections: SseConnectionMap,
 }
 
@@ -44,6 +49,7 @@ impl SseStream {
         receiver: SseReceiver,
         project_id: Uuid,
         connection_id: Uuid,
+        subscription_key: SubscriptionKey,
         connections: SseConnectionMap,
     ) -> Self {
         let mut heartbeat_interval = interval(Duration::from_secs(10));
@@ -54,6 +60,7 @@ impl SseStream {
             heartbeat_interval,
             project_id,
             connection_id,
+            subscription_key,
             connections,
         }
     }
@@ -88,37 +95,45 @@ impl Stream for SseStream {
 impl Drop for SseStream {
     fn drop(&mut self) {
         log::info!(
-            "SSE stream dropped for project: {} (connection: {})",
+            "SSE stream dropped for project: {} key: {} (connection: {})",
             self.project_id,
+            self.subscription_key,
             self.connection_id
         );
 
         // Remove this specific connection from the connections map
-        if let Some(mut connections_for_project) = self.connections.get_mut(&self.project_id) {
-            connections_for_project.retain(|conn| conn.id != self.connection_id);
+        let key = (self.project_id, self.subscription_key.clone());
 
-            if connections_for_project.is_empty() {
-                drop(connections_for_project);
-                self.connections.remove(&self.project_id);
+        if let Some(mut connections) = self.connections.get_mut(&key) {
+            connections.retain(|conn| conn.id != self.connection_id);
+
+            let remaining = connections.len();
+
+            if remaining == 0 {
+                drop(connections);
+                self.connections.remove(&key);
                 log::info!(
-                    "Removed empty SSE connection entry for project {}",
-                    self.project_id
+                    "Removed empty SSE connection entry for project {} key {}",
+                    self.project_id,
+                    self.subscription_key
                 );
             } else {
                 log::info!(
-                    "Removed connection {} for project {}, {} connections remaining",
+                    "Removed connection {} for project {} key {}, {} connections remaining",
                     self.connection_id,
                     self.project_id,
-                    connections_for_project.len()
+                    self.subscription_key,
+                    remaining
                 );
             }
         }
     }
 }
 
-/// Create SSE response for a project
+/// Create SSE response for a project with a subscription key
 pub fn create_sse_response(
     project_id: Uuid,
+    subscription_key: SubscriptionKey,
     connections: SseConnectionMap,
 ) -> ActixResult<HttpResponse> {
     let (sender, receiver) = mpsc::unbounded_channel();
@@ -130,18 +145,27 @@ pub fn create_sse_response(
         sender,
     };
 
+    let key = (project_id, subscription_key.clone());
+
     connections
-        .entry(project_id)
+        .entry(key)
         .or_insert_with(Vec::new)
         .push(connection);
 
     log::info!(
-        "New SSE connection established for project: {} (connection: {})",
+        "New SSE connection established for project: {} key: {} (connection: {})",
         project_id,
-        connection_id
+        subscription_key,
+        connection_id,
     );
 
-    let stream = SseStream::new(receiver, project_id, connection_id, connections.clone());
+    let stream = SseStream::new(
+        receiver,
+        project_id,
+        connection_id,
+        subscription_key,
+        connections.clone(),
+    );
 
     Ok(HttpResponse::Ok()
         .insert_header(("Content-Type", "text/event-stream"))
@@ -152,34 +176,39 @@ pub fn create_sse_response(
         .streaming(stream))
 }
 
-/// Send message to all SSE connections for a project
-pub fn send_to_project_connections(
+/// Send message to all SSE connections for a specific project and subscription key
+pub fn send_to_key(
     connections: &SseConnectionMap,
     project_id: &Uuid,
+    subscription_key: &str,
     message: SseMessage,
 ) {
-    if let Some(mut project_connections) = connections.get_mut(project_id) {
-        let initial_count = project_connections.len();
+    let key = (*project_id, subscription_key.to_string());
+
+    if let Some(mut conns) = connections.get_mut(&key) {
+        let initial_count = conns.len();
 
         // Remove closed connections while sending
-        project_connections.retain(|conn| conn.sender.send(message.clone()).is_ok());
+        conns.retain(|conn| conn.sender.send(message.clone()).is_ok());
 
-        let final_count = project_connections.len();
+        let final_count = conns.len();
         if final_count < initial_count {
             log::debug!(
-                "Cleaned up {} closed SSE connections for project {}",
+                "Cleaned up {} closed SSE connections for project {} key {}",
                 initial_count - final_count,
-                project_id
+                project_id,
+                subscription_key
             );
         }
 
         // Remove entry if no active connections
-        if project_connections.is_empty() {
-            drop(project_connections);
-            connections.remove(project_id);
+        if conns.is_empty() {
+            drop(conns);
+            connections.remove(&key);
             log::info!(
-                "Removed empty SSE connection entry for project {}",
-                project_id
+                "Removed empty SSE connection entry for project {} key {}",
+                project_id,
+                subscription_key
             );
         }
     }
@@ -192,36 +221,44 @@ pub async fn cleanup_closed_connections(connections: SseConnectionMap) {
     loop {
         interval.tick().await;
 
-        let mut projects_to_remove = Vec::new();
+        // First collect all keys
+        let all_keys: Vec<_> = connections
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect();
 
-        // Check all projects for closed connections
-        for mut entry in connections.iter_mut() {
-            let project_id = *entry.key();
-            let project_connections = entry.value_mut();
-            let initial_count = project_connections.len();
+        let mut keys_to_remove = Vec::new();
 
-            // Test each connection by trying to send a ping
-            project_connections.retain(|conn| !conn.sender.is_closed());
+        // Check each connection
+        for key in all_keys {
+            if let Some(mut conns) = connections.get_mut(&key) {
+                let (project_id, subscription_key) = &key;
+                let initial_count = conns.len();
 
-            let final_count = project_connections.len();
-            let cleaned = initial_count - final_count;
+                // Test each connection by checking if sender is closed
+                conns.retain(|conn| !conn.sender.is_closed());
 
-            if cleaned > 0 {
-                log::info!(
-                    "Periodic cleanup: removed {} closed connections for project {}",
-                    cleaned,
-                    project_id
-                );
-            }
+                let final_count = conns.len();
+                let cleaned = initial_count - final_count;
 
-            if project_connections.is_empty() {
-                projects_to_remove.push(project_id);
+                if cleaned > 0 {
+                    log::info!(
+                        "Periodic cleanup: removed {} closed connections for project {} key {}",
+                        cleaned,
+                        project_id,
+                        subscription_key
+                    );
+                }
+
+                if conns.is_empty() {
+                    keys_to_remove.push(key.clone());
+                }
             }
         }
 
-        // Remove empty project entries
-        for project_id in projects_to_remove {
-            connections.remove(&project_id);
+        // Remove empty entries
+        for key in keys_to_remove {
+            connections.remove(&key);
         }
     }
 }

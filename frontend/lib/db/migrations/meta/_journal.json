@@ -421,6 +421,20 @@
       "when": 1761141201098,
       "tag": "0059_brief_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1762186960666,
+      "tag": "0060_smooth_pride",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1762206424293,
+      "tag": "0061_zippy_the_hood",
+      "breakpoints": true
     }
   ]
 }

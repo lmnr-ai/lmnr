@@ -9,21 +9,6 @@ export const traceType = pgEnum("trace_type", ['DEFAULT', 'EVENT', 'EVALUATION',
 export const workspaceRole = pgEnum("workspace_role", ['member', 'owner', 'admin']);
 
 
-export const datasetParquets = pgTable("dataset_parquets", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  datasetId: uuid("dataset_id").defaultRandom().notNull(),
-  parquetPath: text("parquet_path").notNull(),
-  jobId: uuid("job_id").defaultRandom().notNull(),
-  name: text(),
-}, (table) => [
-  foreignKey({
-    columns: [table.datasetId],
-    foreignColumns: [datasets.id],
-    name: "dataset_parquets_dataset_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-]);
-
 export const projectSettings = pgTable("project_settings", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   name: text(),
@@ -121,6 +106,27 @@ export const projects = pgTable("projects", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const slackIntegrations = pgTable(
+  "slack_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    token: text().notNull(),
+    teamId: text("team_id").notNull(),
+    teamName: text("team_name"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    nonceHex: text("nonce_hex").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "slack_integrations_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_integrations_project_id_key").on(table.projectId),
+  ]
+);
+
 export const membersOfWorkspaces = pgTable("members_of_workspaces", {
   workspaceId: uuid("workspace_id").notNull(),
   userId: uuid("user_id").notNull(),
@@ -142,23 +148,6 @@ export const membersOfWorkspaces = pgTable("members_of_workspaces", {
   unique("members_of_workspaces_user_workspace_unique").on(table.workspaceId, table.userId),
 ]);
 
-export const projectApiKeys = pgTable("project_api_keys", {
-  value: text().default('').notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  name: text(),
-  projectId: uuid("project_id").notNull(),
-  shorthand: text().default('').notNull(),
-  hash: text().default('').notNull(),
-  id: uuid().defaultRandom().primaryKey().notNull(),
-}, (table) => [
-  index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "public_project_api_keys_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-]);
-
 export const providerApiKeys = pgTable("provider_api_keys", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -174,6 +163,24 @@ export const providerApiKeys = pgTable("provider_api_keys", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const projectApiKeys = pgTable("project_api_keys", {
+  value: text().default('').notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text(),
+  projectId: uuid("project_id").notNull(),
+  shorthand: text().default('').notNull(),
+  hash: text().default('').notNull(),
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  isIngestOnly: boolean("is_ingest_only").default(false).notNull(),
+}, (table) => [
+  index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "public_project_api_keys_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const userSubscriptionInfo = pgTable("user_subscription_info", {
   userId: uuid("user_id").defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -186,6 +193,47 @@ export const userSubscriptionInfo = pgTable("user_subscription_info", {
     foreignColumns: [users.id],
     name: "user_subscription_info_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const datasetExportJobs = pgTable("dataset_export_jobs", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  datasetId: uuid("dataset_id").notNull(),
+  projectId: uuid("project_id").notNull(),
+  status: text().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.datasetId],
+    foreignColumns: [datasets.id],
+    name: "dataset_export_jobs_dataset_id_fkey"
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "dataset_export_jobs_project_id_fkey"
+  }).onDelete("cascade"),
+  unique("dataset_export_jobs_project_dataset_key").on(table.datasetId, table.projectId),
+]);
+
+export const datasetParquets = pgTable("dataset_parquets", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  datasetId: uuid("dataset_id").notNull(),
+  parquetPath: text("parquet_path").notNull(),
+  jobId: uuid("job_id").notNull(),
+  name: text(),
+  projectId: uuid("project_id").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.datasetId],
+    foreignColumns: [datasets.id],
+    name: "dataset_parquets_dataset_id_fkey"
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "dataset_parquets_project_id_fkey"
+  }).onDelete("cascade"),
 ]);
 
 export const apiKeys = pgTable("api_keys", {
@@ -502,6 +550,30 @@ export const workspaceUsage = pgTable("workspace_usage", {
     name: "user_usage_workspace_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+export const slackChannelToEvents = pgTable(
+  "slack_channel_to_events",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    channelId: text("channel_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    eventName: text("event_name").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_to_events_integration_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_channel_to_events_integration_channel_event_key").on(
+      table.channelId,
+      table.eventName,
+      table.integrationId
+    ),
+  ]
+);
 
 export const workspaces = pgTable("workspaces", {
   id: uuid().defaultRandom().primaryKey().notNull(),

@@ -4,7 +4,7 @@ import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { get } from "lodash";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
 import {
@@ -18,8 +18,8 @@ import {
 } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import { theme } from "@/components/ui/code-highlighter/utils.ts";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { theme } from "@/components/ui/content-renderer/utils";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -64,8 +64,7 @@ const TriggerSpansField = ({
           <Label>Trigger Spans</Label>
           <p className="text-xs text-muted-foreground mt-1">Span names that will trigger this event.</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => append({ name: "" })} className="h-8">
-          <Plus className="w-4 h-4 mr-1" />
+        <Button icon="plus" variant="outline" onClick={() => append({ name: "" })}>
           Add Span
         </Button>
       </div>
@@ -179,11 +178,11 @@ function ManageEventDefinitionDialogContent({
   );
 
   return (
-    <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+    <DialogContent className="max-h-[80vh] overflow-auto">
       <DialogHeader>
         <DialogTitle>{id ? watch("name") : "Create new event definition"}</DialogTitle>
       </DialogHeader>
-      <form onSubmit={handleSubmit(submit)} className="grid gap-6">
+      <form onSubmit={handleSubmit(submit)} className="grid gap-4">
         <div className="grid gap-2">
           <Label htmlFor="name">Name</Label>
           <Controller
@@ -194,7 +193,7 @@ function ManageEventDefinitionDialogContent({
               <Input disabled={Boolean(id)} id="name" placeholder="Event name" autoFocus {...field} />
             )}
           />
-          {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
         </div>
 
         <div className="grid gap-2">
@@ -212,7 +211,7 @@ function ManageEventDefinitionDialogContent({
               />
             )}
           />
-          {errors.prompt && <p className="text-sm text-red-500">{errors.prompt.message}</p>}
+          {errors.prompt && <p className="text-xs text-destructive">{errors.prompt.message}</p>}
         </div>
 
         <TriggerSpansField control={control} errors={errors} />
@@ -267,10 +266,8 @@ function ManageEventDefinitionDialogContent({
           )}
           {errors.structuredOutput && <p className="text-sm text-red-500">{errors.structuredOutput.message}</p>}
         </div>
-
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <DialogFooter>
           <Button
-            type="button"
             variant="outline"
             onClick={() => {
               setOpen(false);
@@ -279,11 +276,11 @@ function ManageEventDefinitionDialogContent({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading || !isValid} handleEnter>
+          <Button type="submit" disabled={isLoading || !isValid}>
             <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
             {id ? "Save" : "Create"}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </DialogContent>
   );
@@ -316,7 +313,6 @@ export default function ManageEventDefinitionDialog({
 
   const form = useForm<ManageEventDefinitionForm>({
     defaultValues: convertToFormValues(initialValues),
-    mode: "onChange",
   });
 
   const onOpenChange = useCallback(

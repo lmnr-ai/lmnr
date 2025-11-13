@@ -7,6 +7,9 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
+const LAST_PROJECT_ID = "last-project-id";
+const MAX_AGE = 60 * 60 * 24 * 30;
+
 export const DeleteProjectSchema = z.object({
   projectId: z.uuid(),
 });
@@ -164,16 +167,16 @@ async function deleteProjectWorkspaceInfoFromCache(projectId: string) {
   await cache.remove(cacheKey);
 }
 
-export const getProjectDetails = async (
-  projectId: string
-): Promise<{
+export interface ProjectDetails {
   id: string;
   name: string;
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
   isFreeTier: boolean;
-}> => {
+}
+
+export const getProjectDetails = async (projectId: string): Promise<ProjectDetails> => {
   const projectResult = await db
     .select({
       id: projects.id,
@@ -247,3 +250,5 @@ export const getProjectDetails = async (
     isFreeTier,
   };
 };
+
+export { LAST_PROJECT_ID, MAX_AGE };

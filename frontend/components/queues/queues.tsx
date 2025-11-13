@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -8,13 +8,14 @@ import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
 import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
-import { DataTable } from "../ui/datatable";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,6 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import Header from "../ui/header";
-import { TableCell, TableRow } from "../ui/table";
 import CreateQueueDialog from "./create-queue-dialog";
 
 const columns: ColumnDef<LabelingQueue>[] = [
@@ -51,10 +51,12 @@ const columns: ColumnDef<LabelingQueue>[] = [
   },
 ];
 
-export default function Queues() {
+const QueuesContent = () => {
   const { projectId } = useParams();
-
   const router = useRouter();
+  const { toast } = useToast();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
   const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue & { count: number }>>(
     `/api/projects/${projectId}/queues`,
     swrFetcher
@@ -62,7 +64,6 @@ export default function Queues() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { toast } = useToast();
 
   const handleDeleteQueues = async (queueIds: string[]) => {
     setIsDeleting(true);
@@ -73,6 +74,7 @@ export default function Queues() {
 
       if (res.ok) {
         mutate();
+        setRowSelection({});
         toast({
           title: "Queues deleted",
           description: `Successfully deleted ${queueIds.length} queue(s).`,
@@ -92,24 +94,30 @@ export default function Queues() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <Header path="labeling queues" />
-      <div className="flex justify-between items-center p-4 flex-none">
-        <h1 className="scroll-m-20 text-2xl font-medium">Labeling Queues</h1>
+      <div className="flex flex-col gap-4 px-4 pb-4">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
-          <Button variant="default">New queue</Button>
+          <Button icon="plus" className="w-fit">
+            Queue
+          </Button>
         </CreateQueueDialog>
-      </div>
-      <div className="flex-grow">
-        <DataTable
-          paginated
+        <InfiniteDataTable
           enableRowSelection={true}
           onRowClick={(row) => {
             router.push(`/project/${projectId}/labeling-queues/${row.original.id}`);
           }}
           getRowId={(row: LabelingQueue) => row.id}
           columns={columns}
-          data={data?.items}
+          data={data?.items ?? []}
+          hasMore={false}
+          isFetching={false}
+          isLoading={!data}
+          fetchNextPage={() => {}}
+          state={{
+            rowSelection,
+          }}
+          onRowSelectionChange={setRowSelection}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -139,15 +147,16 @@ export default function Queues() {
               </Dialog>
             </div>
           )}
-          emptyRow={
-            <TableRow>
-              <TableCell colSpan={columns.length} className="text-center text">
-                Create a new queue to get started
-              </TableCell>
-            </TableRow>
-          }
         />
       </div>
-    </div>
+    </>
+  );
+};
+
+export default function Queues() {
+  return (
+    <DataTableStateProvider>
+      <QueuesContent />
+    </DataTableStateProvider>
   );
 }

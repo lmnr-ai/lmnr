@@ -1,11 +1,12 @@
+import { memo } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
+import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
 import { WorkspaceStats } from "@/lib/usage/types";
 import { cn } from "@/lib/utils";
 import { Workspace } from "@/lib/workspaces/types";
 
-import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";
 import PricingDialog from "./pricing-dialog";
@@ -50,8 +51,7 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
   };
 
   const tierHintInfo = TIER_USAGE_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_USAGE_HINTS];
-  const tierHint =
-    `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data per month.`;
+  const tierHint = `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data per month.`;
 
   const tierHintOverages =
     "If you exceed this limit, " +
@@ -60,56 +60,59 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
       : "you won't be able to send any more data during current billing cycle.");
 
   return (
-    <div className="p-4 flex flex-col gap-4 w-2/3">
-      <div className="flex items-center gap-2">
-        Workspace tier
-        <span
-          className={cn(
-            "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-            {
-              "border-primary bg-primary/10 text-primary": workspace.tierName === "Pro",
-            }
-          )}
-        >
-          {workspace.tierName}
-        </span>{" "}
-        |
-        <div className="text-sm text-secondary-foreground">
-          Monthly billing cycle started <ClientTimestampFormatter timestamp={resetTime} />
+    <>
+      <SettingsSectionHeader title="Usage & Billing" description="Manage your workspace plan and monitor usage" />
+      <SettingsSection>
+        <SettingsSectionHeader
+          size="sm"
+          title="Workspace plan"
+          description={`Monthly billing cycle started ${new Date(resetTime).toLocaleDateString()}`}
+        />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-secondary-foreground">Current tier:</span>
+            <span
+              className={cn(
+                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                {
+                  "border-primary bg-primary/10 text-primary": workspace.tierName === "Pro",
+                }
+              )}
+            >
+              {workspace.tierName}
+            </span>
+          </div>
         </div>
-      </div>
+        {isOwner && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="w-fit" variant="default">
+                {workspaceStats.tierName.toLowerCase().trim() === "free" ? "Upgrade" : "Manage billing"}
+              </Button>
+            </DialogTrigger>
+            <DialogTitle className="sr-only">Manage billing</DialogTitle>
+            <DialogContent className="max-w-[90vw] p-0 border-none">
+              <PricingDialog
+                workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
+                workspaceId={workspace.id}
+                workspaceName={workspace.name}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </SettingsSection>
 
-      {isOwner && (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="self-start" variant="default">
-              {workspaceStats.tierName.toLowerCase().trim() === "free" ? "Upgrade" : "Manage billing"}
-            </Button>
-          </DialogTrigger>
-          <DialogTitle className="sr-only">Manage billing</DialogTitle>
-          <DialogContent className="max-w-[90vw] p-0 border-none">
-            <PricingDialog
-              workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
-              workspaceId={workspace.id}
-              workspaceName={workspace.name}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <div className="flex flex-col gap-8 mt-4">
-        <div className="flex flex-col gap-2">
-          <span className="font-semibold text-lg">Usage Summary</span>
-          <p className="text-secondary-foreground text-sm mb-2 max-w-lg">
-            {tierHint} {tierHintOverages}
-          </p>
-        </div>
-        <div className="grid grid-cols-1 max-w-xl md:grid-cols-2 sm:divide-y md:divide-y-0 md:divide-x">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              <span className="text-sm">Data usage</span>
+      <SettingsSection>
+        <SettingsSectionHeader size="sm" title="Usage summary" description={`${tierHint} ${tierHintOverages}`} />
+        <div className="border rounded-md p-6 bg-secondary max-w-md">
+          <div className="flex justify-between items-center max-w-md">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Data usage</span>
               <span className="text-sm text-secondary-foreground">
-                {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)} ({formatter.format(gbUsedThisMonth / gbLimit)})
+                {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {formatter.format(gbUsedThisMonth / gbLimit)} of limit used
               </span>
             </div>
             <UsageProgressDisc
@@ -120,8 +123,8 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
             />
           </div>
         </div>
-      </div>
-    </div >
+      </SettingsSection>
+    </>
   );
 }
 
@@ -132,7 +135,7 @@ interface UsageProgressDiscProps {
   dataKey: string;
 }
 
-const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
+const UsageProgressDisc = memo(({ maxValue, value, data, dataKey }: UsageProgressDiscProps) => {
   const startAngle = 90;
   const endAngle = startAngle - (Math.min(value, maxValue) / maxValue) * 360;
 
@@ -142,7 +145,7 @@ const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDisc
         <PolarGrid
           gridType="circle"
           radialLines={false}
-          className="first:fill-muted last:fill-background"
+          className="first:fill-muted last:fill-sidebar"
           polarRadius={[25, 22]}
         />
         <RadialBar dataKey={dataKey} cornerRadius={50} />
@@ -150,4 +153,6 @@ const UsageProgressDisc = ({ maxValue, value, data, dataKey }: UsageProgressDisc
       </RadialBarChart>
     </ChartContainer>
   );
-};
+});
+
+UsageProgressDisc.displayName = "UsageProgressDisc";

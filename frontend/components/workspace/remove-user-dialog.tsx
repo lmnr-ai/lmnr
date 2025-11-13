@@ -12,12 +12,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
-import { WorkspaceUser, WorkspaceWithUsers } from "@/lib/workspaces/types";
+import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
 
 interface RemoveUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspace: WorkspaceWithUsers;
+  workspace: Workspace;
   user?: WorkspaceUser;
 }
 

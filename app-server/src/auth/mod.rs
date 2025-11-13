@@ -26,9 +26,10 @@ impl FromRequest for ProjectApiKey {
     }
 }
 
-pub async fn project_validator(
+async fn validate_project_api_key(
     req: ServiceRequest,
     credentials: BearerAuth,
+    allow_ingest_only: bool,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     let config = req
         .app_data::<Config>()
@@ -48,8 +49,20 @@ pub async fn project_validator(
 
     match get_api_key_from_raw_value(&db.pool, cache, credentials.token().to_string()).await {
         Ok(api_key) => {
-            req.extensions_mut()
-                .insert(api_key.into_with_raw(credentials.token().to_string()));
+            // Check if ingest-only keys are allowed for this endpoint
+            if !allow_ingest_only && api_key.is_ingest_only {
+                log::warn!(
+                    "Ingest-only API key attempted to access restricted endpoint: project_id={}",
+                    api_key.project_id
+                );
+                // Return a blank 404 to match default actix web behavior
+                let response = actix_web::HttpResponse::NotFound().finish();
+                return Err((
+                    actix_web::error::InternalError::from_response("", response).into(),
+                    req,
+                ));
+            }
+            req.extensions_mut().insert(api_key);
             Ok(req)
         }
         Err(e) => {
@@ -57,4 +70,20 @@ pub async fn project_validator(
             Err((AuthenticationError::from(config).into(), req))
         }
     }
+}
+
+/// Standard project validator - blocks ingest-only keys
+pub async fn project_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    validate_project_api_key(req, credentials, false).await
+}
+
+/// Ingestion validator - allows ingest-only keys for trace ingestion endpoints
+pub async fn project_ingestion_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    validate_project_api_key(req, credentials, true).await
 }

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   try {
     const result = await getSessions({ ...parseResult.data, projectId });
-    return Response.json({ items: result.items, totalCount: result.count });
+    return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });

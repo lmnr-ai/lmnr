@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
@@ -30,8 +31,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
-        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success", {
-          "bg-destructive": row.getValue() === "error",
+        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
+          "bg-destructive-bright": row.getValue() === "error",
           "": row.getValue() === "info", // temporary color values
           "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}
@@ -40,34 +41,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
-    size: 32,
+    size: 40,
   },
-  // {
-  //   cell: (row) => (
-  //     <span
-  //       title={row.row.original.summary}
-  //       className={cn("text-sm line-clamp-1 whitespace-normal break-words", {
-  //         "line-clamp-4": row.getValue() !== "",
-  //       })}
-  //     >
-  //       {row.row.original.summary}
-  //     </span>
-  //   ),
-  //   accessorFn: (row) => {
-  //     if (row.analysis_preview !== "") {
-  //       return row.analysis_preview;
-  //     }
-  //     return row.summary;
-  //   },
-  //   header: "Summary",
-  //   id: "summary",
-  //   size: 190,
-  // },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "ID",
     accessorKey: "id",
     id: "id",
+    size: 150,
   },
   {
     accessorKey: "topSpanType",
@@ -89,9 +70,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
             )}
           </div>
           {hasTopSpan ? (
-            <div className="text-sm truncate">{row.row.original.topSpanName}</div>
+            <div title={row.row.original.topSpanName} className="text-sm truncate">
+              {row.row.original.topSpanName}
+            </div>
           ) : row.row.original.topSpanName ? (
-            <div className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}>
+            <div
+              title={row.row.original.topSpanName}
+              className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}
+            >
               {row.row.original.topSpanName}
             </div>
           ) : (
@@ -132,32 +118,23 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         return (
           <TooltipProvider delayDuration={100}>
             <Tooltip>
-              <TooltipTrigger className="relative p-0">
-                <div
-                  style={{
-                    width: row.column.getSize() - 32,
-                  }}
-                  className="relative"
-                >
-                  <div className="absolute inset-0 top-[-4px] items-center h-full flex">
-                    <div className="text-ellipsis overflow-hidden whitespace-nowrap">
-                      {format.format(row.getValue())}
+              <TooltipTrigger asChild className="relative p-0">
+                <div className="truncate">{format.format(row.getValue())}</div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border">
+                  <div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Input cost</span>
+                      <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+                    </div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Output cost</span>
+                      <span>{detailedFormat.format(row.row.original.outputCost)}</span>
                     </div>
                   </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="p-2 border">
-                <div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Input cost</span>
-                    <span>{detailedFormat.format(row.row.original.inputCost)}</span>
-                  </div>
-                  <div className="flex justify-between space-x-2">
-                    <span>Output cost</span>
-                    <span>{detailedFormat.format(row.row.original.outputCost)}</span>
-                  </div>
-                </div>
-              </TooltipContent>
+                </TooltipContent>
+              </TooltipPortal>
             </Tooltip>
           </TooltipProvider>
         );

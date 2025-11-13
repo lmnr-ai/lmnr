@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR, { useSWRConfig } from "swr";
@@ -191,7 +191,7 @@ const HumanEvaluationScore = ({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="border rounded-lg py-3 px-4 space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="border rounded-lg py-2 px-2 space-y-2">
       {hasOptions ? (
         <div className="space-y-2">
           <Label className="text-sm font-medium">Score Options</Label>
@@ -223,10 +223,8 @@ const HumanEvaluationScore = ({
         </div>
       ) : (
         <>
-          <div className="space-y-2">
-            <Label htmlFor="score" className="text-sm font-medium">
-              Score
-            </Label>
+          <div className="flex items-center space-x-2">
+            <span className="text-secondary-foreground text-sm font-medium w-40">Evaluation score</span>
             <Controller
               name="score"
               control={control}
@@ -244,16 +242,17 @@ const HumanEvaluationScore = ({
               )}
             />
           </div>
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            variant="outline"
-            className="text-pink-400/80 border-pink-400/80"
-            handleEnter
-          >
-            {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-            <span>Save Score</span>
-          </Button>
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              variant="default"
+              handleEnter
+            >
+              {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+              <span>Save score</span>
+            </Button>
+          </div>
         </>
       )}
       {errors.score && <p className="text-sm text-red-500">{errors.score.message}</p>}

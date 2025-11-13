@@ -1,3 +1,4 @@
+import { scaleUtc } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
 import { isNil } from "lodash";
 
@@ -16,27 +17,24 @@ export const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
-const tryFormatAsDate = (value: any, formatPattern: string = "M/dd"): string => {
-  const toUtcString = (str: string) => (str.includes("T") && !str.endsWith("Z") ? str + "Z" : str);
-
-  const parseValue = (val: any) =>
-    val instanceof Date
-      ? val
-      : typeof val === "string"
-        ? parseISO(toUtcString(val))
-        : typeof val === "number"
-          ? new Date(val)
-          : null;
-
+const tryFormatAsDate = (value: string | number | Date, formatPattern: string = "M/dd"): string => {
   try {
-    const date = parseValue(value);
+    const date =
+      value instanceof Date
+        ? value
+        : typeof value === "string"
+          ? parseISO(value.includes("T") && !value.endsWith("Z") ? value + "Z" : value)
+          : typeof value === "number"
+            ? new Date(value)
+            : null;
+
     return date && isValid(date) ? format(date, formatPattern) : String(value);
   } catch {
     return String(value);
   }
 };
 
-const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): string => {
+const getOptimalDateFormat = (data: Record<string, unknown>[], dataKey: string): string => {
   try {
     const dates = data
       .map((row) => {
@@ -45,7 +43,7 @@ const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): str
           if (typeof value === "string" && value.includes("T")) {
             return parseISO(value);
           }
-          return new Date(value);
+          return new Date(value as string | number | Date);
         } catch {
           return null;
         }
@@ -69,15 +67,15 @@ const getOptimalDateFormat = (data: Record<string, any>[], dataKey: string): str
   }
 };
 
-export const createAxisFormatter = (data: Record<string, any>[], dataKey: string) => {
+export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: string) => {
   const dateFormat = getOptimalDateFormat(data, dataKey);
 
-  return (value: any) => {
+  return (value: string | number | Date) => {
     if (typeof value === "number") {
       return numberFormatter.format(value);
     }
 
-    if (typeof value === "string") {
+    if (typeof value === "string" || value instanceof Date) {
       const dateFormatted = tryFormatAsDate(value, dateFormat);
       if (dateFormatted !== value) {
         return dateFormatted;
@@ -85,6 +83,38 @@ export const createAxisFormatter = (data: Record<string, any>[], dataKey: string
     }
 
     return String(value);
+  };
+};
+
+export const selectNiceTicksFromData = (
+  dataTimestamps: string[],
+  targetTickCount: number = 8
+): { ticks: string[]; formatter: (value: string) => string } | null => {
+  if (dataTimestamps.length === 0) return null;
+
+  const toUtc = (s: string) => (s.includes("T") && !s.endsWith("Z") ? s + "Z" : s);
+
+  const startDate = new Date(toUtc(dataTimestamps[0]));
+  const endDate = new Date(toUtc(dataTimestamps[dataTimestamps.length - 1]));
+
+  if (!isValid(startDate) || !isValid(endDate)) return null;
+
+  const scale = scaleUtc().domain([startDate, endDate]);
+  const idealTicks = scale.ticks(targetTickCount);
+  const formatTick = scale.tickFormat();
+
+  const findClosestTimestamp = (targetTime: number) =>
+    dataTimestamps.reduce((closest, current) => {
+      const closestDiff = Math.abs(new Date(toUtc(closest)).getTime() - targetTime);
+      const currentDiff = Math.abs(new Date(toUtc(current)).getTime() - targetTime);
+      return currentDiff < closestDiff ? current : closest;
+    });
+
+  const tickLabels = new Map(idealTicks.map((tick) => [findClosestTimestamp(tick.getTime()), formatTick(tick)]));
+
+  return {
+    ticks: Array.from(tickLabels.keys()),
+    formatter: (value: string) => tickLabels.get(value) || value,
   };
 };
 

@@ -1,8 +1,7 @@
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
@@ -27,18 +26,17 @@ pub struct CHDatapoint {
 impl From<CHDatapoint> for Datapoint {
     fn from(ch_datapoint: CHDatapoint) -> Self {
         // Parse JSON strings back to Values
-        let data = serde_json::from_str(&ch_datapoint.data).unwrap_or(serde_json::Value::Null);
-        let target = if ch_datapoint.target == "<null>" || ch_datapoint.target.is_empty() {
-            None
-        } else {
-            serde_json::from_str(&ch_datapoint.target).ok()
-        };
-        let metadata: HashMap<String, serde_json::Value> =
-            serde_json::from_str(&ch_datapoint.metadata).unwrap_or_default();
+        let (data, target, metadata) = Datapoint::parse_string_payloads(
+            ch_datapoint.data,
+            ch_datapoint.target,
+            ch_datapoint.metadata,
+        )
+        .unwrap();
 
         Datapoint {
             id: ch_datapoint.id,
             dataset_id: ch_datapoint.dataset_id,
+            created_at: DateTime::from_timestamp_nanos(ch_datapoint.created_at),
             data,
             target,
             metadata,
@@ -98,64 +96,4 @@ pub async fn insert_datapoints(
             e
         )),
     }
-}
-
-/// Get paginated datapoints from ClickHouse
-pub async fn get_datapoints_paginated(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    dataset_id: Uuid,
-    limit: Option<i64>,
-    offset: Option<i64>,
-) -> Result<Vec<CHDatapoint>> {
-    let mut query = String::from(
-        "SELECT 
-            id,
-            dataset_id,
-            project_id,
-            created_at,
-            data,
-            target,
-            metadata
-        FROM dataset_datapoints
-        WHERE project_id = ? AND dataset_id = ?
-        ORDER BY created_at DESC",
-    );
-
-    if let Some(limit) = limit {
-        query.push_str(&format!(" LIMIT {}", limit));
-    }
-    if let Some(offset) = offset {
-        query.push_str(&format!(" OFFSET {}", offset));
-    }
-
-    let datapoints = clickhouse
-        .query(&query)
-        .bind(project_id)
-        .bind(dataset_id)
-        .fetch_all::<CHDatapoint>()
-        .await?;
-
-    Ok(datapoints)
-}
-
-#[derive(Row, Deserialize)]
-struct CountResult {
-    count: u64,
-}
-
-/// Count total datapoints in ClickHouse
-pub async fn count_datapoints(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    dataset_id: Uuid,
-) -> Result<u64> {
-    let result = clickhouse
-        .query("SELECT COUNT(*) as count FROM dataset_datapoints WHERE project_id = ? AND dataset_id = ?")
-        .bind(project_id)
-        .bind(dataset_id)
-        .fetch_one::<CountResult>()
-        .await?;
-
-    Ok(result.count)
 }

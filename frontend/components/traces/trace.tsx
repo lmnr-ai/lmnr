@@ -9,9 +9,10 @@ import Header from "@/components/ui/header";
 
 const Trace = ({ trace }: { trace: TraceViewTrace }) => (
   <>
-    <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-1 mr-2" />
+    <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-none mr-2 h-12" />
+    <div className="grow border-t" />
     <FiltersContextProvider>
-      <TraceView propsTrace={trace} onClose={() => {}} traceId={trace.id} />
+      <TraceView propsTrace={trace} onClose={() => { }} traceId={trace.id} />
     </FiltersContextProvider>
   </>
 );

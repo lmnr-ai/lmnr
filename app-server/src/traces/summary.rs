@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 
@@ -6,9 +7,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY};
+use crate::db;
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
     MessageQueueTrait,
+};
+use crate::notifications::{
+    self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -17,6 +22,29 @@ pub struct TraceSummaryMessage {
     pub project_id: Uuid,
     pub trigger_span_id: Uuid,
     pub event_definition: Option<crate::db::summary_trigger_spans::EventDefinition>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceSummaryResponse {
+    pub summary: String,
+    pub status: String,
+    pub analysis: String,
+    pub analysis_preview: String,
+    pub span_ids_map: HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtractedEventInformation {
+    pub is_event_present: bool,
+    pub extracted_information: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EventIdentificationResponse {
+    pub success: bool,
+    pub event: ExtractedEventInformation,
+    pub error: Option<String>,
 }
 
 /// Push a trace completion message to the trace summary queue
@@ -56,14 +84,14 @@ pub async fn push_to_trace_summary_queue(
 }
 
 /// Main worker function to process trace summary messages
-pub async fn process_trace_summaries(queue: Arc<MessageQueue>) {
+pub async fn process_trace_summaries(db: Arc<db::DB>, queue: Arc<MessageQueue>) {
     loop {
-        inner_process_trace_summaries(queue.clone()).await;
+        inner_process_trace_summaries(db.clone(), queue.clone()).await;
         log::warn!("Trace summary listener exited. Rebinding queue connection...");
     }
 }
 
-async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
+async fn inner_process_trace_summaries(db: Arc<db::DB>, queue: Arc<MessageQueue>) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
         queue
@@ -124,7 +152,15 @@ async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
             };
 
         // Process the trace summary generation
-        if let Err(e) = process_single_trace_summary(&client, trace_summary_message, acker).await {
+        if let Err(e) = process_single_trace_summary(
+            &client,
+            db.clone(),
+            queue.clone(),
+            trace_summary_message,
+            acker,
+        )
+        .await
+        {
             log::error!("Failed to process trace summary: {:?}", e);
         }
     }
@@ -134,71 +170,329 @@ async fn inner_process_trace_summaries(queue: Arc<MessageQueue>) {
 
 async fn process_single_trace_summary(
     client: &reqwest::Client,
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
     message: TraceSummaryMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    let summarizer_service_url = if let Ok(url) = env::var("TRACE_SUMMARIZER_URL") {
-        url
+    // Route to appropriate service based on whether event_definition is present
+    if message.event_definition.is_some() {
+        process_event_identification(client, message, acker, db, queue).await
     } else {
-        log::error!("TRACE_SUMMARIZER_URL environment variable not set");
-        if let Err(e) = acker.reject(false).await {
-            log::error!("Failed to reject trace summary message: {:?}", e);
+        process_trace_summary(client, db, queue, message, acker).await
+    }
+}
+
+/// Process trace summary generation (without event definition)
+async fn process_trace_summary(
+    client: &reqwest::Client,
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
+    message: TraceSummaryMessage,
+    acker: MessageQueueAcker,
+) -> anyhow::Result<()> {
+    let service_url = match env::var("TRACE_SUMMARIZER_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_URL environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
         }
-        return Ok(());
     };
 
-    let auth_token = if let Ok(token) = env::var("TRACE_SUMMARIZER_SECRET_KEY") {
-        token
-    } else {
-        log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
-        if let Err(e) = acker.reject(false).await {
-            log::error!("Failed to reject trace summary message: {:?}", e);
+    let auth_token = match env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        Ok(token) => token,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
         }
-        return Ok(());
     };
 
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
         "trigger_span_id": message.trigger_span_id.to_string(),
-        "event_definition": message.event_definition.as_ref().map(|ed| serde_json::to_value(ed).unwrap())
     });
 
-    let call_summarizer_service = || async {
+    match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
+    {
+        Ok(response_text) => {
+            let response = match serde_json::from_str::<TraceSummaryResponse>(&response_text) {
+                Ok(resp) => resp,
+                Err(e) => {
+                    log::error!("Failed to parse trace summary response: {}", e);
+                    reject_message(&acker).await;
+                    return Ok(());
+                }
+            };
+
+            // Check if status is error or warning and push to notification queue
+            let event_name = match response.status.as_str() {
+                "error" => Some("error_trace_analysis"),
+                "warning" => Some("warning_trace_analysis"),
+                _ => None,
+            };
+
+            if let Some(event_name) = event_name {
+                // Get all channels configured for this event
+                match db::slack_channel_to_events::get_channels_for_event(
+                    &db.pool,
+                    message.project_id,
+                    event_name,
+                )
+                .await
+                {
+                    Ok(channels) => {
+                        if channels.is_empty() {
+                            log::debug!(
+                                "Event {} not configured for project {}",
+                                event_name,
+                                message.project_id
+                            );
+                        } else {
+                            // Push a notification for each configured channel
+                            for channel in channels {
+                                let payload = notifications::TraceAnalysisPayload {
+                                    summary: response.summary.clone(),
+                                    analysis: response.analysis.clone(),
+                                    analysis_preview: response.analysis_preview.clone(),
+                                    status: response.status.clone(),
+                                    span_ids_map: response.span_ids_map.clone(),
+                                    channel_id: channel.channel_id.clone(),
+                                    integration_id: channel.integration_id,
+                                };
+
+                                let notification_message = notifications::NotificationMessage {
+                                    project_id: message.project_id,
+                                    trace_id: message.trace_id,
+                                    span_id: message.trigger_span_id,
+                                    notification_type: NotificationType::Slack,
+                                    event_name: event_name.to_string(),
+                                    payload: serde_json::to_value(
+                                        SlackMessagePayload::TraceAnalysis(payload),
+                                    )
+                                    .unwrap(),
+                                };
+
+                                if let Err(e) = notifications::push_to_notification_queue(
+                                    notification_message,
+                                    queue.clone(),
+                                )
+                                .await
+                                {
+                                    log::error!(
+                                        "Failed to push to notification queue for channel {}: {:?}",
+                                        channel.channel_id,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to fetch event configuration: {:?}", e);
+                    }
+                }
+            }
+
+            if let Err(e) = acker.ack().await {
+                log::error!("Failed to ack trace summary message: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to process trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
+                message.trace_id,
+                message.project_id,
+                message.trigger_span_id,
+                e
+            );
+            reject_message(&acker).await;
+        }
+    }
+
+    Ok(())
+}
+
+/// Process event identification (with event definition)
+async fn process_event_identification(
+    client: &reqwest::Client,
+    message: TraceSummaryMessage,
+    acker: MessageQueueAcker,
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    let event_definition = message
+        .event_definition
+        .as_ref()
+        .expect("event_definition should be Some");
+
+    let service_url = match env::var("TRACE_EVENT_IDENTIFIER_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            log::error!("TRACE_EVENT_IDENTIFIER_URL environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
+        }
+    };
+
+    let auth_token = match env::var("TRACE_SUMMARIZER_SECRET_KEY") {
+        Ok(token) => token,
+        Err(_) => {
+            log::error!("TRACE_SUMMARIZER_SECRET_KEY environment variable not set");
+            reject_message(&acker).await;
+            return Ok(());
+        }
+    };
+
+    let request_body = serde_json::json!({
+        "project_id": message.project_id.to_string(),
+        "trace_id": message.trace_id.to_string(),
+        "trigger_span_id": message.trigger_span_id.to_string(),
+        "event_definition": serde_json::to_value(event_definition).unwrap(),
+    });
+
+    match call_service_with_retry(client, &service_url, &auth_token, &request_body, &message).await
+    {
+        Ok(response_text) => {
+            let response = match serde_json::from_str::<EventIdentificationResponse>(&response_text)
+            {
+                Ok(resp) => resp,
+                Err(e) => {
+                    log::error!("Failed to parse event identification response: {}", e);
+                    reject_message(&acker).await;
+                    return Ok(());
+                }
+            };
+
+            if response.success {
+                if response.event.is_event_present {
+                    match db::slack_channel_to_events::get_channels_for_event(
+                        &db.pool,
+                        message.project_id,
+                        event_definition.name.as_str(),
+                    )
+                    .await
+                    {
+                        Ok(channels) => {
+                            if channels.is_empty() {
+                                log::debug!(
+                                    "Event {} not configured for project {}",
+                                    event_definition.name,
+                                    message.project_id
+                                );
+                            } else {
+                                // Push a notification for each configured channel
+                                for channel in channels {
+                                    let payload = EventIdentificationPayload {
+                                        event_name: event_definition.name.clone(),
+                                        extracted_information: response
+                                            .event
+                                            .extracted_information
+                                            .clone(),
+                                        channel_id: channel.channel_id.clone(),
+                                        integration_id: channel.integration_id,
+                                    };
+
+                                    let notification_message = notifications::NotificationMessage {
+                                        project_id: message.project_id,
+                                        trace_id: message.trace_id,
+                                        span_id: message.trigger_span_id,
+                                        notification_type: NotificationType::Slack,
+                                        event_name: event_definition.name.clone(),
+                                        payload: serde_json::to_value(
+                                            SlackMessagePayload::EventIdentification(payload),
+                                        )
+                                        .unwrap(),
+                                    };
+
+                                    if let Err(e) = notifications::push_to_notification_queue(
+                                        notification_message,
+                                        queue.clone(),
+                                    )
+                                    .await
+                                    {
+                                        log::error!(
+                                            "Failed to push to notification queue for channel {}: {:?}",
+                                            channel.channel_id,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to fetch event configuration: {:?}", e);
+                        }
+                    }
+                }
+            } else {
+                log::error!("Event identification failed: {:?}", response.error);
+                reject_message(&acker).await;
+                return Ok(());
+            }
+
+            if let Err(e) = acker.ack().await {
+                log::error!("Failed to ack event identification message: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to process event identification after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
+                message.trace_id,
+                message.project_id,
+                message.trigger_span_id,
+                e
+            );
+            reject_message(&acker).await;
+        }
+    }
+
+    Ok(())
+}
+
+/// Helper function to call service with retry logic
+/// Returns the response text on success, or an error on failure
+async fn call_service_with_retry(
+    client: &reqwest::Client,
+    service_url: &str,
+    auth_token: &str,
+    request_body: &serde_json::Value,
+    message: &TraceSummaryMessage,
+) -> anyhow::Result<String> {
+    let call_service = || async {
         let response = client
-            .post(&summarizer_service_url)
+            .post(service_url)
             .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
-            .json(&request_body)
+            .json(request_body)
             .send()
             .await
             .map_err(|e| {
-                log::warn!(
-                    "Failed to call summarizer service for trace summary: {:?}",
-                    e
-                );
+                log::warn!("Failed to call service: {:?}", e);
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
         if response.status().is_success() {
             let response_text = response.text().await.unwrap_or_default();
             log::debug!(
-                "Summarizer service response for trace_id={}, project_id={}: {}",
+                "Service response for trace_id={}, project_id={}: {}",
                 message.trace_id,
                 message.project_id,
                 response_text
             );
-            Ok(())
+            Ok(response_text)
         } else {
             let status = response.status();
             let response_text = response.text().await.unwrap_or_default();
             log::warn!(
-                "Summarizer service returned error status for trace summary: {}, Response: {}",
+                "Service returned error status: {}, Response: {}",
                 status,
                 response_text
             );
             Err(backoff::Error::transient(anyhow::anyhow!(
-                "Summarizer service error: {}, Response: {}",
+                "Service error: {}, Response: {}",
                 status,
                 response_text
             )))
@@ -208,28 +502,17 @@ async fn process_single_trace_summary(
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(std::time::Duration::from_millis(500))
         .with_max_interval(std::time::Duration::from_secs(30))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(60 * 5))) // 5 minutes max
+        .with_max_elapsed_time(Some(std::time::Duration::from_secs(60))) // 1 minute max
         .build();
 
-    match backoff::future::retry(backoff, call_summarizer_service).await {
-        Ok(_) => {
-            if let Err(e) = acker.ack().await {
-                log::error!("Failed to ack trace summary message: {:?}", e);
-            }
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to generate trace summary after retries: trace_id={}, project_id={}, trigger_span_id={}, error={:?}",
-                message.trace_id,
-                message.project_id,
-                message.trigger_span_id,
-                e
-            );
-            if let Err(e) = acker.reject(false).await {
-                log::error!("Failed to reject trace summary message: {:?}", e);
-            }
-        }
-    }
+    backoff::future::retry(backoff, call_service)
+        .await
+        .map_err(Into::into)
+}
 
-    Ok(())
+/// Helper function to reject a message
+async fn reject_message(acker: &MessageQueueAcker) {
+    if let Err(e) = acker.reject(false).await {
+        log::error!("Failed to reject message: {:?}", e);
+    }
 }

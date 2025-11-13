@@ -3,6 +3,7 @@ import { difference } from "lodash";
 import { z } from "zod/v4";
 
 import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
@@ -47,6 +48,11 @@ export const UpdateEventDefinitionSchema = z.object({
 export const DeleteEventDefinitionSchema = z.object({
   projectId: z.string(),
   id: z.string(),
+});
+
+export const DeleteEventDefinitionsSchema = z.object({
+  projectId: z.string(),
+  ids: z.array(z.string()).min(1, "At least one event definition ID is required"),
 });
 
 export async function getEventDefinitions(input: z.infer<typeof GetEventDefinitionsSchema>) {
@@ -220,4 +226,35 @@ export async function deleteEventDefinition(input: z.infer<typeof DeleteEventDef
   await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return result;
+}
+
+export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDefinitionsSchema>) {
+  const { projectId, ids } = DeleteEventDefinitionsSchema.parse(input);
+
+  const events = await db
+    .delete(eventDefinitions)
+    .where(and(eq(eventDefinitions.projectId, projectId), inArray(eventDefinitions.id, ids)))
+    .returning();
+
+  if (events.length > 0) {
+    try {
+      await clickhouseClient.command({
+        query: `
+          DELETE FROM events
+          WHERE project_id = {projectId: UUID}
+            AND name IN ({eventNames: Array(String)})
+        `,
+        query_params: {
+          projectId,
+          eventNames: events.map((e) => e.name),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to delete events from ClickHouse:", error);
+    }
+  }
+
+  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+
+  return { success: true };
 }

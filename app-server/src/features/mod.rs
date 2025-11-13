@@ -2,14 +2,17 @@
 // TODO: consider https://doc.rust-lang.org/reference/conditional-compilation.html instead
 use std::env;
 
+const OPERATION_MODE: &str = "OPERATION_MODE";
+
+const PRODUCER: &str = "producer";
+const CONSUMER: &str = "consumer";
+
 pub enum Feature {
     UsageLimit,
     /// Remote storage, such as S3
     Storage,
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
-    /// Browser agent
-    AgentManager,
     /// Evaluators
     Evaluators,
     RabbitMQ,
@@ -32,10 +35,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
-        Feature::AgentManager => {
-            env::var("AGENT_MANAGER_URL").is_ok()
-            // && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
-        }
         Feature::Evaluators => env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok(),
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
         Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
@@ -49,5 +48,19 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("AGGREGATE_TRACES").is_ok()
                 && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
+    }
+}
+
+pub fn enable_consumer() -> bool {
+    match env::var(OPERATION_MODE) {
+        Ok(v) => v.trim().to_lowercase() == CONSUMER,
+        Err(_) => true,
+    }
+}
+
+pub fn enable_producer() -> bool {
+    match env::var(OPERATION_MODE) {
+        Ok(v) => v.trim().to_lowercase() == PRODUCER,
+        Err(_) => true,
     }
 }

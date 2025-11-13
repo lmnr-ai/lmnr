@@ -63,9 +63,9 @@ const ChartBuilderCore = () => {
   };
 
   return (
-    <div className="grid grid-cols-4 h-full divide-x overflow-hidden">
+    <div className="grid grid-cols-4 h-full overflow-hidden">
       <ScrollArea className="col-span-1">
-        <div className="flex flex-col flex-1 gap-3 p-4">
+        <div className="flex flex-col flex-1 gap-3">
           <div>
             <label className="text-sm font-medium mb-1 block">Chart type</label>
             <Select value={chartConfig.type || ""} onValueChange={setChartType}>
@@ -209,7 +209,7 @@ const ChartBuilderCore = () => {
         </div>
       </ScrollArea>
 
-      <ScrollArea className="col-span-3">
+      <ScrollArea className="flex flex-1 col-span-3 [&>*>div]:h-full">
         <div className="size-full p-4">
           {!hasChartType ? (
             <div className="flex flex-1 items-center justify-center h-full w-full text-muted-foreground">

@@ -85,7 +85,7 @@ const FilterPopover = ({
     <Popover>
       <PopoverTrigger asChild className={className}>
         {children || (
-          <Button variant="outline" className="text-secondary-foreground h-7 text-xs font-medium">
+          <Button variant="outline">
             <ListFilter size={14} className="mr-2" />
             Add filter
           </Button>

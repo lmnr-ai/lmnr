@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getDurationString, pluralize } from "@/lib/utils";
 
-import CodeHighlighter from "../ui/code-highlighter/index";
+import ContentRenderer from "../ui/content-renderer/index";
 import { Label } from "../ui/label";
 
 interface TraceStatsShieldsProps {
@@ -59,7 +59,7 @@ const ToolsList = ({ tools }: { tools: Tool[] }) => {
                     <summary className="cursor-pointer text-muted-foreground hover:text-foreground mb-1">
                       Parameters
                     </summary>
-                    <CodeHighlighter readOnly value={tool.parameters} defaultMode="json" />
+                    <ContentRenderer readOnly value={tool.parameters} defaultMode="json" />
                   </details>
                 )}
               </div>
@@ -77,14 +77,14 @@ const StructuredOutputSchema = ({ schema }: { schema: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="focus:outline-none flex h-6 w-fit items-center border-tool bg-tool/10 gap-1 text-xs font-mono border rounded-md px-2 text-tool hover:bg-tool/20 transition-colors">
+        <button className="focus:outline-hidden flex h-6 w-fit items-center border-tool bg-tool/10 gap-1 text-xs font-mono border rounded-md px-2 text-tool hover:bg-tool/20 transition-colors">
           <Braces size={12} className="min-w-3" />
           <span>output schema</span>
           <ChevronDown size={12} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-w-[600px] p-0" align="end" side="bottom">
-        <CodeHighlighter readOnly value={schema} defaultMode="json" className="max-h-[70vh]" />
+        <ContentRenderer readOnly value={schema} defaultMode="json" className="max-h-[70vh]" />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -151,7 +151,7 @@ function StatsShieldsContent({
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
       <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
         <Clock3 size={12} className="min-w-3 min-h-3" />
-        <Label className="text-xs truncate" title={getDurationString(startTime, endTime)}>
+        <Label className="text-xs truncate text-foreground" title={getDurationString(startTime, endTime)}>
           {getDurationString(startTime, endTime)}
         </Label>
       </div>
@@ -160,7 +160,7 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{totalTokens}</Label>
+              <Label className="text-xs truncate text-foreground">{totalTokens}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
@@ -182,7 +182,7 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
               <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate">{totalCost?.toFixed(3)}</Label>
+              <Label className="text-xs truncate text-foreground">{totalCost?.toFixed(3)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>

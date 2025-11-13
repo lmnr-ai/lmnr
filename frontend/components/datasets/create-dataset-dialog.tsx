@@ -1,28 +1,25 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { PropsWithChildren, useCallback, useState } from "react";
-import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dataset } from "@/lib/dataset/types";
+import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export default function CreateDatasetDialog({
   children,
-  onSuccess,
-}: PropsWithChildren<{ onSuccess?: (dataset: Dataset) => void }>) {
+  onUpdate,
+}: PropsWithChildren<{ onUpdate?: (dataset: DatasetInfo) => void }>) {
   const [newDatasetName, setNewDatasetName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { mutate } = useSWRConfig();
 
   const createNewDataset = useCallback(async () => {
     try {
@@ -43,20 +40,12 @@ export default function CreateDatasetDialog({
         return;
       }
 
-      const newDataset = (await res.json()) as Dataset;
+      const newDataset = (await res.json()) as DatasetInfo;
 
       const newDatasetWithCount = { ...newDataset, datapointsCount: 0 };
-      await mutate<PaginatedResponse<Dataset>>(
-        (key) => typeof key === "string" && key.startsWith(`/api/projects/${projectId}/datasets`),
-        (currentData) =>
-          currentData
-            ? { items: [newDatasetWithCount, ...currentData.items], totalCount: currentData.totalCount + 1 }
-            : { items: [newDatasetWithCount], totalCount: 1 },
-        { revalidate: false, populateCache: true, rollbackOnError: true }
-      );
 
-      if (onSuccess) {
-        onSuccess(newDataset);
+      if (onUpdate) {
+        onUpdate(newDatasetWithCount);
       }
 
       toast({ title: "Successfully created dataset" });
@@ -70,7 +59,7 @@ export default function CreateDatasetDialog({
     } finally {
       setIsLoading(false);
     }
-  }, [mutate, newDatasetName, onSuccess, projectId, toast]);
+  }, [newDatasetName, onUpdate, projectId, toast]);
 
   return (
     <>
@@ -82,21 +71,21 @@ export default function CreateDatasetDialog({
         }}
       >
         <DialogTrigger asChild>{children}</DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-96">
           <DialogHeader>
-            <DialogTitle>Create new dataset</DialogTitle>
+            <DialogTitle>Create dataset</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
             <Label>Name</Label>
             <Input
               autoFocus
-              placeholder="Name"
+              placeholder="Enter name..."
               value={newDatasetName}
               onChange={(e) => setNewDatasetName(e.target.value)}
             />
           </div>
           <DialogFooter>
-            <Button onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
+            <Button className="w-fit" onClick={createNewDataset} disabled={!newDatasetName || isLoading} handleEnter>
               <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={16} />
               Create
             </Button>

@@ -1,4 +1,6 @@
-import { getDatapoint, updateDatapoint, UpdateDatapointRequestSchema } from "@/lib/actions/datapoint";
+import { prettifyError, ZodError } from "zod/v4";
+
+import { getDatapoint, updateDatapoint } from "@/lib/actions/datapoint";
 
 export async function GET(
   req: Request,
@@ -32,25 +34,14 @@ export async function POST(
   try {
     const body = await req.json();
 
-    // This schema allows any JSON value for data and target,
-    // but for file upload we will need to dump everything into data,
-    // unless the keys match "data", "target", or "metadata"
-    const result = UpdateDatapointRequestSchema.safeParse(body);
-    if (!result.success) {
-      console.error("Invalid request body", result.error);
-      return new Response("Invalid request body", { status: 400 });
-    }
-
-    const { data, target, metadata, createdAt } = result.data;
-
     await updateDatapoint({
       projectId: params.projectId,
       datapointId: params.datapointId,
       datasetId: params.datasetId,
-      data,
-      target,
-      metadata,
-      createdAt,
+      data: body.data,
+      target: body.target,
+      metadata: body.metadata,
+      createdAt: body.createdAt,
     });
 
     return new Response(JSON.stringify({ success: true }), {
@@ -59,6 +50,9 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error updating datapoint:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
     if (error instanceof Error) {
       return new Response(error.message, { status: 404 });
     }

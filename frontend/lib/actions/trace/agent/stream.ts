@@ -31,7 +31,6 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
   const { summary, status, analysis, analysisPreview } = await generateTraceSummary({
     traceId,
     projectId,
-    maxRetries: 5,
   });
 
   const traceStructure = await getTraceStructureAsYAML({
@@ -45,7 +44,8 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     .replace('{{analysis}}', analysis);
 
   const result = streamText({
-    model: google('gemini-2.5-pro'),
+    model: google('gemini-2.5-flash'),
+    // model: anthropic('claude-sonnet-4-5'),
     messages: convertToModelMessages(uiMessages as UIMessage[]),
     stopWhen: stepCountIs(10),
     maxRetries: 5,

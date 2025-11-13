@@ -123,7 +123,6 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     first_in_ids && first_in_path
 }
 
-#[instrument(skip(span, span_usage, events))]
 pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, events: &[Event]) -> () {
     events.iter().for_each(|event| {
         // Check if it's an exception event

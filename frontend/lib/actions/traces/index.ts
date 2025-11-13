@@ -3,11 +3,10 @@ import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
+import { getTimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
@@ -31,7 +30,12 @@ export const DeleteTracesSchema = z.object({
   traceIds: z.array(z.string()).min(1),
 });
 
-export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[]; count: number }> {
+export const GetTracesByIdsSchema = z.object({
+  projectId: z.string(),
+  traceIds: z.array(z.string()).min(1),
+});
+
+export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[] }> {
   const {
     projectId,
     pastHours,
@@ -60,7 +64,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [], count: 0 };
+    return { items: [] };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
@@ -75,62 +79,38 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     pastHours,
   });
 
-  const { query: countQuery, parameters: countParams } = buildTracesCountQueryWithParams({
-    projectId,
-    traceType,
-    traceIds,
-    filters,
-    startTime,
-    endTime,
-    pastHours,
-  });
-
-  const [items, [count]] = await Promise.all([
-    executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId }),
-    executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
-  ]);
+  const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
     items,
-    count: count?.count || 0,
   };
 }
 
-const searchSpans = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId FROM spans
-      WHERE project_id = {projectId: UUID}
+export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>): Promise<TraceRow[]> {
+  const { projectId, traceIds } = GetTracesByIdsSchema.parse(input);
+
+  if (traceIds.length === 0) {
+    return [];
+  }
+
+  const query = `
+    SELECT
+      id,
+      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+      input_cost as inputCost,
+      output_cost as outputCost,
+      status
+    FROM traces
+    WHERE id IN ({traceIds:Array(UUID)})
   `;
 
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
+  return await executeQuery<TraceRow>({
+    query,
+    parameters: { projectId, traceIds },
+    projectId,
   });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
-};
+}
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   const { projectId, traceIds } = input;

@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { apiKeys, dashboardCharts, datasetDatapoints, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { apiKeys, dashboardCharts, datasetDatapoints, datasetExportJobs, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, spans,sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces, tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const projectSettingsRelations = relations(projectSettings, ({one}) => ({
   project: one(projects, {
@@ -17,8 +17,10 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
     fields: [projects.workspaceId],
     references: [workspaces.id]
   }),
-  projectApiKeys: many(projectApiKeys),
   providerApiKeys: many(providerApiKeys),
+  projectApiKeys: many(projectApiKeys),
+  datasetExportJobs: many(datasetExportJobs),
+  datasetParquets: many(datasetParquets),
   renderTemplates: many(renderTemplates),
   traces: many(traces),
   evaluators: many(evaluators),
@@ -51,6 +53,8 @@ export const datasetsRelations = relations(datasets, ({one, many}) => ({
     references: [projects.id]
   }),
   datasetDatapoints: many(datasetDatapoints),
+  datasetExportJobs: many(datasetExportJobs),
+  datasetParquets: many(datasetParquets),
 }));
 
 export const datasetDatapointsRelations = relations(datasetDatapoints, ({one}) => ({
@@ -88,16 +92,16 @@ export const usersRelations = relations(users, ({many}) => ({
   apiKeys: many(apiKeys),
 }));
 
-export const projectApiKeysRelations = relations(projectApiKeys, ({one}) => ({
+export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
   project: one(projects, {
-    fields: [projectApiKeys.projectId],
+    fields: [providerApiKeys.projectId],
     references: [projects.id]
   }),
 }));
 
-export const providerApiKeysRelations = relations(providerApiKeys, ({one}) => ({
+export const projectApiKeysRelations = relations(projectApiKeys, ({one}) => ({
   project: one(projects, {
-    fields: [providerApiKeys.projectId],
+    fields: [projectApiKeys.projectId],
     references: [projects.id]
   }),
 }));
@@ -106,6 +110,28 @@ export const userSubscriptionInfoRelations = relations(userSubscriptionInfo, ({o
   user: one(users, {
     fields: [userSubscriptionInfo.userId],
     references: [users.id]
+  }),
+}));
+
+export const datasetExportJobsRelations = relations(datasetExportJobs, ({one}) => ({
+  dataset: one(datasets, {
+    fields: [datasetExportJobs.datasetId],
+    references: [datasets.id]
+  }),
+  project: one(projects, {
+    fields: [datasetExportJobs.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
+  dataset: one(datasets, {
+    fields: [datasetParquets.datasetId],
+    references: [datasets.id]
+  }),
+  project: one(projects, {
+    fields: [datasetParquets.projectId],
+    references: [projects.id]
   }),
 }));
 

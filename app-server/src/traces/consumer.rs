@@ -37,13 +37,14 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait,
     },
-    realtime::{SseConnectionMap, SseMessage, send_to_project_connections},
+    realtime::SseConnectionMap,
     storage::Storage,
     traces::{
         IngestedBytes,
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
+        realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
 };
@@ -362,9 +363,16 @@ async fn process_batch(
                             e
                         );
                     }
+
+                    // Send trace_update events for realtime updates
+                    send_trace_updates(&updated_traces, &sse_connections).await;
                 }
                 Err(e) => {
-                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    log::error!(
+                        "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
+                        project_id,
+                        e
+                    );
                 }
             }
         }
@@ -374,8 +382,8 @@ async fn process_batch(
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
 
-    // Send realtime messages directly to SSE connections after successful ClickHouse writes
-    send_realtime_messages_to_sse(&spans, &sse_connections).await;
+    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
+    send_span_updates(&spans, &sse_connections).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
@@ -491,61 +499,6 @@ async fn process_batch(
             }
         }
     }
-}
-
-/// Send realtime span messages directly to SSE connections
-async fn send_realtime_messages_to_sse(spans: &[Span], sse_connections: &SseConnectionMap) {
-    // Group spans by project_id
-    let mut projects_with_spans: std::collections::HashMap<Uuid, Vec<&Span>> =
-        std::collections::HashMap::new();
-
-    for span in spans {
-        projects_with_spans
-            .entry(span.project_id)
-            .or_insert_with(Vec::new)
-            .push(span);
-    }
-
-    // Only send messages for projects that have active SSE connections
-    for (project_id, project_spans) in projects_with_spans {
-        if !sse_connections.contains_key(&project_id) {
-            continue; // Skip if no active connections for this project
-        }
-
-        // Send all spans for this project in a single message
-        let spans_data: Vec<Value> = project_spans
-            .iter()
-            .map(|span| span_to_realtime_span(span))
-            .collect();
-
-        let spans_message = SseMessage {
-            event_type: "new_spans".to_string(),
-            data: serde_json::json!({
-                "spans": spans_data
-            }),
-        };
-
-        send_to_project_connections(sse_connections, &project_id, spans_message);
-    }
-}
-
-/// Convert span to lightweight database row format for realtime updates
-/// Includes all span data except heavy input/output fields
-fn span_to_realtime_span(span: &Span) -> Value {
-    serde_json::json!({
-        "spanId": span.span_id,
-        "parentSpanId": span.parent_span_id,
-        "traceId": span.trace_id,
-        "spanType": span.span_type,
-        "name": span.name,
-        "startTime": span.start_time,
-        "endTime": span.end_time,
-        "attributes": span.attributes.to_value(),
-        "status": span.status,
-        "projectId": span.project_id,
-        "createdAt": span.start_time, // Use start_time as created_at for compatibility
-        // Note: input and output fields are intentionally excluded for performance
-    })
 }
 
 /// Check spans against trigger conditions and push matching traces to summary queue

@@ -1,31 +1,35 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { formatRelative } from "date-fns";
-import { isEmpty } from "lodash";
+import { format, formatRelative } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
+import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
-import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import DateRangeFilter from "@/components/ui/date-range-filter";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
+import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils.ts";
 
 import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
-import { DataTable } from "../ui/datatable";
 import Header from "../ui/header";
 
 type EventNavigationItem = {
@@ -48,7 +52,9 @@ const getEventsConfig = (): NavigationConfig<EventNavigationItem> => ({
   },
 });
 
-function EventsContent({
+const FETCH_SIZE = 50;
+
+function EventsContentInner({
   lastEvent,
   initialTraceViewWidth,
 }: {
@@ -60,28 +66,30 @@ function EventsContent({
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const ref = useRef<Resizable>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const { workspace } = useProjectContext();
+  const { toast } = useToast();
 
   const {
-    events,
-    totalCount,
-    fetchEvents,
     eventDefinition,
     setEventDefinition,
     traceId,
     spanId,
     setTraceId,
     setSpanId,
+    fetchStats,
+    setChartContainerWidth,
+    chartContainerWidth,
   } = useEventsStoreContext((state) => ({
-    events: state.events,
-    totalCount: state.totalCount,
-    fetchEvents: state.fetchEvents,
     eventDefinition: state.eventDefinition,
     setEventDefinition: state.setEventDefinition,
     traceId: state.traceId,
     spanId: state.spanId,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
+    fetchStats: state.fetchStats,
+    setChartContainerWidth: state.setChartContainerWidth,
+    chartContainerWidth: state.chartContainerWidth,
   }));
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -100,45 +108,87 @@ function EventsContent({
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filter = searchParams.getAll("filter");
-  const pageNumber = searchParams.get("pageNumber") ? Number(searchParams.get("pageNumber")) : 0;
-  const pageSize = searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : 50;
-
-  const eventsParams = useMemo(() => {
-    const sp = new URLSearchParams();
-
-    sp.set("name", eventDefinition?.name);
-
-    if (pastHours) {
-      sp.set("pastHours", pastHours);
-    }
-
-    if (startDate) {
-      sp.set("startDate", startDate);
-    }
-
-    if (endDate) {
-      sp.set("endDate", endDate);
-    }
-
-    filter.forEach((f) => sp.append("filter", f));
-
-    sp.append("pageNumber", String(pageNumber));
-    sp.append("pageSize", String(pageSize));
-
-    return sp;
-  }, [eventDefinition?.name, pastHours, startDate, endDate, JSON.stringify(filter), pageNumber, pageSize]);
-
-  const page = useMemo<{ number: number; size: number }>(
-    () => ({
-      number: pageNumber,
-      size: pageSize,
-    }),
-    [pageNumber, pageSize]
-  );
 
   useEffect(() => {
-    fetchEvents(eventsParams);
-  }, [eventsParams]);
+    if (!chartContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setChartContainerWidth(width);
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [setChartContainerWidth]);
+
+  const statsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats`,
+    chartContainerWidth,
+    pastHours,
+    startDate,
+    endDate,
+    filters: filter,
+    defaultTargetBars: 24,
+  });
+
+  const fetchEvents = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        if (pastHours) {
+          urlParams.set("pastHours", pastHours);
+        }
+
+        if (startDate) {
+          urlParams.set("startDate", startDate);
+        }
+
+        if (endDate) {
+          urlParams.set("endDate", endDate);
+        }
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        const response = await fetch(
+          `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}?${urlParams.toString()}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch events");
+        }
+
+        const data: { items: EventRow[]; count: number } = await response.json();
+        return { items: data.items, count: data.count };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return { items: [], count: 0 };
+    },
+    [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter]
+  );
+
+  const {
+    data: events,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+  } = useInfiniteScroll<EventRow>({
+    fetchFn: fetchEvents,
+    enabled: !!(pastHours || (startDate && endDate)),
+    deps: [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter],
+  });
 
   useEffect(() => {
     if (events) {
@@ -151,15 +201,11 @@ function EventsContent({
     }
   }, [events, setNavigationRefList]);
 
-  const handlePageChange = useCallback(
-    (pageNumber: number, pageSize: number) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pageNumber", pageNumber.toString());
-      params.set("pageSize", pageSize.toString());
-      push(`${pathName}?${params}`);
-    },
-    [pathName, push, searchParams]
-  );
+  useEffect(() => {
+    if (statsUrl) {
+      fetchStats(statsUrl);
+    }
+  }, [statsUrl, fetchStats]);
 
   const handleEditEvent = useCallback(() => {
     setIsDialogOpen(true);
@@ -211,86 +257,66 @@ function EventsContent({
     }
   }, [defaultTraceViewWidth]);
 
-  return (
-    <div className="flex flex-col flex-1">
-      <Header path={`events/${eventDefinition.name}`} />
-      <div className="flex flex-col flex-1 overflow-auto">
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-medium">{eventDefinition.name}</h1>
-            {!isFreeTier && (
-              <ManageEventDefinitionDialog
-                open={isDialogOpen}
-                setOpen={setIsDialogOpen}
-                defaultValues={eventDefinition}
-                key={eventDefinition.id}
-                onSuccess={handleSuccess}
-              >
-                <Button variant="outline" onClick={handleEditEvent}>
-                  Edit Event Definition
-                </Button>
-              </ManageEventDefinitionDialog>
-            )}
-          </div>
+  useEffect(() => {
+    if (!pastHours && !startDate && !endDate) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("pastHours", "24");
+      push(`${pathName}?${params.toString()}`);
+    }
+  }, [pastHours, startDate, endDate, searchParams, pathName, push]);
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Prompt</span>
-              {eventDefinition.prompt ? (
-                <div className="rounded-md">
-                  <p className="text-sm font-mono line-clamp-3">{eventDefinition.prompt}</p>
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Trigger Spans</span>
-              {!isEmpty(eventDefinition.triggerSpans) ? (
-                <ScrollArea>
-                  <div className="flex flex-wrap gap-1.5 max-h-24">
-                    {eventDefinition.triggerSpans.map((span) => (
-                      <Badge key={span.name} variant="secondary" className="font-mono text-xs">
-                        {span.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground font-medium">Last Event</span>
-              {lastEvent ? (
-                <span className="text-sm">{formatRelative(new Date(lastEvent.timestamp), new Date())}</span>
-              ) : (
-                <span className="text-sm text-muted-foreground">-</span>
-              )}
-            </div>
+  return (
+    <>
+      <Header path={`events/${eventDefinition.name}`} />
+      <div className="flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-4 pb-4">
+          {!isFreeTier && (
+            <ManageEventDefinitionDialog
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={eventDefinition}
+              key={eventDefinition.id}
+              onSuccess={handleSuccess}
+            >
+              <Button icon="edit" onClick={handleEditEvent}>
+                Event Definition
+              </Button>
+            </ManageEventDefinitionDialog>
+          )}
+          <div>
+            <span className="text-xs text-muted-foreground font-medium">Last event: </span>
+            <span
+              title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+              className={cn("text-xs", {
+                "text-muted-foreground": !lastEvent,
+              })}
+            >
+              {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+            </span>
           </div>
         </div>
-        <DataTable
-          columns={eventsTableColumns}
-          data={events}
-          defaultPageNumber={page.number}
-          defaultPageSize={page.size}
-          pageCount={Math.ceil(Number(totalCount || 0) / page.size)}
-          totalItemsCount={Number(totalCount || 0)}
-          onPageChange={handlePageChange}
-          onRowClick={handleRowClick}
-          getRowId={(row: EventRow) => row.id}
-          focusedRowId={focusedRowId}
-          paginated
-          manualPagination
-          pageSizeOptions={[25, 50, 100]}
-          childrenClassName="flex flex-col gap-2 py-2 items-start h-fit space-x-0"
-        >
-          <div className="flex flex-1 w-full space-x-2">
-            <DataTableFilter columns={eventsTableFilters} />
-          </div>
-          <DataTableFilterList />
-        </DataTable>
+        <div className="flex flex-1 overflow-hidden px-4 pb-4">
+          <InfiniteDataTable<EventRow>
+            className="w-full"
+            columns={eventsTableColumns}
+            data={events}
+            onRowClick={handleRowClick}
+            getRowId={(row: EventRow) => row.id}
+            focusedRowId={focusedRowId}
+            hasMore={hasMore}
+            isFetching={isFetching}
+            isLoading={isLoading}
+            fetchNextPage={fetchNextPage}
+            childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+          >
+            <div className="flex flex-1 w-full space-x-2">
+              <DateRangeFilter />
+              <DataTableFilter columns={eventsTableFilters} />
+            </div>
+            <DataTableFilterList />
+            <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+          </InfiniteDataTable>
+        </div>
       </div>
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
@@ -322,7 +348,21 @@ function EventsContent({
           </Resizable>
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+function EventsContent({
+  lastEvent,
+  initialTraceViewWidth,
+}: {
+  lastEvent?: { id: string; name: string; timestamp: string };
+  initialTraceViewWidth?: number;
+}) {
+  return (
+    <DataTableStateProvider uniqueKey="id">
+      <EventsContentInner lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+    </DataTableStateProvider>
   );
 }
 

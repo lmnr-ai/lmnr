@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use crate::{
     api::utils::get_api_key_from_raw_value,
     cache::Cache,
-    db::{DB, project_api_keys::DBProjectApiKey},
+    db::{DB, project_api_keys::ProjectApiKey},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
@@ -82,11 +82,14 @@ impl TraceService for ProcessTracesService {
     }
 }
 
+/// Authenticates gRPC trace ingestion requests.
+/// Note: This endpoint accepts both default and ingest-only API keys,
+/// as it's used for writing trace data to the project.
 async fn authenticate_request(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
     cache: Arc<Cache>,
-) -> anyhow::Result<DBProjectApiKey> {
+) -> anyhow::Result<ProjectApiKey> {
     let token = extract_bearer_token(metadata)?;
     get_api_key_from_raw_value(pool, cache, token).await
 }

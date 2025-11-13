@@ -9,9 +9,13 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { clickhouseClient } from "@/lib/clickhouse/client.ts";
+import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
+import { SpanSearchType } from "@/lib/clickhouse/types";
+import { addTimeRangeToQuery, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
-const tracesColumnFilterConfig: ColumnFilterConfig = {
+export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["id", createStringFilter],
     ["session_id", createStringFilter],
@@ -170,10 +174,12 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
     customConditions,
-    orderBy: {
-      column: "start_time",
-      direction: "DESC",
-    },
+    orderBy: [
+      {
+        column: "start_time",
+        direction: "DESC",
+      },
+    ],
     pagination: {
       limit,
       offset,
@@ -183,42 +189,67 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   return buildSelectQuery(queryOptions);
 };
 
-export const buildTracesCountQueryWithParams = (
-  options: Omit<BuildTracesQueryOptions, "limit" | "offset">
-): QueryResult => {
-  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
-  const customConditions: Array<{
-    condition: string;
-    params: QueryParams;
-  }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+export const searchSpans = async ({
+  projectId,
+  searchQuery,
+  timeRange,
+  searchType,
+}: {
+  projectId: string;
+  searchQuery: string;
+  timeRange: TimeRange;
+  searchType?: SpanSearchType[];
+}): Promise<string[]> => {
+  const baseQuery = `
+      SELECT DISTINCT(trace_id) traceId FROM spans
+      WHERE project_id = {projectId: UUID}
+  `;
 
-  if (traceIds.length > 0) {
-    customConditions.push({
-      condition: `id IN ({traceIds:Array(UUID)})`,
-      params: { traceIds },
-    });
+  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+
+  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+
+  const response = await clickhouseClient.query({
+    query: `${finalQuery}
+     ORDER BY start_time DESC
+     LIMIT 1000`,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+      query: `%${searchQuery.toLowerCase()}%`,
+    },
+  });
+
+  const result = (await response.json()) as { traceId: string }[];
+
+  return result.map((i) => i.traceId);
+};
+
+export const buildTracesStatsWhereConditions = (options: {
+  traceType: string;
+  traceIds: string[];
+  filters: FilterDef[];
+}): { conditions: [string, ...string[]]; params: Record<string, any> } => {
+  const conditions: [string] = [`trace_type = {traceType:String}`];
+  const params: Record<string, any> = { traceType: options.traceType };
+
+  if (options.traceIds.length > 0) {
+    conditions.push(`id IN ({traceIds:Array(UUID)})`);
+    params.traceIds = options.traceIds;
   }
 
-  const queryOptions: SelectQueryOptions = {
-    select: {
-      columns: ["COUNT(*) as count"],
-      table: "traces",
-    },
-    timeRange: {
-      startTime,
-      endTime,
-      pastHours,
-      timeColumn: "start_time",
-    },
-    filters,
-    columnFilterConfig: tracesColumnFilterConfig,
-    customConditions,
-  };
+  options.filters.forEach((filter, index) => {
+    const paramKey = `${filter.column}_${index}`;
+    const processor = tracesColumnFilterConfig.processors.get(filter.column);
 
-  return buildSelectQuery(queryOptions);
+    if (processor) {
+      const result = processor(filter, paramKey);
+      if (result.condition) {
+        conditions.push(result.condition);
+        Object.assign(params, result.params);
+      }
+    }
+  });
+
+  return { conditions, params };
 };
