@@ -24,7 +24,7 @@ const FETCH_SIZE = 50;
 
 export default function SessionsTable() {
   return (
-    <DataTableStateProvider uniqueKey="sessionId">
+    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId">
       <SessionsTableContent />
     </DataTableStateProvider>
   );

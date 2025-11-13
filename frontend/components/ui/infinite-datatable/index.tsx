@@ -15,12 +15,13 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
+import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { useColumnsStore } from "./model/columns-store";
+import { useDataTableStore } from "./model/datatable-store";
 import { InfiniteDataTableProps } from "./types";
 import { InfiniteDatatableBody } from "./ui/body";
 import { InfiniteDatatableHeader } from "./ui/header";
@@ -66,8 +67,13 @@ export function InfiniteDataTable<TData extends RowData>({
     [columns, enableRowSelection]
   );
 
-  const { columnVisibility, setColumnVisibility } = useColumnsStore();
-  const { columnOrder, setColumnOrder } = useColumnsStore();
+  const store = useDataTableStore();
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(store, (state) => ({
+    columnOrder: state.columnOrder,
+    setColumnOrder: state.setColumnOrder,
+    columnVisibility: state.columnVisibility,
+    setColumnVisibility: state.setColumnVisibility,
+  }));
 
   // reorder columns after drag & drop
   function handleDragEnd(event: DragEndEvent) {

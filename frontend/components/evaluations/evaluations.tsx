@@ -11,8 +11,8 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-
 import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";

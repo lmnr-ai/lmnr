@@ -9,8 +9,8 @@ import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue
 import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
