@@ -1,17 +1,23 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::result::Result;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::RwLock;
 
 use super::{CacheError, CacheTrait};
 
 const DEFAULT_CACHE_SIZE: u64 = 100;
 pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
+    locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
 }
 
 impl InMemoryCache {
     pub fn new(capacity: Option<u64>) -> Self {
         Self {
             cache: moka::future::Cache::new(capacity.unwrap_or(DEFAULT_CACHE_SIZE)),
+            locks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -76,5 +82,28 @@ impl CacheTrait for InMemoryCache {
 
         self.cache.insert(String::from(key), new_bytes).await;
         Ok(new_value)
+    }
+
+    async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
+        let mut locks = self.locks.write().await;
+        let now = tokio::time::Instant::now();
+        let expiry = now + Duration::from_secs(ttl_seconds);
+        
+        // Clean up expired locks
+        locks.retain(|_, &mut expires_at| expires_at > now);
+        
+        // Try to acquire lock
+        if locks.contains_key(key) {
+            Ok(false) // Lock already held
+        } else {
+            locks.insert(key.to_string(), expiry);
+            Ok(true) // Lock acquired
+        }
+    }
+
+    async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
+        let mut locks = self.locks.write().await;
+        locks.remove(key);
+        Ok(())
     }
 }

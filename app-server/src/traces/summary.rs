@@ -15,6 +15,7 @@ use crate::mq::{
 use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
+use crate::traces::clustering;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TraceSummaryMessage {
@@ -293,6 +294,25 @@ async fn process_trace_summary(
                     Err(e) => {
                         log::error!("Failed to fetch event configuration: {:?}", e);
                     }
+                }
+            }
+
+            // Push to clustering queue if status is error
+            if response.status == "error" {
+                if let Err(e) = clustering::push_to_clustering_queue(
+                    message.trace_id,
+                    message.project_id,
+                    response.analysis_preview.clone(),
+                    queue.clone(),
+                )
+                .await
+                {
+                    log::error!(
+                        "Failed to push to clustering queue for trace_id={}, project_id={}: {:?}",
+                        message.trace_id,
+                        message.project_id,
+                        e
+                    );
                 }
             }
 
