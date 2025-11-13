@@ -5,7 +5,7 @@ import { get } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
-import { columns, PatternRow } from "@/components/patterns/columns";
+import { getColumns, PatternRow } from "@/components/patterns/columns";
 import RefreshButton from "@/components/traces/refresh-button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
@@ -25,6 +25,8 @@ export default function PatternsTable() {
 function PatternsTableContent() {
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
+
+  const columns = useMemo(() => getColumns(projectId), [projectId]);
 
   const fetchPatterns = useCallback(
     async (_pageNumber: number) => {

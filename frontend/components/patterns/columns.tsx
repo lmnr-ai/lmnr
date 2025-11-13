@@ -2,7 +2,6 @@ import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -20,7 +19,7 @@ export type PatternRow = {
   subRows?: PatternRow[];
 };
 
-export const columns: ColumnDef<PatternRow, any>[] = [
+export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
@@ -43,7 +42,6 @@ export const columns: ColumnDef<PatternRow, any>[] = [
     header: "Pattern",
     id: "name",
     cell: ({ row }) => {
-      const { projectId } = useParams<{ projectId: string }>();
       const depth = row.depth; // Use actual nesting depth in the table
       const paddingLeft = depth * 24; // 24px per depth level
 
