@@ -1,7 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteDashboardChart, updateChartName } from "@/lib/actions/dashboard";
+import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
+
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const { projectId, id } = await props.params;
+
+  try {
+    const chart = await getChart({ projectId, id });
+
+    if (!chart) {
+      return Response.json({ error: "Chart not found" }, { status: 404 });
+    }
+
+    return Response.json(chart);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to get chart. Please try again." },
+      { status: 500 }
+    );
+  }
+}
 
 export async function DELETE(
   _req: NextRequest,
@@ -34,7 +60,13 @@ export async function PATCH(
   try {
     const body = await req.json();
 
-    await updateChartName({ projectId, id, ...body });
+    // If body contains query and config, update full chart
+    // Otherwise, just update the name
+    if (body.query && body.config) {
+      await updateChart({ projectId, id, ...body });
+    } else {
+      await updateChartName({ projectId, id, ...body });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -43,7 +75,7 @@ export async function PATCH(
     }
 
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart name. Please try again." },
+      { error: error instanceof Error ? error.message : "Failed to update chart. Please try again." },
       { status: 500 }
     );
   }

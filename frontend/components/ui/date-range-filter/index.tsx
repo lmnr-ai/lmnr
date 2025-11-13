@@ -157,8 +157,12 @@ const AbsoluteDatePicker = ({
 
 export default function DateRangeFilter({
   disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  buttonDisabled = false,
+  className,
 }: {
   disabled?: CalendarProps["disabled"];
+  buttonDisabled?: boolean;
+  className?: string;
 }) {
   const pathName = usePathname();
   const router = useRouter();
@@ -213,8 +217,13 @@ export default function DateRangeFilter({
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
         <Button
+          disabled={buttonDisabled}
           variant="outline"
-          className={cn("justify-between text-left font-normal text-xs", !displayRange && "text-muted-foreground")}
+          className={cn(
+            "justify-between text-left font-normal text-xs",
+            !displayRange && "text-muted-foreground",
+            className
+          )}
         >
           <DateRangeButton displayRange={displayRange} />
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />

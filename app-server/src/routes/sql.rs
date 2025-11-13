@@ -38,6 +38,34 @@ pub struct SqlValidateResponse {
     pub error: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlToJsonRequest {
+    pub sql: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlToJsonResponse {
+    pub success: bool,
+    pub json_structure: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonToSqlRequest {
+    pub json_structure: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonToSqlResponse {
+    pub success: bool,
+    pub sql: Option<String>,
+    pub error: Option<String>,
+}
+
 #[post("sql/query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
@@ -104,5 +132,69 @@ pub async fn validate_sql_query(
             Ok(HttpResponse::Ok().json(response))
         }
         Err(e) => Err(e.into()),
+    }
+}
+
+#[post("sql/to-json")]
+pub async fn sql_to_json(
+    req: web::Json<SqlToJsonRequest>,
+    query_engine: web::Data<Arc<QueryEngine>>,
+) -> ResponseResult {
+    let SqlToJsonRequest { sql } = req.into_inner();
+
+    match query_engine
+        .into_inner()
+        .as_ref()
+        .sql_to_json(sql)
+        .await
+    {
+        Ok(json_structure) => {
+            let response = SqlToJsonResponse {
+                success: true,
+                json_structure: Some(json_structure),
+                error: None,
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(e) => {
+            let response = SqlToJsonResponse {
+                success: false,
+                json_structure: None,
+                error: Some(e.to_string()),
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+    }
+}
+
+#[post("sql/from-json")]
+pub async fn json_to_sql(
+    req: web::Json<JsonToSqlRequest>,
+    query_engine: web::Data<Arc<QueryEngine>>,
+) -> ResponseResult {
+    let JsonToSqlRequest { json_structure } = req.into_inner();
+
+    match query_engine
+        .into_inner()
+        .as_ref()
+        .json_to_sql(json_structure)
+        .await
+    {
+        Ok(sql) => {
+            let response = JsonToSqlResponse {
+                success: true,
+                sql: Some(sql),
+                error: None,
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(e) => {
+            let response = JsonToSqlResponse {
+                success: false,
+                sql: None,
+                error: Some(e.to_string()),
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
     }
 }

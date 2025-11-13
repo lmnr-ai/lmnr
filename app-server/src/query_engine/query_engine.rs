@@ -31,6 +31,48 @@ pub struct ErrorResponse {
     #[prost(string, tag = "1")]
     pub error: ::prost::alloc::string::String,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JsonToSqlRequest {
+    /// JSON query structure
+    #[prost(string, tag = "1")]
+    pub json_structure: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JsonToSqlResponse {
+    #[prost(oneof = "json_to_sql_response::Result", tags = "1, 2")]
+    pub result: ::core::option::Option<json_to_sql_response::Result>,
+}
+/// Nested message and enum types in `JsonToSqlResponse`.
+pub mod json_to_sql_response {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Result {
+        #[prost(string, tag = "1")]
+        Sql(::prost::alloc::string::String),
+        #[prost(message, tag = "2")]
+        Error(super::ErrorResponse),
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SqlToJsonRequest {
+    /// ClickHouse SQL query
+    #[prost(string, tag = "1")]
+    pub sql: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SqlToJsonResponse {
+    #[prost(oneof = "sql_to_json_response::Result", tags = "1, 2")]
+    pub result: ::core::option::Option<sql_to_json_response::Result>,
+}
+/// Nested message and enum types in `SqlToJsonResponse`.
+pub mod sql_to_json_response {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Result {
+        #[prost(string, tag = "1")]
+        JsonStructure(::prost::alloc::string::String),
+        #[prost(message, tag = "2")]
+        Error(super::ErrorResponse),
+    }
+}
 /// Generated client implementations.
 pub mod query_engine_service_client {
     #![allow(
@@ -143,6 +185,54 @@ pub mod query_engine_service_client {
                 .insert(
                     GrpcMethod::new("query_engine.QueryEngineService", "ValidateQuery"),
                 );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn json_to_sql(
+            &mut self,
+            request: impl tonic::IntoRequest<super::JsonToSqlRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::JsonToSqlResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/query_engine.QueryEngineService/JsonToSql",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("query_engine.QueryEngineService", "JsonToSql"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn sql_to_json(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SqlToJsonRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::SqlToJsonResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/query_engine.QueryEngineService/SqlToJson",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("query_engine.QueryEngineService", "SqlToJson"));
             self.inner.unary(req, path, codec).await
         }
     }

@@ -23,9 +23,12 @@ type DashboardEditorActions = {
   setTab: (tab: TabType) => void;
   setChart: (chart: DashboardChart) => void;
   setQuery: (query: string) => void;
+  setName: (name: string) => void;
+  setChartConfig: (config: DashboardChart["settings"]["config"]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
+  setColumns: (columns: ColumnDef<any>[]) => void;
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
   executeQuery: (projectId: string) => Promise<void>;
@@ -56,34 +59,7 @@ export interface DashboardEditorProps {
 
 const defaultChart: DashboardEditorState["chart"] = {
   name: "",
-  query:
-    "-- [QUERY EXAMPLE] \n" +
-    "-- Model Performance Analysis: 90th Percentile Latency Over Time\n" +
-    "-- This query analyzes model execution latency grouped by time intervals and model type\n" +
-    "-- Returns continuous time series data with 90th percentile response times\n" +
-    "\n" +
-    "SELECT\n" +
-    "    -- Round timestamps to interval boundaries (hour, day, etc.)\n" +
-    "    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,\n" +
-    "    model,\n" +
-    "    -- Calculate 90th percentile of execution duration\n" +
-    "    quantile(0.9)(end_time - start_time) AS value\n" +
-    "FROM spans\n" +
-    "WHERE\n" +
-    "    -- Filter out null models and focus on LLM/generation spans\n" +
-    "    model != '<null>'\n" +
-    "  AND span_type = 'LLM'\n" +
-    "    -- Parameters are defined using {param_name:Type} syntax\n" +
-    '    -- Configure these values in the "Parameters" tab below\n' +
-    "  AND start_time >= {start_time:DateTime64}\n" +
-    "  AND start_time <= {end_time:DateTime64}\n" +
-    "GROUP BY time, model\n" +
-    "ORDER BY time\n" +
-    "-- WITH FILL ensures continuous time series even for periods with no data\n" +
-    "WITH FILL\n" +
-    "FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))\n" +
-    "    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))\n" +
-    "    STEP toInterval(1, {interval_unit:String})",
+  query: "",
   settings: {
     config: {
       x: undefined,
@@ -127,6 +103,22 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         chart: { ...state.chart, query },
       })),
 
+    setName: (name) =>
+      set((state) => ({
+        chart: { ...state.chart, name },
+      })),
+
+    setChartConfig: (config) =>
+      set((state) => ({
+        chart: {
+          ...state.chart,
+          settings: {
+            ...state.chart.settings,
+            config,
+          },
+        },
+      })),
+
     setLoading: (isLoading) => {
       set({ isLoading });
     },
@@ -137,6 +129,10 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
     setData: (data) => {
       set({ data });
+    },
+
+    setColumns: (columns) => {
+      set({ columns });
     },
 
     setParameterValue: (name, value) =>
@@ -167,7 +163,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     },
 
     executeQuery: async (projectId: string) => {
-      const { chart, setLoading, setError, setData, getFormattedParameters } = get();
+      const { chart, setLoading, setError, setData, setColumns, getFormattedParameters } = get();
 
       if (!chart.query?.trim()) {
         setError("Query is required");
@@ -193,8 +189,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
         setData(Array.isArray(data) ? data : []);
         if (!isEmpty(data)) {
-          set({
-            columns: Object.keys(data?.[0]).map((column) => ({
+          setColumns(
+            Object.keys(data?.[0]).map((column) => ({
               header: column,
               accessorFn: (row: any) => {
                 const value = row[column];
@@ -209,13 +205,14 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
                 }
                 return String(value);
               },
-            })),
-          });
+            }))
+          );
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Error executing the query. Please try again.";
         setError(errorMessage);
         setData([]);
+        setColumns([]);
       } finally {
         set({ tab: TabType.Chart });
         setLoading(false);

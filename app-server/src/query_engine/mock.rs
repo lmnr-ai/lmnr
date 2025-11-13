@@ -14,4 +14,12 @@ impl QueryEngineTrait for MockQueryEngine {
             validated_query: query,
         })
     }
+    
+    async fn sql_to_json(&self, _sql: String) -> Result<String> {
+        Ok("{}".to_string())
+    }
+    
+    async fn json_to_sql(&self, _json_structure: String) -> Result<String> {
+        Ok("SELECT 1".to_string())
+    }
 }

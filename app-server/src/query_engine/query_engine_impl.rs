@@ -52,6 +52,60 @@ impl QueryEngineTrait for QueryEngineImpl {
             )),
         }
     }
+
+    async fn sql_to_json(&self, sql: String) -> Result<String> {
+        use super::query_engine::{SqlToJsonRequest, sql_to_json_response};
+        
+        let mut client = self.client.as_ref().clone();
+        
+        let request = Request::new(SqlToJsonRequest { sql });
+        
+        let response = client
+            .sql_to_json(request)
+            .await
+            .map_err(|e| anyhow::anyhow!(format!("{}", e.message())))?;
+        
+        let response_inner = response.into_inner();
+        
+        match response_inner.result {
+            Some(sql_to_json_response::Result::JsonStructure(json_structure)) => {
+                Ok(json_structure)
+            }
+            Some(sql_to_json_response::Result::Error(error_response)) => {
+                Err(anyhow::anyhow!(error_response.error))
+            }
+            None => Err(anyhow::anyhow!(
+                "Invalid response from query engine: no result"
+            )),
+        }
+    }
+    
+    async fn json_to_sql(&self, json_structure: String) -> Result<String> {
+        use super::query_engine::{JsonToSqlRequest, json_to_sql_response};
+        
+        let mut client = self.client.as_ref().clone();
+        
+        let request = Request::new(JsonToSqlRequest { json_structure });
+        
+        let response = client
+            .json_to_sql(request)
+            .await
+            .map_err(|e| anyhow::anyhow!(format!("{}", e.message())))?;
+        
+        let response_inner = response.into_inner();
+        
+        match response_inner.result {
+            Some(json_to_sql_response::Result::Sql(sql)) => {
+                Ok(sql)
+            }
+            Some(json_to_sql_response::Result::Error(error_response)) => {
+                Err(anyhow::anyhow!(error_response.error))
+            }
+            None => Err(anyhow::anyhow!(
+                "Invalid response from query engine: no result"
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

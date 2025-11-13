@@ -22,6 +22,30 @@ message ErrorResponse {
     string error = 1;
 }
 
+message JsonToSqlRequest {
+    string json_structure = 1;  // JSON query structure
+}
+
+message JsonToSqlResponse {
+    oneof result {
+        string sql = 1;
+        ErrorResponse error = 2;
+    }
+}
+
+message SqlToJsonRequest {
+    string sql = 1;  // ClickHouse SQL query
+}
+
+message SqlToJsonResponse {
+    oneof result {
+        string json_structure = 1;
+        ErrorResponse error = 2;
+    }
+}
+
 service QueryEngineService {
     rpc ValidateQuery(QueryRequest) returns (QueryResponse);
+    rpc JsonToSql(JsonToSqlRequest) returns (JsonToSqlResponse);
+    rpc SqlToJson(SqlToJsonRequest) returns (SqlToJsonResponse);
 }
