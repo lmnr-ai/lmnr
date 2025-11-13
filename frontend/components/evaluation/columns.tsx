@@ -286,7 +286,7 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
   {
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
-        {row.getValue() ? (
+        {row.getValue() === "error" ? (
           <X className="self-center text-destructive" size={18} />
         ) : (
           <Check className="text-success" size={18} />
