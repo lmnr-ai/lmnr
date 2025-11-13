@@ -19,9 +19,33 @@ use crate::{
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDatapointsRequestParams {
-    #[serde(alias = "dataset_name", alias = "name")]
-    dataset_name: String,
+struct GetDatasetsRequest {
+    #[serde(default)]
+    id: Option<Uuid>,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[get("/datasets")]
+async fn get_datasets(
+    db: web::Data<DB>,
+    project_api_key: ProjectApiKey,
+    req: web::Query<GetDatasetsRequest>,
+) -> ResponseResult {
+    let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+    let request = req.into_inner();
+    let datasets =
+        db::datasets::get_datasets(&db.pool, project_id, request.id, request.name).await?;
+
+    Ok(HttpResponse::Ok().json(datasets))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetDatapointsRequestParams {
+    #[serde(flatten)]
+    dataset: DatasetIdentifier,
     limit: i64,
     offset: i64,
 }
@@ -46,13 +70,19 @@ async fn get_datapoints(
     let query_engine = query_engine.into_inner().as_ref().clone();
     let query = params.into_inner();
 
-    let dataset_id =
-        db::datasets::get_dataset_id_by_name(&db.pool, &query.dataset_name, project_id).await?;
-
-    let Some(dataset_id) = dataset_id else {
-        return Ok(HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Dataset not found"
-        })));
+    let dataset_id = match query.dataset {
+        DatasetIdentifier::Name(name) => {
+            let Some(dataset_id) =
+                db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
+                    .await?
+            else {
+                return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                    "error": "Dataset not found"
+                })));
+            };
+            dataset_id
+        }
+        DatasetIdentifier::Id(id) => id.dataset_id,
     };
 
     let select_query = "
@@ -129,28 +159,48 @@ async fn get_datapoints(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateDatapointsRequest {
-    // The alias is added to support the old endpoint (dataset_name)
-    #[serde(alias = "dataset_name")]
+pub struct DatasetName {
+    #[serde(alias = "dataset_name", alias = "name")]
     pub dataset_name: String,
-    pub datapoints: Vec<CreateDatapointRequest>,
 }
 
 #[derive(Deserialize)]
-pub struct CreateDatapointRequest {
+#[serde(rename_all = "camelCase")]
+pub struct DatasetId {
+    #[serde(alias = "dataset_id")]
+    pub dataset_id: Uuid,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+enum DatasetIdentifier {
+    Name(DatasetName),
+    Id(DatasetId),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateDatapointsRequest {
+    #[serde(flatten)]
+    dataset: DatasetIdentifier,
+    datapoints: Vec<RequestDatapoint>,
     #[serde(default)]
-    pub id: Option<Uuid>,
-    pub data: serde_json::Value,
-    pub target: Option<serde_json::Value>,
+    create_dataset: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RequestDatapoint {
     #[serde(default)]
-    pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    id: Option<Uuid>,
+    data: serde_json::Value,
+    target: Option<serde_json::Value>,
+    #[serde(default)]
+    metadata: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Create datapoints in a dataset
-///
-/// Request body should contain:
-/// - dataset_name: The name of the dataset to add datapoints to
-/// - datapoints: Array of datapoint objects with data, optional target, and optional metadata
 #[post("/datasets/datapoints")]
 async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
@@ -162,6 +212,7 @@ async fn create_datapoints(
     let db = db.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let request = req.into_inner();
+    let mut created = false;
 
     // Validate that we have datapoints to insert
     if request.datapoints.is_empty() {
@@ -170,13 +221,47 @@ async fn create_datapoints(
         })));
     }
 
-    let dataset_id =
-        db::datasets::get_dataset_id_by_name(&db.pool, &request.dataset_name, project_id).await?;
-
-    let Some(dataset_id) = dataset_id else {
-        return Ok(HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Dataset not found"
-        })));
+    let dataset_id = match request.dataset {
+        DatasetIdentifier::Name(name) => {
+            match db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
+                .await?
+            {
+                Some(dataset_id) => {
+                    if request.create_dataset {
+                        return Ok(HttpResponse::Conflict().json(serde_json::json!({
+                            "error": "Dataset with this name already exists"
+                        })));
+                    }
+                    dataset_id
+                }
+                None => {
+                    if request.create_dataset {
+                        let dataset =
+                            db::datasets::create_dataset(&db.pool, &name.dataset_name, project_id)
+                                .await?;
+                        created = true;
+                        dataset.id
+                    } else {
+                        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                            "error": "Dataset not found"
+                        })));
+                    }
+                }
+            }
+        }
+        DatasetIdentifier::Id(id) => {
+            if request.create_dataset {
+                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "When creating a new dataset, the name must be provided"
+                })));
+            }
+            if !db::datasets::dataset_exists(&db.pool, id.dataset_id, project_id).await? {
+                return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                    "error": "Dataset not found"
+                })));
+            }
+            id.dataset_id
+        }
     };
 
     // Convert request datapoints to Datapoint structs
@@ -184,7 +269,7 @@ async fn create_datapoints(
         .datapoints
         .into_iter()
         .map(|dp_req| Datapoint {
-            // now_v7 is guaranteed to be sorted by creation time
+            // `now_v7` is guaranteed to be sorted by creation time
             id: dp_req.id.unwrap_or(Uuid::now_v7()),
             created_at: Utc::now(),
             dataset_id,
@@ -201,9 +286,26 @@ async fn create_datapoints(
 
     ch_datapoints::insert_datapoints(clickhouse, ch_datapoints).await?;
 
-    Ok(HttpResponse::Created().json(serde_json::json!({
+    let datapoint_info = datapoints
+        .iter()
+        .map(|dp| {
+            serde_json::json!({
+                "id": dp.id,
+                "createdAt": dp.created_at,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let mut response = if created {
+        HttpResponse::Created()
+    } else {
+        HttpResponse::Ok()
+    };
+    Ok(response.json(serde_json::json!({
         "message": "Datapoints created successfully",
-        "count": datapoints.len()
+        "datasetId": dataset_id,
+        "count": datapoints.len(),
+        "datapointInfo": datapoint_info,
     })))
 }
 

@@ -37,7 +37,8 @@ interface EvaluationDatapointsTableProps {
 const filters: ColumnFilter[] = [
   { key: "index", name: "Index", dataType: "number" },
   { key: "traceId", name: "Trace ID", dataType: "string" },
-  { key: "startTime", name: "Start Time", dataType: "string" },
+  // TODO: Add back but with a custom/calendar UI
+  // { key: "startTime", name: "Start Time", dataType: "string" },
   { key: "duration", name: "Duration", dataType: "number" },
   { key: "cost", name: "Cost", dataType: "number" },
   { key: "metadata", name: "Metadata", dataType: "json" },
@@ -109,7 +110,11 @@ const EvaluationDatapointsTable = ({
         ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
       ];
     }
-    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
+    return [
+      ...defaultColumns,
+      ...complementaryColumns,
+      ...getScoreColumns(scores, heatmapEnabled, scoreRanges),
+    ];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
 
   const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
@@ -126,7 +131,7 @@ const EvaluationDatapointsTable = ({
         hasMore={false}
         isFetching={false}
         isLoading={isLoading}
-        fetchNextPage={() => {}}
+        fetchNextPage={() => { }}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}

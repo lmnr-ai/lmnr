@@ -30,6 +30,11 @@ export const DeleteTracesSchema = z.object({
   traceIds: z.array(z.string()).min(1),
 });
 
+export const GetTracesByIdsSchema = z.object({
+  projectId: z.string(),
+  traceIds: z.array(z.string()).min(1),
+});
+
 export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[] }> {
   const {
     projectId,
@@ -79,6 +84,32 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   return {
     items,
   };
+}
+
+export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>): Promise<TraceRow[]> {
+  const { projectId, traceIds } = GetTracesByIdsSchema.parse(input);
+
+  if (traceIds.length === 0) {
+    return [];
+  }
+
+  const query = `
+    SELECT
+      id,
+      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+      input_cost as inputCost,
+      output_cost as outputCost,
+      status
+    FROM traces
+    WHERE id IN ({traceIds:Array(UUID)})
+  `;
+
+  return await executeQuery<TraceRow>({
+    query,
+    parameters: { projectId, traceIds },
+    projectId,
+  });
 }
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {

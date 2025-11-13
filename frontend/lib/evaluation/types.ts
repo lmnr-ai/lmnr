@@ -36,6 +36,9 @@ export type EvaluationDatapointPreview = {
   endTime: string;
   inputCost: number;
   outputCost: number;
+  datasetId?: string;
+  datasetDatapointId?: string;
+  datasetDatapointCreatedAt?: string;
 };
 
 export type EvaluationDatapointPreviewWithCompared = {
@@ -92,4 +95,24 @@ export type EvaluationResultWithScores = {
   endTime: string | null;
   inputCost: number | null;
   outputCost: number | null;
+  status: string | null;
+  metadata: unknown;
+};
+
+// Type for the evaluation datapoint row returned from ClickHouse query
+export type EvaluationDatapointRow = {
+  id: string;
+  evaluationId: string;
+  data: string;
+  target: string;
+  metadata: string;
+  executorOutput: string | null;
+  index: number;
+  traceId: string;
+  groupId: string | null;
+  scores: string;
+  createdAt: string;
+  datasetId: string;
+  datasetDatapointId: string;
+  datasetDatapointCreatedAt: string;
 };
