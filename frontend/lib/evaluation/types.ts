@@ -36,9 +36,9 @@ export type EvaluationDatapointPreview = {
   endTime: string;
   inputCost: number;
   outputCost: number;
-  datasetId?: string | null;
-  datasetDatapointId?: string | null;
-  datasetDatapointCreatedAt?: string | null;
+  datasetId?: string;
+  datasetDatapointId?: string;
+  datasetDatapointCreatedAt?: string;
 };
 
 export type EvaluationDatapointPreviewWithCompared = {
@@ -112,7 +112,7 @@ export type EvaluationDatapointRow = {
   groupId: string | null;
   scores: string;
   createdAt: string;
-  datasetId: string | null;
-  datasetDatapointId: string | null;
-  datasetDatapointCreatedAt: string | null;
+  datasetId: string;
+  datasetDatapointId: string;
+  datasetDatapointCreatedAt: string;
 };
