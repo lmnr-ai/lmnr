@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -7,6 +8,8 @@ import { GetTracesSchema } from "@/lib/actions/traces";
 import { buildTracesStatsWhereConditions, searchSpans } from "@/lib/actions/traces/utils";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { clusters } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 
 export const GetTraceStatsSchema = GetTracesSchema.omit({
@@ -54,10 +57,31 @@ export async function getTraceStats(
     return { items: [] };
   }
 
+  // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)
+  const processedFilters = filters;
+
+  const hasPatternFilter = filters.some((f) => f.column === "pattern");
+  if (hasPatternFilter) {
+    const clustersList = await db
+      .select()
+      .from(clusters)
+      .where(eq(clusters.projectId, projectId));
+
+    // Replace pattern names with cluster IDs in filters
+    processedFilters.forEach((filter) => {
+      if (filter.column === "pattern") {
+        const cluster = clustersList.find((c) => c.name === filter.value);
+        if (cluster) {
+          filter.value = cluster.id; // Mutate to replace name with ID
+        }
+      }
+    });
+  }
+
   const { conditions: whereConditions, params: whereParams } = buildTracesStatsWhereConditions({
     traceType,
     traceIds,
-    filters,
+    filters: processedFilters,
   });
 
   const {

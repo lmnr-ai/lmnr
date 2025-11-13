@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -7,6 +8,8 @@ import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/ut
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { clusters } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
@@ -62,11 +65,32 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     return { items: [] };
   }
 
+  // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)
+  const processedFilters = filters;
+
+  const hasPatternFilter = filters.some((f) => f.column === "pattern");
+  if (hasPatternFilter) {
+    const clustersList = await db
+      .select()
+      .from(clusters)
+      .where(eq(clusters.projectId, projectId));
+
+    // Replace pattern names with cluster IDs in filters
+    processedFilters.forEach((filter) => {
+      if (filter.column === "pattern") {
+        const cluster = clustersList.find((c) => c.name === filter.value);
+        if (cluster) {
+          filter.value = cluster.id; // Mutate to replace name with ID
+        }
+      }
+    });
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
     traceIds,
-    filters,
+    filters: processedFilters,
     limit,
     offset,
     startTime,

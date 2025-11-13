@@ -103,6 +103,19 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
+    [
+      "pattern",
+      createCustomFilter(
+        (filter, paramKey) =>
+          // The cluster_id will be passed as the value after resolution in getTraces
+          `has(patterns, {${paramKey}:UUID})`
+        ,
+        (filter, paramKey) =>
+          // Value should be cluster_id at this point (resolved in getTraces)
+          ({ [paramKey]: filter.value })
+
+      ),
+    ],
   ]),
 };
 
