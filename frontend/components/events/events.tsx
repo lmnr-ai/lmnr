@@ -360,7 +360,7 @@ function EventsContent({
   initialTraceViewWidth?: number;
 }) {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider storageKey="events-table" uniqueKey="id">
       <EventsContentInner lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </DataTableStateProvider>
   );

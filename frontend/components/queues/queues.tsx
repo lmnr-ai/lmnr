@@ -33,6 +33,7 @@ const columns: ColumnDef<LabelingQueue>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -50,6 +51,8 @@ const columns: ColumnDef<LabelingQueue>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "count", "createdAt"];
 
 const QueuesContent = () => {
   const { projectId } = useParams();
@@ -118,6 +121,7 @@ const QueuesContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -155,7 +159,7 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="queues-table">
       <QueuesContent />
     </DataTableStateProvider>
   );

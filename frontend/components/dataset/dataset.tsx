@@ -38,6 +38,7 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: ({ row }) => <div>{row.index + 1}</div>,
     header: "Index",
     size: 80,
+    id: "index",
   },
   {
     accessorKey: "createdAt",
@@ -50,20 +51,25 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
     size: 200,
+    id: "data",
   },
   {
     accessorFn: (row) => row.target,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
     size: 200,
+    id: "target",
   },
   {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    id: "metadata",
   },
 ];
+
+export const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -289,6 +295,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             }}
             onRowSelectionChange={setRowSelection}
             className="flex-1"
+            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -331,7 +338,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="dataset-table">
       <DatasetContent {...props} />
     </DataTableStateProvider>
   );

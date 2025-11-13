@@ -10,6 +10,7 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     header: "Name",
     accessorFn: (row) => row.name,
     cell: ({ row }) => <span className="truncate">{row.original.name}</span>,
+    id: "name",
   },
   {
     header: "Trigger Spans",
@@ -36,10 +37,20 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     header: "Semantic",
     accessorFn: (row) => row.isSemantic,
     cell: ({ row }) => (row.original.isSemantic ? "Yes" : "No"),
+    id: "isSemantic",
   },
   {
     header: "Created At",
     accessorFn: (row) => row.createdAt,
     cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
+    id: "createdAt",
   },
+];
+
+export const defaultEventDefinitionsColumnOrder = [
+  "__row_selection",
+  "name",
+  "triggerSpans",
+  "isSemantic",
+  "createdAt",
 ];
