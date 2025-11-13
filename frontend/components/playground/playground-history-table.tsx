@@ -125,6 +125,18 @@ const columns: ColumnDef<Trace, any>[] = [
   },
 ];
 
+export const defaultPlaygroundHistoryColumnOrder = [
+  "status",
+  "id",
+  "top_span_type",
+  "input",
+  "output",
+  "start_time",
+  "latency",
+  "cost",
+  "total_token_count",
+];
+
 interface PlaygroundHistoryTableProps {
   playgroundId: string;
   onRowClick?: (trace: Trace) => void;
@@ -135,7 +147,7 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider storageKey="playground-history-table" uniqueKey="id">
       <PlaygroundHistoryTableContent {...props} />
     </DataTableStateProvider>
   );

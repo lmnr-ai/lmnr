@@ -56,6 +56,15 @@ const columns: ColumnDef<Evaluation>[] = [
   },
 ];
 
+export const defaultEvaluationsColumnOrder = [
+  "__row_selection",
+  "id",
+  "name",
+  "dataPointsCount",
+  "metadata",
+  "createdAt",
+];
+
 const filters: ColumnFilter[] = [
   {
     name: "ID",
@@ -83,7 +92,7 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="evaluations-table">
       <EvaluationsContent />
     </DataTableStateProvider>
   );
@@ -252,6 +261,7 @@ function EvaluationsContent() {
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
                 childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+                lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows

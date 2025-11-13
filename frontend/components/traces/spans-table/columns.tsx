@@ -272,4 +272,8 @@ export const defaultSpansColumnOrder = [
   "output",
   "start_time",
   "duration",
+  "cost",
+  "tokens",
+  "model",
+  "tags",
 ];

@@ -5,6 +5,14 @@ import { createContext, type ReactNode, useContext, useRef } from "react";
 import { createStore } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { defaultDatasetColumnOrder } from "@/components/dataset/dataset";
+import { defaultDatasetsColumnOrder } from "@/components/datasets/datasets";
+import { defaultEvaluationsColumnOrder } from "@/components/evaluations/evaluations";
+import { defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns";
+import { defaultEventsColumnOrder } from "@/components/events/columns";
+import { defaultPlaygroundHistoryColumnOrder } from "@/components/playground/playground-history-table";
+import { defaultPlaygroundsColumnOrder } from "@/components/playgrounds/playgrounds";
+import { defaultQueuesColumnOrder } from "@/components/queues/queues";
 import { defaultSessionsColumnOrder } from "@/components/traces/sessions-table/columns";
 import { defaultSpansColumnOrder } from "@/components/traces/spans-table/columns";
 import { defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
@@ -58,6 +66,14 @@ const storageDefaultColumnOrder = {
   "traces-table": defaultTracesColumnOrder,
   "spans-table": defaultSpansColumnOrder,
   "sessions-table": defaultSessionsColumnOrder,
+  "playgrounds-table": defaultPlaygroundsColumnOrder,
+  "queues-table": defaultQueuesColumnOrder,
+  "playground-history-table": defaultPlaygroundHistoryColumnOrder,
+  "events-table": defaultEventsColumnOrder,
+  "event-definitions-table": defaultEventDefinitionsColumnOrder,
+  "evaluations-table": defaultEvaluationsColumnOrder,
+  "datasets-table": defaultDatasetsColumnOrder,
+  "dataset-table": defaultDatasetColumnOrder,
 };
 
 const createDataTableStore = <TData,>(uniqueKey: string = "id", storageKey: string, pageSize: number = 50) =>

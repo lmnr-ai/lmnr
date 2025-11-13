@@ -19,7 +19,7 @@ import Header from "../ui/header";
 
 export default function EventDefinitions() {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider storageKey="event-definitions-table" uniqueKey="id">
       <EventDefinitionsContent />
     </DataTableStateProvider>
   );
@@ -136,6 +136,7 @@ function EventDefinitionsContent() {
             rowSelection,
           }}
           onRowSelectionChange={onRowSelectionChange}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows

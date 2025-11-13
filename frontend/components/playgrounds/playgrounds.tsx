@@ -32,6 +32,7 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -44,6 +45,8 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
 const PlaygroundsContent = () => {
   const { projectId } = useParams();
@@ -105,6 +108,7 @@ const PlaygroundsContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -142,7 +146,7 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="playgrounds-table">
       <PlaygroundsContent />
     </DataTableStateProvider>
   );
