@@ -65,7 +65,7 @@ const getDatabaseConfigFromEnv = (): DatabaseConfig => {
 };
 
 // Get database configuration from either DATABASE_URL or individual env vars
-const getDatabaseConfig = (): DatabaseConfig => {
+export const getDatabaseConfig = (): DatabaseConfig => {
   if (env.DATABASE_URL) {
     return parseDatabaseUrl(env.DATABASE_URL);
   } else {
