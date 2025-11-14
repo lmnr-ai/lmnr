@@ -15,7 +15,10 @@ export const defaultEvaluationsGroupsBarColumnOrder = ["groupId", "lastEvaluatio
 
 export default function EvaluationsGroupsBar() {
   return (
-    <DataTableStateProvider storageKey="evaluations-groups-bar">
+    <DataTableStateProvider
+      storageKey="evaluations-groups-bar"
+      defaultColumnOrder={defaultEvaluationsGroupsBarColumnOrder}
+    >
       <EvaluationsGroupsBarСontent />
     </DataTableStateProvider>
   );

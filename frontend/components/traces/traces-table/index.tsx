@@ -10,7 +10,7 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { columns, filters } from "@/components/traces/traces-table/columns";
+import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -30,7 +30,7 @@ const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
   return (
-    <DataTableStateProvider storageKey="traces-table">
+    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultTracesColumnOrder}>
       <TracesTableContent />
     </DataTableStateProvider>
   );

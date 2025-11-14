@@ -10,7 +10,7 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
-import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
+import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import TraceView from "@/components/traces/trace-view";
@@ -360,7 +360,7 @@ function EventsContent({
   initialTraceViewWidth?: number;
 }) {
   return (
-    <DataTableStateProvider storageKey="events-table" uniqueKey="id">
+    <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
       <EventsContentInner lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </DataTableStateProvider>
   );

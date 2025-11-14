@@ -338,7 +338,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider storageKey="dataset-table">
+    <DataTableStateProvider storageKey="dataset-table" defaultColumnOrder={defaultDatasetColumnOrder}>
       <DatasetContent {...props} />
     </DataTableStateProvider>
   );

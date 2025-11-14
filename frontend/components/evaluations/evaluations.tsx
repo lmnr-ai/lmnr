@@ -92,7 +92,7 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider storageKey="evaluations-table">
+    <DataTableStateProvider storageKey="evaluations-table" defaultColumnOrder={defaultEvaluationsColumnOrder}>
       <EvaluationsContent />
     </DataTableStateProvider>
   );

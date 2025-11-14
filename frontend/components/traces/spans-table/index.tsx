@@ -6,7 +6,7 @@ import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
-import { columns, filters } from "@/components/traces/spans-table/columns";
+import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
@@ -23,7 +23,7 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId">
+    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" defaultColumnOrder={defaultSpansColumnOrder}>
       <SpansTableContent />
     </DataTableStateProvider>
   );

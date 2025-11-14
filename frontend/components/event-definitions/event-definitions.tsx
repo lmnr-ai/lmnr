@@ -4,7 +4,7 @@ import { Row } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { columns } from "@/components/event-definitions/columns.tsx";
+import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
@@ -19,7 +19,11 @@ import Header from "../ui/header";
 
 export default function EventDefinitions() {
   return (
-    <DataTableStateProvider storageKey="event-definitions-table" uniqueKey="id">
+    <DataTableStateProvider
+      storageKey="event-definitions-table"
+      uniqueKey="id"
+      defaultColumnOrder={defaultEventDefinitionsColumnOrder}
+    >
       <EventDefinitionsContent />
     </DataTableStateProvider>
   );

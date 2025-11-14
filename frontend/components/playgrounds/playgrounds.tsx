@@ -146,7 +146,7 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider storageKey="playgrounds-table">
+    <DataTableStateProvider storageKey="playgrounds-table" defaultColumnOrder={defaultPlaygroundsColumnOrder}>
       <PlaygroundsContent />
     </DataTableStateProvider>
   );

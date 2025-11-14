@@ -7,7 +7,7 @@ import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import RefreshButton from "@/components/traces/refresh-button";
-import { columns, filters } from "@/components/traces/sessions-table/columns";
+import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
@@ -24,7 +24,11 @@ const FETCH_SIZE = 50;
 
 export default function SessionsTable() {
   return (
-    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId">
+    <DataTableStateProvider
+      storageKey="sessions-table"
+      uniqueKey="sessionId"
+      defaultColumnOrder={defaultSessionsColumnOrder}
+    >
       <SessionsTableContent />
     </DataTableStateProvider>
   );
