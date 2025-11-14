@@ -20,6 +20,7 @@ pub enum Feature {
     ClickhouseReadOnly,
     Tracing,
     AggregateTraces,
+    Clustering,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -47,6 +48,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::AggregateTraces => {
             env::var("AGGREGATE_TRACES").is_ok()
                 && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
+        }
+        Feature::Clustering => {
+            env::var("CLUSTERING_ENDPOINT").is_ok() && env::var("CLUSTERING_ENDPOINT_KEY").is_ok()
         }
     }
 }

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, CLUSTERING_ROUTING_KEY};
-use crate::cache::{Cache, CacheTrait};
+use crate::cache::{Cache, CacheTrait, keys};
 use crate::db;
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
@@ -143,7 +143,7 @@ async fn process_single_clustering(
     message: ClusteringMessage,
     acker: MessageQueueAcker,
 ) -> anyhow::Result<()> {
-    let lock_key = format!("clustering_lock:{}", message.project_id);
+    let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, message.project_id);
     let lock_ttl = 300; // 5 minutes
     let max_wait_duration = Duration::from_secs(300); // 5 minutes max wait
     let start_time = tokio::time::Instant::now();
@@ -172,10 +172,6 @@ async fn process_single_clustering(
             }
             Ok(false) => {
                 // Lock already held, wait and retry
-                log::debug!(
-                    "Clustering lock already held for project_id={}, waiting...",
-                    message.project_id
-                );
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 continue;
             }

@@ -51,6 +51,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     ? cookieStore.get(projectSidebarCookieName)?.value === "true"
     : true;
 
+  const shouldShowPatterns = isFeatureEnabled(Feature.PATTERNS);
+
   return (
     <UserContextProvider
       id={user.id}
@@ -63,7 +65,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
         <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
           <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-            <ProjectSidebar details={projectDetails} />
+            <ProjectSidebar details={projectDetails} shouldShowPatterns={shouldShowPatterns} />
             <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
               {showBanner && <ProjectUsageBanner details={projectDetails} />}
               {children}

@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::{TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY};
 use crate::db;
+use crate::features::{Feature, is_feature_enabled};
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
     MessageQueueTrait,
@@ -297,8 +298,8 @@ async fn process_trace_summary(
                 }
             }
 
-            // Push to clustering queue if status is error
-            if response.status == "error" {
+            // Push to clustering queue if status is error only if clustering is enabled
+            if response.status == "error" && is_feature_enabled(Feature::Clustering) {
                 if let Err(e) = clustering::push_to_clustering_queue(
                     message.trace_id,
                     message.project_id,

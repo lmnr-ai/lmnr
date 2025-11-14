@@ -9,3 +9,4 @@ pub const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY: &str = "project_evaluators_by_pa
 pub const SUMMARY_TRIGGER_SPANS_CACHE_KEY: &str = "summary_trigger_spans";
 pub const PROJECT_EVENT_NAMES_CACHE_KEY: &str = "project_event_names";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
+pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
