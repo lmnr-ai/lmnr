@@ -1,10 +1,12 @@
 import { ChartBar, ChartColumn, ChartLine } from "lucide-react";
 import { ReactNode } from "react";
+import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QueryStructure } from "@/lib/actions/sql/types.ts";
 
 const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = {
   [ChartType.LineChart]: {
@@ -22,6 +24,7 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
 };
 
 const ChartTypeField = () => {
+  const { setValue } = useFormContext<QueryStructure>();
   const { chartType, setChartConfig, chart } = useDashboardEditorStoreContext((state) => ({
     chartType: state.chart.settings.config.type,
     setChartConfig: state.setChartConfig,
@@ -33,6 +36,10 @@ const ChartTypeField = () => {
       ...chart.settings.config,
       type: newType,
     });
+
+    if (newType === ChartType.LineChart || newType === ChartType.BarChart) {
+      setValue("orderBy", []);
+    }
   };
 
   return (

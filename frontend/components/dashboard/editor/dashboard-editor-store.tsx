@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format, startOfToday, subDays } from "date-fns";
+import { format, subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
@@ -26,6 +26,7 @@ type DashboardEditorActions = {
   setQuery: (query: string) => void;
   setName: (name: string) => void;
   setChartConfig: (config: DashboardChart["settings"]["config"]) => void;
+  setTotal: (total: boolean) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
@@ -42,8 +43,8 @@ enum TabType {
 }
 
 const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: subDays(startOfToday(), 1), type: "date" },
-  { name: "end_time", value: startOfToday(), type: "date" },
+  { name: "start_time", value: subDays(new Date(), 1), type: "date" },
+  { name: "end_time", value: new Date(), type: "date" },
   {
     name: "interval_unit",
     value: "HOUR",
@@ -65,7 +66,7 @@ const defaultChart: DashboardEditorState["chart"] = {
     config: {
       x: undefined,
       y: undefined,
-      total: undefined,
+      total: false,
       breakdown: undefined,
       type: ChartType.LineChart,
     },
@@ -116,6 +117,20 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           settings: {
             ...state.chart.settings,
             config,
+          },
+        },
+      })),
+
+    setTotal: (total) =>
+      set((state) => ({
+        chart: {
+          ...state.chart,
+          settings: {
+            ...state.chart.settings,
+            config: {
+              ...state.chart.settings.config,
+              total,
+            },
           },
         },
       })),
