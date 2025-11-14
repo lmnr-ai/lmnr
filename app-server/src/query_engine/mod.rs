@@ -3,11 +3,14 @@ use mock::MockQueryEngine;
 use query_engine_impl::QueryEngineImpl;
 use uuid::Uuid;
 
+pub mod dto;
 pub mod mock;
 pub mod query_engine;
 pub mod query_engine_impl;
 
 pub use query_engine_impl::QueryEngineValidationResult;
+// Export DTO for HTTP API (has string enums)
+pub use dto::QueryStructure;
 
 #[enum_dispatch::enum_dispatch(QueryEngineTrait)]
 pub enum QueryEngine {
@@ -23,7 +26,7 @@ pub trait QueryEngineTrait {
         project_id: Uuid,
     ) -> Result<QueryEngineValidationResult>;
     
-    async fn sql_to_json(&self, sql: String) -> Result<String>;
+    async fn sql_to_json(&self, sql: String) -> Result<query_engine::QueryStructure>;
     
-    async fn json_to_sql(&self, json_structure: String) -> Result<String>;
+    async fn json_to_sql(&self, query_structure: query_engine::QueryStructure) -> Result<String>;
 }

@@ -45,47 +45,50 @@ const ChartBuilder = () => {
     reValidateMode: "onChange",
   });
 
+  const { reset } = methods;
+
+  // Load existing chart into form ONCE
   useEffect(() => {
-    if (chart.id && chart.query && projectId) {
-      executeQuery(projectId as string);
+    if (!chart.id || !chart.query || !projectId) {
+      return;
     }
-  }, [chart.id, projectId]);
 
-  useEffect(() => {
-    const loadChartIntoForm = async () => {
-      if (chart.query && chart.id && projectId) {
+    const loadChart = async () => {
+      try {
         setIsLoadingForm(true);
-        try {
-          const queryStructure = await convertSqlToJson(projectId as string, chart.query);
+        const queryStructure = await convertSqlToJson(projectId as string, chart.query);
+        const filteredFilters = (queryStructure.filters || []).filter(
+          (filter) => filter.field !== "start_time" && filter.field !== "end_time"
+        );
 
-          const filteredFilters = (queryStructure.filters || []).filter(
-            (filter) => filter.field !== "start_time" && filter.field !== "end_time"
-          );
+        reset({
+          chartType: chart.settings.config.type || getDefaultFormValues().chartType,
+          table: queryStructure.table,
+          metrics: queryStructure.metrics,
+          dimensions: queryStructure.dimensions || [],
+          filters: filteredFilters,
+          orderBy: queryStructure.orderBy || [],
+          limit: queryStructure.limit,
+        });
 
-          methods.reset({
-            chartType: chart.settings.config.type || getDefaultFormValues().chartType,
-            table: queryStructure.table,
-            metrics: queryStructure.metrics,
-            dimensions: queryStructure.dimensions || [],
-            filters: filteredFilters,
-            orderBy: queryStructure.orderBy || [],
-            limit: queryStructure.limit,
-          });
-        } catch (error) {
-          console.error("Failed to load chart into form:", error);
-          methods.reset(getDefaultFormValues());
-        } finally {
-          setIsLoadingForm(false);
-        }
+        // Execute the existing query to show data
+        await executeQuery(projectId as string);
+
+        // Small delay to ensure form has settled before we start reacting to changes
+      } catch (error) {
+        console.error("Failed to load chart:", error);
+        reset(getDefaultFormValues());
+      } finally {
+        setIsLoadingForm(false);
       }
     };
 
-    loadChartIntoForm();
-  }, [chart.id, chart.query, projectId, methods, chart.settings.config.type]);
+    loadChart();
+  }, [chart.id, chart.query, projectId, reset, executeQuery, chart.settings.config.type]);
 
   return (
     <FormProvider {...methods}>
-      <Form isLoading={isLoadingForm} />
+      <Form isLoadingChart={isLoadingForm} />
     </FormProvider>
   );
 };

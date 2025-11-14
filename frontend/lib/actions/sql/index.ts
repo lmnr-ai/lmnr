@@ -48,8 +48,8 @@ const TimeRangeSchema = z.object({
   column: z.string(),
   from: z.string(),
   to: z.string(),
-  intervalUnit: z.string(),
-  intervalValue: z.string(),
+  intervalUnit: z.string().optional(),
+  intervalValue: z.string().optional(),
   fillGaps: z.boolean(),
 });
 
@@ -58,7 +58,6 @@ const OrderBySchema = z.object({
   dir: z.enum(["asc", "desc"]),
 });
 
-// Main query structure schema
 export const QueryStructureSchema = z.object({
   table: z.string(),
   metrics: z.array(MetricSchema),
@@ -81,7 +80,7 @@ const SqlToJsonInputSchema = z.object({
 
 const SqlToJsonResponseSchema = z.object({
   success: z.boolean(),
-  jsonStructure: z.string().optional(),
+  jsonStructure: QueryStructureSchema.nullable(),
   error: z.string().nullable(),
 });
 
@@ -96,37 +95,35 @@ export const sqlToJson = async (input: z.infer<typeof SqlToJsonInputSchema>): Pr
     body: JSON.stringify({ sql }),
   });
 
-  console.log(res);
   const parsed = SqlToJsonResponseSchema.parse(res);
 
   if (!parsed.jsonStructure) {
     throw new Error(parsed.error || "Failed to convert SQL to JSON");
   }
 
-  const queryStructure = JSON.parse(parsed.jsonStructure);
-  return QueryStructureSchema.parse(queryStructure);
+  return parsed.jsonStructure;
 };
 
 const JsonToSqlInputSchema = z.object({
   projectId: z.string(),
-  jsonStructure: z.string().min(1, { error: "JSON structure is required." }),
+  queryStructure: QueryStructureSchema,
 });
 
 const JsonToSqlResponseSchema = z.object({
   success: z.boolean(),
-  sql: z.string().optional(),
+  sql: z.string().nullable(),
   error: z.string().nullable(),
 });
 
 export const jsonToSql = async (input: z.infer<typeof JsonToSqlInputSchema>): Promise<string> => {
-  const { jsonStructure, projectId } = JsonToSqlInputSchema.parse(input);
+  const { queryStructure, projectId } = JsonToSqlInputSchema.parse(input);
 
   const res = await fetcherJSON(`/projects/${projectId}/sql/from-json`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ jsonStructure }),
+    body: JSON.stringify({ queryStructure }),
   });
 
   const parsed = JsonToSqlResponseSchema.parse(res);

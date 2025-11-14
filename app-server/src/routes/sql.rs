@@ -10,7 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult, QueryStructure},
     sql::{self, ClickhouseReadonlyClient},
 };
 
@@ -48,14 +48,14 @@ pub struct SqlToJsonRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonResponse {
     pub success: bool,
-    pub json_structure: Option<String>,
+    pub json_structure: Option<QueryStructure>,
     pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToSqlRequest {
-    pub json_structure: String,
+    pub query_structure: QueryStructure,
 }
 
 #[derive(Serialize)]
@@ -148,10 +148,12 @@ pub async fn sql_to_json(
         .sql_to_json(sql)
         .await
     {
-        Ok(json_structure) => {
+        Ok(proto_query_structure) => {
+            // Convert Proto (i32 enums) to DTO (string enums)
+            let dto_query_structure: QueryStructure = proto_query_structure.into();
             let response = SqlToJsonResponse {
                 success: true,
-                json_structure: Some(json_structure),
+                json_structure: Some(dto_query_structure),
                 error: None,
             };
             Ok(HttpResponse::Ok().json(response))
@@ -172,12 +174,15 @@ pub async fn json_to_sql(
     req: web::Json<JsonToSqlRequest>,
     query_engine: web::Data<Arc<QueryEngine>>,
 ) -> ResponseResult {
-    let JsonToSqlRequest { json_structure } = req.into_inner();
+    let JsonToSqlRequest { query_structure } = req.into_inner();
+
+    // Convert DTO (string enums) to Proto (i32 enums)
+    let proto_query_structure: crate::query_engine::query_engine::QueryStructure = query_structure.into();
 
     match query_engine
         .into_inner()
         .as_ref()
-        .json_to_sql(json_structure)
+        .json_to_sql(proto_query_structure)
         .await
     {
         Ok(sql) => {

@@ -21,19 +21,25 @@ const DashboardEditor = () => {
     swrFetcher
   );
 
+  if (isLoading) {
+    return (
+      <>
+        <Header path={`dashboard/${id}`} />
+
+        <div className="flex-1 overflow-hidden px-4 pb-4">
+          <div className="flex flex-col h-full justify-center items-center">
+            <Loader2 className="animate-spin h-10 w-10 text-primary" />
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <DashboardEditorStoreProvider chart={chart}>
-      <div className="flex flex-col h-screen">
-        <Header path={`dashboard/${id}`} />
-        <div className="flex-1 overflow-hidden px-4 pb-4">
-          {isLoading ? (
-            <div className="flex flex-col h-full justify-center items-center">
-              <Loader2 className="animate-spin h-10 w-10 text-primary" />
-            </div>
-          ) : (
-            <ChartBuilder />
-          )}
-        </div>
+      <Header path={`dashboard/${id}`} />
+      <div className="flex-1 overflow-hidden px-4 pb-4">
+        <ChartBuilder />
       </div>
     </DashboardEditorStoreProvider>
   );

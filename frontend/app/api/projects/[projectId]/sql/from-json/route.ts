@@ -8,7 +8,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
     const projectId = (await params).projectId;
 
-    const data = await jsonToSql({ projectId, jsonStructure: body.jsonStructure });
+    const data = await jsonToSql({ projectId, ...body });
 
     return Response.json({ success: true, sql: data });
   } catch (error) {

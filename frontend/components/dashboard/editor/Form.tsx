@@ -65,7 +65,7 @@ const getDefaultTimeRange = (): TimeRange => ({
   intervalUnit: "{interval_unit:String}",
 });
 
-export const Form = ({}: { isLoading: boolean }) => {
+export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
   const router = useRouter();
   const { control, formState, getValues, handleSubmit } = useFormContext<VisualQueryBuilderForm>();
@@ -139,7 +139,8 @@ export const Form = ({}: { isLoading: boolean }) => {
     }
   };
 
-  const updateStore = useCallback(async () => {
+  // Generate and execute query from form values
+  const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
       return;
     }
@@ -173,7 +174,7 @@ export const Form = ({}: { isLoading: boolean }) => {
       const sqlResponse = await fetch(`/api/projects/${projectId}/sql/from-json`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonStructure: JSON.stringify(queryStructure) }),
+        body: JSON.stringify({ queryStructure }),
       });
 
       const sqlData = await sqlResponse.json();
@@ -182,8 +183,8 @@ export const Form = ({}: { isLoading: boolean }) => {
         throw new Error(sqlData.error || "Failed to convert query structure to SQL");
       }
 
+      // Update store with new query and config
       setQuery(sqlData.sql);
-
       if (chartConfig) {
         setChartConfig({
           type: chartConfig.type!,
@@ -193,30 +194,27 @@ export const Form = ({}: { isLoading: boolean }) => {
           total: chartConfig.total,
         });
       }
-    } catch (err) {
-      console.error("Failed to update store:", err);
-    }
-  }, [formState.isValid, projectId, getValues, setQuery, setChartConfig]);
 
+      await executeQuery(projectId as string);
+    } catch (err) {
+      console.error("Failed to generate and execute query:", err);
+    }
+  }, [formState.isValid, projectId, chartConfig, getValues, setQuery, setChartConfig, executeQuery]);
+
+  // Only react to form changes after initial load
   useEffect(() => {
-    const debouncedUpdate = debounce(() => {
+    const debouncedExecution = debounce(() => {
       if (formState.isValid) {
-        handleSubmit(updateStore)();
+        handleSubmit(generateAndExecuteQuery)();
       }
     }, 300);
 
-    debouncedUpdate();
+    debouncedExecution();
 
     return () => {
-      debouncedUpdate.cancel();
+      debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, updateStore, handleSubmit]);
-
-  useEffect(() => {
-    if (chart.query && projectId) {
-      executeQuery(projectId as string);
-    }
-  }, [chart.query, executeQuery, projectId]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
@@ -230,10 +228,10 @@ export const Form = ({}: { isLoading: boolean }) => {
           <Button
             onClick={handleSaveChart}
             disabled={!formState.isValid || !chart.name.trim() || isSaving || !chartConfig}
-            className="gap-2"
+            className="gap-1"
           >
-            <Save className="w-4 h-4" />
-            {isSaving ? "Saving..." : chart.id ? "Update Chart" : "Save Chart"}
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {chart.id ? "Update" : "Save"}
           </Button>
         </div>
 
