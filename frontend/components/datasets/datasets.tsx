@@ -174,7 +174,7 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider storageKey="datasets-table">
+    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
       <DatasetsContent />
     </DataTableStateProvider>
   );

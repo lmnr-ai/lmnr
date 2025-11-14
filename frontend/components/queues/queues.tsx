@@ -159,7 +159,7 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider storageKey="queues-table">
+    <DataTableStateProvider storageKey="queues-table" defaultColumnOrder={defaultQueuesColumnOrder}>
       <QueuesContent />
     </DataTableStateProvider>
   );

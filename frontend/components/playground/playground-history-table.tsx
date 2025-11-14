@@ -147,7 +147,11 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <DataTableStateProvider storageKey="playground-history-table" uniqueKey="id">
+    <DataTableStateProvider
+      storageKey="playground-history-table"
+      uniqueKey="id"
+      defaultColumnOrder={defaultPlaygroundHistoryColumnOrder}
+    >
       <PlaygroundHistoryTableContent {...props} />
     </DataTableStateProvider>
   );
