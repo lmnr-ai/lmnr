@@ -110,7 +110,13 @@ export function InfiniteTableHead<TData extends RowData>({
             "group-hover:bg-blue-300 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 h-full cursor-col-resize transition-colors",
             header.column.getIsResizing() ? "bg-blue-400" : "bg-transparent"
           )}
-          onMouseDown={header.getResizeHandler()}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            header.getResizeHandler()(e);
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
           onDoubleClick={() => header.column.resetSize()}
         />
       </div>
