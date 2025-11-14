@@ -44,6 +44,7 @@ export interface SelectionState {
   selectedRows: Set<string>;
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
+  draggingColumnId: string | null;
 }
 
 export interface SelectionActions {
@@ -54,6 +55,7 @@ export interface SelectionActions {
   clearSelection: () => void;
   setColumnVisibility: (visibility: Record<string, boolean>) => void;
   setColumnOrder: (order: string[]) => void;
+  setDraggingColumnId: (columnId: string | null) => void;
   resetColumns: () => void;
 }
 
@@ -90,6 +92,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", storageKey: stri
         pageSize,
         columnVisibility: {},
         columnOrder: storageDefaultColumnOrder[storageKey as keyof typeof storageDefaultColumnOrder] || [],
+        draggingColumnId: null,
         setData: (updater) => set((state) => ({ data: updater(state.data) })),
         setCurrentPage: (currentPage) => set({ currentPage }),
         setIsFetching: (isFetching) => set({ isFetching }),
@@ -98,6 +101,7 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", storageKey: stri
         setHasMore: (hasMore) => set({ hasMore }),
         setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
         setColumnOrder: (order) => set({ columnOrder: order }),
+        setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
         resetColumns: () =>
           set({
             columnVisibility: {},

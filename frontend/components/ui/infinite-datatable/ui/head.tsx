@@ -3,12 +3,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { flexRender, Header, RowData } from "@tanstack/react-table";
 import { ChevronDown, EyeOff } from "lucide-react";
 import { CSSProperties } from "react";
+import { useStore } from "zustand";
 
 import { TableHead } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../dropdown-menu";
+import { useDataTableStore } from "../model/datatable-store";
 
 interface DraggableTableHeaderProps<TData extends RowData> {
   header: Header<TData, unknown>;
@@ -22,19 +24,32 @@ export function InfiniteTableHead<TData extends RowData>({
   isControllable = true,
 }: DraggableTableHeaderProps<TData>) {
   const columnId = header.column.id;
-  const { attributes, isDragging, listeners, setNodeRef, transform } = useSortable({
+  const store = useDataTableStore();
+  const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
     disabled: !columnId, // Disable drag if no id
   });
 
+  const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
+
+  const transformValue = CSS.Translate.toString(transform);
+  const scaleValue = isDragging ? "scale(1.02)" : "";
+  const combinedTransform =
+    transformValue && scaleValue ? `${transformValue} ${scaleValue}` : transformValue || scaleValue || undefined;
+
   const style: CSSProperties = {
-    opacity: isDragging ? 0.8 : 1,
+    opacity: isDragging ? 0.4 : isOtherDragging ? 0.9 : 1,
     position: "relative",
-    transform: CSS.Translate.toString(transform),
-    transition: "width transform 0.2s ease-in-out",
+    transform: combinedTransform,
+    transition:
+      transition ||
+      (isOtherDragging
+        ? "transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease-out"
+        : "transform 0.2s ease-out, opacity 0.2s ease-out"),
     whiteSpace: "nowrap",
     width: header.column.getSize(),
-    zIndex: isDragging ? 1 : 0,
+    zIndex: isDragging ? 50 : isOtherDragging ? 1 : 0,
   };
   return (
     <TableHead
@@ -46,7 +61,7 @@ export function InfiniteTableHead<TData extends RowData>({
         minWidth: header.getSize(),
         display: "flex",
       }}
-      className="m-0 relative text-secondary-foreground truncate hover:bg-transparent"
+      className={cn("m-0 relative text-secondary-foreground truncate hover:bg-transparent", isDragging && "shadow-lg")}
       key={header.id}
       ref={setNodeRef}
     >
