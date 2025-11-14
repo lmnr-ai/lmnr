@@ -6,15 +6,15 @@ import {
   METRIC_FUNCTION_OPTIONS,
 } from "@/components/dashboard/editor/constants";
 import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
 
 const MetricsField = () => {
-  const { control } = useFormContext<VisualQueryBuilderForm>();
+  const { control } = useFormContext<QueryStructure>();
   const { fields, append, remove, update } = useFieldArray({
     control,
     name: "metrics",

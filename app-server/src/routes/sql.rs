@@ -10,7 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult, QueryStructure},
+    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
     sql::{self, ClickhouseReadonlyClient},
 };
 
@@ -48,14 +48,14 @@ pub struct SqlToJsonRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonResponse {
     pub success: bool,
-    pub json_structure: Option<QueryStructure>,
+    pub query_structure: Option<crate::query_engine::query_engine::QueryStructure>,
     pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToSqlRequest {
-    pub query_structure: QueryStructure,
+    pub query_structure: crate::query_engine::query_engine::QueryStructure,
 }
 
 #[derive(Serialize)]
@@ -148,12 +148,10 @@ pub async fn sql_to_json(
         .sql_to_json(sql)
         .await
     {
-        Ok(proto_query_structure) => {
-            // Convert Proto (i32 enums) to DTO (string enums)
-            let dto_query_structure: QueryStructure = proto_query_structure.into();
+        Ok(query_structure) => {
             let response = SqlToJsonResponse {
                 success: true,
-                json_structure: Some(dto_query_structure),
+                query_structure: Some(query_structure),
                 error: None,
             };
             Ok(HttpResponse::Ok().json(response))
@@ -161,7 +159,7 @@ pub async fn sql_to_json(
         Err(e) => {
             let response = SqlToJsonResponse {
                 success: false,
-                json_structure: None,
+                query_structure: None,
                 error: Some(e.to_string()),
             };
             Ok(HttpResponse::Ok().json(response))
@@ -176,13 +174,10 @@ pub async fn json_to_sql(
 ) -> ResponseResult {
     let JsonToSqlRequest { query_structure } = req.into_inner();
 
-    // Convert DTO (string enums) to Proto (i32 enums)
-    let proto_query_structure: crate::query_engine::query_engine::QueryStructure = query_structure.into();
-
     match query_engine
         .into_inner()
         .as_ref()
-        .json_to_sql(proto_query_structure)
+        .json_to_sql(query_structure)
         .await
     {
         Ok(sql) => {

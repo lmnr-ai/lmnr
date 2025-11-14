@@ -3,14 +3,11 @@ use mock::MockQueryEngine;
 use query_engine_impl::QueryEngineImpl;
 use uuid::Uuid;
 
-pub mod dto;
 pub mod mock;
 pub mod query_engine;
 pub mod query_engine_impl;
 
 pub use query_engine_impl::QueryEngineValidationResult;
-// Export DTO for HTTP API (has string enums)
-pub use dto::QueryStructure;
 
 #[enum_dispatch::enum_dispatch(QueryEngineTrait)]
 pub enum QueryEngine {

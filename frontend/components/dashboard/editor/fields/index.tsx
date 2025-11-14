@@ -1,7 +1,5 @@
-import { useFormContext, useWatch } from "react-hook-form";
-
 import { ChartType } from "@/components/chart-builder/types";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
+import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import ChartTypeField from "./ChartTypeField";
@@ -13,8 +11,7 @@ import OrderByField from "./OrderByField";
 import TableSelect from "./TableSelect";
 
 export const QueryBuilderFields = () => {
-  const { control } = useFormContext<VisualQueryBuilderForm>();
-  const formValues = useWatch({ control });
+  const chartType = useDashboardEditorStoreContext((state) => state.chart.settings.config.type);
 
   return (
     <ScrollArea className="col-span-1 border rounded bg-secondary">
@@ -24,7 +21,7 @@ export const QueryBuilderFields = () => {
         <MetricsField />
         <FiltersField />
         <DimensionsField />
-        {formValues.chartType === ChartType.HorizontalBarChart && <OrderByField />}
+        {chartType === ChartType.HorizontalBarChart && <OrderByField />}
         <LimitField />
       </div>
     </ScrollArea>

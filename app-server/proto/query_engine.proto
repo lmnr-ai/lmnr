@@ -2,34 +2,8 @@ syntax = "proto3";
 
 package query_engine;
 
-enum ComparisonOperator {
-    COMPARISON_OPERATOR_UNSPECIFIED = 0;
-    EQ = 1;
-    NE = 2;
-    GT = 3;
-    GTE = 4;
-    LT = 5;
-    LTE = 6;
-}
-
-enum AggregationFunction {
-    AGGREGATION_FUNCTION_UNSPECIFIED = 0;
-    COUNT = 1;
-    SUM = 2;
-    AVG = 3;
-    MIN = 4;
-    MAX = 5;
-    QUANTILE = 6;
-}
-
-enum OrderDirection {
-    ORDER_DIRECTION_UNSPECIFIED = 0;
-    ASC = 1;
-    DESC = 2;
-}
-
 message Metric {
-    AggregationFunction fn = 1;
+    string fn = 1;
     string column = 2;
     repeated double args = 3;
     string alias = 4;
@@ -37,7 +11,7 @@ message Metric {
 
 message Filter {
     string field = 1;
-    ComparisonOperator op = 2;
+    string op = 2;
     oneof value {
         string string_value = 3;
         double number_value = 4;
@@ -55,7 +29,7 @@ message TimeRange {
 
 message OrderBy {
     string field = 1;
-    OrderDirection dir = 2;
+    string dir = 2;
 }
 
 message QueryStructure {
@@ -63,9 +37,9 @@ message QueryStructure {
     repeated Metric metrics = 2;
     repeated string dimensions = 3;
     repeated Filter filters = 4;
-    TimeRange time_range = 5;
+    optional TimeRange time_range = 5;
     repeated OrderBy order_by = 6;
-    int32 limit = 7;
+    optional int32 limit = 7;
 }
 
 message QueryRequest {

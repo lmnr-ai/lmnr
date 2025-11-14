@@ -1,9 +1,8 @@
 import { ChartBar, ChartColumn, ChartLine } from "lucide-react";
 import { ReactNode } from "react";
-import { Controller, useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
+import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -23,32 +22,37 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
 };
 
 const ChartTypeField = () => {
-  const { control } = useFormContext<VisualQueryBuilderForm>();
+  const { chartType, setChartConfig, chart } = useDashboardEditorStoreContext((state) => ({
+    chartType: state.chart.settings.config.type,
+    setChartConfig: state.setChartConfig,
+    chart: state.chart,
+  }));
+
+  const handleChartTypeChange = (newType: ChartType) => {
+    setChartConfig({
+      ...chart.settings.config,
+      type: newType,
+    });
+  };
 
   return (
     <div className="grid gap-1">
       <Label className="font-semibold text-xs">Type</Label>
-      <Controller
-        control={control}
-        name="chartType"
-        render={({ field }) => (
-          <Select value={field.value || ""} onValueChange={(value) => field.onChange(value as ChartType)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select chart type" />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(chartTypeOptions) as ChartType[]).map((type) => (
-                <SelectItem key={type} value={type}>
-                  <div className="flex items-center gap-2">
-                    {chartTypeOptions[type].icon}
-                    <span>{chartTypeOptions[type].label}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
+      <Select value={chartType || ""} onValueChange={(value) => handleChartTypeChange(value as ChartType)}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select chart type" />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(chartTypeOptions) as ChartType[]).map((type) => (
+            <SelectItem key={type} value={type}>
+              <div className="flex items-center gap-2">
+                {chartTypeOptions[type].icon}
+                <span>{chartTypeOptions[type].label}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };

@@ -1,15 +1,15 @@
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
 
 const DimensionsField = () => {
-  const { control, setValue } = useFormContext<VisualQueryBuilderForm>();
+  const { control, setValue } = useFormContext<QueryStructure>();
   const table = useWatch({ control, name: "table" });
   const dimensions = useWatch({ control, name: "dimensions" }) || [];
 

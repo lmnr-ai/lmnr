@@ -1,11 +1,11 @@
 import { Controller, useFormContext } from "react-hook-form";
 
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryStructure } from "@/lib/actions/sql/types";
 
 const LimitField = () => {
-  const { control } = useFormContext<VisualQueryBuilderForm>();
+  const { control } = useFormContext<QueryStructure>();
 
   return (
     <div className="grid gap-2">

@@ -1,12 +1,12 @@
 import { Controller, useFormContext } from "react-hook-form";
 
 import { tableSchemas } from "@/components/dashboard/editor/table-schemas";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QueryStructure } from "@/lib/actions/sql/types";
 
 const TableSelect = () => {
-  const { control } = useFormContext<VisualQueryBuilderForm>();
+  const { control } = useFormContext<QueryStructure>();
 
   const availableTables = Object.keys(tableSchemas);
 

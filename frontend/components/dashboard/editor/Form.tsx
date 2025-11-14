@@ -11,13 +11,12 @@ import { ChartType } from "@/components/chart-builder/types";
 import { ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
-import { VisualQueryBuilderForm } from "@/components/dashboard/editor/types";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label.tsx";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { QueryStructure, TimeRange } from "@/lib/actions/sql";
+import { QueryStructure, TimeRange } from "@/lib/actions/sql/types.ts";
 
 const createChartViaApi = async (projectId: string, data: { name: string; query: string; config: any }) => {
   const response = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
@@ -53,7 +52,7 @@ const updateChartViaApi = async (
   return response.json();
 };
 
-const needsTimeSeries = (chartType: ChartType | null): boolean =>
+const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
 
 const getDefaultTimeRange = (): TimeRange => ({
@@ -68,7 +67,7 @@ const getDefaultTimeRange = (): TimeRange => ({
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
   const router = useRouter();
-  const { control, formState, getValues, handleSubmit } = useFormContext<VisualQueryBuilderForm>();
+  const { control, formState, getValues, handleSubmit } = useFormContext<QueryStructure>();
 
   const { chart, setName, setQuery, setChartConfig, executeQuery, isLoading, error, data } =
     useDashboardEditorStoreContext((state) => ({
@@ -89,8 +88,10 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
+  const chartType = chart.settings.config.type;
+
   const chartConfig = useMemo(() => {
-    const { chartType, metrics, dimensions } = formValues;
+    const { metrics, dimensions } = formValues;
 
     if (!chartType || !metrics?.[0]) {
       return null;
@@ -109,7 +110,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
       total: false,
     };
-  }, [formValues, columns]);
+  }, [chartType, formValues, columns]);
 
   const handleSaveChart = async () => {
     if (!chartConfig || !projectId || !chart.name.trim()) return;
@@ -145,7 +146,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return;
     }
 
-    const { chartType, table, metrics, dimensions, filters, orderBy, limit } = getValues();
+    const { table, metrics, dimensions, filters, orderBy, limit } = getValues();
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
@@ -160,9 +161,10 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
       const queryStructure: QueryStructure = {
         table,
-        metrics,
+        metrics: metrics || [],
         dimensions: dimensions || [],
         filters: allFilters,
+        orderBy: [],
         ...(orderBy && orderBy.length > 0 && { orderBy }),
         limit,
       };
@@ -199,7 +201,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     } catch (err) {
       console.error("Failed to generate and execute query:", err);
     }
-  }, [formState.isValid, projectId, chartConfig, getValues, setQuery, setChartConfig, executeQuery]);
+  }, [formState.isValid, projectId, chartType, chartConfig, getValues, setQuery, setChartConfig, executeQuery]);
 
   // Only react to form changes after initial load
   useEffect(() => {

@@ -7,12 +7,8 @@ import { FormProvider, useForm } from "react-hook-form";
 
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { Form } from "@/components/dashboard/editor/Form.tsx";
-import {
-  getDefaultFormValues,
-  VisualQueryBuilderForm,
-  VisualQueryBuilderFormSchema,
-} from "@/components/dashboard/editor/types";
-import { QueryStructure } from "@/lib/actions/sql";
+import { getDefaultFormValues } from "@/components/dashboard/editor/types";
+import { QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 
 const convertSqlToJson = async (projectId: string, sql: string): Promise<QueryStructure> => {
   const response = await fetch(`/api/projects/${projectId}/sql/to-json`, {
@@ -38,8 +34,8 @@ const ChartBuilder = () => {
   }));
   const [isLoadingForm, setIsLoadingForm] = useState(false);
 
-  const methods = useForm<VisualQueryBuilderForm>({
-    resolver: zodResolver(VisualQueryBuilderFormSchema),
+  const methods = useForm<QueryStructure>({
+    resolver: zodResolver(QueryStructureSchema),
     defaultValues: getDefaultFormValues(),
     mode: "onChange",
     reValidateMode: "onChange",
@@ -62,12 +58,12 @@ const ChartBuilder = () => {
         );
 
         reset({
-          chartType: chart.settings.config.type || getDefaultFormValues().chartType,
           table: queryStructure.table,
           metrics: queryStructure.metrics,
-          dimensions: queryStructure.dimensions || [],
+          dimensions: queryStructure.dimensions,
           filters: filteredFilters,
-          orderBy: queryStructure.orderBy || [],
+          timeRange: queryStructure.timeRange,
+          orderBy: queryStructure.orderBy,
           limit: queryStructure.limit,
         });
 
@@ -84,7 +80,7 @@ const ChartBuilder = () => {
     };
 
     loadChart();
-  }, [chart.id, chart.query, projectId, reset, executeQuery, chart.settings.config.type]);
+  }, [chart.id, chart.query, projectId, reset, executeQuery]);
 
   return (
     <FormProvider {...methods}>

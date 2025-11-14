@@ -24,7 +24,7 @@ impl QueryEngineTrait for MockQueryEngine {
             filters: vec![],
             time_range: None,
             order_by: vec![],
-            limit: 0,
+            limit: None,
         })
     }
 
