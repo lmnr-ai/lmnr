@@ -45,11 +45,13 @@ function EvaluationsGroupsBarContent() {
 
   const columns: ColumnDef<EvaluationGroup>[] = [
     {
+      id: "groupId",
       header: "Group",
       accessorFn: (row) => row.groupId,
       size: 160,
     },
     {
+      id: "lastEvaluationCreatedAt",
       header: "Last Evaluation",
       accessorFn: (row) => row.lastEvaluationCreatedAt,
       cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEvaluationCreatedAt} />,
