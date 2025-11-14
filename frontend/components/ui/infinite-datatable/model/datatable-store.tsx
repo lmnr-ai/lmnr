@@ -8,6 +8,8 @@ import { persist } from "zustand/middleware";
 import { defaultDatasetColumnOrder } from "@/components/dataset/dataset";
 import { defaultDatasetsColumnOrder } from "@/components/datasets/datasets";
 import { defaultEvaluationsColumnOrder } from "@/components/evaluations/evaluations";
+import { defaultEvaluationsGroupsBarColumnOrder } from "@/components/evaluations/evaluations-groups-bar";
+import { defaultEvaluatorsColumnOrder } from "@/components/evaluators/lib/consts";
 import { defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns";
 import { defaultEventsColumnOrder } from "@/components/events/columns";
 import { defaultPlaygroundHistoryColumnOrder } from "@/components/playground/playground-history-table";
@@ -76,6 +78,8 @@ const storageDefaultColumnOrder = {
   "evaluations-table": defaultEvaluationsColumnOrder,
   "datasets-table": defaultDatasetsColumnOrder,
   "dataset-table": defaultDatasetColumnOrder,
+  "evaluators-table": defaultEvaluatorsColumnOrder,
+  "evaluations-groups-bar": defaultEvaluationsGroupsBarColumnOrder,
 };
 
 const createDataTableStore = <TData,>(uniqueKey: string = "id", storageKey: string, pageSize: number = 50) =>

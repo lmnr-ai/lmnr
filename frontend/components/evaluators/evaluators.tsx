@@ -12,6 +12,8 @@ import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet
 import { Button } from "@/components/ui/button";
 import { Evaluator } from "@/lib/evaluators/types";
 
+import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
+
 const manageEvaluatorSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "Name is required"),
@@ -67,7 +69,9 @@ const Evaluators = () => {
             Evaluator
           </Button>
         </ManageEvaluatorSheet>
-        <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
+        <DataTableStateProvider storageKey="evaluators-table">
+          <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
+        </DataTableStateProvider>
       </div>
     </FormProvider>
   );
