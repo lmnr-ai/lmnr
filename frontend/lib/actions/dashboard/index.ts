@@ -55,6 +55,14 @@ const UpdateChartNameSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
+const UpdateChartSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  name: z.string().min(1, "Name is required"),
+  query: z.string(),
+  config: ChartSettingsSchema.shape["config"],
+});
+
 const CreateChartSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
@@ -111,6 +119,19 @@ export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchem
   await db
     .update(dashboardCharts)
     .set({ name })
+    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+};
+
+export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
+  const { projectId, id, name, query, config } = UpdateChartSchema.parse(input);
+
+  await db
+    .update(dashboardCharts)
+    .set({
+      name,
+      query,
+      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`
+    })
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 };
 

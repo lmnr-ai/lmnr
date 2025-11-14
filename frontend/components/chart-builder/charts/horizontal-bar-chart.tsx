@@ -62,7 +62,7 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
   return (
     <div className="flex flex-col overflow-hidden h-full">
       {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
-      <ChartContainer config={chartConfig} className="w-full" style={{ height: chartHeight }}>
+      <ChartContainer config={chartConfig} className="w-full min-h-0" style={{ height: chartHeight }}>
         <RechartsBarChart
           barSize={32}
           barGap={0}

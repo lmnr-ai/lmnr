@@ -33,7 +33,7 @@ const LineChart = ({ data, x, y, breakdown, keys, chartConfig, total }: LineChar
           {totalSum.toLocaleString()}
         </span>
       )}
-      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+      <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">
         <RechartsLineChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />
           <XAxis

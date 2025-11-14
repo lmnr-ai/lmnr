@@ -179,6 +179,7 @@ const createChartConfig = (columns: string[]): ChartConfig =>
       {
         color: `hsl(var(--chart-${(index % 5) + 1}))`,
         label: column,
+        stackId: "stack",
       },
     ])
   );
