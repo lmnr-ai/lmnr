@@ -39,7 +39,7 @@ const updateChartViaApi = async (
   data: { name: string; query: string; config: any }
 ) => {
   const response = await fetch(`/api/projects/${projectId}/dashboard-charts/${chartId}`, {
-    method: "PATCH",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });

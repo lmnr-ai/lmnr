@@ -60,13 +60,33 @@ export async function PATCH(
   try {
     const body = await req.json();
 
-    // If body contains query and config, update full chart
-    // Otherwise, just update the name
-    if (body.query && body.config) {
-      await updateChart({ projectId, id, ...body });
-    } else {
-      await updateChartName({ projectId, id, ...body });
+    // PATCH is used for partial updates (name only)
+    await updateChartName({ projectId, id, ...body });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update chart name. Please try again." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const { projectId, id } = await props.params;
+
+  try {
+    const body = await req.json();
+
+    // PUT is used for full chart updates (name, query, config)
+    await updateChart({ projectId, id, ...body });
 
     return NextResponse.json({ success: true });
   } catch (error) {
