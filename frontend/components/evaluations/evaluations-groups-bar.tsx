@@ -7,10 +7,21 @@ import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { InfiniteDataTable } from "../ui/infinite-datatable";
+import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
 
 type EvaluationGroup = { groupId: string; lastEvaluationCreatedAt: string };
 
+export const defaultEvaluationsGroupsBarColumnOrder = ["groupId", "lastEvaluationCreatedAt"];
+
 export default function EvaluationsGroupsBar() {
+  return (
+    <DataTableStateProvider storageKey="evaluations-groups-bar">
+      <EvaluationsGroupsBarСontent />
+    </DataTableStateProvider>
+  );
+}
+
+function EvaluationsGroupsBarСontent() {
   const { projectId } = useParams();
 
   const router = useRouter();

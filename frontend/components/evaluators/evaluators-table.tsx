@@ -1,10 +1,9 @@
 "use client";
 
-import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
+import { Row, RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { Evaluator } from "@/lib/evaluators/types";
@@ -12,28 +11,12 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
+import { columns } from "./lib/consts";
+
 interface EvaluatorsTableProps {
   projectId: string;
   onRowClick: (row: Row<Evaluator>) => void;
 }
-
-const columns: ColumnDef<Evaluator>[] = [
-  {
-    accessorKey: "name",
-    header: "Name",
-    cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
-  },
-  {
-    accessorKey: "evaluatorType",
-    header: "Type",
-    cell: ({ row }) => <div className="text-sm text-muted-foreground">{row.getValue("evaluatorType")}</div>,
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Created",
-    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.getValue("createdAt")} />,
-  },
-];
 
 export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTableProps) {
   const { toast } = useToast();
@@ -88,6 +71,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
       getRowId={(row) => row.id}
       onRowClick={onRowClick}
       enableRowSelection
+      lockedColumns={["__row_selection"]}
       state={{
         rowSelection,
       }}

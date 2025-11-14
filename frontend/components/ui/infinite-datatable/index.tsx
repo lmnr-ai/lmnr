@@ -16,7 +16,7 @@ import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import { flexRender, getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
+import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -83,6 +83,11 @@ export function InfiniteDataTable<TData extends RowData>({
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {
     setDraggingColumnId(event.active.id as string);
+    // Get header position for DragOverlay
+    if (headerRef.current) {
+      const rect = headerRef.current.getBoundingClientRect();
+      setHeaderTop(rect.top);
+    }
   }
 
   // reorder columns after drag & drop
@@ -145,6 +150,8 @@ export function InfiniteDataTable<TData extends RowData>({
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
+  const headerRef = useRef<HTMLTableSectionElement>(null);
+  const [headerTop, setHeaderTop] = useState<number>(0);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -217,13 +224,48 @@ export function InfiniteDataTable<TData extends RowData>({
               }}
             >
               <InfiniteDatatableHeader
-                table={table}
+                ref={headerRef}
+                table={table as any}
                 columnOrder={columnOrder}
                 onHideColumn={(columnId) => {
                   setColumnVisibility({ ...columnVisibility, [columnId]: false });
                 }}
                 lockedColumns={lockedColumns}
               />
+              <DragOverlay
+                dropAnimation={null}
+                adjustScale={false}
+                style={{
+                  top: `${headerTop}px`,
+                  position: "fixed",
+                  pointerEvents: "none",
+                }}
+              >
+                {draggingColumnId
+                  ? (() => {
+                    const column = table.getColumn(draggingColumnId);
+                    if (!column) return null;
+                    const headerGroups = table.getHeaderGroups();
+                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
+                    if (!header) return null;
+                    return (
+                      <div
+                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+                        style={{
+                          width: column.getSize(),
+                          height: 32,
+                        }}
+                      >
+                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+                          <div className="truncate">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                  : null}
+              </DragOverlay>
               <InfiniteDatatableBody
                 table={table}
                 rowVirtualizer={rowVirtualizer}
@@ -239,32 +281,6 @@ export function InfiniteDataTable<TData extends RowData>({
                 columnOrder={columnOrder}
               />
             </Table>
-            <DragOverlay dropAnimation={null}>
-              {draggingColumnId
-                ? (() => {
-                  const column = table.getColumn(draggingColumnId);
-                  if (!column) return null;
-                  const headerGroups = table.getHeaderGroups();
-                  const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
-                  if (!header) return null;
-                  return (
-                    <div
-                      className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
-                      style={{
-                        width: column.getSize(),
-                        height: 32,
-                      }}
-                    >
-                      <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
-                        <div className="truncate">
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-                : null}
-            </DragOverlay>
           </DndContext>
 
           {isFetching && !isLoading && (
