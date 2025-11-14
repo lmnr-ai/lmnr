@@ -4,6 +4,8 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
@@ -12,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
-import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
+import { flexRender, getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
 import { useStore } from "zustand";
@@ -68,16 +70,25 @@ export function InfiniteDataTable<TData extends RowData>({
   );
 
   const store = useDataTableStore();
-  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(store, (state) => ({
-    columnOrder: state.columnOrder,
-    setColumnOrder: state.setColumnOrder,
-    columnVisibility: state.columnVisibility,
-    setColumnVisibility: state.setColumnVisibility,
-  }));
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, draggingColumnId, setDraggingColumnId } =
+    useStore(store, (state) => ({
+      columnOrder: state.columnOrder,
+      setColumnOrder: state.setColumnOrder,
+      columnVisibility: state.columnVisibility,
+      setColumnVisibility: state.setColumnVisibility,
+      draggingColumnId: state.draggingColumnId,
+      setDraggingColumnId: state.setDraggingColumnId,
+    }));
+
+  // Handle drag start
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingColumnId(event.active.id as string);
+  }
 
   // reorder columns after drag & drop
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    setDraggingColumnId(null);
     if (active && over && active.id !== over.id) {
       const oldIndex = columnOrder.indexOf(active.id as string);
       const newIndex = columnOrder.indexOf(over.id as string);
@@ -195,6 +206,7 @@ export function InfiniteDataTable<TData extends RowData>({
           <DndContext
             collisionDetection={closestCenter}
             modifiers={[restrictToHorizontalAxis]}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             sensors={sensors}
           >
@@ -227,6 +239,32 @@ export function InfiniteDataTable<TData extends RowData>({
                 columnOrder={columnOrder}
               />
             </Table>
+            <DragOverlay dropAnimation={null}>
+              {draggingColumnId
+                ? (() => {
+                    const column = table.getColumn(draggingColumnId);
+                    if (!column) return null;
+                    const headerGroups = table.getHeaderGroups();
+                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
+                    if (!header) return null;
+                    return (
+                      <div
+                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+                        style={{
+                          width: column.getSize(),
+                          height: 32,
+                        }}
+                      >
+                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+                          <div className="truncate">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                : null}
+            </DragOverlay>
           </DndContext>
 
           {isFetching && !isLoading && (

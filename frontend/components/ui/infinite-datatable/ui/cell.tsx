@@ -2,8 +2,11 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Cell, flexRender, RowData } from "@tanstack/react-table";
 import { CSSProperties } from "react";
+import { useStore } from "zustand";
 
 import { TableCell } from "@/components/ui/table";
+
+import { useDataTableStore } from "../model/datatable-store";
 
 interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;
@@ -11,18 +14,26 @@ interface InfiniteTableCellProps<TData extends RowData> {
 
 export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
   const columnId = cell.column.id;
-  const { isDragging, setNodeRef, transform } = useSortable({
+  const store = useDataTableStore();
+  const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
+  const { isDragging, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
     disabled: !columnId,
   });
 
+  const isOtherDragging = draggingColumnId && draggingColumnId !== columnId;
+
   const style: CSSProperties = {
-    opacity: isDragging ? 0.8 : 1,
+    opacity: isDragging ? 0.4 : isOtherDragging ? 0.9 : 1,
     position: "relative",
     transform: CSS.Translate.toString(transform),
-    transition: "width transform 0.2s ease-in-out",
+    transition:
+      transition ||
+      (isOtherDragging
+        ? "transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease-out"
+        : "transform 0.2s ease-out, opacity 0.2s ease-out"),
     width: cell.column.getSize(),
-    zIndex: isDragging ? 1 : 0,
+    zIndex: isDragging ? 50 : isOtherDragging ? 1 : 0,
   };
 
   return (
