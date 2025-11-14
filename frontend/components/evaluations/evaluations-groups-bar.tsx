@@ -19,12 +19,12 @@ export default function EvaluationsGroupsBar() {
       storageKey="evaluations-groups-bar"
       defaultColumnOrder={defaultEvaluationsGroupsBarColumnOrder}
     >
-      <EvaluationsGroupsBarСontent />
+      <EvaluationsGroupsBarContent />
     </DataTableStateProvider>
   );
 }
 
-function EvaluationsGroupsBarСontent() {
+function EvaluationsGroupsBarContent() {
   const { projectId } = useParams();
 
   const router = useRouter();
