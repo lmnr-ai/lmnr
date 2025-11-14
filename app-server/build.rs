@@ -8,6 +8,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .type_attribute("Metric", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute("Filter", "#[serde(rename_all = \"camelCase\")]")
+        .field_attribute("Filter.value", "#[serde(flatten)]")
+        .type_attribute("Filter.value", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute("TimeRange", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute("OrderBy", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute("QueryStructure", "#[serde(rename_all = \"camelCase\")]")

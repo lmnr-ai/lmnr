@@ -153,8 +153,8 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
       if (isHorizontalBar) {
         allFilters.push(
-          { field: "start_time", op: "gte" as const, value: "{start_time:DateTime64}" },
-          { field: "start_time", op: "lte" as const, value: "{end_time:DateTime64}" }
+          { field: "start_time", op: "gte" as const, stringValue: "{start_time:DateTime64}" },
+          { field: "start_time", op: "lte" as const, stringValue: "{end_time:DateTime64}" }
         );
       }
 
@@ -248,9 +248,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           </div>
           <div className="grid gap-1">
             <Label className="text-xs text-secondary-foreground/80">Group by</Label>
-            <Select value="30 minutes">
+            <Select value="1 hour">
               <SelectTrigger className="w-fit text-secondary-foreground" disabled>
-                <SelectValue placeholder="select group by">30 minutes</SelectValue>
+                <SelectValue placeholder="select group by">1 hour</SelectValue>
               </SelectTrigger>
             </Select>
           </div>

@@ -5,18 +5,26 @@ export const MetricSchema = z
     fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
     column: z.string(),
     args: z.array(z.number()),
-    alias: z.string().optional(),
+    alias: z.string().optional().nullable(),
   })
   .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
     message: "Column is required for this metric function",
     path: ["column"],
   });
 
-export const FilterSchema = z.object({
+export const FilterStringSchema = z.object({
   field: z.string().min(1, "Filter field is required"),
   op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
-  value: z.string().min(1, "Filter value is required"),
+  stringValue: z.string().min(1, "Filter value is required"),
 });
+
+export const FilterNumberSchema = z.object({
+  field: z.string().min(1, "Filter field is required"),
+  op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
+  numberValue: z.number(),
+});
+
+export const FilterSchema = z.union([FilterStringSchema, FilterNumberSchema]);
 
 export const TimeRangeSchema = z.object({
   column: z.string(),
@@ -35,11 +43,11 @@ export const OrderBySchema = z.object({
 export const QueryStructureSchema = z.object({
   table: z.string().min(1, "Table is required"),
   metrics: z.array(MetricSchema).min(1, "At least one metric is required"),
-  dimensions: z.array(z.string().min(1, "Metric is required")),
+  dimensions: z.array(z.string().min(1, "Dimension is required")),
   filters: z.array(FilterSchema),
-  timeRange: TimeRangeSchema.optional(),
+  timeRange: TimeRangeSchema.optional().nullable(),
   orderBy: z.array(OrderBySchema),
-  limit: z.number().int().positive().optional(),
+  limit: z.number().int().positive().optional().nullable(),
 });
 
 export type QueryStructure = z.infer<typeof QueryStructureSchema>;
@@ -49,7 +57,7 @@ export type TimeRange = z.infer<typeof TimeRangeSchema>;
 
 export const SqlToJsonResponseSchema = z.object({
   success: z.boolean(),
-  jsonStructure: QueryStructureSchema.nullable(),
+  queryStructure: QueryStructureSchema.nullable(),
   error: z.string().nullable(),
 });
 

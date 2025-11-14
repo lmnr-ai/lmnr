@@ -42,7 +42,7 @@ enum TabType {
 }
 
 const initialParameters: SQLParameter[] = [
-  { name: "start_time", value: subDays(startOfToday(), 7), type: "date" },
+  { name: "start_time", value: subDays(startOfToday(), 1), type: "date" },
   { name: "end_time", value: startOfToday(), type: "date" },
   {
     name: "interval_unit",

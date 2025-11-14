@@ -12,7 +12,10 @@ message Metric {
 message Filter {
     string field = 1;
     string op = 2;
-    string value = 3;
+    oneof value {
+        string string_value = 3;
+        double number_value = 4;
+    }
 }
 
 message TimeRange {

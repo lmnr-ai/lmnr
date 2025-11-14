@@ -41,7 +41,7 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "total_tokens", type: "number", description: "Total tokens used" },
     { name: "input_cost", type: "number", description: "Cost for input tokens" },
     { name: "output_cost", type: "number", description: "Cost for output tokens" },
-    { name: "total_cost", type: "number", description: "Total cost of the span" },
+    { name: "total_cost", type: "number", description: "Total cost of the trace" },
     { name: "status", type: "string", description: "Status of the trace" },
     { name: "user_id", type: "string", description: "User ID sent with the trace" },
     { name: "session_id", type: "string", description: "Session identifier" },

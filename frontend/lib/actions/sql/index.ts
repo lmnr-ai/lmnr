@@ -51,11 +51,11 @@ export const sqlToJson = async (input: z.infer<typeof SqlToJsonInputSchema>): Pr
 
   const parsed = SqlToJsonResponseSchema.parse(res);
 
-  if (!parsed.jsonStructure) {
+  if (!parsed.queryStructure) {
     throw new Error(parsed.error || "Failed to convert SQL to JSON");
   }
 
-  return parsed.jsonStructure;
+  return parsed.queryStructure;
 };
 
 const JsonToSqlInputSchema = z.object({

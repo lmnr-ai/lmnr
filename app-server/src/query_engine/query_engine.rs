@@ -20,8 +20,21 @@ pub struct Filter {
     pub field: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub op: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub value: ::prost::alloc::string::String,
+    #[prost(oneof = "filter::Value", tags = "3, 4")]
+    #[serde(flatten)]
+    pub value: ::core::option::Option<filter::Value>,
+}
+/// Nested message and enum types in `Filter`.
+pub mod filter {
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(string, tag = "3")]
+        StringValue(::prost::alloc::string::String),
+        #[prost(double, tag = "4")]
+        NumberValue(f64),
+    }
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
