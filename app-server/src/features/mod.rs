@@ -50,7 +50,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
         Feature::Clustering => {
-            env::var("CLUSTERING_ENDPOINT").is_ok() && env::var("CLUSTERING_ENDPOINT_KEY").is_ok()
+            env::var("CLUSTER_ENDPOINT").is_ok() && env::var("CLUSTER_ENDPOINT_KEY").is_ok()
         }
     }
 }
