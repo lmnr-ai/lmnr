@@ -28,11 +28,10 @@ const convertSqlToJson = async (projectId: string, sql: string): Promise<QuerySt
 
 const ChartBuilder = () => {
   const { projectId } = useParams();
-  const { chart, executeQuery } = useDashboardEditorStoreContext((state) => ({
+  const { chart } = useDashboardEditorStoreContext((state) => ({
     chart: state.chart,
-    executeQuery: state.executeQuery,
   }));
-  const [isLoadingForm, setIsLoadingForm] = useState(false);
+  const [isLoadingForm, setIsLoadingForm] = useState(true); // Start as true!
 
   const methods = useForm<QueryStructure>({
     resolver: zodResolver(QueryStructureSchema),
@@ -43,15 +42,14 @@ const ChartBuilder = () => {
 
   const { reset } = methods;
 
-  // Load existing chart into form ONCE
   useEffect(() => {
     if (!chart.id || !chart.query || !projectId) {
+      setIsLoadingForm(false);
       return;
     }
 
     const loadChart = async () => {
       try {
-        setIsLoadingForm(true);
         const queryStructure = await convertSqlToJson(projectId as string, chart.query);
         const filteredFilters = (queryStructure.filters || []).filter(
           (filter) => filter.field !== "start_time" && filter.field !== "end_time"
@@ -66,11 +64,6 @@ const ChartBuilder = () => {
           orderBy: queryStructure.orderBy,
           limit: queryStructure.limit,
         });
-
-        // Execute the existing query to show data
-        await executeQuery(projectId as string);
-
-        // Small delay to ensure form has settled before we start reacting to changes
       } catch (error) {
         console.error("Failed to load chart:", error);
         reset(getDefaultFormValues());
@@ -80,7 +73,7 @@ const ChartBuilder = () => {
     };
 
     loadChart();
-  }, [chart.id, chart.query, projectId, reset, executeQuery]);
+  }, []);
 
   return (
     <FormProvider {...methods}>

@@ -1,16 +1,21 @@
 import { z } from "zod/v4";
 
-export const MetricSchema = z.object({
-  fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
-  column: z.string(),
-  args: z.array(z.number()),
-  alias: z.string().optional(),
-});
+export const MetricSchema = z
+  .object({
+    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
+    column: z.string(),
+    args: z.array(z.number()),
+    alias: z.string().optional(),
+  })
+  .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
+    message: "Column is required for this metric function",
+    path: ["column"],
+  });
 
 export const FilterSchema = z.object({
-  field: z.string(),
+  field: z.string().min(1, "Filter field is required"),
   op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
-  value: z.union([z.string().min(1, "Filter value is required"), z.number()]),
+  value: z.string().min(1, "Filter value is required"),
 });
 
 export const TimeRangeSchema = z.object({
@@ -23,14 +28,14 @@ export const TimeRangeSchema = z.object({
 });
 
 export const OrderBySchema = z.object({
-  field: z.string(),
+  field: z.string().min(1, "Order by field is required"),
   dir: z.enum(["asc", "desc"]),
 });
 
 export const QueryStructureSchema = z.object({
-  table: z.string(),
-  metrics: z.array(MetricSchema),
-  dimensions: z.array(z.string()),
+  table: z.string().min(1, "Table is required"),
+  metrics: z.array(MetricSchema).min(1, "At least one metric is required"),
+  dimensions: z.array(z.string().min(1, "Metric is required")),
   filters: z.array(FilterSchema),
   timeRange: TimeRangeSchema.optional(),
   orderBy: z.array(OrderBySchema),

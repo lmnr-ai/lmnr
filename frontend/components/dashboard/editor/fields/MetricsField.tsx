@@ -17,6 +17,7 @@ const MetricsField = () => {
   const { control } = useFormContext<QueryStructure>();
   const { fields, append, remove, update } = useFieldArray({
     control,
+    keyName: "key",
     name: "metrics",
   });
 
@@ -27,7 +28,7 @@ const MetricsField = () => {
       <Label className="font-semibold text-xs">Metrics</Label>
       <div className="space-y-2">
         {fields.map((field, index) => (
-          <div key={field.id} className="flex gap-2">
+          <div key={field.key} className="flex gap-2">
             <Select
               value={getMetricFunctionValue(field)}
               onValueChange={(fnValue) => {

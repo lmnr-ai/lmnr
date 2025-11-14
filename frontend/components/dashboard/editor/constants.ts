@@ -1,5 +1,5 @@
 import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
-import { Metric } from "@/lib/actions/sql";
+import { Metric } from "@/lib/actions/sql/types";
 
 export type MetricFunctionOption = {
   value: string;
@@ -11,27 +11,27 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "count",
     label: "count",
-    createMetric: () => ({ fn: "count", column: "*", alias: "count" }),
+    createMetric: () => ({ fn: "count", column: "*", alias: "count", args: [] }),
   },
   {
     value: "sum",
     label: "sum",
-    createMetric: (column) => ({ fn: "sum", column }),
+    createMetric: (column) => ({ fn: "sum", column, args: [] }),
   },
   {
     value: "avg",
     label: "average",
-    createMetric: (column) => ({ fn: "avg", column }),
+    createMetric: (column) => ({ fn: "avg", column, args: [] }),
   },
   {
     value: "min",
     label: "min",
-    createMetric: (column) => ({ fn: "min", column }),
+    createMetric: (column) => ({ fn: "min", column, args: [] }),
   },
   {
     value: "max",
     label: "max",
-    createMetric: (column) => ({ fn: "max", column }),
+    createMetric: (column) => ({ fn: "max", column, args: [] }),
   },
   {
     value: "p90",
@@ -63,12 +63,11 @@ export const getMetricFunctionValue = (metric: Metric): string => {
 export const createMetricFromOption = (functionValue: string, column: string, alias?: string): Metric => {
   const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
   if (!option) {
-    return { fn: "count", column: "*", alias: alias || "count" };
+    return { fn: "count", column: "*", alias: alias || "count", args: [] };
   }
   return { ...option.createMetric(column), column, alias } as Metric;
 };
 
-// Filter operator options using datatable-filter types
 export const FILTER_OPERATOR_OPTIONS = [
   { value: Operator.Eq, label: OperatorLabelMap[Operator.Eq] },
   { value: Operator.Ne, label: OperatorLabelMap[Operator.Ne] },
@@ -77,4 +76,3 @@ export const FILTER_OPERATOR_OPTIONS = [
   { value: Operator.Lt, label: OperatorLabelMap[Operator.Lt] },
   { value: Operator.Lte, label: OperatorLabelMap[Operator.Lte] },
 ] as const;
-

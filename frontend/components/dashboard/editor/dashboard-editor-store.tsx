@@ -6,6 +6,7 @@ import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
+import { ChartType } from "@/components/chart-builder/types.ts";
 import { DashboardChart } from "@/components/dashboard/types";
 import { SQLParameter } from "@/components/sql/sql-editor-store";
 
@@ -66,7 +67,7 @@ const defaultChart: DashboardEditorState["chart"] = {
       y: undefined,
       total: undefined,
       breakdown: undefined,
-      type: undefined,
+      type: ChartType.LineChart,
     },
     layout: {
       x: 0,

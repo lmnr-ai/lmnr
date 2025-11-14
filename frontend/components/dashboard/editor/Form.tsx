@@ -110,7 +110,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
       total: false,
     };
-  }, [chartType, formValues, columns]);
+  }, [chartType, formValues]);
 
   const handleSaveChart = async () => {
     if (!chartConfig || !projectId || !chart.name.trim()) return;
@@ -140,7 +140,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     }
   };
 
-  // Generate and execute query from form values
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
       return;
@@ -161,7 +160,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
       const queryStructure: QueryStructure = {
         table,
-        metrics: metrics || [],
+        metrics,
         dimensions: dimensions || [],
         filters: allFilters,
         orderBy: [],
@@ -203,11 +202,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     }
   }, [formState.isValid, projectId, chartType, chartConfig, getValues, setQuery, setChartConfig, executeQuery]);
 
-  // Only react to form changes after initial load
   useEffect(() => {
+    if (isLoadingChart) {
+      return;
+    }
+
     const debouncedExecution = debounce(() => {
       if (formState.isValid) {
-        handleSubmit(generateAndExecuteQuery)();
+        generateAndExecuteQuery();
       }
     }, 300);
 

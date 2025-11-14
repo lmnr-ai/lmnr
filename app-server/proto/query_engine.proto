@@ -6,16 +6,13 @@ message Metric {
     string fn = 1;
     string column = 2;
     repeated double args = 3;
-    string alias = 4;
+    optional string alias = 4;
 }
 
 message Filter {
     string field = 1;
     string op = 2;
-    oneof value {
-        string string_value = 3;
-        double number_value = 4;
-    }
+    string value = 3;
 }
 
 message TimeRange {
