@@ -295,4 +295,9 @@ export const filters: ColumnFilter[] = [
     key: "user_id",
     dataType: "string",
   },
+  {
+    name: "Pattern",
+    key: "pattern",
+    dataType: "string",
+  },
 ];

@@ -16,6 +16,7 @@ impl ExpectedWorkerCounts {
         payloads: usize,
         trace_summaries: usize,
         notifications: usize,
+        clustering: usize,
     ) -> Self {
         let mut counts = HashMap::new();
         counts.insert(WorkerType::Spans, spans);
@@ -24,6 +25,7 @@ impl ExpectedWorkerCounts {
         counts.insert(WorkerType::Payloads, payloads);
         counts.insert(WorkerType::TraceSummaries, trace_summaries);
         counts.insert(WorkerType::Notifications, notifications);
+        counts.insert(WorkerType::Clustering, clustering);
 
         Self { counts }
     }
@@ -41,6 +43,7 @@ pub enum WorkerType {
     Payloads,
     TraceSummaries,
     Notifications,
+    Clustering,
 }
 
 impl WorkerType {
@@ -54,6 +57,7 @@ impl WorkerType {
             WorkerType::Payloads,
             WorkerType::TraceSummaries,
             WorkerType::Notifications,
+            WorkerType::Clustering,
         ]
     }
 }
@@ -67,6 +71,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::Payloads => write!(f, "payloads"),
             WorkerType::TraceSummaries => write!(f, "trace_summaries"),
             WorkerType::Notifications => write!(f, "notifications"),
+            WorkerType::Clustering => write!(f, "clustering"),
         }
     }
 }
@@ -149,7 +154,7 @@ mod tests {
         let variants = WorkerType::all_variants();
 
         // Check we have the expected number of variants
-        assert_eq!(variants.len(), 6);
+        assert_eq!(variants.len(), 7);
 
         // Check each variant is present
         assert!(variants.contains(&WorkerType::Spans));
@@ -158,11 +163,12 @@ mod tests {
         assert!(variants.contains(&WorkerType::Payloads));
         assert!(variants.contains(&WorkerType::TraceSummaries));
         assert!(variants.contains(&WorkerType::Notifications));
+        assert!(variants.contains(&WorkerType::Clustering));
     }
 
     #[test]
     fn test_expected_worker_counts_stores_and_retrieves_correctly() {
-        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5, 6);
+        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5, 6, 7);
 
         assert_eq!(expected.get(&WorkerType::Spans), 1);
         assert_eq!(expected.get(&WorkerType::BrowserEvents), 2);
@@ -170,12 +176,13 @@ mod tests {
         assert_eq!(expected.get(&WorkerType::Payloads), 4);
         assert_eq!(expected.get(&WorkerType::TraceSummaries), 5);
         assert_eq!(expected.get(&WorkerType::Notifications), 6);
+        assert_eq!(expected.get(&WorkerType::Clustering), 7);
     }
 
     #[test]
     fn test_is_healthy_when_all_workers_meet_expectations() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1, 1, 1);
 
         // Register workers
         let _h1 = tracker.register_worker(WorkerType::Spans);
@@ -185,6 +192,7 @@ mod tests {
         let _h5 = tracker.register_worker(WorkerType::Payloads);
         let _h6 = tracker.register_worker(WorkerType::TraceSummaries);
         let _h7 = tracker.register_worker(WorkerType::Notifications);
+        let _h8 = tracker.register_worker(WorkerType::Clustering);
 
         assert!(tracker.is_healthy(&expected));
     }
@@ -192,7 +200,7 @@ mod tests {
     #[test]
     fn test_is_healthy_when_one_worker_type_is_below_threshold() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(2, 1, 1, 1, 1, 1, 1);
 
         // Register only 1 Spans worker (need 2)
         let _h1 = tracker.register_worker(WorkerType::Spans);
@@ -201,6 +209,7 @@ mod tests {
         let _h4 = tracker.register_worker(WorkerType::Payloads);
         let _h5 = tracker.register_worker(WorkerType::TraceSummaries);
         let _h6 = tracker.register_worker(WorkerType::Notifications);
+        let _h7 = tracker.register_worker(WorkerType::Clustering);
 
         assert!(!tracker.is_healthy(&expected));
     }
@@ -208,7 +217,7 @@ mod tests {
     #[test]
     fn test_is_healthy_when_workers_exceed_expectations() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1, 1);
 
         // Register more than expected (should still be healthy)
         let _h1 = tracker.register_worker(WorkerType::Spans);
@@ -219,6 +228,7 @@ mod tests {
         let _h6 = tracker.register_worker(WorkerType::Payloads);
         let _h7 = tracker.register_worker(WorkerType::TraceSummaries);
         let _h8 = tracker.register_worker(WorkerType::Notifications);
+        let _h9 = tracker.register_worker(WorkerType::Clustering);
 
         assert!(tracker.is_healthy(&expected));
     }
@@ -226,7 +236,7 @@ mod tests {
     #[test]
     fn test_is_healthy_exactly_at_threshold() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(3, 2, 1, 4, 2, 1);
+        let expected = ExpectedWorkerCounts::new(3, 2, 1, 4, 2, 1, 1);
 
         // Register exactly the expected counts
         let _h1 = tracker.register_worker(WorkerType::Spans);
@@ -242,6 +252,7 @@ mod tests {
         let _h11 = tracker.register_worker(WorkerType::TraceSummaries);
         let _h12 = tracker.register_worker(WorkerType::TraceSummaries);
         let _h13 = tracker.register_worker(WorkerType::Notifications);
+        let _h14 = tracker.register_worker(WorkerType::Clustering);
 
         assert!(tracker.is_healthy(&expected));
     }
@@ -249,7 +260,7 @@ mod tests {
     #[test]
     fn test_is_healthy_with_no_workers() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1, 1);
 
         // No workers registered
         assert!(!tracker.is_healthy(&expected));
@@ -258,7 +269,7 @@ mod tests {
     #[test]
     fn test_is_healthy_with_zero_expectations() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(0, 0, 0, 0, 0, 0);
+        let expected = ExpectedWorkerCounts::new(0, 0, 0, 0, 0, 0, 0);
 
         // No workers registered, but none expected either
         assert!(tracker.is_healthy(&expected));
@@ -267,7 +278,7 @@ mod tests {
     #[test]
     fn test_is_healthy_checks_all_worker_types() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(1, 1, 1, 1, 1, 1, 1);
 
         // Missing TraceSummaries worker
         let _h1 = tracker.register_worker(WorkerType::Spans);
@@ -275,6 +286,7 @@ mod tests {
         let _h3 = tracker.register_worker(WorkerType::Evaluators);
         let _h4 = tracker.register_worker(WorkerType::Payloads);
         let _h5 = tracker.register_worker(WorkerType::Notifications);
+        let _h6 = tracker.register_worker(WorkerType::Clustering);
         // Intentionally not registering TraceSummaries
 
         assert!(!tracker.is_healthy(&expected));
@@ -341,12 +353,13 @@ mod tests {
         assert_eq!(format!("{}", WorkerType::Payloads), "payloads");
         assert_eq!(format!("{}", WorkerType::TraceSummaries), "trace_summaries");
         assert_eq!(format!("{}", WorkerType::Notifications), "notifications");
+        assert_eq!(format!("{}", WorkerType::Clustering), "clustering");
     }
 
     #[test]
     fn test_expected_counts_covers_all_variants() {
         // This test ensures that ExpectedWorkerCounts::new() covers all variants
-        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5, 6);
+        let expected = ExpectedWorkerCounts::new(1, 2, 3, 4, 5, 6, 7);
 
         // Verify we can retrieve a count for each variant
         for variant in WorkerType::all_variants() {
