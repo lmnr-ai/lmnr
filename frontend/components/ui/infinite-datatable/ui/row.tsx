@@ -31,8 +31,12 @@ export function InfiniteDatatableRow<TData extends RowData>({
         onRowClick?.(row);
       }}
       style={{
-        transform: `translateY(${virtualRow.start}px)`,
+        position: "absolute",
+        top: 0,
+        left: 0,
         width: "100%",
+        transform: `translateY(${virtualRow.start}px)`,
+        willChange: "transform",
       }}
     >
       {row.getIsSelected() && <div className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
