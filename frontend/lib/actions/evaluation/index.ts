@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
-import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import { FiltersSchema } from "@/lib/actions/common/types";
 import {
   buildEvaluationDatapointsQueryWithParams,
   buildTracesForEvaluationQueryWithParams,
@@ -29,7 +29,7 @@ import {
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
-export const GetEvaluationDatapointsSchema = PaginationFiltersSchema.extend({
+export const GetEvaluationDatapointsSchema = FiltersSchema.extend({
   evaluationId: z.string(),
   projectId: z.string(),
   search: z.string().nullable().optional(),
@@ -48,8 +48,6 @@ export const getEvaluationDatapoints = async (
   const {
     projectId,
     evaluationId,
-    pageNumber,
-    pageSize,
     search,
     searchIn,
     filter: inputFilters,
@@ -65,9 +63,6 @@ export const getEvaluationDatapoints = async (
   }
 
   const allFilters: FilterDef[] = compact(inputFilters);
-
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
 
   // Separate filters into trace and datapoint filters
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
@@ -129,8 +124,6 @@ export const getEvaluationDatapoints = async (
     evaluationId,
     traceIds: filteredTraceIds,
     filters: datapointFilters,
-    limit,
-    offset,
   });
 
   const rawResults = await executeQuery<EvaluationDatapointRow>({ query: mainQuery, parameters: mainParams, projectId });
