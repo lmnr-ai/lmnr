@@ -70,8 +70,6 @@ export interface BuildEvaluationDatapointsQueryOptions {
   evaluationId: string;
   traceIds: string[];
   filters: FilterDef[];
-  limit: number;
-  offset: number;
 }
 
 export interface BuildTracesForEvaluationQueryOptions {
@@ -84,7 +82,7 @@ export interface BuildTracesForEvaluationQueryOptions {
 export const buildEvaluationDatapointsQueryWithParams = (
   options: BuildEvaluationDatapointsQueryOptions
 ): QueryResult => {
-  const { evaluationId, traceIds, filters, limit, offset } = options;
+  const { evaluationId, traceIds, filters } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -145,10 +143,6 @@ export const buildEvaluationDatapointsQueryWithParams = (
         direction: "ASC",
       },
     ],
-    pagination: {
-      limit,
-      offset,
-    },
   };
 
   return buildSelectQuery(queryOptions);
