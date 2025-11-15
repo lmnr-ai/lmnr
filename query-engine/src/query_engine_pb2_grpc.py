@@ -39,12 +39,34 @@ class QueryEngineServiceStub(object):
                 request_serializer=query__engine__pb2.QueryRequest.SerializeToString,
                 response_deserializer=query__engine__pb2.QueryResponse.FromString,
                 _registered_method=True)
+        self.JsonToSql = channel.unary_unary(
+                '/query_engine.QueryEngineService/JsonToSql',
+                request_serializer=query__engine__pb2.JsonToSqlRequest.SerializeToString,
+                response_deserializer=query__engine__pb2.JsonToSqlResponse.FromString,
+                _registered_method=True)
+        self.SqlToJson = channel.unary_unary(
+                '/query_engine.QueryEngineService/SqlToJson',
+                request_serializer=query__engine__pb2.SqlToJsonRequest.SerializeToString,
+                response_deserializer=query__engine__pb2.SqlToJsonResponse.FromString,
+                _registered_method=True)
 
 
 class QueryEngineServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def ValidateQuery(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def JsonToSql(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SqlToJson(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +79,16 @@ def add_QueryEngineServiceServicer_to_server(servicer, server):
                     servicer.ValidateQuery,
                     request_deserializer=query__engine__pb2.QueryRequest.FromString,
                     response_serializer=query__engine__pb2.QueryResponse.SerializeToString,
+            ),
+            'JsonToSql': grpc.unary_unary_rpc_method_handler(
+                    servicer.JsonToSql,
+                    request_deserializer=query__engine__pb2.JsonToSqlRequest.FromString,
+                    response_serializer=query__engine__pb2.JsonToSqlResponse.SerializeToString,
+            ),
+            'SqlToJson': grpc.unary_unary_rpc_method_handler(
+                    servicer.SqlToJson,
+                    request_deserializer=query__engine__pb2.SqlToJsonRequest.FromString,
+                    response_serializer=query__engine__pb2.SqlToJsonResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +118,60 @@ class QueryEngineService(object):
             '/query_engine.QueryEngineService/ValidateQuery',
             query__engine__pb2.QueryRequest.SerializeToString,
             query__engine__pb2.QueryResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def JsonToSql(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/query_engine.QueryEngineService/JsonToSql',
+            query__engine__pb2.JsonToSqlRequest.SerializeToString,
+            query__engine__pb2.JsonToSqlResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SqlToJson(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/query_engine.QueryEngineService/SqlToJson',
+            query__engine__pb2.SqlToJsonRequest.SerializeToString,
+            query__engine__pb2.SqlToJsonResponse.FromString,
             options,
             channel_credentials,
             insecure,
