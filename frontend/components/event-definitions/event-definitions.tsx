@@ -4,13 +4,13 @@ import { Row } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { columns } from "@/components/event-definitions/columns.tsx";
+import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -19,7 +19,11 @@ import Header from "../ui/header";
 
 export default function EventDefinitions() {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider
+      storageKey="event-definitions-table"
+      uniqueKey="id"
+      defaultColumnOrder={defaultEventDefinitionsColumnOrder}
+    >
       <EventDefinitionsContent />
     </DataTableStateProvider>
   );
@@ -136,6 +140,7 @@ function EventDefinitionsContent() {
             rowSelection,
           }}
           onRowSelectionChange={onRowSelectionChange}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows

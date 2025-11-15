@@ -10,16 +10,18 @@ import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { columns, filters } from "@/components/traces/traces-table/columns";
+import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
 import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
+
+import RefreshColumnsButton from "../ui/refresh-columns-button";
 
 const presetFilters: DatatableFilter[] = [];
 
@@ -28,7 +30,7 @@ const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultTracesColumnOrder}>
       <TracesTableContent />
     </DataTableStateProvider>
   );
@@ -40,7 +42,6 @@ function TracesTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -312,11 +313,14 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         estimatedRowHeight={41}
+        lockedColumns={["status"]}
         childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+        storageKey="traces-table"
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
           <DateRangeFilter />
+          <RefreshColumnsButton />
           <RefreshButton
             iconClassName="w-3.5 h-3.5 text-secondary-foreground"
             onClick={handleRefresh}

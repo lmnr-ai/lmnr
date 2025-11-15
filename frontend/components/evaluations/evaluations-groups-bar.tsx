@@ -7,10 +7,24 @@ import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { InfiniteDataTable } from "../ui/infinite-datatable";
+import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
 
 type EvaluationGroup = { groupId: string; lastEvaluationCreatedAt: string };
 
+export const defaultEvaluationsGroupsBarColumnOrder = ["groupId", "lastEvaluationCreatedAt"];
+
 export default function EvaluationsGroupsBar() {
+  return (
+    <DataTableStateProvider
+      storageKey="evaluations-groups-bar"
+      defaultColumnOrder={defaultEvaluationsGroupsBarColumnOrder}
+    >
+      <EvaluationsGroupsBarContent />
+    </DataTableStateProvider>
+  );
+}
+
+function EvaluationsGroupsBarContent() {
   const { projectId } = useParams();
 
   const router = useRouter();
@@ -31,11 +45,13 @@ export default function EvaluationsGroupsBar() {
 
   const columns: ColumnDef<EvaluationGroup>[] = [
     {
+      id: "groupId",
       header: "Group",
       accessorFn: (row) => row.groupId,
       size: 160,
     },
     {
+      id: "lastEvaluationCreatedAt",
       header: "Last Evaluation",
       accessorFn: (row) => row.lastEvaluationCreatedAt,
       cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.lastEvaluationCreatedAt} />,

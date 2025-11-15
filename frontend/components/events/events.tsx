@@ -10,7 +10,7 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
-import { eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
+import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import TraceView from "@/components/traces/trace-view";
@@ -21,8 +21,8 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-
 import FiltersContextProvider from "@/components/ui/datatable-filter/context";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
@@ -360,7 +360,7 @@ function EventsContent({
   initialTraceViewWidth?: number;
 }) {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
       <EventsContentInner lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </DataTableStateProvider>
   );

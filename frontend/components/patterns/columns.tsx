@@ -55,11 +55,7 @@ export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
 
       return (
         <div style={{ paddingLeft: `${paddingLeft}px` }} className="truncate text-primary">
-          <Link
-            href={tracesUrl}
-            onClick={(e) => e.stopPropagation()}
-            target="_blank"
-          >
+          <Link href={tracesUrl} onClick={(e) => e.stopPropagation()} target="_blank">
             {row.original.name}
           </Link>
         </div>
@@ -95,3 +91,4 @@ export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
   },
 ];
 
+export const defaultPatternsColumnOrder = ["expand", "name", "children_clusters", "traces", "created_at", "updated_at"];

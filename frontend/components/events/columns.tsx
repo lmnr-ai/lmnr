@@ -52,6 +52,8 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
   },
 ];
 
+export const defaultEventsColumnOrder = ["id", "timestamp", "traceId", "spanId", "userId", "sessionId", "attributes"];
+
 export const eventsTableFilters: ColumnFilter[] = [
   {
     name: "ID",

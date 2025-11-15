@@ -12,8 +12,8 @@ import { useToast } from "@/lib/hooks/use-toast";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
 import { InfiniteDataTable } from "../ui/infinite-datatable";
-import { DataTableStateProvider } from "../ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "../ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
 import Mono from "../ui/mono";
 import CreateDatasetDialog from "./create-dataset-dialog";
 
@@ -22,6 +22,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -39,6 +40,8 @@ const columns: ColumnDef<DatasetInfo>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
 const FETCH_SIZE = 50;
 
@@ -152,6 +155,7 @@ function DatasetsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
+            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -170,7 +174,7 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
       <DatasetsContent />
     </DataTableStateProvider>
   );

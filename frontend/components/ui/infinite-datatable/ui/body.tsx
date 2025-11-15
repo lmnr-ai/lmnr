@@ -4,8 +4,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 
+import { InfiniteDataTableBodyProps } from "../types";
 import { InfiniteDatatableRow } from "./row";
-import { InfiniteDataTableBodyProps } from "./types";
 
 export function InfiniteDatatableBody<TData extends RowData>({
   table,
@@ -19,6 +19,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   emptyRow,
   loadingRow,
   error,
+  columnOrder,
 }: InfiniteDataTableBodyProps<TData>) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -67,6 +68,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 rowVirtualizer={rowVirtualizer}
                 onRowClick={onRowClick}
                 focusedRowId={focusedRowId}
+                columnOrder={columnOrder}
               />
             );
           })}
