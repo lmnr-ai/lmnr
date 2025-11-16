@@ -1,18 +1,34 @@
 "use client";
 
-import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { arrayMove } from "@dnd-kit/sortable";
+import { flexRender, getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { PropsWithChildren, useEffect, useMemo, useRef } from "react";
+import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Table } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { Table } from "@/components/ui/table.tsx";
+import { cn } from "@/lib/utils.ts";
 
-import { InfiniteDatatableBody } from "./body";
-import { InfiniteDatatableHeader } from "./header";
-import { SelectionPanel } from "./selection-panel";
-import { InfiniteDataTableProps } from "./types";
-import { createCheckboxColumn, EMPTY_ARRAY } from "./utils";
+import { useDataTableStore } from "./model/datatable-store.tsx";
+import { InfiniteDataTableProps } from "./types.ts";
+import { InfiniteDatatableBody } from "./ui/body.tsx";
+import { InfiniteDatatableHeader } from "./ui/header.tsx";
+import { SelectionPanel } from "./ui/selection-panel.tsx";
+import { createCheckboxColumn, EMPTY_ARRAY } from "./utils.tsx";
 
 export function InfiniteDataTable<TData extends RowData>({
   // Infinite scroll props
@@ -27,6 +43,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
+  lockedColumns = EMPTY_ARRAY as string[],
 
   // Styling
   className,
@@ -52,6 +69,55 @@ export function InfiniteDataTable<TData extends RowData>({
     [columns, enableRowSelection]
   );
 
+  const store = useDataTableStore();
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, draggingColumnId, setDraggingColumnId } =
+    useStore(store, (state) => ({
+      columnOrder: state.columnOrder,
+      setColumnOrder: state.setColumnOrder,
+      columnVisibility: state.columnVisibility,
+      setColumnVisibility: state.setColumnVisibility,
+      draggingColumnId: state.draggingColumnId,
+      setDraggingColumnId: state.setDraggingColumnId,
+    }));
+
+  // Handle drag start
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingColumnId(event.active.id as string);
+    // Get header position for DragOverlay
+    if (headerRef.current) {
+      const rect = headerRef.current.getBoundingClientRect();
+      setHeaderTop(rect.top);
+    }
+  }
+
+  // reorder columns after drag & drop
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setDraggingColumnId(null);
+    if (active && over && active.id !== over.id) {
+      const oldIndex = columnOrder.indexOf(active.id as string);
+      const newIndex = columnOrder.indexOf(over.id as string);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setColumnOrder(arrayMove(columnOrder, oldIndex, newIndex) as string[]);
+      }
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before activating
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms delay for touch
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {})
+  );
+
   const table = useReactTable<TData>({
     ...tableOptions,
 
@@ -75,14 +141,17 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-
-    state: state,
+    state: { ...state, columnVisibility, columnOrder },
+    onColumnVisibilityChange: (visibility) => setColumnVisibility(visibility as Record<string, boolean>),
+    onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });
 
   const { rows } = table.getRowModel();
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
+  const headerRef = useRef<HTMLTableSectionElement>(null);
+  const [headerTop, setHeaderTop] = useState<number>(0);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -94,6 +163,12 @@ export function InfiniteDataTable<TData extends RowData>({
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
   });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const handleClearSelection = () => {
+    table.toggleAllRowsSelected(false);
+  };
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
@@ -121,13 +196,6 @@ export function InfiniteDataTable<TData extends RowData>({
       observer.disconnect();
     };
   }, [fetchNextPage, hasMore, isFetching, isLoading]);
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-
-  const handleClearSelection = () => {
-    table.toggleAllRowsSelected(false);
-  };
-
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
       <SelectionPanel
@@ -136,33 +204,84 @@ export function InfiniteDataTable<TData extends RowData>({
         selectionPanel={selectionPanel}
       />
 
-      {children && <div className={cn("flex items-center space-x-2 h-12", childrenClassName)}>{children}</div>}
+      {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
       <div
         ref={tableContainerRef}
         className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
       >
         <div className="size-full">
-          <Table
-            className="grid border-collapse border-spacing-0 rounded bg-secondary"
-            style={{
-              width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
-            }}
+          <DndContext
+            collisionDetection={closestCenter}
+            modifiers={[restrictToHorizontalAxis]}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            sensors={sensors}
           >
-            <InfiniteDatatableHeader table={table} />
-            <InfiniteDatatableBody
-              table={table}
-              rowVirtualizer={rowVirtualizer}
-              virtualItems={virtualItems}
-              isLoading={isLoading}
-              hasMore={hasMore}
-              onRowClick={onRowClick}
-              focusedRowId={focusedRowId}
-              loadMoreRef={loadMoreRef}
-              emptyRow={emptyRow}
-              loadingRow={loadingRow}
-              error={error}
-            />
-          </Table>
+            <Table
+              className="grid border-collapse border-spacing-0 rounded bg-secondary"
+              style={{
+                width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
+              }}
+            >
+              <InfiniteDatatableHeader
+                ref={headerRef}
+                table={table as any}
+                columnOrder={columnOrder}
+                onHideColumn={(columnId) => {
+                  setColumnVisibility({ ...columnVisibility, [columnId]: false });
+                }}
+                lockedColumns={lockedColumns}
+              />
+              <DragOverlay
+                dropAnimation={null}
+                adjustScale={false}
+                style={{
+                  top: `${headerTop}px`,
+                  position: "fixed",
+                  pointerEvents: "none",
+                }}
+              >
+                {draggingColumnId
+                  ? (() => {
+                    const column = table.getColumn(draggingColumnId);
+                    if (!column) return null;
+                    const headerGroups = table.getHeaderGroups();
+                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
+                    if (!header) return null;
+                    return (
+                      <div
+                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+                        style={{
+                          width: column.getSize(),
+                          height: 32,
+                        }}
+                      >
+                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+                          <div className="truncate">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                  : null}
+              </DragOverlay>
+              <InfiniteDatatableBody
+                table={table}
+                rowVirtualizer={rowVirtualizer}
+                virtualItems={virtualItems}
+                isLoading={isLoading}
+                hasMore={hasMore}
+                onRowClick={onRowClick}
+                focusedRowId={focusedRowId}
+                loadMoreRef={loadMoreRef}
+                emptyRow={emptyRow}
+                loadingRow={loadingRow}
+                error={error}
+                columnOrder={columnOrder}
+              />
+            </Table>
+          </DndContext>
 
           {isFetching && !isLoading && (
             <div className="flex justify-center p-2 bg-secondary">

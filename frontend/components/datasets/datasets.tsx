@@ -5,15 +5,16 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
 import { InfiniteDataTable } from "../ui/infinite-datatable";
-import { DataTableStateProvider } from "../ui/infinite-datatable/datatable-store";
-import { useInfiniteScroll } from "../ui/infinite-datatable/hooks";
 import Mono from "../ui/mono";
 import CreateDatasetDialog from "./create-dataset-dialog";
 
@@ -22,6 +23,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -39,6 +41,8 @@ const columns: ColumnDef<DatasetInfo>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
 const FETCH_SIZE = 50;
 
@@ -129,7 +133,7 @@ function DatasetsContent() {
   return (
     <>
       <Header path="datasets" />
-      <div className="flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1">
+      <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
         <CreateDatasetDialog onUpdate={handleCreateDataset}>
           <Button icon="plus" className="w-fit">
             Dataset
@@ -152,6 +156,7 @@ function DatasetsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
+            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -161,7 +166,9 @@ function DatasetsContent() {
                 />
               </div>
             )}
-          />
+          >
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+          </InfiniteDataTable>
         </div>
       </div>
     </>
@@ -170,7 +177,7 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
       <DatasetsContent />
     </DataTableStateProvider>
   );

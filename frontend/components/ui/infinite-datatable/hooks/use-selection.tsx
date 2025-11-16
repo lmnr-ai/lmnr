@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useStore } from "zustand";
 
-import { useDataTableStore } from "../datatable-store";
+import { useDataTableStore } from "../model/datatable-store.tsx";
 
 type RowSelectionState = Record<string, boolean>;
 type Updater<T> = T | ((old: T) => T);

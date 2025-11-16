@@ -7,11 +7,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-import FiltersContextProvider from "../ui/datatable-filter/context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
@@ -28,9 +28,9 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-    traceId: string;
-    spanId: string;
-  };
+      traceId: string;
+      spanId: string;
+    };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();

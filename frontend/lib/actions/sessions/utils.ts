@@ -1,6 +1,6 @@
 import { isNil } from "lodash";
 
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -210,10 +210,12 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     havingColumnFilterConfig: sessionsHavingColumnFilterConfig,
     customConditions,
     groupBy: ["session_id"],
-    orderBy: [{
-      column: "MIN(start_time)",
-      direction: "DESC",
-    }],
+    orderBy: [
+      {
+        column: "MIN(start_time)",
+        direction: "DESC",
+      },
+    ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
       pagination: {

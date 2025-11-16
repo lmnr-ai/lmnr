@@ -5,7 +5,7 @@ import { capitalize } from "lodash";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -147,7 +147,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
-    id: "totalTokens",
+    id: "total_tokens",
     cell: (row) => (
       <div className="truncate">
         {`${row.row.original.inputTokens ?? "-"}`}
@@ -300,4 +300,18 @@ export const filters: ColumnFilter[] = [
     key: "pattern",
     dataType: "string",
   },
+];
+
+export const defaultTracesColumnOrder = [
+  "status",
+  "id",
+  "top_span_type",
+  "start_time",
+  "duration",
+  "cost",
+  "total_tokens",
+  "tags",
+  "metadata",
+  "session_id",
+  "user_id",
 ];

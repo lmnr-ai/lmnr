@@ -2,7 +2,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils.ts";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono.tsx";
 import { EventRow } from "@/lib/events/types.ts";
@@ -51,6 +51,8 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
   },
 ];
+
+export const defaultEventsColumnOrder = ["id", "timestamp", "traceId", "spanId", "userId", "sessionId", "attributes"];
 
 export const eventsTableFilters: ColumnFilter[] = [
   {

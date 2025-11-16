@@ -7,10 +7,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -38,6 +39,7 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: ({ row }) => <div>{row.index + 1}</div>,
     header: "Index",
     size: 80,
+    id: "index",
   },
   {
     accessorKey: "createdAt",
@@ -50,20 +52,25 @@ const columns: ColumnDef<Datapoint>[] = [
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
     size: 200,
+    id: "data",
   },
   {
     accessorFn: (row) => row.target,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
     size: 200,
+    id: "target",
   },
   {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    id: "metadata",
   },
 ];
+
+export const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -171,13 +178,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     [updateData]
   );
 
-  const handlePanelClose = useCallback(
-    () => {
-      setIsEditingDatapoint(false);
-      handleDatapointSelect(null);
-    },
-    [handleDatapointSelect]
-  );
+  const handlePanelClose = useCallback(() => {
+    setIsEditingDatapoint(false);
+    handleDatapointSelect(null);
+  }, [handleDatapointSelect]);
 
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
@@ -233,9 +237,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   return (
     <>
       <Header path={"datasets/" + dataset.name} />
-      <div className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
-        "pointer-events-none opacity-60": isEditingDatapoint
-      })}>
+      <div
+        className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
+          "pointer-events-none opacity-60": isEditingDatapoint,
+        })}
+      >
         <div className="flex flex-wrap items-end gap-2">
           <RenameDatasetDialog dataset={dataset} />
           <DownloadButton
@@ -290,6 +296,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             }}
             onRowSelectionChange={setRowSelection}
             className="flex-1"
+            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -299,11 +306,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
                 />
               </div>
             )}
-          />
+          >
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+          </InfiniteDataTable>
         </div>
-        <div className="flex text-secondary-foreground text-sm">
-          {totalCount} datapoints
-        </div>
+        <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
       </div>
 
       {selectedDatapoint && (
@@ -334,7 +341,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="dataset-table" defaultColumnOrder={defaultDatasetColumnOrder}>
       <DatasetContent {...props} />
     </DataTableStateProvider>
   );

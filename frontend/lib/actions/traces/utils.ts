@@ -1,4 +1,4 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -113,8 +113,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
             return `NOT has(patterns, {${paramKey}:UUID})`;
           }
         },
-        (filter, paramKey) =>
-          ({ [paramKey]: filter.value })
+        (filter, paramKey) => ({ [paramKey]: filter.value })
       ),
     ],
   ]),

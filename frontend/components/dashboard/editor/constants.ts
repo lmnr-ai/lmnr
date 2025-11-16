@@ -1,4 +1,4 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Metric } from "@/lib/actions/sql/types";
 
 export type MetricFunctionOption = {

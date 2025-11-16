@@ -9,7 +9,8 @@ import useSWR from "swr";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
@@ -33,6 +34,7 @@ const columns: ColumnDef<LabelingQueue>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -50,6 +52,8 @@ const columns: ColumnDef<LabelingQueue>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "count", "createdAt"];
 
 const QueuesContent = () => {
   const { projectId } = useParams();
@@ -118,6 +122,7 @@ const QueuesContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -147,7 +152,9 @@ const QueuesContent = () => {
               </Dialog>
             </div>
           )}
-        />
+        >
+          <ColumnsMenu />
+        </InfiniteDataTable>
       </div>
     </>
   );
@@ -155,7 +162,7 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="queues-table" defaultColumnOrder={defaultQueuesColumnOrder}>
       <QueuesContent />
     </DataTableStateProvider>
   );

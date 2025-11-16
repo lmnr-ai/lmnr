@@ -13,8 +13,6 @@ import {
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +21,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
@@ -44,7 +46,9 @@ const filters: ColumnFilter[] = [
   { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
-const EvaluationDatapointsTable = ({
+const defaultColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+
+const EvaluationDatapointsTableContent = ({
   data,
   scores,
   handleRowClick,
@@ -110,11 +114,7 @@ const EvaluationDatapointsTable = ({
         ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
       ];
     }
-    return [
-      ...defaultColumns,
-      ...complementaryColumns,
-      ...getScoreColumns(scores, heatmapEnabled, scoreRanges),
-    ];
+    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
 
   const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
@@ -131,14 +131,14 @@ const EvaluationDatapointsTable = ({
         hasMore={false}
         isFetching={false}
         isLoading={isLoading}
-        fetchNextPage={() => { }}
+        fetchNextPage={() => {}}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">
+          <ColumnsMenu />
           <DataTableFilter columns={columnFilters} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -165,5 +165,11 @@ const EvaluationDatapointsTable = ({
     </div>
   );
 };
+
+const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => (
+  <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+    <EvaluationDatapointsTableContent {...props} />
+  </DataTableStateProvider>
+);
 
 export default EvaluationDatapointsTable;

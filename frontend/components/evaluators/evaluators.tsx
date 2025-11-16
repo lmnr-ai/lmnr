@@ -10,7 +10,10 @@ import { z } from "zod";
 import EvaluatorsTable from "@/components/evaluators/evaluators-table";
 import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet";
 import { Button } from "@/components/ui/button";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Evaluator } from "@/lib/evaluators/types";
+
+import { defaultEvaluatorsColumnOrder } from "./lib/consts";
 
 const manageEvaluatorSchema = z.object({
   id: z.string().optional(),
@@ -67,7 +70,9 @@ const Evaluators = () => {
             Evaluator
           </Button>
         </ManageEvaluatorSheet>
-        <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
+        <DataTableStateProvider storageKey="evaluators-table" defaultColumnOrder={defaultEvaluatorsColumnOrder}>
+          <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
+        </DataTableStateProvider>
       </div>
     </FormProvider>
   );

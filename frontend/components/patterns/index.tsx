@@ -5,18 +5,23 @@ import { get } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
-import { getColumns, PatternRow } from "@/components/patterns/columns";
-import RefreshButton from "@/components/traces/refresh-button";
+import { defaultPatternsColumnOrder, getColumns, PatternRow } from "@/components/patterns/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const FETCH_SIZE = 50;
 
 export default function PatternsTable() {
   return (
-    <DataTableStateProvider uniqueKey="clusterId">
+    <DataTableStateProvider
+      storageKey="patterns-table"
+      uniqueKey="clusterId"
+      defaultColumnOrder={defaultPatternsColumnOrder}
+    >
       <PatternsTableContent />
     </DataTableStateProvider>
   );
@@ -103,15 +108,12 @@ function PatternsTableContent() {
     return rootPatterns;
   }, [rawPatterns]);
 
-  const handleRowClick = useCallback(
-    (row: Row<PatternRow>) => {
-      // Just toggle expand/collapse - data is already loaded
-      if (row.original.numChildrenClusters > 0) {
-        row.toggleExpanded();
-      }
-    },
-    []
-  );
+  const handleRowClick = useCallback((row: Row<PatternRow>) => {
+    // Just toggle expand/collapse - data is already loaded
+    if (row.original.numChildrenClusters > 0) {
+      row.toggleExpanded();
+    }
+  }, []);
 
   return (
     <div className="flex overflow-hidden px-4 pb-6">
@@ -125,15 +127,13 @@ function PatternsTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        estimatedRowHeight={41}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         error={error}
       >
         <div className="flex flex-1 w-full space-x-2">
           <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
+          <ColumnsMenu />
         </div>
       </InfiniteDataTable>
     </div>
   );
 }
-

@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import GridLayout from "@/components/dashboard/grid-layout";
 import { Button } from "@/components/ui/button";
 
-import DateRangeFilter from "../ui/date-range-filter";
+import DateRangeFilter from "../../shared/ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";

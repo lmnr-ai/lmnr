@@ -7,12 +7,13 @@ import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -56,6 +57,15 @@ const columns: ColumnDef<Evaluation>[] = [
   },
 ];
 
+export const defaultEvaluationsColumnOrder = [
+  "__row_selection",
+  "id",
+  "name",
+  "dataPointsCount",
+  "metadata",
+  "createdAt",
+];
+
 const filters: ColumnFilter[] = [
   {
     name: "ID",
@@ -83,7 +93,7 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="evaluations-table" defaultColumnOrder={defaultEvaluationsColumnOrder}>
       <EvaluationsContent />
     </DataTableStateProvider>
   );
@@ -248,10 +258,9 @@ function EvaluationsContent() {
                 isFetching={isFetching}
                 isLoading={isLoading}
                 fetchNextPage={fetchNextPage}
-                estimatedRowHeight={41}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
-                childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+                lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -263,6 +272,7 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
+                  <ColumnsMenu lockedColumns={["__row_selection"]} />
                   <DataTableFilter columns={filters} />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>

@@ -301,19 +301,23 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
   {
     accessorKey: "index",
     header: "Index",
+    id: "index",
     size: 70,
   },
   {
+    id: "data",
     accessorFn: (row) => row.data,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
   },
   {
+    id: "target",
     accessorFn: (row) => row.target,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
   },
   {
+    id: "metadata",
     accessorFn: (row) => row.metadata,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Metadata",
@@ -322,10 +326,12 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
 
 export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
   {
+    id: "duration",
     cell: flow((cellContext) => cellContext.row.original, createDurationCell),
     header: "Duration",
   },
   {
+    id: "cost",
     cell: flow((cellContext) => cellContext.row.original, createCostCell),
     header: "Cost",
   },
@@ -333,6 +339,7 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
 
 export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
   {
+    id: "output",
     accessorFn: flow(
       (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
       (output) => (output ? JSON.stringify(output) : "-")
@@ -340,10 +347,12 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
     header: "Output",
   },
   {
+    id: "duration",
     accessorFn: (row: EvaluationDatapointPreviewWithCompared) => getDurationString(row.startTime, row.endTime),
     header: "Duration",
   },
   {
+    id: "cost",
     accessorFn: flow(
       (row: EvaluationDatapointPreviewWithCompared) => calculateTotalCost(row.inputCost, row.outputCost),
       formatCostIntl
@@ -358,6 +367,7 @@ export const getComparedScoreColumns = (
   scoreRanges: ScoreRanges = {}
 ): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
   scores.map((name) => ({
+    id: `comparedScore:${name}`,
     header: name,
     ...createColumnSizeConfig(heatmapEnabled, true),
     cell: createComparisonScoreColumnCell(heatmapEnabled, scoreRanges, name),
@@ -369,6 +379,7 @@ export const getScoreColumns = (
   scoreRanges: ScoreRanges = {}
 ): ColumnDef<EvaluationDatapointPreviewWithCompared>[] =>
   scores.map((name) => ({
+    id: `score:${name}`,
     header: name,
     ...createColumnSizeConfig(heatmapEnabled, false),
     cell: createScoreColumnCell(heatmapEnabled, scoreRanges, name),
