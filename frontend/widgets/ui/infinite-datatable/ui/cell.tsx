@@ -4,9 +4,9 @@ import { Cell, flexRender, RowData } from "@tanstack/react-table";
 import { CSSProperties } from "react";
 import { useStore } from "zustand";
 
-import { TableCell } from "@/components/ui/table";
+import { TableCell } from "@/components/ui/table.tsx";
 
-import { useDataTableStore } from "../model/datatable-store";
+import { useDataTableStore } from "../model/datatable-store.tsx";
 
 interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;

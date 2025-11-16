@@ -1,6 +1,5 @@
 import { isNil } from "lodash";
 
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -11,6 +10,7 @@ import {
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import { FilterDef } from "@/lib/db/modifiers";
+import { Operator, OperatorLabelMap } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([

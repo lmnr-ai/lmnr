@@ -1,11 +1,11 @@
 import { Row, RowData } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Skeleton } from "@/components/ui/skeleton";
-import { TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { TableBody, TableCell, TableRow } from "@/components/ui/table.tsx";
 
-import { InfiniteDataTableBodyProps } from "../types";
-import { InfiniteDatatableRow } from "./row";
+import { InfiniteDataTableBodyProps } from "../types.ts";
+import { InfiniteDatatableRow } from "./row.tsx";
 
 export function InfiniteDatatableBody<TData extends RowData>({
   table,

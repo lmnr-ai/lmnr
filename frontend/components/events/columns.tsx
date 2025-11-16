@@ -2,10 +2,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono.tsx";
 import { EventRow } from "@/lib/events/types.ts";
+import { ColumnFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 export const eventsTableColumns: ColumnDef<EventRow>[] = [
   {

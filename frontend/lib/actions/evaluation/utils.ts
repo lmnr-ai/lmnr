@@ -1,4 +1,3 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -14,6 +13,7 @@ import {
   EvaluationScoreDistributionBucket,
   EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
+import { Operator, OperatorLabelMap } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 // Constants for distribution calculation
 const DEFAULT_LOWER_BOUND = 0.0;

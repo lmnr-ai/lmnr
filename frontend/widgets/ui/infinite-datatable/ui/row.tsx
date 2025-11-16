@@ -1,11 +1,11 @@
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { RowData } from "@tanstack/react-table";
 
-import { TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { TableRow } from "@/components/ui/table.tsx";
+import { cn } from "@/lib/utils.ts";
 
-import { InfiniteDataTableRowProps } from "../types";
-import { InfiniteTableCell } from "./cell";
+import { InfiniteDataTableRowProps } from "../types.ts";
+import { InfiniteTableCell } from "./cell.tsx";
 
 export function InfiniteDatatableRow<TData extends RowData>({
   virtualRow,

@@ -20,12 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { InfiniteDataTable } from "@/widgets/ui/infinite-datatable";
+import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/widgets/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 interface EvaluationDatapointsTableProps {
   isLoading: boolean;

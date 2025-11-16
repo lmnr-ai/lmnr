@@ -20,15 +20,15 @@ import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "
 import { useStore } from "zustand";
 
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Table } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { Table } from "@/components/ui/table.tsx";
+import { cn } from "@/lib/utils.ts";
 
-import { useDataTableStore } from "./model/datatable-store";
-import { InfiniteDataTableProps } from "./types";
-import { InfiniteDatatableBody } from "./ui/body";
-import { InfiniteDatatableHeader } from "./ui/header";
-import { SelectionPanel } from "./ui/selection-panel";
-import { createCheckboxColumn, EMPTY_ARRAY } from "./utils";
+import { useDataTableStore } from "./model/datatable-store.tsx";
+import { InfiniteDataTableProps } from "./types.ts";
+import { InfiniteDatatableBody } from "./ui/body.tsx";
+import { InfiniteDatatableHeader } from "./ui/header.tsx";
+import { SelectionPanel } from "./ui/selection-panel.tsx";
+import { createCheckboxColumn, EMPTY_ARRAY } from "./utils.tsx";
 
 export function InfiniteDataTable<TData extends RowData>({
   // Infinite scroll props

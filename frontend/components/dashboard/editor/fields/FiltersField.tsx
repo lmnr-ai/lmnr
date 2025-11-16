@@ -4,12 +4,12 @@ import { FILTER_OPERATOR_OPTIONS } from "@/components/dashboard/editor/constants
 import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
-import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
+import { Operator } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 interface FilterRowProps {
   index: number;

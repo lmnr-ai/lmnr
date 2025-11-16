@@ -6,15 +6,15 @@ import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useInfiniteScroll } from "@/widgets/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
 
+import { InfiniteDataTable } from "../../widgets/ui/infinite-datatable";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
-import { InfiniteDataTable } from "../ui/infinite-datatable";
-import { useInfiniteScroll } from "../ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
 import Mono from "../ui/mono";
 import CreateDatasetDialog from "./create-dataset-dialog";
 

@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { Operator } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 export const FilterDefSchema = z.object({
   column: z.string(),

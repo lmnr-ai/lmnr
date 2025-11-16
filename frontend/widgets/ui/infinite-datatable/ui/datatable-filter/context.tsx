@@ -1,7 +1,7 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, Dispatch, PropsWithChildren, SetStateAction, useContext, useMemo, useState } from "react";
 
-import { ColumnFilter, DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { ColumnFilter, DatatableFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 type FiltersContextType = {
   value: DatatableFilter[];

@@ -16,8 +16,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import { ColumnsMenuItem } from "@/components/ui/infinite-datatable/ui/columns-menu-item.tsx";
+import { useDataTableStore } from "@/widgets/ui/infinite-datatable/model/datatable-store.tsx";
+import { ColumnsMenuItem } from "@/widgets/ui/infinite-datatable/ui/columns-menu-item.tsx";
 
 interface ColumnsMenuProps {
   lockedColumns?: string[];

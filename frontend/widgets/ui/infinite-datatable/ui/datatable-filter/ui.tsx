@@ -5,6 +5,11 @@ import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } fr
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { cn } from "@/lib/utils.ts";
 import {
   ColumnFilter,
   DatatableFilter,
@@ -13,12 +18,7 @@ import {
   NUMBER_OPERATIONS,
   Operator,
   STRING_OPERATIONS,
-} from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Input } from "@/components/ui/input.tsx";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { cn } from "@/lib/utils.ts";
+} from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 interface FilterUIProps {
   columns: ColumnFilter[];

@@ -1,5 +1,5 @@
-import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { FilterDef } from "@/lib/db/modifiers";
+import { OperatorLabelMap } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 export interface QueryParams {
   [key: string]: string | number | string[] | number[];

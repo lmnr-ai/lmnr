@@ -11,8 +11,8 @@ import EvaluatorsTable from "@/components/evaluators/evaluators-table";
 import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet";
 import { Button } from "@/components/ui/button";
 import { Evaluator } from "@/lib/evaluators/types";
+import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
 
-import { DataTableStateProvider } from "../ui/infinite-datatable/model/datatable-store";
 import { defaultEvaluatorsColumnOrder } from "./lib/consts";
 
 const manageEvaluatorSchema = z.object({

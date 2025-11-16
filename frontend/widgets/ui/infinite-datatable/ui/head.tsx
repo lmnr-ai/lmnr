@@ -5,12 +5,17 @@ import { ChevronDown, EyeOff } from "lucide-react";
 import { CSSProperties } from "react";
 import { useStore } from "zustand";
 
-import { TableHead } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { TableHead } from "@/components/ui/table.tsx";
+import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../../button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../dropdown-menu";
-import { useDataTableStore } from "../model/datatable-store";
+import { Button } from "../../../../components/ui/button.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../../../components/ui/dropdown-menu.tsx";
+import { useDataTableStore } from "../model/datatable-store.tsx";
 
 interface DraggableTableHeaderProps<TData extends RowData> {
   header: Header<TData, unknown>;
