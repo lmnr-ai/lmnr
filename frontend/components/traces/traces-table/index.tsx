@@ -311,9 +311,7 @@ function TracesTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        estimatedRowHeight={41}
         lockedColumns={["status"]}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         storageKey="traces-table"
       >
         <div className="flex flex-1 w-full space-x-2">

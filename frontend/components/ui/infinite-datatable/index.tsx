@@ -204,7 +204,7 @@ export function InfiniteDataTable<TData extends RowData>({
         selectionPanel={selectionPanel}
       />
 
-      {children && <div className={cn("flex items-center space-x-2 h-12", childrenClassName)}>{children}</div>}
+      {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
       <div
         ref={tableContainerRef}
         className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}

@@ -219,8 +219,6 @@ function SessionsTableContent() {
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
         fetchNextPage={fetchNextPage}
-        estimatedRowHeight={41}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         error={error}
       >
         <div className="flex flex-1 w-full space-x-2">

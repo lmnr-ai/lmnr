@@ -258,10 +258,8 @@ function EvaluationsContent() {
                 isFetching={isFetching}
                 isLoading={isLoading}
                 fetchNextPage={fetchNextPage}
-                estimatedRowHeight={41}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
-                childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
                 lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
@@ -274,11 +272,11 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
+                  <ColumnsMenu lockedColumns={["__row_selection"]} />
                   <DataTableFilter columns={filters} />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />
-                <ColumnsMenu lockedColumns={["__row_selection"]} />
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>

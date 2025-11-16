@@ -147,7 +147,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
-    id: "totalTokens",
+    id: "total_tokens",
     cell: (row) => (
       <div className="truncate">
         {`${row.row.original.inputTokens ?? "-"}`}
@@ -309,7 +309,7 @@ export const defaultTracesColumnOrder = [
   "start_time",
   "duration",
   "cost",
-  "totalTokens",
+  "total_tokens",
   "tags",
   "metadata",
   "session_id",

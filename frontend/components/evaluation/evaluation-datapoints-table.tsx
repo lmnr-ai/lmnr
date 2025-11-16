@@ -135,10 +135,10 @@ const EvaluationDatapointsTableContent = ({
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">
+          <ColumnsMenu />
           <DataTableFilter columns={columnFilters} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -158,7 +158,6 @@ const EvaluationDatapointsTableContent = ({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
-          <ColumnsMenu />
           <SearchEvaluationInput />
         </div>
         <DataTableFilterList />
@@ -167,12 +166,10 @@ const EvaluationDatapointsTableContent = ({
   );
 };
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
-      <EvaluationDatapointsTableContent {...props} />
-    </DataTableStateProvider>
-  );
-};
+const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => (
+  <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+    <EvaluationDatapointsTableContent {...props} />
+  </DataTableStateProvider>
+);
 
 export default EvaluationDatapointsTable;

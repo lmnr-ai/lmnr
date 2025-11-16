@@ -83,10 +83,9 @@ const FilterPopover = ({
 
   return (
     <Popover>
-      <PopoverTrigger asChild className={className}>
+      <PopoverTrigger asChild className={cn("text-secondary-foreground", className)}>
         {children || (
-          <Button variant="outline">
-            <ListFilter size={14} className="mr-2" />
+          <Button icon="filter" variant="outline">
             Add filter
           </Button>
         )}

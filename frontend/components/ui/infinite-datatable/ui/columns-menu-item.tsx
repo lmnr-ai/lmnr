@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripIcon } from "lucide-react";
+import { GripHorizontal } from "lucide-react";
 import React from "react";
 
 import { Checkbox } from "@/components/ui/checkbox.tsx";
@@ -24,11 +24,9 @@ export const ColumnsMenuItem = ({ id, isVisible, isLocked, onToggleVisibility }:
     transition,
   };
   return (
-    <DropdownMenuItem
-      style={style}
-      className="flex w-full cursor-default items-center rounded-sm py-1.5 pl-2 outline-hidden gap-2"
-    >
+    <DropdownMenuItem style={style}>
       <Checkbox
+        className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
         checked={isVisible}
         disabled={isLocked}
         onCheckedChange={() => !isLocked && onToggleVisibility(id)}
@@ -40,7 +38,7 @@ export const ColumnsMenuItem = ({ id, isVisible, isLocked, onToggleVisibility }:
         {...(!isLocked && { ...attributes, ...listeners })}
         className={cn("ml-auto cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
       >
-        <GripIcon />
+        <GripHorizontal />
       </div>
     </DropdownMenuItem>
   );

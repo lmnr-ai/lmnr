@@ -308,14 +308,13 @@ function EventsContentInner({
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}
-            childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
           >
             <div className="flex flex-1 w-full space-x-2">
               <DateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
+              <ColumnsMenu />
             </div>
             <DataTableFilterList />
-            <ColumnsMenu />
             <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
           </InfiniteDataTable>
         </div>

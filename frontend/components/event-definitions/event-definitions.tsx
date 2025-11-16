@@ -135,7 +135,6 @@ function EventDefinitionsContent() {
           isFetching={isFetching}
           isLoading={isLoading}
           fetchNextPage={fetchNextPage}
-          estimatedRowHeight={41}
           enableRowSelection
           state={{
             rowSelection,

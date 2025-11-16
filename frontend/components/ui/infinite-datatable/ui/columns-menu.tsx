@@ -1,10 +1,12 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { DropdownMenuSeparator } from "@radix-ui/react-dropdown-menu";
 import { ListRestart } from "lucide-react";
 import React from "react";
 import { useStore } from "zustand";
@@ -13,6 +15,7 @@ import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
@@ -65,31 +68,33 @@ export default function ColumnsMenu({ lockedColumns = [] }: ColumnsMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button icon="columns2" variant="outline">
+        <Button className="text-secondary-foreground" icon="columns2" variant="outline">
           Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
-      >
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={columnOrder} strategy={verticalListSortingStrategy}>
-            {columnOrder.map((columnId) => (
-              <ColumnsMenuItem
-                key={columnId}
-                id={columnId}
-                isVisible={columnVisibility[columnId] !== false}
-                isLocked={lockedColumns.includes(columnId)}
-                onToggleVisibility={handleToggleVisibility}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
-        <DropdownMenuItem
-          className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
-          onClick={resetColumns}
-        >
+      <DropdownMenuContent align="end" className="relative min-w-32">
+        <DropdownMenuGroup>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToVerticalAxis]}
+          >
+            <SortableContext items={columnOrder} strategy={verticalListSortingStrategy}>
+              {columnOrder.map((columnId) => (
+                <ColumnsMenuItem
+                  key={columnId}
+                  id={columnId}
+                  isVisible={columnVisibility[columnId] !== false}
+                  isLocked={lockedColumns.includes(columnId)}
+                  onToggleVisibility={handleToggleVisibility}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={resetColumns}>
           <ListRestart className="w-3.5 h-3.5 text-secondary-foreground" />
           Reset columns
         </DropdownMenuItem>

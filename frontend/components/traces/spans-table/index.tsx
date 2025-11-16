@@ -149,8 +149,6 @@ function SpansTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        estimatedRowHeight={41}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
         lockedColumns={["status"]}
       >
         <div className="flex flex-1 w-full space-x-2">

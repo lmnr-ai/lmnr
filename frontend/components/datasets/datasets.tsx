@@ -133,7 +133,7 @@ function DatasetsContent() {
   return (
     <>
       <Header path="datasets" />
-      <div className="flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1">
+      <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
         <CreateDatasetDialog onUpdate={handleCreateDataset}>
           <Button icon="plus" className="w-fit">
             Dataset

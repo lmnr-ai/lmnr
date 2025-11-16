@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -247,9 +246,7 @@ export default function EditorPanel() {
                       isFetching={false}
                       isLoading={false}
                       fetchNextPage={() => {}}
-                    >
-                      <ColumnsMenu />
-                    </InfiniteDataTable>
+                    />
                   </DataTableStateProvider>
                 ),
                 loadingText: "Executing query...",
