@@ -91,12 +91,12 @@ const EvaluationDatapointsTable = ({
 
         return allValues.length > 0
           ? {
-              ...ranges,
-              [scoreName]: {
-                min: Math.min(...allValues),
-                max: Math.max(...allValues),
-              },
-            }
+            ...ranges,
+            [scoreName]: {
+              min: Math.min(...allValues),
+              max: Math.max(...allValues),
+            },
+          }
           : ranges;
       },
       {} as Record<string, { min: number; max: number }>

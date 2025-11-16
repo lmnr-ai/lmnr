@@ -123,11 +123,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
+        {
+          condition: `span_id IN ({spanIds:Array(UUID)})`,
+          params: { spanIds },
+        },
+      ]
       : []),
   ];
 
@@ -153,11 +153,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-        pagination: {
-          limit,
-          offset,
-        },
-      }),
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -175,11 +175,11 @@ export const buildSpansCountQueryWithParams = (
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-          {
-            condition: `span_id IN ({spanIds:Array(UUID)})`,
-            params: { spanIds },
-          },
-        ]
+        {
+          condition: `span_id IN ({spanIds:Array(UUID)})`,
+          params: { spanIds },
+        },
+      ]
       : []),
   ];
 
