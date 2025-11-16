@@ -8,13 +8,8 @@ import { useStore } from "zustand";
 import { TableHead } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../../../../components/ui/button.tsx";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../../../components/ui/dropdown-menu.tsx";
+import { Button } from "../../button.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../dropdown-menu.tsx";
 import { useDataTableStore } from "../model/datatable-store.tsx";
 
 interface DraggableTableHeaderProps<TData extends RowData> {

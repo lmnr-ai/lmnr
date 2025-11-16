@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
+import { DatatableFilter, Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { FilterDef } from "@/lib/db/modifiers";
-import { DatatableFilter, Operator } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 import { SpanMetricGroupBy } from "../clickhouse/types";
 import { SpanType } from "./types";

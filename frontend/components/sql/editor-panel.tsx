@@ -25,11 +25,11 @@ import ParametersPanel from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
-import { InfiniteDataTable } from "@/widgets/ui/infinite-datatable";
-import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
 
 export default function EditorPanel() {
   const { projectId } = useParams();

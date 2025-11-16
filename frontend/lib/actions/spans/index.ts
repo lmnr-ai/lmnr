@@ -2,6 +2,7 @@ import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
@@ -11,7 +12,6 @@ import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { FilterDef } from "@/lib/db/modifiers";
 import { Span } from "@/lib/traces/types";
-import { Operator } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -100,10 +100,10 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanIds = search
     ? await searchSpanIds({
-      projectId,
-      searchQuery: search,
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        searchQuery: search,
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
 
   if (search && spanIds?.length === 0) {
@@ -253,11 +253,11 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const spanIds = search
     ? await searchSpanIds({
-      projectId,
-      traceId,
-      searchQuery: search,
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId,
+        searchQuery: search,
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
 
   if (search && spanIds?.length === 0) {
@@ -284,9 +284,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
       ? createParentRewiring(
-        spans.map((span) => span.spanId),
-        treeStructure
-      )
+          spans.map((span) => span.spanId),
+          treeStructure
+        )
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);

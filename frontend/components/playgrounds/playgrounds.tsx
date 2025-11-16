@@ -7,12 +7,12 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
-import { InfiniteDataTable } from "@/widgets/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import {

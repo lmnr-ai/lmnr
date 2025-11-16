@@ -14,6 +14,7 @@ import TraceViewNavigationProvider, {
   getTraceWithDatapointConfig,
 } from "@/components/traces/trace-view/navigation-context";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
@@ -23,7 +24,6 @@ import {
   EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
-import FiltersContextProvider from "@/widgets/ui/infinite-datatable/ui/datatable-filter/context";
 
 import TraceView from "../traces/trace-view";
 import Header from "../ui/header";

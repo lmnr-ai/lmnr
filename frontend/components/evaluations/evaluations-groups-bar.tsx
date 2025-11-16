@@ -3,12 +3,12 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import useSWR from "swr";
 
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { swrFetcher } from "@/lib/utils";
-import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
 
-import { InfiniteDataTable } from "../../widgets/ui/infinite-datatable";
 import ClientTimestampFormatter from "../client-timestamp-formatter";
+import { InfiniteDataTable } from "../ui/infinite-datatable";
 
 type EvaluationGroup = { groupId: string; lastEvaluationCreatedAt: string };
 

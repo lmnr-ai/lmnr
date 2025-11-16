@@ -6,12 +6,12 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import { defaultPatternsColumnOrder, getColumns, PatternRow } from "@/components/patterns/columns";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { InfiniteDataTable } from "@/widgets/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/widgets/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
-import RefreshButton from "@/widgets/ui/infinite-datatable/ui/refresh-button.tsx";
 
 const FETCH_SIZE = 50;
 

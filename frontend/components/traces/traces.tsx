@@ -7,10 +7,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import FiltersContextProvider from "@/widgets/ui/infinite-datatable/ui/datatable-filter/context";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";

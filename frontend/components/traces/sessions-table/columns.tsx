@@ -4,10 +4,10 @@ import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionRow } from "@/lib/traces/types";
 import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
-import { ColumnFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",

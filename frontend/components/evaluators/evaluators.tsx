@@ -10,8 +10,8 @@ import { z } from "zod";
 import EvaluatorsTable from "@/components/evaluators/evaluators-table";
 import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet";
 import { Button } from "@/components/ui/button";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Evaluator } from "@/lib/evaluators/types";
-import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
 
 import { defaultEvaluatorsColumnOrder } from "./lib/consts";
 

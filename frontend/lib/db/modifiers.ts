@@ -1,6 +1,6 @@
 import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL, sql } from "drizzle-orm";
 
-import { DatatableFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils";
+import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
 const filterOperators: Record<string, BinaryOperator> = {
   eq: eq,

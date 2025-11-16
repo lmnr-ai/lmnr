@@ -2,9 +2,9 @@ import { isEqual } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, PropsWithChildren, useCallback, useMemo } from "react";
 
-import { useFiltersContextProvider } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/context.tsx";
-import FilterPopover, { FilterList } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
-import { ColumnFilter, DatatableFilter } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
+import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
+import { ColumnFilter, DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 interface FilterProps {
   columns: ColumnFilter[];

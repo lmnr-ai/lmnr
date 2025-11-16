@@ -1,6 +1,7 @@
 import { isNil } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -13,7 +14,6 @@ import {
 } from "@/lib/actions/common/query-builder";
 import { FilterDef } from "@/lib/db/modifiers";
 import { tryParseJson } from "@/lib/utils.ts";
-import { Operator, OperatorLabelMap } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -123,11 +123,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : []),
   ];
 
@@ -153,11 +153,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-      pagination: {
-        limit,
-        offset,
-      },
-    }),
+        pagination: {
+          limit,
+          offset,
+        },
+      }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -175,11 +175,11 @@ export const buildSpansCountQueryWithParams = (
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : []),
   ];
 

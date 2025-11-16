@@ -1,3 +1,4 @@
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -13,7 +14,6 @@ import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { addTimeRangeToQuery, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
-import { Operator, OperatorLabelMap } from "@/widgets/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([

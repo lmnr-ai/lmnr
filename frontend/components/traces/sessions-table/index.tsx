@@ -9,15 +9,15 @@ import SearchInput from "@/components/common/search-input";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
-import { InfiniteDataTable } from "@/widgets/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/widgets/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/widgets/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/widgets/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/widgets/ui/infinite-datatable/ui/datatable-filter";
-import RefreshButton from "@/widgets/ui/infinite-datatable/ui/refresh-button.tsx";
 
 const FETCH_SIZE = 50;
 
