@@ -7,20 +7,20 @@ const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
     query: `
 SELECT
     name,
-    COUNT(span_id) AS value
+    COUNT(span_id) AS count
 FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY name
-ORDER BY value DESC
+ORDER BY count DESC
 LIMIT 5
     `,
     settings: {
       config: {
         total: true,
         type: ChartType.HorizontalBarChart,
-        x: "value",
+        x: "count",
         y: "name",
       },
       layout: {
@@ -36,7 +36,7 @@ LIMIT 5
     query: `
 SELECT
     model,
-    sum(total_cost) AS value
+    sum(total_cost) AS total_cost
 FROM spans
 WHERE
     model != '<null>'
@@ -44,14 +44,14 @@ WHERE
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
-ORDER BY value DESC
+ORDER BY total_cost DESC
 LIMIT 5
     `,
     settings: {
       config: {
         total: true,
         type: ChartType.HorizontalBarChart,
-        x: "value",
+        x: "total_cost",
         y: "model",
       },
       layout: {
@@ -67,7 +67,7 @@ LIMIT 5
     query: `
 SELECT
     model,
-    sum(total_tokens) AS value
+    sum(total_tokens) AS total_tokens
 FROM spans
 WHERE
     model != '<null>'
@@ -75,14 +75,14 @@ WHERE
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
-ORDER BY value DESC
+ORDER BY total_tokens DESC
     LIMIT 5
     `,
     settings: {
       config: {
         total: true,
         type: ChartType.HorizontalBarChart,
-        x: "value",
+        x: "total_tokens",
         y: "model",
       },
       layout: {
@@ -98,7 +98,7 @@ ORDER BY value DESC
     query: `
 SELECT
     model,
-    COUNT(span_id) AS value
+    COUNT(span_id) AS count
 FROM spans
 WHERE
     model != '<null>'
@@ -106,14 +106,14 @@ WHERE
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY model
-ORDER BY value DESC
+ORDER BY count DESC
     LIMIT 5
     `,
     settings: {
       config: {
         total: true,
         type: ChartType.HorizontalBarChart,
-        x: "value",
+        x: "count",
         y: "model",
       },
       layout: {
@@ -130,11 +130,10 @@ ORDER BY value DESC
 SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     model,
-    quantile(0.9)(end_time - start_time) AS value
+    quantile(0.9)(duration) AS duration
 FROM spans
 WHERE
-    model != '<null>'
-  AND span_type = 'LLM'
+    span_type = 'LLM'
   AND start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
 GROUP BY time, model
@@ -148,7 +147,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "duration",
         breakdown: "model",
       },
       layout: {
@@ -165,7 +164,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
 SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     model,
-    sum(total_tokens) AS value
+    sum(total_tokens) AS total_tokens
 FROM spans
 WHERE
     model != '<null>'
@@ -183,7 +182,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "total_tokens",
         breakdown: "model",
       },
       layout: {
@@ -200,7 +199,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
 SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     model,
-    sum(total_cost) AS value
+    sum(total_cost) AS total_cost
 FROM spans
 WHERE
     model != '<null>'
@@ -218,7 +217,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "total_cost",
         breakdown: "model",
       },
       layout: {
@@ -232,40 +231,27 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
   {
     name: "Trace status",
     query: `
-WITH traces_data AS (
-    SELECT
-        toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
+SELECT
+    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     status,
-    count() AS value
+    count(*) AS count
 FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
   AND start_time <= {end_time:DateTime64}
-  AND trace_type = 'DEFAULT'
-  AND status IN ('', 'error')
 GROUP BY time, status
 ORDER BY time
 WITH FILL
 FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
     TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
     STEP toInterval(1, {interval_unit:String})
-    )
-SELECT
-    time,
-    CASE
-    WHEN status = 'error' THEN 'error'
-    ELSE 'success'
-END AS trace_status,
-value
-FROM traces_data
-ORDER BY time, trace_status
     `,
     settings: {
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
-        breakdown: "trace_status",
+        y: "count",
+        breakdown: "status",
       },
       layout: {
         x: 4,
@@ -279,8 +265,8 @@ ORDER BY time, trace_status
     name: "Trace duration (p90)",
     query: `
 SELECT
-  toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-toFloat64(COALESCE(quantileExact(0.90)(duration), 0)) AS value
+    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
+    quantile(0.9)(duration) AS duration
 FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
@@ -296,7 +282,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "duration",
       },
       layout: {
         x: 0,
@@ -311,7 +297,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
     query: `
 SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-    sum(total_tokens) AS value
+    sum(total_tokens) AS total_tokens
 FROM spans
 WHERE
     span_type = 'LLM'
@@ -328,7 +314,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "total_tokens",
         total: true,
       },
       layout: {
@@ -344,7 +330,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
     query: `
 SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-    sum(total_cost) AS value
+    sum(total_cost) AS total_cost
 FROM spans
 WHERE
     span_type = 'LLM'
@@ -361,7 +347,7 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
       config: {
         type: ChartType.LineChart,
         x: "time",
-        y: "value",
+        y: "total_cost",
         total: true,
       },
       layout: {
