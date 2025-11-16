@@ -234,10 +234,7 @@ export default function EditorPanel() {
             <div className="flex overflow-hidden h-full">
               {renderContent({
                 success: (
-                  <DataTableStateProvider
-                    storageKey={"editor-panel-table"}
-                    defaultColumnOrder={columns.map((el) => el.id) as string[]}
-                  >
+                  <DataTableStateProvider>
                     <InfiniteDataTable
                       className="w-full"
                       columns={columns}
@@ -245,7 +242,7 @@ export default function EditorPanel() {
                       hasMore={false}
                       isFetching={false}
                       isLoading={false}
-                      fetchNextPage={() => { }}
+                      fetchNextPage={() => {}}
                     />
                   </DataTableStateProvider>
                 ),
