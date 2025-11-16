@@ -245,7 +245,7 @@ export default function EditorPanel() {
                       hasMore={false}
                       isFetching={false}
                       isLoading={false}
-                      fetchNextPage={() => {}}
+                      fetchNextPage={() => { }}
                     />
                   </DataTableStateProvider>
                 ),

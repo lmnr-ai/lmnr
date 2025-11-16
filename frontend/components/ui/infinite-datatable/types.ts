@@ -30,8 +30,6 @@ export interface InfiniteDataTableProps<TData extends RowData>
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
-
-  storageKey?: string;
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
