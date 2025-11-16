@@ -218,11 +218,11 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-        pagination: {
-          limit,
-          offset,
-        },
-      }),
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);

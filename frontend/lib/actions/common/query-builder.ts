@@ -153,38 +153,38 @@ const createStringFilter: ColumnFilterProcessor = (filter, paramKey) => {
 
 const createNumberFilter =
   (clickHouseType: "Int64" | "Float64" = "Float64"): ColumnFilterProcessor =>
-  (filter, paramKey) => {
-    const { column, operator, value } = filter;
-    const opSymbol = OperatorLabelMap[operator];
-    const numValue = clickHouseType === "Int64" ? parseInt(value) : parseFloat(value);
+    (filter, paramKey) => {
+      const { column, operator, value } = filter;
+      const opSymbol = OperatorLabelMap[operator];
+      const numValue = clickHouseType === "Int64" ? parseInt(value) : parseFloat(value);
 
-    return {
-      condition: `${column} ${opSymbol} {${paramKey}:${clickHouseType}}`,
-      params: { [paramKey]: numValue },
+      return {
+        condition: `${column} ${opSymbol} {${paramKey}:${clickHouseType}}`,
+        params: { [paramKey]: numValue },
+      };
     };
-  };
 
 const createArrayFilter =
   (clickHouseType: string): ColumnFilterProcessor =>
-  (filter, paramKey) => {
-    const { column, value } = filter;
-    const values = Array.isArray(value) ? value : [value];
+    (filter, paramKey) => {
+      const { column, value } = filter;
+      const values = Array.isArray(value) ? value : [value];
 
-    return {
-      condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
-      params: { [paramKey]: values },
+      return {
+        condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
+        params: { [paramKey]: values },
+      };
     };
-  };
 
 const createCustomFilter =
   (
     conditionBuilder: (filter: FilterDef, paramKey: string) => string,
     paramBuilder?: (filter: FilterDef, paramKey: string) => QueryParams
   ): ColumnFilterProcessor =>
-  (filter, paramKey) => ({
-    condition: conditionBuilder(filter, paramKey),
-    params: paramBuilder ? paramBuilder(filter, paramKey) : {},
-  });
+    (filter, paramKey) => ({
+      condition: conditionBuilder(filter, paramKey),
+      params: paramBuilder ? paramBuilder(filter, paramKey) : {},
+    });
 
 const buildColumnFilters = (filters: FilterDef[], config: ColumnFilterConfig): ConditionResult => {
   const results = filters

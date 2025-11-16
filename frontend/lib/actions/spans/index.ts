@@ -100,10 +100,10 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanIds = search
     ? await searchSpanIds({
-        projectId,
-        searchQuery: search,
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      searchQuery: search,
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
 
   if (search && spanIds?.length === 0) {
@@ -253,11 +253,11 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const spanIds = search
     ? await searchSpanIds({
-        projectId,
-        traceId,
-        searchQuery: search,
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      traceId,
+      searchQuery: search,
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
 
   if (search && spanIds?.length === 0) {
@@ -284,9 +284,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
       ? createParentRewiring(
-          spans.map((span) => span.spanId),
-          treeStructure
-        )
+        spans.map((span) => span.spanId),
+        treeStructure
+      )
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);

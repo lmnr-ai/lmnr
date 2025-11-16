@@ -153,57 +153,57 @@ export const onRealtimeUpdateSpans =
     setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
     setShowBrowserSession: (show: boolean) => void
   ) =>
-  (newSpan: RealtimeSpan) => {
-    if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
-      setShowBrowserSession(true);
-    }
+    (newSpan: RealtimeSpan) => {
+      if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
+        setShowBrowserSession(true);
+      }
 
-    setTrace((trace) => {
-      if (!trace) return trace;
+      setTrace((trace) => {
+        if (!trace) return trace;
 
-      const newTrace = { ...trace };
+        const newTrace = { ...trace };
 
-      newTrace.startTime =
+        newTrace.startTime =
         new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
           ? newTrace.startTime
           : newSpan.startTime;
-      newTrace.endTime =
+        newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-      newTrace.totalTokens +=
+        newTrace.totalTokens +=
         (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
         (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-      newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-      newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-      newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-      newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-      newTrace.totalCost +=
+        newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
+        newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
+        newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
+        newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
+        newTrace.totalCost +=
         (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) + (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
-      return newTrace;
-    });
+        return newTrace;
+      });
 
-    setSpans((spans) => {
-      const newSpans = [...spans];
-      const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
-      if (index !== -1) {
+      setSpans((spans) => {
+        const newSpans = [...spans];
+        const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
+        if (index !== -1) {
         // Always replace existing span, regardless of pending status
-        newSpans[index] = {
-          ...newSpan,
-          collapsed: newSpans[index].collapsed || false,
-          events: [],
-          path: "",
-        };
-      } else {
-        newSpans.push({
-          ...newSpan,
-          collapsed: false,
-          events: [],
-          path: "",
-        });
-      }
+          newSpans[index] = {
+            ...newSpan,
+            collapsed: newSpans[index].collapsed || false,
+            events: [],
+            path: "",
+          };
+        } else {
+          newSpans.push({
+            ...newSpan,
+            collapsed: false,
+            events: [],
+            path: "",
+          });
+        }
 
-      return enrichSpansWithPending(newSpans);
-    });
-  };
+        return enrichSpansWithPending(newSpans);
+      });
+    };
 
 export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
   if (!path1 || !path2) return false;
