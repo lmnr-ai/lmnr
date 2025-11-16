@@ -119,38 +119,31 @@ class SqlToJsonConverter:
     
     def _extract_metric(self, expr, alias: str) -> dict[str, Any]:
         for node in expr.walk():
-            if hasattr(sqlglot.exp, 'ParameterizedAgg') and isinstance(node, sqlglot.exp.ParameterizedAgg):
-                return self._parse_parameterized_agg(node, alias)
-            elif isinstance(node, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
-                                  sqlglot.exp.Min, sqlglot.exp.Max)):
+            if hasattr(sqlglot.exp, 'Quantile') and isinstance(node, sqlglot.exp.Quantile):
+                return self._parse_quantile(node, alias)
+
+            if isinstance(node, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
+                                 sqlglot.exp.Min, sqlglot.exp.Max)):
                 return self._parse_standard_agg(node, alias)
-        
+
         return {'fn': 'unknown', 'column': str(expr), 'alias': alias}
-    
-    def _parse_parameterized_agg(self, node, alias: str) -> dict[str, Any]:
-        fn_name = str(node.this).lower()
-        
-        if 'quantile' in fn_name:
-            percentile = 0.9
-            column = 'duration'
-            
-            if node.expressions and len(node.expressions) > 0:
-                percentile_expr = node.expressions[0]
-                if isinstance(percentile_expr, sqlglot.exp.Literal):
-                    percentile = float(str(percentile_expr.this))
-            
-            if hasattr(node, 'params') and node.params and len(node.params) > 0:
-                column = self._extract_column(node.params[0])
-            
-            return {
-                'fn': 'quantile',
-                'args': [percentile],
-                'column': column,
-                'alias': alias
-            }
-        
-        return {'fn': fn_name.lower(), 'column': 'unknown', 'alias': alias}
-    
+
+    def _parse_quantile(self, node, alias: str) -> dict[str, Any]:
+        column = self._extract_column(node.this) if node.this else 'unknown'
+        percentile = 0.5
+
+        if 'quantile' in node.args:
+            quantile_arg = node.args['quantile']
+            if isinstance(quantile_arg, sqlglot.exp.Literal):
+                percentile = float(str(quantile_arg.this))
+
+        return {
+            'fn': 'quantile',
+            'args': [percentile],
+            'column': column,
+            'alias': alias
+        }
+
     def _parse_standard_agg(self, node, alias: str) -> dict[str, Any]:
         agg_map = {
             sqlglot.exp.Count: 'count',
@@ -189,15 +182,15 @@ class SqlToJsonConverter:
             'to': to_val,
             'fill_gaps': fill_gaps
         }
-        
+
         if hasattr(interval_expr, 'expressions') and len(interval_expr.expressions) >= 2:
             interval_value = self._normalize_value(interval_expr.expressions[0])
             interval_unit = self._normalize_value(interval_expr.expressions[1])
             result['interval_value'] = interval_value
             result['interval_unit'] = interval_unit
-        
+
         return result
-    
+
     def _has_with_fill(self, ast) -> bool:
         order_clause = ast.args.get('order')
         if order_clause and hasattr(order_clause, 'expressions'):
@@ -206,16 +199,16 @@ class SqlToJsonConverter:
                 if order_expr.args.get('with_fill'):
                     return True
         return False
-    
+
     def _extract_time_bounds_from_ast(self, ast, time_col: str) -> tuple[str, str]:
         from_val = "{start_time:DateTime64}"
         to_val = "{end_time:DateTime64}"
-        
+
         if ast.args.get('where'):
             from_val, to_val = self._extract_time_bounds(ast.args['where'].this, time_col)
-        
+
         return from_val, to_val
-    
+
     def _normalize_value(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Placeholder):
             name = str(expr.this.this if hasattr(expr.this, 'this') else expr.this)
@@ -226,7 +219,7 @@ class SqlToJsonConverter:
         elif isinstance(expr, sqlglot.exp.Literal):
             return str(expr.this)
         return str(expr)
-    
+
     def _normalize_type(self, type_str: str) -> str:
         type_map = {
             'TEXT': 'String',
@@ -234,10 +227,10 @@ class SqlToJsonConverter:
             'DATETIME': 'DateTime64',
         }
         return type_map.get(str(type_str).upper(), type_str)
-    
+
     def _extract_filters(self, expr, time_col: str | None) -> list[dict[str, Any]]:
         filters = []
-        
+
         comparison_map = {
             sqlglot.exp.EQ: 'eq',
             sqlglot.exp.NEQ: 'ne',
@@ -246,13 +239,13 @@ class SqlToJsonConverter:
             sqlglot.exp.LT: 'lt',
             sqlglot.exp.LTE: 'lte'
         }
-        
+
         def walk(e):
             if isinstance(e, (sqlglot.exp.And, sqlglot.exp.Or)):
                 walk(e.left)
                 walk(e.right)
                 return
-            
+
             for expr_type, op in comparison_map.items():
                 if isinstance(e, expr_type):
                     col = e.left.name if isinstance(e.left, sqlglot.exp.Column) else None
@@ -267,9 +260,9 @@ class SqlToJsonConverter:
                             val = str(e.right.this)
                         else:
                             val = str(e.right)
-                        
+
                         filter_dict = {'field': col, 'op': op}
-                        
+
                         # Try to parse as number, but be careful with strings that look like numbers
                         # Set only ONE of string_value or number_value (oneof field)
                         try:
@@ -283,17 +276,17 @@ class SqlToJsonConverter:
                                 filter_dict['number_value'] = num_val
                         except (ValueError, TypeError):
                             filter_dict['string_value'] = val
-                        
+
                         filters.append(filter_dict)
                     return
-        
+
         walk(expr)
         return filters
-    
+
     def _extract_time_bounds(self, expr, time_col: str) -> tuple[str, str]:
         from_val = "{start_time:DateTime64}"
         to_val = "{end_time:DateTime64}"
-        
+
         def walk(e):
             nonlocal from_val, to_val
             if isinstance(e, (sqlglot.exp.And, sqlglot.exp.Or)):
