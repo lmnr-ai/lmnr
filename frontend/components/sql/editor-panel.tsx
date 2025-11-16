@@ -26,6 +26,7 @@ import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -233,17 +234,22 @@ export default function EditorPanel() {
             <div className="flex overflow-hidden h-full">
               {renderContent({
                 success: (
-                  <InfiniteDataTable
-                    className="w-full"
-                    columns={columns}
-                    data={results || []}
-                    hasMore={false}
-                    isFetching={false}
-                    isLoading={false}
-                    fetchNextPage={() => {}}
+                  <DataTableStateProvider
+                    storageKey={"editor-panel-table"}
+                    defaultColumnOrder={columns.map((el) => el.id) as string[]}
                   >
-                    <ColumnsMenu />
-                  </InfiniteDataTable>
+                    <InfiniteDataTable
+                      className="w-full"
+                      columns={columns}
+                      data={results || []}
+                      hasMore={false}
+                      isFetching={false}
+                      isLoading={false}
+                      fetchNextPage={() => {}}
+                    >
+                      <ColumnsMenu />
+                    </InfiniteDataTable>
+                  </DataTableStateProvider>
                 ),
                 loadingText: "Executing query...",
                 default: (

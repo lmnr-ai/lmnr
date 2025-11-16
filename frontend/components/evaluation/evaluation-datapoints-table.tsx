@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -45,7 +46,9 @@ const filters: ColumnFilter[] = [
   { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
-const EvaluationDatapointsTable = ({
+const defaultColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+
+const EvaluationDatapointsTableContent = ({
   data,
   scores,
   handleRowClick,
@@ -161,6 +164,14 @@ const EvaluationDatapointsTable = ({
         <DataTableFilterList />
       </InfiniteDataTable>
     </div>
+  );
+};
+
+const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
+  return (
+    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+      <EvaluationDatapointsTableContent {...props} />
+    </DataTableStateProvider>
   );
 };
 

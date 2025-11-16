@@ -301,6 +301,7 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
   {
     accessorKey: "index",
     header: "Index",
+    id: "index",
     size: 70,
   },
   {
