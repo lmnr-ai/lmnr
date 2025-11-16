@@ -119,9 +119,9 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
       const name = attributes[`llm.request.functions.${index}.name`];
       const description = attributes[`llm.request.functions.${index}.description`];
       const rawParameters = attributes[`llm.request.functions.${index}.parameters`];
-      const parameters = (rawParameters && typeof rawParameters !== "string")
-        ? JSON.stringify(rawParameters)
-        : rawParameters;
+      const parameters = (rawParameters && typeof rawParameters == "string")
+        ? rawParameters
+        : JSON.stringify(rawParameters || {});
 
       return name ? { name, description, parameters } : null;
     })
