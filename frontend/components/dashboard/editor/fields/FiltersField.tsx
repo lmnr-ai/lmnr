@@ -4,7 +4,7 @@ import { FILTER_OPERATOR_OPTIONS } from "@/components/dashboard/editor/constants
 import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
-import { Operator } from "@/components/ui/datatable-filter/utils";
+import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

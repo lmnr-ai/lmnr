@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -165,7 +166,9 @@ function DatasetsContent() {
                 />
               </div>
             )}
-          />
+          >
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+          </InfiniteDataTable>
         </div>
       </div>
     </>

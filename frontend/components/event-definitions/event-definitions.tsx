@@ -7,10 +7,11 @@ import React, { useCallback, useState } from "react";
 import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -150,7 +151,9 @@ function EventDefinitionsContent() {
               />
             </div>
           )}
-        />
+        >
+          <ColumnsMenu lockedColumns={["__row_selection"]} />
+        </InfiniteDataTable>
       </div>
     </>
   );

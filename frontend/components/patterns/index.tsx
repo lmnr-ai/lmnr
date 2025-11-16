@@ -6,10 +6,11 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import { defaultPatternsColumnOrder, getColumns, PatternRow } from "@/components/patterns/columns";
-import RefreshButton from "@/components/traces/refresh-button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const FETCH_SIZE = 50;
@@ -132,6 +133,7 @@ function PatternsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
+          <ColumnsMenu />
         </div>
       </InfiniteDataTable>
     </div>

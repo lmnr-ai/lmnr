@@ -3,6 +3,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import useSWR from "swr";
 
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -80,7 +81,9 @@ function EvaluationsGroupsBarContent() {
           isFetching={false}
           isLoading={isLoading}
           fetchNextPage={() => {}}
-        />
+        >
+          <ColumnsMenu />
+        </InfiniteDataTable>
       </div>
     </div>
   );

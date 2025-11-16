@@ -1,4 +1,4 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -104,7 +104,6 @@ export const buildEvaluationDatapointsQueryWithParams = (
   // Handle score filters separately
   const scoreFilters = filters.filter((f) => f.column.startsWith("score:"));
   const nonScoreFilters = filters.filter((f) => !f.column.startsWith("score:"));
-
 
   // Add score filter conditions
   scoreFilters.forEach((filter, index) => {
@@ -250,9 +249,7 @@ export function separateFilters(filters: FilterDef[]): {
 }
 
 // Build query to get trace IDs from traces table with filters
-export const buildTracesForEvaluationQueryWithParams = (
-  options: BuildTracesForEvaluationQueryOptions
-): QueryResult => {
+export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForEvaluationQueryOptions): QueryResult => {
   const { evaluationId, traceIds, filters } = options;
 
   const customConditions: Array<{
@@ -313,7 +310,7 @@ export const buildTracesForEvaluationQueryWithParams = (
           (filter, paramKey) => `id = {${paramKey}:UUID}`,
           (filter, paramKey) => ({ [paramKey]: filter.value })
         ),
-      ]
+      ],
     ]),
   };
 

@@ -6,17 +6,17 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
-import RefreshButton from "@/components/traces/refresh-button";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
+import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 import ColumnsMenu from "../../ui/infinite-datatable/ui/columns-menu.tsx";
 

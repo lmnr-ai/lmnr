@@ -2,9 +2,9 @@ import { isEqual } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, PropsWithChildren, useCallback, useMemo } from "react";
 
-import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
-import FilterPopover, { FilterList } from "@/components/ui/datatable-filter/ui";
-import { ColumnFilter, DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
+import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
+import { ColumnFilter, DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 
 interface FilterProps {
   columns: ColumnFilter[];
@@ -84,7 +84,12 @@ const PureDataTableFilterList = () => {
   return <FilterList filters={filters} onRemoveFilter={handleRemoveFilter} />;
 };
 
-export const PureStatefulFilter = ({ columns, presetFilters: presetFilters, className, children }: PropsWithChildren<FilterProps>) => {
+export const PureStatefulFilter = ({
+  columns,
+  presetFilters: presetFilters,
+  className,
+  children,
+}: PropsWithChildren<FilterProps>) => {
   const { value: filters, onChange } = useFiltersContextProvider();
 
   const handleAddFilter = useCallback(

@@ -8,14 +8,14 @@ import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../button";
-import { Calendar, CalendarProps } from "../calendar";
-import { Input } from "../input";
-import { Label } from "../label";
-import { Popover, PopoverContent, PopoverTrigger } from "../popover";
-import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils";
+import { Button } from "../../../components/ui/button.tsx";
+import { Calendar, CalendarProps } from "../../../components/ui/calendar.tsx";
+import { Input } from "../../../components/ui/input.tsx";
+import { Label } from "../../../components/ui/label.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover.tsx";
+import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils.ts";
 
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } | null }) => (
   <div className="flex items-center space-x-2">

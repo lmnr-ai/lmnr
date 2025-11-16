@@ -17,17 +17,18 @@ import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import FiltersContextProvider from "@/components/ui/datatable-filter/context";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils.ts";
+import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
 import Header from "../ui/header";
@@ -314,6 +315,7 @@ function EventsContentInner({
               <DataTableFilter columns={eventsTableFilters} />
             </div>
             <DataTableFilterList />
+            <ColumnsMenu />
             <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
           </InfiniteDataTable>
         </div>

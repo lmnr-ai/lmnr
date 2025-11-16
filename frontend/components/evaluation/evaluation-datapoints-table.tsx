@@ -13,8 +13,6 @@ import {
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +21,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
@@ -90,12 +91,12 @@ const EvaluationDatapointsTable = ({
 
         return allValues.length > 0
           ? {
-            ...ranges,
-            [scoreName]: {
-              min: Math.min(...allValues),
-              max: Math.max(...allValues),
-            },
-          }
+              ...ranges,
+              [scoreName]: {
+                min: Math.min(...allValues),
+                max: Math.max(...allValues),
+              },
+            }
           : ranges;
       },
       {} as Record<string, { min: number; max: number }>
@@ -110,11 +111,7 @@ const EvaluationDatapointsTable = ({
         ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
       ];
     }
-    return [
-      ...defaultColumns,
-      ...complementaryColumns,
-      ...getScoreColumns(scores, heatmapEnabled, scoreRanges),
-    ];
+    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
 
   const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
@@ -131,7 +128,7 @@ const EvaluationDatapointsTable = ({
         hasMore={false}
         isFetching={false}
         isLoading={isLoading}
-        fetchNextPage={() => { }}
+        fetchNextPage={() => {}}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
@@ -158,6 +155,7 @@ const EvaluationDatapointsTable = ({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+          <ColumnsMenu />
           <SearchEvaluationInput />
         </div>
         <DataTableFilterList />

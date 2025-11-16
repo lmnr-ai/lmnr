@@ -5,21 +5,21 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
-import RefreshButton from "@/components/traces/refresh-button";
 import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import { DatatableFilter } from "@/components/ui/datatable-filter/utils.ts";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
+import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 import ColumnsMenu from "../../ui/infinite-datatable/ui/columns-menu.tsx";
 

@@ -7,10 +7,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -305,7 +306,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
                 />
               </div>
             )}
-          />
+          >
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+          </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
       </div>

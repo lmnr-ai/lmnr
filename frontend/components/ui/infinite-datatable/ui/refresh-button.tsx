@@ -2,8 +2,8 @@ import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import { MouseEventHandler, useState } from "react";
 
-import { Button, ButtonProps } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button, ButtonProps } from "@/components/ui/button.tsx";
+import { cn } from "@/lib/utils.ts";
 
 const RefreshButton = ({ iconClassName, onClick, ...rest }: ButtonProps & { iconClassName?: string }) => {
   const [rotate, setRotate] = useState(0);

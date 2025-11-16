@@ -9,6 +9,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
@@ -238,6 +239,8 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       isFetching={isFetching}
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
-    />
+    >
+      <ColumnsMenu />
+    </InfiniteDataTable>
   );
 }

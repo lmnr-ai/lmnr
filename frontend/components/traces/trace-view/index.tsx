@@ -24,9 +24,9 @@ import {
   onRealtimeUpdateSpans,
 } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
-import { StatefulFilter, StatefulFilterList } from "@/components/ui/datatable-filter";
-import { useFiltersContextProvider } from "@/components/ui/datatable-filter/context";
-import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";

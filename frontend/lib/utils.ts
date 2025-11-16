@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
-import { DatatableFilter } from "@/components/ui/datatable-filter/utils";
+import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
 import { GroupByInterval } from "./clickhouse/modifiers";
 import { ChatMessageContentPart } from "./types";

@@ -7,12 +7,13 @@ import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -277,6 +278,7 @@ function EvaluationsContent() {
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />
+                <ColumnsMenu lockedColumns={["__row_selection"]} />
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>
