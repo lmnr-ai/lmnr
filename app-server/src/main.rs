@@ -863,7 +863,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::evaluations::get_evaluation_score_distribution)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
-                                    .service(routes::sql::validate_sql_query),
+                                    .service(routes::sql::validate_sql_query)
+                                    .service(routes::sql::sql_to_json)
+                                    .service(routes::sql::json_to_sql),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

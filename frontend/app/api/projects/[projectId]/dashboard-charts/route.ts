@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ project
   }
 }
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
 
   try {
@@ -61,7 +61,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ projectId
     }
 
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart layouts. Please try again." },
+      { error: error instanceof Error ? error.message : "Failed to create chart. Please try again." },
       { status: 500 }
     );
   }
