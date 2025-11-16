@@ -136,8 +136,11 @@ STEP toInterval(1, {interval_unit:String})
         assert result["time_range"]["column"] == "start_time"
         assert result["time_range"]["fill_gaps"] is True
         assert "model" in result["dimensions"]
-        # Note: quantile parsing may need investigation if this fails
-        assert result["metrics"][0]["fn"] in ["quantile", "unknown"]  # sql_to_json may have parsing issues with quantile
+        # Verify quantile is properly parsed
+        assert result["metrics"][0]["fn"] == "quantile"
+        assert result["metrics"][0]["args"] == [0.9]
+        assert result["metrics"][0]["column"] == "end_time - start_time"
+        assert result["metrics"][0]["alias"] == "value"
 
 
 class TestRoundTripConversion:
