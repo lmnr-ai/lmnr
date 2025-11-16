@@ -95,7 +95,7 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
 
   const aiPromptTools = get(attributes, "ai.prompt.tools", []);
 
-  if (aiPromptTools && Array.isArray(aiPromptTools)) {
+  if (aiPromptTools && Array.isArray(aiPromptTools) && aiPromptTools.length > 0) {
     try {
       return aiPromptTools.map((tool: any) => ({
         name: get(tool, "name", ""),
@@ -118,7 +118,10 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
     sortBy(functionIndices).map((index) => {
       const name = attributes[`llm.request.functions.${index}.name`];
       const description = attributes[`llm.request.functions.${index}.description`];
-      const parameters = attributes[`llm.request.functions.${index}.parameters`];
+      const rawParameters = attributes[`llm.request.functions.${index}.parameters`];
+      const parameters = (rawParameters && typeof rawParameters !== "string")
+        ? JSON.stringify(rawParameters)
+        : rawParameters;
 
       return name ? { name, description, parameters } : null;
     })
