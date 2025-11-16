@@ -52,6 +52,7 @@ export default function EditorPanel() {
   const columns = useMemo<ColumnDef<any>[]>(() => {
     if (!isEmpty(results)) {
       return Object.keys(results?.[0]).map((column) => ({
+        id: column,
         header: column,
         accessorFn: (row: any) => {
           const value = row[column];
