@@ -17,7 +17,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanRow } from "@/lib/traces/types";
 
-import RefreshColumnsButton from "../ui/refresh-columns-button";
+import ColumnsMenu from "../../ui/infinite-datatable/ui/columns-menu.tsx";
 
 const FETCH_SIZE = 50;
 
@@ -157,7 +157,7 @@ function SpansTableContent() {
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
           <DateRangeFilter />
-          <RefreshColumnsButton />
+          <ColumnsMenu lockedColumns={["status"]} />
           <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
           <SearchInput placeholder="Search in spans..." />
         </div>

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleAlert,
+  Columns2,
   Database,
   Download,
   Edit,
@@ -123,6 +124,7 @@ const iconMap = {
   filter: ListFilter,
   minus: Minus,
   rows4: Rows4,
+  columns2: Columns2,
 };
 
 type HandledKey = {

@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
 
-import RefreshColumnsButton from "../ui/refresh-columns-button";
+import ColumnsMenu from "../../ui/infinite-datatable/ui/columns-menu.tsx";
 
 const presetFilters: DatatableFilter[] = [];
 
@@ -320,7 +320,7 @@ function TracesTableContent() {
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
           <DateRangeFilter />
-          <RefreshColumnsButton />
+          <ColumnsMenu lockedColumns={["status"]} />
           <RefreshButton
             iconClassName="w-3.5 h-3.5 text-secondary-foreground"
             onClick={handleRefresh}
