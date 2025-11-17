@@ -260,16 +260,19 @@ export default function WorkspaceUsers({
           </Table>
         </div>
       </SettingsSection>
-      <SettingsSection>
-        <div className={"flex items-center justify-end"}>
-          <TransferOwnershipDialog
-            open={dialogState.type === "transferOwnership"}
-            onOpenChange={(open) => (open ? openDialog("transferOwnership", dialogState.targetUser) : closeDialog())}
-            workspace={workspace}
-            workspaceUsers={users.filter((u) => u.role !== "owner")}
-          />
-        </div>
-      </SettingsSection>
+      {isOwner && (
+        <SettingsSection>
+          <div className={"flex items-center justify-end"}>
+            <TransferOwnershipDialog
+              open={dialogState.type === "transferOwnership"}
+              onOpenChange={(open) => (open ? openDialog("transferOwnership", dialogState.targetUser) : closeDialog())}
+              workspace={workspace}
+              workspaceUsers={users.filter((u) => u.role !== "owner" && u.role === "admin")}
+            />
+          </div>
+        </SettingsSection>
+      )}
+
       {canManageUsers && !isEmpty(invitations) && (
         <SettingsSection>
           <SettingsSectionHeader
