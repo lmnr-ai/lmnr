@@ -158,6 +158,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
 
         const traceData = (await response.json()) as TraceViewTrace;
+        if (traceData.hasBrowserSession) {
+          setHasBrowserSession(true);
+          setBrowserSession(true);
+        }
         setTrace(traceData);
       }
     } catch (e) {
