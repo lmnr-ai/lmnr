@@ -13,8 +13,6 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 
-const FETCH_SIZE = 50;
-
 export default function PatternsTable() {
   return (
     <DataTableStateProvider
@@ -130,7 +128,7 @@ function PatternsTableContent() {
         error={error}
       >
         <div className="flex flex-1 w-full space-x-2">
-          <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
+          <RefreshButton onClick={refetch} variant="outline" />
           <ColumnsMenu />
         </div>
       </InfiniteDataTable>

@@ -49,12 +49,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
   try {
     const body = await req.json();
 
-    await createChart({
+    const chart = await createChart({
       projectId,
       ...body,
     });
 
-    return Response.json({ success: true });
+    return Response.json(chart);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });

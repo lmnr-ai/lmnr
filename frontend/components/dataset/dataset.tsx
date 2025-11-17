@@ -238,7 +238,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     <>
       <Header path={"datasets/" + dataset.name} />
       <div
-        className={cn("flex px-4 pb-4 flex-col gap-2 overflow-hidden flex-1", {
+        className={cn("flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1", {
           "pointer-events-none opacity-60": isEditingDatapoint,
         })}
       >

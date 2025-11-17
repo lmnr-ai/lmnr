@@ -94,12 +94,12 @@ const EvaluationDatapointsTableContent = ({
 
         return allValues.length > 0
           ? {
-            ...ranges,
-            [scoreName]: {
-              min: Math.min(...allValues),
-              max: Math.max(...allValues),
-            },
-          }
+              ...ranges,
+              [scoreName]: {
+                min: Math.min(...allValues),
+                max: Math.max(...allValues),
+              },
+            }
           : ranges;
       },
       {} as Record<string, { min: number; max: number }>
@@ -138,8 +138,8 @@ const EvaluationDatapointsTableContent = ({
         className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">
-          <ColumnsMenu />
           <DataTableFilter columns={columnFilters} />
+          <ColumnsMenu />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

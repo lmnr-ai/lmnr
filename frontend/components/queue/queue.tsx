@@ -13,9 +13,9 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
 import { cn } from "@/lib/utils";
+import { useToast } from "`@/lib/hooks/use-toast`";
 
 import Header from "../ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";

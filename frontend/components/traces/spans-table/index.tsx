@@ -153,9 +153,9 @@ function SpansTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
-          <DateRangeFilter />
           <ColumnsMenu lockedColumns={["status"]} />
-          <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
+          <DateRangeFilter />
+          <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in spans..." />
         </div>
         <DataTableFilterList />

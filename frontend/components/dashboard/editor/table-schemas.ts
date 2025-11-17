@@ -85,3 +85,4 @@ export const getAvailableColumns = (table: string, metricFn?: string): ColumnDef
 
   return schema;
 };
+

@@ -85,10 +85,9 @@ export async function PUT(
   try {
     const body = await req.json();
 
-    // PUT is used for full chart updates (name, query, config)
-    await updateChart({ projectId, id, ...body });
+    const chart = await updateChart({ projectId, id, ...body });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(chart);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
