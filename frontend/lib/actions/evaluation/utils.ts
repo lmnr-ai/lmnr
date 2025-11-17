@@ -70,6 +70,15 @@ export interface BuildEvaluationDatapointsQueryOptions {
   evaluationId: string;
   traceIds: string[];
   filters: FilterDef[];
+  limit: number;
+  offset: number;
+}
+
+export interface BuildEvaluationStatisticsQueryOptions {
+  projectId: string;
+  evaluationId: string;
+  traceIds: string[];
+  filters: FilterDef[];
 }
 
 export interface BuildTracesForEvaluationQueryOptions {
@@ -82,7 +91,7 @@ export interface BuildTracesForEvaluationQueryOptions {
 export const buildEvaluationDatapointsQueryWithParams = (
   options: BuildEvaluationDatapointsQueryOptions
 ): QueryResult => {
-  const { evaluationId, traceIds, filters } = options;
+  const { evaluationId, traceIds, filters, limit, offset } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -142,6 +151,69 @@ export const buildEvaluationDatapointsQueryWithParams = (
         direction: "ASC",
       },
     ],
+    pagination: {
+      limit,
+      offset,
+    },
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
+// Build query for evaluation statistics (only fetches scores)
+export const buildEvaluationStatisticsQueryWithParams = (
+  options: BuildEvaluationStatisticsQueryOptions
+): QueryResult => {
+  const { evaluationId, traceIds, filters } = options;
+
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `evaluation_id = {evaluationId:UUID}`,
+      params: { evaluationId },
+    },
+  ];
+
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `trace_id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
+
+  // Handle score filters separately
+  const scoreFilters = filters.filter((f) => f.column.startsWith("score:"));
+  const nonScoreFilters = filters.filter((f) => !f.column.startsWith("score:"));
+
+  // Add score filter conditions
+  scoreFilters.forEach((filter, index) => {
+    const scoreName = filter.column.split(":")[1];
+    const numValue = parseFloat(filter.value);
+
+    if (scoreName && !isNaN(numValue)) {
+      const opSymbol = OperatorLabelMap[filter.operator as Operator];
+      const paramKey = `score_${scoreName}_${index}`;
+
+      customConditions.push({
+        condition: `JSONExtractFloat(scores, {${paramKey}_name:String}) ${opSymbol} {${paramKey}_value:Float64}`,
+        params: {
+          [`${paramKey}_name`]: scoreName,
+          [`${paramKey}_value`]: numValue,
+        },
+      });
+    }
+  });
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["scores"],
+      table: "evaluation_datapoints",
+    },
+    filters: nonScoreFilters,
+    columnFilterConfig: evaluationDatapointsColumnFilterConfig,
+    customConditions,
   };
 
   return buildSelectQuery(queryOptions);

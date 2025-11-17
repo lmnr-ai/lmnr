@@ -14,6 +14,8 @@ import TraceViewNavigationProvider, {
   getTraceWithDatapointConfig,
 } from "@/components/traces/trace-view/navigation-context";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserContext } from "@/contexts/user-context";
@@ -36,7 +38,7 @@ interface EvaluationProps {
   initialTraceViewWidth?: number;
 }
 
-export default function Evaluation({
+function EvaluationContent({
   evaluations,
   evaluationId,
   evaluationName,
@@ -55,8 +57,12 @@ export default function Evaluation({
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(undefined);
 
-  const evaluationUrl = useMemo(() => {
-    let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}`;
+  // Pagination state
+  const pageSize = 50;
+
+  // Statistics URL (fetches all stats at once)
+  const statsUrl = useMemo(() => {
+    let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
     const urlParams = new URLSearchParams();
 
     if (search) {
@@ -76,12 +82,18 @@ export default function Evaluation({
     return url;
   }, [params?.projectId, evaluationId, search, searchIn, filter]);
 
-  const { data, mutate, isLoading } = useSWR<EvaluationResultsInfo>(evaluationUrl, swrFetcher);
+  const { data: statsData, isLoading: isStatsLoading } = useSWR<{
+    evaluation: EvaluationType;
+    allStatistics: Record<string, any>;
+    allDistributions: Record<string, any>;
+    scores: string[];
+  }>(statsUrl, swrFetcher);
 
-  const targetUrl = useMemo(() => {
+  // Target statistics URL (if comparing)
+  const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
 
-    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}`;
+    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
     const urlParams = new URLSearchParams();
 
     if (search) {
@@ -101,9 +113,15 @@ export default function Evaluation({
     return url;
   }, [params?.projectId, targetId, search, searchIn, filter]);
 
-  const { data: targetData, isLoading: isTargetLoading } = useSWR<EvaluationResultsInfo>(targetUrl, swrFetcher);
+  const { data: targetStatsData, isLoading: isTargetStatsLoading } = useSWR<{
+    evaluation: EvaluationType;
+    allStatistics: Record<string, any>;
+    allDistributions: Record<string, any>;
+    scores: string[];
+  }>(targetStatsUrl, swrFetcher);
 
-  const evaluation = data?.evaluation;
+  const evaluation = statsData?.evaluation;
+  const scores = statsData?.scores || [];
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -113,15 +131,127 @@ export default function Evaluation({
     push(`${pathName}?${params}`);
   }, [searchParams, pathName, push]);
 
-  const scores = useMemo(
-    () => [...new Set(data?.results.flatMap((row) => Object.keys(row.scores ?? {})) || [])],
-    [data?.results]
+  // Fetch function for main evaluation datapoints
+  const fetchDatapoints = useCallback(
+    async (pageNumber: number) => {
+      const urlParams = new URLSearchParams();
+      urlParams.set("pageNumber", pageNumber.toString());
+      urlParams.set("pageSize", pageSize.toString());
+
+      if (search) {
+        urlParams.set("search", search);
+      }
+
+      searchIn.forEach((value) => {
+        urlParams.append("searchIn", value);
+      });
+
+      filter.forEach((f) => urlParams.append("filter", f));
+
+      const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
+      const response = await fetch(url);
+      const data: EvaluationResultsInfo = await response.json();
+
+      return { items: data.results, count: 0 };
+    },
+    [search, searchIn, filter, params?.projectId, evaluationId, pageSize]
   );
+
+  // Fetch function for target evaluation datapoints (comparison mode)
+  const fetchTargetDatapoints = useCallback(
+    async (pageNumber: number) => {
+      if (!targetId) return { items: [], count: 0 };
+
+      const urlParams = new URLSearchParams();
+      urlParams.set("pageNumber", pageNumber.toString());
+      urlParams.set("pageSize", pageSize.toString());
+
+      if (search) {
+        urlParams.set("search", search);
+      }
+
+      searchIn.forEach((value) => {
+        urlParams.append("searchIn", value);
+      });
+
+      filter.forEach((f) => urlParams.append("filter", f));
+
+      const url = `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
+      const response = await fetch(url);
+      const data: EvaluationResultsInfo = await response.json();
+
+      return { items: data.results, count: 0 };
+    },
+    [targetId, search, searchIn, filter, params?.projectId, pageSize]
+  );
+
+  // Use infinite scroll hook for main datapoints
+  const {
+    data: allDatapoints,
+    hasMore: hasMorePages,
+    isFetching: isFetchingPage,
+    isLoading: isLoadingDatapoints,
+    fetchNextPage,
+  } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
+    fetchFn: fetchDatapoints,
+    enabled: true,
+    deps: [search, filter, searchIn, evaluationId],
+  });
+
+  // Manually manage target datapoints to avoid store conflicts
+  const [targetDatapoints, setTargetDatapoints] = useState<EvaluationDatapointPreviewWithCompared[]>([]);
+  const [isFetchingTarget, setIsFetchingTarget] = useState(false);
+  const targetPagesFetchedRef = useRef(0);
+
+  // Reset target data when targetId or filters change
+  useEffect(() => {
+    setTargetDatapoints([]);
+    targetPagesFetchedRef.current = 0;
+  }, [targetId, search, filter.join(","), searchIn.join(",")]);
+
+  // Fetch target pages to match main datapoints length
+  useEffect(() => {
+    if (!targetId || isFetchingTarget) return;
+
+    const pagesNeeded = Math.ceil(allDatapoints.length / pageSize);
+    const pagesFetched = targetPagesFetchedRef.current;
+
+    if (pagesFetched < pagesNeeded) {
+      setIsFetchingTarget(true);
+
+      const fetchTargetPages = async () => {
+        try {
+          const pagesToFetch = [];
+          for (let page = pagesFetched; page < pagesNeeded; page++) {
+            pagesToFetch.push(fetchTargetDatapoints(page));
+          }
+
+          const results = await Promise.all(pagesToFetch);
+          const allItems = results.flatMap(r => r.items);
+
+          setTargetDatapoints(prev => {
+            // Only append new items beyond what we already have
+            const existingCount = prev.length;
+            const newItems = allItems.slice(existingCount - pagesFetched * pageSize);
+            return [...prev, ...newItems];
+          });
+
+          targetPagesFetchedRef.current = pagesNeeded;
+        } catch (error) {
+          console.error("Error fetching target pages:", error);
+        } finally {
+          setIsFetchingTarget(false);
+        }
+      };
+
+      fetchTargetPages();
+    }
+  }, [targetId, allDatapoints.length, isFetchingTarget, fetchTargetDatapoints, pageSize]);
 
   const tableData = useMemo(() => {
     if (targetId) {
-      return data?.results?.map((original, index) => {
-        const compared = targetData?.results[index];
+      return allDatapoints.map((original, index) => {
+        const compared = targetDatapoints[index];
 
         return {
           ...original,
@@ -136,8 +266,8 @@ export default function Evaluation({
         };
       });
     }
-    return data?.results || undefined;
-  }, [data?.results, targetData?.results, targetId]);
+    return allDatapoints;
+  }, [allDatapoints, targetDatapoints, targetId]);
 
   const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(
     () => tableData?.find((row) => row.id === searchParams.get("datapointId")),
@@ -191,13 +321,12 @@ export default function Evaluation({
           filter: `evaluation_id=eq.${evaluation.id}`,
         },
         async (_) => {
-          // for v0 we just re-fetch the whole evaluation.
-          // TODO: fix the insert logic so the state is not out of sync.
-          await mutate();
+          // Note: Refetching on insert - could be improved with optimistic updates
+          window.location.reload();
         }
       )
       .subscribe();
-  }, [evaluation, filter.length, mutate, supabase]);
+  }, [evaluation, filter.length, supabase]);
 
   useEffect(() => {
     const traceId = searchParams.get("traceId");
@@ -245,12 +374,12 @@ export default function Evaluation({
         setDatapointId(item?.datapointId);
       }}
     >
-      <Header path={`evaluations/${data?.evaluation?.name || evaluationName}`} />
+      <Header path={`evaluations/${statsData?.evaluation?.name || evaluationName}`} />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        <EvaluationHeader name={data?.evaluation?.name} urlKey={evaluationUrl} evaluations={evaluations} />
+        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
           <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
-            {isLoading ? (
+            {isStatsLoading ? (
               <>
                 <Skeleton className="w-72 h-48" />
                 <Skeleton className="w-full h-48" />
@@ -262,25 +391,25 @@ export default function Evaluation({
                     scores={scores}
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? (data?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={selectedScore ? (targetData?.allStatistics?.[selectedScore] ?? null) : null}
-                    isLoading={isLoading}
+                    statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
+                    comparedStatistics={selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null}
+                    isLoading={isStatsLoading}
                   />
                 </div>
                 <div className="grow">
                   {targetId ? (
                     <CompareChart
-                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
+                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
                       comparedDistribution={
-                        selectedScore ? (targetData?.allDistributions?.[selectedScore] ?? null) : null
+                        selectedScore ? (targetStatsData?.allDistributions?.[selectedScore] ?? null) : null
                       }
-                      isLoading={isLoading}
+                      isLoading={isStatsLoading}
                     />
                   ) : (
                     <Chart
                       scoreName={selectedScore}
-                      distribution={selectedScore ? (data?.allDistributions?.[selectedScore] ?? null) : null}
-                      isLoading={isLoading}
+                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
+                      isLoading={isStatsLoading}
                     />
                   )}
                 </div>
@@ -288,11 +417,14 @@ export default function Evaluation({
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isLoading || isTargetLoading}
+            isLoading={isLoadingDatapoints}
             datapointId={datapointId}
             data={tableData}
             scores={scores}
             handleRowClick={handleRowClick}
+            hasMore={hasMorePages}
+            isFetching={isFetchingPage}
+            fetchNextPage={fetchNextPage}
           />
         </div>
       </div>
@@ -319,9 +451,9 @@ export default function Evaluation({
                       {selectedRow?.traceId && (
                         <SelectItem value={selectedRow.traceId}>
                           <span>
-                            {data?.evaluation.name}
+                            {statsData?.evaluation.name}
                             <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(data?.evaluation.createdAt))}
+                              {formatTimestamp(String(statsData?.evaluation.createdAt))}
                             </span>
                           </span>
                         </SelectItem>
@@ -329,9 +461,9 @@ export default function Evaluation({
                       {selectedRow?.comparedTraceId && (
                         <SelectItem value={selectedRow?.comparedTraceId}>
                           <span>
-                            {targetData?.evaluation.name}
+                            {targetStatsData?.evaluation.name}
                             <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(targetData?.evaluation.createdAt))}
+                              {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
                             </span>
                           </span>
                         </SelectItem>
@@ -348,5 +480,13 @@ export default function Evaluation({
         </div>
       )}
     </TraceViewNavigationProvider>
+  );
+}
+
+export default function Evaluation(props: EvaluationProps) {
+  return (
+    <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
+      <EvaluationContent {...props} />
+    </DataTableStateProvider>
   );
 }
