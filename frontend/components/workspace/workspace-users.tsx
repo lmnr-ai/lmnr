@@ -261,7 +261,7 @@ export default function WorkspaceUsers({
         </div>
       </SettingsSection>
       <SettingsSection>
-        <div className={"flex items-cent justify-end"}>
+        <div className={"flex items-center justify-end"}>
           <TransferOwnershipDialog
             open={dialogState.type === "transferOwnership"}
             onOpenChange={(open) => (open ? openDialog("transferOwnership", dialogState.targetUser) : closeDialog())}

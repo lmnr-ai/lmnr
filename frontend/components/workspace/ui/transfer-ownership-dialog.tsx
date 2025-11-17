@@ -104,7 +104,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
         </Alert>
         <DialogFooter>
           <Button
-            disabled={!newOwner}
+            disabled={!newOwner || isMutating}
             handleEnter={true}
             onClick={() => {
               if (newOwner) {
