@@ -160,7 +160,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setLoading,
     setError,
     chartType,
-    chart.settings.config.total,
   ]);
 
   useEffect(() => {

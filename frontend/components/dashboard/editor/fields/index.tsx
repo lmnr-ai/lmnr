@@ -1,10 +1,11 @@
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
+import { DashboardChart } from "@/components/dashboard/types.ts";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -74,7 +75,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     setTotal: state.setTotal,
   }));
 
-  const handleSaveChart = async () => {
+  const handleSaveChart = useCallback(async () => {
     if (!hasChartConfig || !projectId || !chart.name.trim()) return;
 
     setIsSaving(true);
@@ -93,9 +94,9 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         ? await updateChartViaApi(String(projectId), id, data)
         : await createChartViaApi(String(projectId), data);
 
-      await mutate(
+      await mutate<DashboardChart[]>(
         `/api/projects/${projectId}/dashboard-charts`,
-        (current: any[] = []) => {
+        (current = []) => {
           if (id) {
             return current.map((item) => (item.id === result.id ? result : item));
           }
@@ -112,7 +113,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [chart?.id, chart.name, chart.query, chart.settings.config, hasChartConfig, mutate, projectId, router, toast]);
 
   return (
     <div className="flex flex-col gap-4 p-4">
