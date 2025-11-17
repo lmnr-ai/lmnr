@@ -8,13 +8,13 @@ import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Calendar, CalendarProps } from "@/components/ui/calendar.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../../../components/ui/button.tsx";
-import { Calendar, CalendarProps } from "../../../components/ui/calendar.tsx";
-import { Input } from "../../../components/ui/input.tsx";
-import { Label } from "../../../components/ui/label.tsx";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover.tsx";
 import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils.ts";
 
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } | null }) => (
@@ -233,7 +233,7 @@ export default function DateRangeFilter({
         <AnimatePresence mode="wait" initial={false}>
           {!showCalendar ? (
             <QuickRangesList
-              pastHours={pastHours}
+              pastHours={pastHours ?? "24"}
               onSelect={handleQuickRangeSelect}
               onAbsoluteClick={() => setShowCalendar(true)}
             />

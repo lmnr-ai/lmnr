@@ -133,6 +133,8 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
       settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`
     })
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+
+  return await getChart({ projectId, id });
 };
 
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
@@ -158,8 +160,11 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
 
   const reorderedCharts = repositionCharts(chartSettings);
 
-  await db.transaction(async (tx) => {
-    await tx.insert(dashboardCharts).values(newChart);
+  const [created] = await db.transaction(async (tx) => {
+    const result = await tx.insert(dashboardCharts).values(newChart).returning();
     await updateChartsLayout({ projectId, updates: reorderedCharts });
+    return result;
   });
+
+  return created as DashboardChart;
 };

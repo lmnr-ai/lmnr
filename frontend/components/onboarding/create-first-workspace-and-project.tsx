@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";
@@ -20,7 +20,8 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
 
   const router = useRouter();
 
-  const handleButtonClick = async () => {
+  const handleButtonClick = async (e: FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
 
     try {
@@ -38,9 +39,6 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
 
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
-      // Populate default dashboard charts for the created project
-
-      // As we want user to start from traces page, redirect to it
       if (newWorkspace.projectId) {
         router.push(`/project/${newWorkspace.projectId}/traces`);
       } else {
@@ -63,7 +61,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
           </div>
           <p className="text-sm text-muted-foreground">Let's set up your workspace and first project to get started</p>
         </div>
-        <div className="grid gap-4">
+        <form onSubmit={handleButtonClick} className="grid gap-4">
           <div className="flex flex-col gap-1">
             <Label htmlFor="workspace-name" className="text-xs font-medium">
               Workspace Name
@@ -90,9 +88,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
           </div>
           <div className="flex justify-end">
             <Button
-              handleEnter
-              type="button"
-              onClick={handleButtonClick}
+              type="submit"
               disabled={!workspaceName || !projectName || isLoading}
               className="self-end align-end w-fit"
             >
@@ -100,7 +96,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
               Create
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

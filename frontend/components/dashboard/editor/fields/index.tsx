@@ -1,13 +1,16 @@
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useSWRConfig } from "swr";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
+import { DashboardChart } from "@/components/dashboard/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import ChartTypeField from "./ChartTypeField";
 import DimensionsField from "./DimensionsField";
@@ -59,6 +62,8 @@ interface QueryBuilderFieldsProps {
 export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilderFieldsProps) => {
   const { projectId } = useParams();
   const router = useRouter();
+  const { mutate } = useSWRConfig();
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -70,25 +75,37 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     setTotal: state.setTotal,
   }));
 
-  const handleSaveChart = async () => {
+  const handleSaveChart = useCallback(async () => {
     if (!hasChartConfig || !projectId || !chart.name.trim()) return;
 
     setIsSaving(true);
     setSaveError(null);
 
     try {
-      const chartData = {
+      const data = {
         name: chart.name,
         query: chart.query,
         config: chart.settings.config,
       };
 
-      if (chart.id) {
-        await updateChartViaApi(projectId as string, chart.id, chartData);
-      } else {
-        await createChartViaApi(projectId as string, chartData);
-      }
+      const id = chart?.id;
 
+      const result = id
+        ? await updateChartViaApi(String(projectId), id, data)
+        : await createChartViaApi(String(projectId), data);
+
+      await mutate<DashboardChart[]>(
+        `/api/projects/${projectId}/dashboard-charts`,
+        (current = []) => {
+          if (id) {
+            return current.map((item) => (item.id === result.id ? result : item));
+          }
+          return [result, ...current];
+        },
+        { revalidate: false, populateCache: true, rollbackOnError: true }
+      );
+
+      toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
       router.push(`/project/${projectId}/dashboard`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save chart";
@@ -96,12 +113,12 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [chart?.id, chart.name, chart.query, chart.settings.config, hasChartConfig, mutate, projectId, router, toast]);
 
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="grid gap-1">
-        <Label className="text-xs text-secondary-foreground/80">Chart Name</Label>
+        <Label className="font-semibold text-xs">Chart Name</Label>
         <Input value={chart.name} onChange={(e) => setName(e.target.value)} placeholder="Enter chart name..." />
       </div>
 

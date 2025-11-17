@@ -272,8 +272,8 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
-                  <ColumnsMenu lockedColumns={["__row_selection"]} />
                   <DataTableFilter columns={filters} />
+                  <ColumnsMenu lockedColumns={["__row_selection"]} />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />

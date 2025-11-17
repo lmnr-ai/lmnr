@@ -22,9 +22,9 @@ const RefreshButton = ({ iconClassName, onClick, ...rest }: ButtonProps & { icon
         className="block text-secondary-foreground"
         animate={{ rotate }}
       >
-        <RefreshCw className={cn(iconClassName)} />
+        <RefreshCw className={cn("size-3.5", iconClassName)} />
       </motion.div>
-      <span className="ml-2 text-secondary-foreground">Refresh</span>
+      <span className="ml-1 text-secondary-foreground text-xs">Refresh</span>
     </Button>
   );
 };

@@ -66,7 +66,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-3 text-xs py-2",
+        default: "h-7 px-2 text-xs py-2",
         sm: "h-[22px] rounded-md px-2 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-7 w-7",
@@ -205,7 +205,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && (
-          <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "-ml-1 mr-1": !!children })} />
+          <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}
         {children}
       </Comp>

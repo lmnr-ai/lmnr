@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
 
 import GridLayout from "@/components/dashboard/grid-layout";
 import { Button } from "@/components/ui/button";
@@ -13,24 +11,6 @@ import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 
 export default function Dashboard() {
-  const params = useParams();
-  const projectId = params?.projectId as string;
-
-  const searchParams = useSearchParams();
-  const pastHours = searchParams.get("pastHours") || undefined;
-  const startDate = searchParams.get("startDate") || undefined;
-  const endDate = searchParams.get("endDate") || undefined;
-
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!pastHours && !startDate && !endDate) {
-      const sp = new URLSearchParams(searchParams);
-      sp.set("pastHours", "24");
-      router.replace(`/project/${projectId}/dashboard?${sp.toString()}`);
-    }
-  }, []);
-
   return (
     <>
       <Header path={"dashboard"}>

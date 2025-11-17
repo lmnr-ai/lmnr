@@ -33,8 +33,8 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
   const { control, formState, getValues, handleSubmit } = useFormContext<QueryStructure>();
 
-  const { chart, setQuery, setChartConfig, executeQuery, isLoading, error, data } = useDashboardEditorStoreContext(
-    (state) => ({
+  const { chart, setQuery, setChartConfig, executeQuery, isLoading, error, data, setLoading, setError } =
+    useDashboardEditorStoreContext((state) => ({
       chart: state.chart,
       setQuery: state.setQuery,
       setChartConfig: state.setChartConfig,
@@ -42,8 +42,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       isLoading: state.isLoading,
       error: state.error,
       data: state.data,
-    })
-  );
+      setLoading: state.setLoading,
+      setError: state.setError,
+    }));
 
   const formValues = useWatch({ control });
 
@@ -88,6 +89,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     }
 
     const { table, metrics, dimensions, filters, orderBy, limit } = getValues();
+
+    setLoading(true);
+    setError(null);
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
@@ -141,8 +145,22 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       await executeQuery(projectId as string);
     } catch (err) {
       console.error("Failed to generate and execute query:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate and execute query";
+      setError(errorMessage);
+      setLoading(false);
     }
-  }, [formState.isValid, projectId, chartConfig, getValues, setQuery, setChartConfig, executeQuery]);
+  }, [
+    formState.isValid,
+    projectId,
+    chartConfig,
+    getValues,
+    setQuery,
+    setChartConfig,
+    executeQuery,
+    setLoading,
+    setError,
+    chartType,
+  ]);
 
   useEffect(() => {
     if (isLoadingChart) {

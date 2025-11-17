@@ -315,14 +315,9 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <DateRangeFilter />
           <ColumnsMenu lockedColumns={["status"]} />
-          <RefreshButton
-            iconClassName="w-3.5 h-3.5 text-secondary-foreground"
-            onClick={handleRefresh}
-            variant="outline"
-            className="text-xs text-secondary-foreground"
-          />
+          <DateRangeFilter />
+          <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
             <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
             <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
