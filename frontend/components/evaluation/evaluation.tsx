@@ -232,7 +232,8 @@ function EvaluationContent({
           setTargetDatapoints(prev => {
             // Only append new items beyond what we already have
             const existingCount = prev.length;
-            const newItems = allItems.slice(existingCount - pagesFetched * pageSize);
+            const offset = Math.max(0, existingCount - pagesFetched * pageSize);
+            const newItems = allItems.slice(offset);
             return [...prev, ...newItems];
           });
 
