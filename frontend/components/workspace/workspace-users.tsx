@@ -12,6 +12,7 @@ import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
+import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceStats } from "@/lib/usage/types";
@@ -37,7 +38,7 @@ interface WorkspaceUsersProps {
 }
 
 type DialogState = {
-  type: "none" | "addUser" | "removeUser" | "leaveWorkspace";
+  type: "none" | "addUser" | "removeUser" | "leaveWorkspace" | "transferOwnership";
   targetUser?: WorkspaceUser;
 };
 
@@ -167,7 +168,6 @@ export default function WorkspaceUsers({
     },
     [currentUserRole, isCurrentUser, isOwner, openDialog]
   );
-
   if (isLoading) {
     return (
       <>
@@ -192,7 +192,6 @@ export default function WorkspaceUsers({
   return (
     <>
       <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
-
       {canManageUsers && (
         <SettingsSection>
           <SettingsSectionHeader
@@ -212,7 +211,6 @@ export default function WorkspaceUsers({
           )}
         </SettingsSection>
       )}
-
       <SettingsSection>
         <div className="flex items-center justify-between">
           <SettingsSectionHeader
@@ -262,7 +260,16 @@ export default function WorkspaceUsers({
           </Table>
         </div>
       </SettingsSection>
-
+      <SettingsSection>
+        <div className={"flex items-cent justify-end"}>
+          <TransferOwnershipDialog
+            open={dialogState.type === "transferOwnership"}
+            onOpenChange={(open) => (open ? openDialog("transferOwnership", dialogState.targetUser) : closeDialog())}
+            workspace={workspace}
+            workspaceUsers={users.filter((u) => u.role !== "owner")}
+          />
+        </div>
+      </SettingsSection>
       {canManageUsers && !isEmpty(invitations) && (
         <SettingsSection>
           <SettingsSectionHeader
@@ -273,7 +280,6 @@ export default function WorkspaceUsers({
           <InvitationsTable workspaceId={workspace.id} invitations={invitations} />
         </SettingsSection>
       )}
-
       <RemoveUserDialog
         workspace={workspace}
         open={dialogState.type === "removeUser"}

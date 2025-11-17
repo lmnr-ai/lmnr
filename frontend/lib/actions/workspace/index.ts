@@ -273,3 +273,63 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 };
 
 export { LAST_WORKSPACE_ID, MAX_AGE };
+
+export const TransferOwnershipSchema = z.object({
+  workspaceId: z.string().uuid(),
+  newOwnerEmail: z.string().email(),
+});
+
+export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
+  const { workspaceId, newOwnerEmail } = TransferOwnershipSchema.parse(input);
+
+  // Проверяем, что текущий пользователь - owner
+  await checkUserWorkspaceRole({
+    workspaceId,
+    roles: ["owner"],
+  });
+
+  // Получаем текущего owner
+  const currentOwner = await db.query.membersOfWorkspaces.findFirst({
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.memberRole, "owner")),
+  });
+
+  if (!currentOwner) {
+    throw new Error("Current owner not found");
+  }
+
+  // Находим пользователя по email
+  const newOwnerUser = await db.query.users.findFirst({
+    where: eq(users.email, newOwnerEmail),
+  });
+
+  if (!newOwnerUser) {
+    throw new Error("User with this email not found");
+  }
+
+  // Проверяем, что новый owner существует в workspace
+  const newOwner = await db.query.membersOfWorkspaces.findFirst({
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, newOwnerUser.id)),
+  });
+
+  if (!newOwner) {
+    throw new Error("New owner not found in workspace");
+  }
+
+  if (newOwner.memberRole !== "admin") {
+    throw new Error("New owner must be an admin");
+  }
+
+  // Атомарная транзакция: деградируем текущего owner и повышаем нового
+  await db.transaction(async (tx) => {
+    // Текущий owner -> admin
+    await tx
+      .update(membersOfWorkspaces)
+      .set({ memberRole: "admin" })
+      .where(eq(membersOfWorkspaces.id, currentOwner.id));
+
+    // Новый admin -> owner
+    await tx.update(membersOfWorkspaces).set({ memberRole: "owner" }).where(eq(membersOfWorkspaces.id, newOwner.id));
+  });
+
+  return { success: true };
+}
