@@ -5,7 +5,7 @@ import { useSWRConfig } from "swr";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { DashboardChart } from "@/components/dashboard/types.ts";
+import { DashboardChart } from "@/components/dashboard/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
