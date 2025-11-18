@@ -86,3 +86,13 @@ export const getAvailableColumns = (table: string, metricFn?: string): ColumnDef
   return schema;
 };
 
+export const getTimeColumn = (table: string): string => {
+  const timeColumnMap: Record<string, string> = {
+    spans: "start_time",
+    traces: "start_time",
+    events: "timestamp",
+    tags: "created_at",
+  };
+
+  return timeColumnMap[table] || "start_time";
+};
