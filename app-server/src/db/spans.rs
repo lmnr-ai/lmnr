@@ -82,11 +82,11 @@ impl Span {
         // This function is intented to filter out "signal" spans from record to clickhouse
         // One of the signal spans is the span that carries the attribute to indicate whether
         // the trace has a browser session or not and is named "cdp_use.session".
-        !self
+        !(self
             .attributes
             .has_browser_session_attribute()
             .unwrap_or(false)
-            && self.name == "cdp_use.session"
+            && self.name == "cdp_use.session")
     }
 }
 
