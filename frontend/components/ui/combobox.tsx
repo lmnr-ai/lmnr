@@ -17,13 +17,13 @@ import { cn } from "@/lib/utils.ts";
 
 interface ComboboxProps {
   placeholder: string;
-  noFoundText?: string;
+  noMatchText?: string;
   items: { value: string; label: string }[];
   value: string | null;
   setValue: (value: string | null) => void;
 }
 
-export const Combobox: FC<ComboboxProps> = ({ placeholder, noFoundText, items, value, setValue }) => {
+export const Combobox: FC<ComboboxProps> = ({ placeholder, noMatchText, items, value, setValue }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -37,7 +37,7 @@ export const Combobox: FC<ComboboxProps> = ({ placeholder, noFoundText, items, v
         <Command>
           <CommandInput placeholder={placeholder} className="h-9" />
           <CommandList>
-            <CommandEmpty>{noFoundText || "No found."}</CommandEmpty>
+            <CommandEmpty>{noMatchText || "No found."}</CommandEmpty>
             <CommandGroup>
               {items.map((item) => (
                 <CommandItem

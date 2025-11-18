@@ -90,7 +90,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
             value={newOwner}
             setValue={setNewOwner}
             placeholder={"Choose an owner"}
-            noFoundText={"No users found."}
+            noMatchText={"No users found."}
           />
         </div>
         <Alert variant="destructive">

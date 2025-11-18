@@ -282,12 +282,6 @@ export const TransferOwnershipSchema = z.object({
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
   const { workspaceId, newOwnerEmail } = TransferOwnershipSchema.parse(input);
 
-  // Проверяем, что текущий пользователь - owner
-  await checkUserWorkspaceRole({
-    workspaceId,
-    roles: ["owner"],
-  });
-
   // Получаем текущего owner
   const currentOwner = await db.query.membersOfWorkspaces.findFirst({
     where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.memberRole, "owner")),
