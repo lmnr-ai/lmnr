@@ -77,6 +77,19 @@ export async function register() {
       console.log("Applying ClickHouse schema. This may take a while...");
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
+
+      // Run Quickwit index initialization
+      const initializeQuickwit = async () => {
+        try {
+          const { initializeQuickwitIndexes } = await import("@/lib/quickwit/migrations");
+          await initializeQuickwitIndexes();
+        } catch (error) {
+          console.error("Failed to initialize Quickwit indexes:", error);
+          // Don't throw - Quickwit might not be available in all environments
+          console.log("Continuing without Quickwit indexes...");
+        }
+      };
+      await initializeQuickwit();
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
