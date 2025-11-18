@@ -275,34 +275,17 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
-  workspaceId: z.string().uuid(),
-  newOwnerEmail: z.string().email(),
+  workspaceId: z.string(),
+  currentOwnerId: z.string(),
+  newOwnerId: z.string(),
 });
 
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
-  const { workspaceId, newOwnerEmail } = TransferOwnershipSchema.parse(input);
-
-  // Получаем текущего owner
-  const currentOwner = await db.query.membersOfWorkspaces.findFirst({
-    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.memberRole, "owner")),
-  });
-
-  if (!currentOwner) {
-    throw new Error("Current owner not found");
-  }
-
-  // Находим пользователя по email
-  const newOwnerUser = await db.query.users.findFirst({
-    where: eq(users.email, newOwnerEmail),
-  });
-
-  if (!newOwnerUser) {
-    throw new Error("User with this email not found");
-  }
+  const { workspaceId, newOwnerId, currentOwnerId } = TransferOwnershipSchema.parse(input);
 
   // Проверяем, что новый owner существует в workspace
   const newOwner = await db.query.membersOfWorkspaces.findFirst({
-    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, newOwnerUser.id)),
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, newOwnerId)),
   });
 
   if (!newOwner) {
@@ -319,10 +302,13 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
     await tx
       .update(membersOfWorkspaces)
       .set({ memberRole: "admin" })
-      .where(eq(membersOfWorkspaces.id, currentOwner.id));
+      .where(and(eq(membersOfWorkspaces.userId, currentOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
 
     // Новый admin -> owner
-    await tx.update(membersOfWorkspaces).set({ memberRole: "owner" }).where(eq(membersOfWorkspaces.id, newOwner.id));
+    await tx
+      .update(membersOfWorkspaces)
+      .set({ memberRole: "owner" })
+      .where(and(eq(membersOfWorkspaces.userId, newOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
   });
 
   return { success: true };

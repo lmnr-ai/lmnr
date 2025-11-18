@@ -1,4 +1,5 @@
 import { CircleAlert, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { useSWRConfig } from "swr";
 import useSWRMutation from "swr/mutation";
@@ -16,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label.tsx";
+import { useUserContext } from "@/contexts/user-context.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
 
@@ -26,13 +28,18 @@ interface TransferOwnershipDialogProps {
   workspaceUsers: WorkspaceUser[];
 }
 
-const transferOwnership = async (url: string, { arg: newOwnerEmail }: { arg: string }) => {
+const transferOwnership = async (
+  url: string,
+  {
+    arg: { workspaceId, currentOwnerId, newOwnerId },
+  }: { arg: { workspaceId: string; currentOwnerId: string; newOwnerId: string } }
+) => {
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ newOwnerEmail }),
+    body: JSON.stringify({ workspaceId, currentOwnerId, newOwnerId }),
   });
   if (!res.ok) {
     const error = await res.json();
@@ -42,9 +49,11 @@ const transferOwnership = async (url: string, { arg: newOwnerEmail }: { arg: str
 };
 
 const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers }: TransferOwnershipDialogProps) => {
+  const user = useUserContext();
   const [newOwner, setNewOwner] = useState<string | null>(null);
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
+  const router = useRouter();
   const { trigger, isMutating } = useSWRMutation(
     `/api/workspaces/${workspace.id}/transfer-ownership`,
     transferOwnership,
@@ -53,6 +62,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
         onOpenChange(false);
         toast({ description: "Ownership transferred successfully." });
         mutate(`/api/workspaces/${workspace.id}/users`);
+        router.refresh();
       },
       onError: (error) => {
         toast({
@@ -108,7 +118,11 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
             handleEnter={true}
             onClick={() => {
               if (newOwner) {
-                trigger(newOwner);
+                trigger({
+                  workspaceId: workspace.id,
+                  currentOwnerId: user.id,
+                  newOwnerId: workspaceUsers.find((user) => user.email === newOwner)!.id,
+                });
               }
             }}
             variant="destructive"

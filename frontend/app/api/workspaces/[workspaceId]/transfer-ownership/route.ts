@@ -10,7 +10,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ workspac
 
     await transferOwnership({
       workspaceId: params.workspaceId,
-      newOwnerEmail: body.newOwnerEmail,
+      currentOwnerId: body.currentOwnerId,
+      newOwnerId: body.newOwnerId,
     });
 
     return Response.json({ success: true });
