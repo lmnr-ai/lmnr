@@ -273,3 +273,41 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 };
 
 export { LAST_WORKSPACE_ID, MAX_AGE };
+
+export const TransferOwnershipSchema = z.object({
+  workspaceId: z.string(),
+  currentOwnerId: z.string(),
+  newOwnerId: z.string(),
+});
+
+export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
+  const { workspaceId, newOwnerId, currentOwnerId } = TransferOwnershipSchema.parse(input);
+
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+
+  const newOwner = await db.query.membersOfWorkspaces.findFirst({
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, newOwnerId)),
+  });
+
+  if (!newOwner) {
+    throw new Error("New owner not found in workspace");
+  }
+
+  if (newOwner.memberRole !== "admin") {
+    throw new Error("New owner must be an admin");
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(membersOfWorkspaces)
+      .set({ memberRole: "admin" })
+      .where(and(eq(membersOfWorkspaces.userId, currentOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
+
+    await tx
+      .update(membersOfWorkspaces)
+      .set({ memberRole: "owner" })
+      .where(and(eq(membersOfWorkspaces.userId, newOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
+  });
+
+  return { success: true };
+}
