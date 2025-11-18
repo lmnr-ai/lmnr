@@ -16,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils.ts";
 
 interface ComboboxProps {
+  className?: string;
+  triggerClassName?: string;
   placeholder: string;
   noMatchText?: string;
   items: { value: string; label: string }[];
@@ -23,21 +25,36 @@ interface ComboboxProps {
   setValue: (value: string | null) => void;
 }
 
-export const Combobox: FC<ComboboxProps> = ({ placeholder, noMatchText, items, value, setValue }) => {
+export const Combobox: FC<ComboboxProps> = ({
+  className,
+  triggerClassName,
+  placeholder,
+  noMatchText,
+  items,
+  value,
+  setValue,
+}) => {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn("justify-between", triggerClassName)}
+        >
           {value ? items.find((item) => item.value === value)?.label : placeholder}
           <ChevronsUpDown className="opacity-50 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      <PopoverContent align="start" className={cn("p-0 ", className)}>
         <Command>
           <CommandInput placeholder={placeholder} className="h-9" />
           <CommandList>
-            <CommandEmpty>{noMatchText || "No found."}</CommandEmpty>
+            <CommandEmpty className="p-2 text-center text-secondary-foreground text-sm">
+              {noMatchText || "No matches found."}
+            </CommandEmpty>
             <CommandGroup>
               {items.map((item) => (
                 <CommandItem
