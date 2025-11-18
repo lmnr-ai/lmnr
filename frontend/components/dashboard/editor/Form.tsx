@@ -11,6 +11,7 @@ import { ChartType } from "@/components/chart-builder/types";
 import { ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
+import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
@@ -20,14 +21,17 @@ import DateRangeFilter from "@/shared/ui/date-range-filter";
 const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
 
-const getDefaultTimeRange = (): TimeRange => ({
-  column: "start_time",
-  from: "{start_time:DateTime64}",
-  to: "{end_time:DateTime64}",
-  fillGaps: true,
-  intervalValue: "1",
-  intervalUnit: "{interval_unit:String}",
-});
+const getDefaultTimeRange = (table: string): TimeRange => {
+  const timeColumn = getTimeColumn(table);
+  return {
+    column: timeColumn,
+    from: "{start_time:DateTime64}",
+    to: "{end_time:DateTime64}",
+    fillGaps: true,
+    intervalValue: "1",
+    intervalUnit: "{interval_unit:String}",
+  };
+};
 
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
@@ -98,9 +102,10 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       const allFilters = [...(filters || [])];
 
       if (isHorizontalBar) {
+        const timeColumn = getTimeColumn(table);
         allFilters.push(
-          { field: "start_time", op: "gte" as const, stringValue: "{start_time:DateTime64}" },
-          { field: "start_time", op: "lte" as const, stringValue: "{end_time:DateTime64}" }
+          { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
+          { field: timeColumn, op: "lte" as const, stringValue: "{end_time:DateTime64}" }
         );
       }
 
@@ -115,7 +120,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       };
 
       if (needsTimeSeries(chartType)) {
-        queryStructure.timeRange = getDefaultTimeRange();
+        queryStructure.timeRange = getDefaultTimeRange(table);
       }
 
       const sqlResponse = await fetch(`/api/projects/${projectId}/sql/from-json`, {
