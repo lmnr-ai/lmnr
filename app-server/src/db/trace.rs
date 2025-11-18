@@ -44,6 +44,7 @@ pub struct Trace {
     status: Option<String>,
     tags: Vec<String>,
     num_spans: i64,
+    has_browser_session: Option<bool>,
 }
 
 impl Trace {
@@ -108,6 +109,9 @@ impl Trace {
     pub fn num_spans(&self) -> i64 {
         self.num_spans
     }
+    pub fn has_browser_session(&self) -> Option<bool> {
+        self.has_browser_session.clone()
+    }
 }
 
 /// Upsert trace statistics from aggregated span data
@@ -146,9 +150,10 @@ pub async fn upsert_trace_statistics_batch(
                 cost,
                 status,
                 tags,
-                num_spans
+                num_spans,
+                has_browser_session
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -167,7 +172,8 @@ pub async fn upsert_trace_statistics_batch(
                 cost = traces.cost + EXCLUDED.cost,
                 status = COALESCE(EXCLUDED.status, traces.status),
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
-                num_spans = traces.num_spans + EXCLUDED.num_spans
+                num_spans = traces.num_spans + EXCLUDED.num_spans,
+                has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session)
             RETURNING 
                 id, 
                 project_id, 
@@ -188,7 +194,8 @@ pub async fn upsert_trace_statistics_batch(
                 cost,
                 status,
                 tags,
-                num_spans
+                num_spans,
+                has_browser_session
             "#,
         )
         .bind(agg.trace_id)
@@ -211,6 +218,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(&agg.status)
         .bind(&agg.tags.iter().collect::<Vec<_>>())
         .bind(agg.num_spans)
+        .bind(agg.has_browser_session)
         .fetch_one(pool)
         .await?;
 

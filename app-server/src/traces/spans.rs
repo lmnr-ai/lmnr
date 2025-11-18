@@ -57,6 +57,8 @@ const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
 // And 128K is a common input size for LLM calls.
 const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = 128_000 * 7 / 2; // approx 448KB
 
+const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
+
 static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
 
@@ -452,6 +454,17 @@ impl SpanAttributes {
             None
         } else {
             Some(metadata)
+        }
+    }
+
+    pub fn has_browser_session(&self) -> Option<bool> {
+        if self
+            .raw_attributes
+            .contains_key(HAS_BROWSER_SESSION_ATTRIBUTE_NAME)
+        {
+            Some(true)
+        } else {
+            None
         }
     }
 
