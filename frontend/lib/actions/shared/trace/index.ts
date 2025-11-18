@@ -36,6 +36,7 @@ export const getSharedTrace = async (input: z.infer<typeof GetSharedTraceSchema>
         metadata,
         status,
         trace_type as traceType
+        has_browser_session as hasBrowserSession
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1

@@ -173,6 +173,7 @@ pub async fn upsert_trace_statistics_batch(
                 status = COALESCE(EXCLUDED.status, traces.status),
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
                 num_spans = traces.num_spans + EXCLUDED.num_spans
+                has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),
             RETURNING 
                 id, 
                 project_id, 
@@ -193,7 +194,8 @@ pub async fn upsert_trace_statistics_batch(
                 cost,
                 status,
                 tags,
-                num_spans
+                num_spans,
+                has_browser_session
             "#,
         )
         .bind(agg.trace_id)
@@ -216,6 +218,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(&agg.status)
         .bind(&agg.tags.iter().collect::<Vec<_>>())
         .bind(agg.num_spans)
+        .bind(agg.has_browser_session)
         .fetch_one(pool)
         .await?;
 
