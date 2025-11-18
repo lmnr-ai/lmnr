@@ -143,7 +143,7 @@ impl CacheTrait for RedisCache {
             .arg(ttl_seconds)
             .query_async(&mut self.connection.clone())
             .await;
-        
+
         match result {
             Ok(Some(_)) => Ok(true), // Lock acquired
             Ok(None) => Ok(false),   // Lock already held

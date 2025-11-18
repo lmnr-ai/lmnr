@@ -142,12 +142,7 @@ pub async fn sql_to_json(
 ) -> ResponseResult {
     let SqlToJsonRequest { sql } = req.into_inner();
 
-    match query_engine
-        .into_inner()
-        .as_ref()
-        .sql_to_json(sql)
-        .await
-    {
+    match query_engine.into_inner().as_ref().sql_to_json(sql).await {
         Ok(query_structure) => {
             let response = SqlToJsonResponse {
                 success: true,

@@ -1,5 +1,5 @@
-use super::{QueryEngineTrait, QueryEngineValidationResult};
 use super::query_engine::QueryStructure;
+use super::{QueryEngineTrait, QueryEngineValidationResult};
 use anyhow::Result;
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ impl QueryEngineTrait for MockQueryEngine {
             validated_query: query,
         })
     }
-    
+
     async fn sql_to_json(&self, _sql: String) -> Result<QueryStructure> {
         Ok(QueryStructure {
             table: "mock_table".to_string(),
