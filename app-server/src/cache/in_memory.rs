@@ -88,10 +88,10 @@ impl CacheTrait for InMemoryCache {
         let mut locks = self.locks.write().await;
         let now = tokio::time::Instant::now();
         let expiry = now + Duration::from_secs(ttl_seconds);
-        
+
         // Clean up expired locks
         locks.retain(|_, &mut expires_at| expires_at > now);
-        
+
         // Try to acquire lock
         if locks.contains_key(key) {
             Ok(false) // Lock already held

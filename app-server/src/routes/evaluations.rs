@@ -1,10 +1,11 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{HttpResponse, get, web};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::ch::evaluation_scores::{
-    get_average_evaluation_score, get_evaluation_score_buckets_based_on_bounds,
-    get_evaluation_score_single_bucket, get_global_evaluation_scores_bounds, EvaluationScoreBucket,
+    EvaluationScoreBucket, get_average_evaluation_score,
+    get_evaluation_score_buckets_based_on_bounds, get_evaluation_score_single_bucket,
+    get_global_evaluation_scores_bounds,
 };
 
 use super::ResponseResult;

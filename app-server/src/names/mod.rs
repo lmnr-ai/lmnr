@@ -1,5 +1,5 @@
 use rand::SeedableRng;
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 use std::{
     fs::File,
     io::{self, BufRead},
