@@ -283,7 +283,8 @@ export const TransferOwnershipSchema = z.object({
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {
   const { workspaceId, newOwnerId, currentOwnerId } = TransferOwnershipSchema.parse(input);
 
-  // Проверяем, что новый owner существует в workspace
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+
   const newOwner = await db.query.membersOfWorkspaces.findFirst({
     where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, newOwnerId)),
   });
@@ -296,15 +297,12 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
     throw new Error("New owner must be an admin");
   }
 
-  // Атомарная транзакция: деградируем текущего owner и повышаем нового
   await db.transaction(async (tx) => {
-    // Текущий owner -> admin
     await tx
       .update(membersOfWorkspaces)
       .set({ memberRole: "admin" })
       .where(and(eq(membersOfWorkspaces.userId, currentOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
 
-    // Новый admin -> owner
     await tx
       .update(membersOfWorkspaces)
       .set({ memberRole: "owner" })

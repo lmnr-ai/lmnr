@@ -93,6 +93,15 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
           <DialogDescription>Transfer this workspace to another user.</DialogDescription>
         </DialogHeader>
 
+        <Alert variant="warning">
+          <div className="flex items-start gap-4">
+            <CircleAlert className="w-4 h-4" />
+            <div className="flex-1 space-y-1">
+              <AlertTitle>Warning</AlertTitle>
+              <AlertDescription>This is a potentially destructive action.</AlertDescription>
+            </div>
+          </div>
+        </Alert>
         <div className="flex flex-col space-y-2">
           <Label>New owner</Label>
           <Combobox
@@ -103,15 +112,6 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
             noMatchText={"No users found."}
           />
         </div>
-        <Alert variant="destructive">
-          <div className="flex items-start gap-4">
-            <CircleAlert className="w-4 h-4" />
-            <div className="flex-1 space-y-1">
-              <AlertTitle>Warning</AlertTitle>
-              <AlertDescription>This is a potentially destructive action.</AlertDescription>
-            </div>
-          </div>
-        </Alert>
         <DialogFooter>
           <Button
             disabled={!newOwner || isMutating}

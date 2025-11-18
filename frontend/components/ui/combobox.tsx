@@ -30,7 +30,7 @@ export const Combobox: FC<ComboboxProps> = ({ placeholder, noMatchText, items, v
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
           {value ? items.find((item) => item.value === value)?.label : placeholder}
-          <ChevronsUpDown className="opacity-50" />
+          <ChevronsUpDown className="opacity-50 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">
