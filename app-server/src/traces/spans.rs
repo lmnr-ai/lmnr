@@ -457,7 +457,7 @@ impl SpanAttributes {
         }
     }
 
-    pub fn has_browser_session_attribute(&self) -> Option<bool> {
+    pub fn has_browser_session(&self) -> Option<bool> {
         if self
             .raw_attributes
             .contains_key(HAS_BROWSER_SESSION_ATTRIBUTE_NAME)

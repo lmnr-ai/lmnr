@@ -216,7 +216,7 @@ impl TraceAggregation {
             }
 
             if entry.has_browser_session.is_none() {
-                if let Some(has_browser_session) = span.attributes.has_browser_session_attribute() {
+                if let Some(has_browser_session) = span.attributes.has_browser_session() {
                     entry.has_browser_session = Some(has_browser_session);
                 }
             }
