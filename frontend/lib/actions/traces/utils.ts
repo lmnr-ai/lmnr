@@ -9,10 +9,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
