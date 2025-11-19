@@ -200,8 +200,8 @@ function EvaluationContent({
 
   const tableData = useMemo(() => {
     if (targetId) {
-      return allDatapoints.map((original, index) => {
-        const compared = targetDatapoints[index];
+      return allDatapoints.map((original) => {
+        const compared = targetDatapoints[original.index];
 
         return {
           ...original,
