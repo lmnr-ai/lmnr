@@ -1,10 +1,14 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
+import {
+  columns,
+  defaultEventDefinitionsColumnOrder,
+  eventsDefinitionsTableFilters,
+} from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
@@ -12,6 +16,8 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -40,22 +46,47 @@ function EventDefinitionsContent() {
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
-  const fetchEventDefinitions = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}/event-definitions`);
-      if (!response.ok) throw new Error("Failed to fetch event definitions");
+  const searchParams = useSearchParams();
+  const filter = searchParams.getAll("filter");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const pastHours = searchParams.get("pastHours");
+  const search = searchParams.get("search");
 
-      const data = (await response.json()) as EventDefinitionRow[];
-      // Since API doesn't paginate, return all data on first page
-      return { items: data, count: data.length };
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to load event definitions.",
-        variant: "destructive",
-      });
-      throw error;
-    }
-  }, [projectId, toast]);
+  const FETCH_SIZE = 50;
+
+  const fetchEventDefinitions = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        if (pastHours != null) urlParams.set("pastHours", pastHours);
+        if (startDate != null) urlParams.set("startDate", startDate);
+        if (endDate != null) urlParams.set("endDate", endDate);
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        if (typeof search === "string" && search.length > 0) {
+          urlParams.set("search", search);
+        }
+
+        const response = await fetch(`/api/projects/${projectId}/event-definitions?${urlParams.toString()}`);
+        if (!response.ok) throw new Error("Failed to fetch event definitions");
+
+        const data = (await response.json()) as EventDefinitionRow[];
+        return { items: data, count: 0 };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load event definitions.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [endDate, filter, pastHours, projectId, startDate, search, toast]
+  );
 
   const {
     data: eventDefinitions,
@@ -68,7 +99,7 @@ function EventDefinitionsContent() {
   } = useInfiniteScroll<EventDefinitionRow>({
     fetchFn: fetchEventDefinitions,
     enabled: true,
-    deps: [projectId],
+    deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
 
   const handleRowClick = useCallback(
@@ -151,7 +182,12 @@ function EventDefinitionsContent() {
             </div>
           )}
         >
-          <ColumnsMenu lockedColumns={["__row_selection"]} />
+          <div className="flex flex-1 w-full space-x-2">
+            <DataTableFilter columns={eventsDefinitionsTableFilters} />
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <DataTableSearch searchColumns={["name"]} placeholder="Search by name..." />
+          </div>
+          <DataTableFilterList />
         </InfiniteDataTable>
       </div>
     </>

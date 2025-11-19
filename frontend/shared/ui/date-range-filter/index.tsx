@@ -213,6 +213,14 @@ export default function DateRangeFilter({
     router.push(`${pathName}?${newSearchParams.toString()}`);
   };
 
+  useEffect(() => {
+    if (!searchParams.get("pastHours") && !searchParams.get("startDate") && !searchParams.get("endDate")) {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("pastHours", "24");
+
+      router.replace(`${pathName}?${sp.toString()}`);
+    }
+  }, [pastHours, startTime, endTime, searchParams, pathName, router]);
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>

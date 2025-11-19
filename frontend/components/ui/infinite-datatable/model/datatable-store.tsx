@@ -45,6 +45,7 @@ export interface SelectionActions {
   setColumnOrder: (order: string[]) => void;
   setDraggingColumnId: (columnId: string | null) => void;
   resetColumns: () => void;
+  getStorageKey: () => string;
 }
 
 type DataTableStore<TData> = InfiniteScrollState<TData> &
@@ -150,6 +151,7 @@ function createDataTableStore<TData>(
         selectedRows: new Set(ids),
       }),
     clearSelection: () => set({ selectedRows: new Set() }),
+    getStorageKey: () => storageKey || "datatable",
   });
 
   if (storageKey) {
