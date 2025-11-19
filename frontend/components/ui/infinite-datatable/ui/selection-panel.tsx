@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Label } from "@/components/ui/label.tsx";
 
-import { SelectionPanelProps } from "../types.ts";
+import { SelectionPanelProps } from "../model/types.ts";
 
 export function SelectionPanel({ selectedRowIds, onClearSelection, selectionPanel }: SelectionPanelProps) {
   if (selectedRowIds.length === 0) return null;

@@ -23,12 +23,12 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
+import { createCheckboxColumn, EMPTY_ARRAY } from "./lib/utils.tsx";
 import { useDataTableStore } from "./model/datatable-store.tsx";
-import { InfiniteDataTableProps } from "./types.ts";
+import { InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";
-import { createCheckboxColumn, EMPTY_ARRAY } from "./utils.tsx";
 
 export function InfiniteDataTable<TData extends RowData>({
   // Infinite scroll props
@@ -243,27 +243,27 @@ export function InfiniteDataTable<TData extends RowData>({
               >
                 {draggingColumnId
                   ? (() => {
-                    const column = table.getColumn(draggingColumnId);
-                    if (!column) return null;
-                    const headerGroups = table.getHeaderGroups();
-                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
-                    if (!header) return null;
-                    return (
-                      <div
-                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
-                        style={{
-                          width: column.getSize(),
-                          height: 32,
-                        }}
-                      >
-                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
-                          <div className="truncate">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
+                      const column = table.getColumn(draggingColumnId);
+                      if (!column) return null;
+                      const headerGroups = table.getHeaderGroups();
+                      const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
+                      if (!header) return null;
+                      return (
+                        <div
+                          className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+                          style={{
+                            width: column.getSize(),
+                            height: 32,
+                          }}
+                        >
+                          <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+                            <div className="truncate">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })()
+                      );
+                    })()
                   : null}
               </DragOverlay>
               <InfiniteDatatableBody
