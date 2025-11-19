@@ -4,7 +4,8 @@ import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/utils";
+import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { searchSpansQuickwit } from "@/lib/actions/traces/quickwit";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -58,7 +59,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   const offset = Math.max(0, pageNumber * pageSize);
 
   const traceIds = search
-    ? await searchSpans({
+    ? await searchSpansQuickwit({
       projectId,
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),

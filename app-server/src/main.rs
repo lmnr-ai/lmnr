@@ -508,7 +508,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Query engine ==
-    let query_engine: Arc<QueryEngine> = if false {
+    let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
         let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
         runtime_handle.block_on(async {
             let query_engine_grpc_client = Arc::new(

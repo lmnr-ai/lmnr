@@ -5,7 +5,8 @@ import { z } from "zod/v4";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
-import { buildTracesStatsWhereConditions, searchSpans } from "@/lib/actions/traces/utils";
+import { buildTracesStatsWhereConditions } from "@/lib/actions/traces/utils";
+import { searchSpansQuickwit } from "@/lib/actions/traces/quickwit";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
@@ -45,7 +46,7 @@ export async function getTraceStats(
   const filters: FilterDef[] = compact(inputFilters);
 
   const traceIds = search
-    ? await searchSpans({
+    ? await searchSpansQuickwit({
       projectId,
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),

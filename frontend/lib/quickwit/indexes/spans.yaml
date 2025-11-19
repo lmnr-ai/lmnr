@@ -10,6 +10,7 @@ doc_mapping:
       type: text
       tokenizer: raw
       fast: true
+      stored: false
     - name: trace_id
       type: text
       tokenizer: raw
@@ -17,20 +18,21 @@ doc_mapping:
     - name: start_time
       type: datetime
       fast: true
-    - name: end_time
-      type: datetime
-      fast: true
+      stored: false
     - name: input
       type: text
       tokenizer: default
       fast: false
+      stored: false
     - name: output
       type: text
       tokenizer: default
       fast: false
+      stored: false
     - name: attributes
       type: json
       fast: false
+      stored: false
   tag_fields: []
   timestamp_field: start_time
 search_settings:

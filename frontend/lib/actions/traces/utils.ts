@@ -160,11 +160,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -200,42 +200,6 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   };
 
   return buildSelectQuery(queryOptions);
-};
-
-export const searchSpans = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
-  });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
 };
 
 export const buildTracesStatsWhereConditions = (options: {
