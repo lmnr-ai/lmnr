@@ -1,0 +1,135 @@
+// Copyright 2021-Present Datadog, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package ingest_service;
+
+service IngestService {
+  // Ingests document in a given queue.
+  //
+  // Upon any kind of error, the client should
+  // - retry to get at least once delivery.
+  // - not retry to get at most once delivery.
+  //
+  // Exactly once delivery is not supported yet.
+  rpc Ingest(IngestRequest) returns (IngestResponse);
+
+  // Fetches record from a given queue.
+  //
+  // Records are returned in order.
+  //
+  // The returned `FetchResponse` object is meant to be read with the
+  // `crate::iter_records` function.
+  //
+  // Fetching does not necessarily return all of the available records.
+  // If returning all records would exceed `FETCH_PAYLOAD_LIMIT` (2MB),
+  // the response will be partial.
+  rpc Fetch(FetchRequest) returns (FetchResponse);
+
+  // Returns a batch containing the last records.
+  //
+  // It returns the last documents, from the newest
+  // to the oldest, and stops as soon as `FETCH_PAYLOAD_LIMIT` (2MB)
+  // is exceeded.
+  rpc Tail(TailRequest) returns (FetchResponse);
+}
+
+message QueueExistsRequest {
+    string queue_id = 1;
+}
+
+message CreateQueueRequest {
+    string queue_id = 1;
+}
+
+message CreateQueueIfNotExistsRequest {
+    string queue_id = 1;
+}
+
+message CreateQueueIfNotExistsResponse {
+    string queue_id = 1;
+    bool created = 2;
+}
+
+message DropQueueRequest {
+    string queue_id = 1;
+}
+
+// Specifies if the ingest request should block waiting for the records to be committed.
+enum CommitType {
+    // The request doesn't wait for commit
+    Auto = 0;
+    // The request waits for the next scheduled commit to finish.
+    WaitFor = 1;
+    // The request forces an immediate commit after the last document in the batch and waits for
+    // it to finish.
+    Force = 2;
+}
+
+message IngestRequest {
+    repeated DocBatch doc_batches = 1;
+    CommitType commit = 2;
+}
+
+message IngestResponse {
+    uint64 num_docs_for_processing = 1;
+}
+
+// Fetch messages with position strictly after `start_after`.
+message FetchRequest {
+    string index_id = 1;
+    optional uint64 start_after = 2;
+    optional uint64 num_bytes_limit = 3;
+}
+
+message FetchResponse {
+    optional uint64 first_position = 1;
+    DocBatch doc_batch = 2;
+}
+
+message DocBatch {
+    string index_id = 1;
+    bytes doc_buffer = 2;
+    repeated uint32 doc_lengths = 3;
+}
+
+// Suggest to truncate the queue.
+//
+// This function allows the queue to remove all records up to and
+// including `up_to_offset_included`.
+//
+// The role of this truncation is to release memory and disk space.
+//
+// There are no guarantees that the record will effectively be removed.
+// Nothing might happen, or the truncation might be partial.
+//
+// In other words, truncating from a position, and fetching records starting
+// earlier than this position can yield undefined result:
+// the truncated records may or may not be returned.
+message SuggestTruncateRequest {
+    string index_id = 1;
+    uint64 up_to_position_included = 2;
+}
+
+message TailRequest {
+    string index_id = 1;
+}
+
+message ListQueuesRequest {
+}
+
+message ListQueuesResponse {
+    repeated string queues = 1;
+}

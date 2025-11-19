@@ -6,7 +6,7 @@
 import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 
-const QUICKWIT_API_URL = process.env.QUICKWIT_URL || "http://localhost:7280";
+const QUICKWIT_API_URL = process.env.QUICKWIT_SEARCH_HTTP || "http://localhost:7280";
 
 interface QuickwitIndex {
   index_id: string;
@@ -135,4 +135,3 @@ export async function initializeQuickwitIndexes(): Promise<void> {
     throw error;
   }
 }
-

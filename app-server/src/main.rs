@@ -34,8 +34,10 @@ use storage::{PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, Storage, mock::MockStorage, pro
 use tonic::transport::Server;
 use traces::{
     CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
-    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, clustering::process_clustering,
-    consumer::process_queue_spans, grpc_service::ProcessTracesService,
+    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
+    clustering::process_clustering,
+    consumer::{QuickwitIngestConfig, process_queue_spans, process_spans_indexer_queue},
+    grpc_service::ProcessTracesService,
     summary::process_trace_summaries,
 };
 
@@ -72,6 +74,8 @@ mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
 mod query_engine;
+mod quickwit_doc_batch;
+mod quickwit_proto;
 mod realtime;
 mod routes;
 mod runtime;
@@ -235,6 +239,32 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.1b Spans indexer message queue ====
+            channel
+                .exchange_declare(
+                    SPANS_INDEXER_EXCHANGE,
+                    ExchangeKind::Direct,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SPANS_INDEXER_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -419,6 +449,8 @@ fn main() -> anyhow::Result<()> {
         // register queues
         // ==== 3.1 Spans message queue ====
         queue.register_queue(OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE);
+        // ==== 3.1b Spans indexer message queue ====
+        queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
         // ==== 3.3 Evaluators message queue ====
@@ -439,6 +471,8 @@ fn main() -> anyhow::Result<()> {
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
+
+    let quickwit_ingest_config = Arc::new(QuickwitIngestConfig::from_env());
 
     // ==== Slack client ====
     let slack_client = Arc::new(reqwest::Client::new());
@@ -474,7 +508,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Query engine ==
-    let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
+    let query_engine: Arc<QueryEngine> = if false {
         let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
         runtime_handle.block_on(async {
             let query_engine_grpc_client = Arc::new(
@@ -590,6 +624,11 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(4);
 
+        let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
+            .unwrap_or(String::from("1"))
+            .parse::<u8>()
+            .unwrap_or(1);
+
         let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
             .unwrap_or(String::from("4"))
             .parse::<u8>()
@@ -621,8 +660,9 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(1);
 
         log::info!(
-            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
             num_spans_workers,
+            num_spans_indexer_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
@@ -639,6 +679,7 @@ fn main() -> anyhow::Result<()> {
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
         let storage_for_consumer = storage.clone();
+        let quickwit_ingest_config_for_consumer = quickwit_ingest_config.clone();
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
@@ -646,6 +687,7 @@ fn main() -> anyhow::Result<()> {
                     // On the consumer side, we only need to serve health and ready probes
                     let expected_counts = ExpectedWorkerCounts::new(
                         num_spans_workers as usize,
+                        num_spans_indexer_workers as usize,
                         num_browser_events_workers as usize,
                         num_evaluators_workers as usize,
                         num_payload_workers as usize,
@@ -673,6 +715,18 @@ fn main() -> anyhow::Result<()> {
                                 sse_connections_clone,
                             )
                             .await;
+                        });
+                    }
+
+                    for _ in 0..num_spans_indexer_workers {
+                        log::info!("Spawning spans indexer worker");
+                        let worker_handle =
+                            worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
+                        let mq_clone = mq_for_consumer.clone();
+                        let quickwit_config_clone = quickwit_ingest_config_for_consumer.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle;
+                            process_spans_indexer_queue(mq_clone, quickwit_config_clone).await;
                         });
                     }
 

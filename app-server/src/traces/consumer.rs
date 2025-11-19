@@ -1,18 +1,24 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
-//! and clickhouse
-use std::sync::Arc;
+//! and clickhouse, and quickwit
+use std::{env, sync::Arc};
 
+use anyhow::Context;
 use backoff::ExponentialBackoffBuilder;
+use chrono::{DateTime, Utc};
 use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::time::{Duration, sleep};
+use tonic::transport::Channel;
 use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_INDEXER_EXCHANGE,
+    SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
     trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
@@ -35,7 +41,11 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-        MessageQueueTrait,
+        MessageQueueTrait, utils::mq_max_payload,
+    },
+    quickwit_doc_batch::build_json_doc_batch,
+    quickwit_proto::ingest_service::{
+        CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
     },
     realtime::SseConnectionMap,
     storage::Storage,
@@ -47,6 +57,7 @@ use crate::{
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
+    utils::json_value_to_string,
 };
 
 pub async fn process_queue_spans(
@@ -243,6 +254,47 @@ struct StrippedSpan {
     output: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickwitIndexedSpan {
+    pub span_id: Uuid,
+    pub project_id: Uuid,
+    pub trace_id: Uuid,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub input: Option<String>,
+    pub output: Option<String>,
+    pub attributes: Value,
+}
+
+impl From<&Span> for QuickwitIndexedSpan {
+    fn from(span: &Span) -> Self {
+        Self {
+            span_id: span.span_id,
+            project_id: span.project_id,
+            trace_id: span.trace_id,
+            start_time: span.start_time,
+            end_time: span.end_time,
+            input: span.input.as_ref().map(json_value_to_string),
+            output: span.output.as_ref().map(json_value_to_string),
+            attributes: span.attributes.to_value(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct QuickwitIngestConfig {
+    pub endpoint: String,
+}
+
+impl QuickwitIngestConfig {
+    pub fn from_env() -> Self {
+        Self {
+            endpoint: env::var("QUICKWIT_INGEST_GRPC")
+                .unwrap_or_else(|_| "http://localhost:7281".to_string()),
+        }
+    }
+}
+
 #[instrument(skip(
     spans,
     spans_ingested_bytes,
@@ -386,6 +438,17 @@ async fn process_batch(
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &sse_connections).await;
 
+    let quickwit_spans: Vec<QuickwitIndexedSpan> =
+        spans.iter().map(QuickwitIndexedSpan::from).collect();
+
+    if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
+        log::error!(
+            "Failed to publish {} spans for Quickwit indexing: {:?}",
+            quickwit_spans.len(),
+            e
+        );
+    }
+
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
         .into_iter()
@@ -500,6 +563,222 @@ async fn process_batch(
             }
         }
     }
+}
+
+async fn publish_spans_for_indexing(
+    spans: &[QuickwitIndexedSpan],
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
+
+    let payload =
+        serde_json::to_vec(spans).context("Failed to serialize spans for Quickwit indexing")?;
+    let payload_size = payload.len();
+
+    let max_payload = mq_max_payload();
+    if payload_size >= max_payload {
+        return Err(anyhow::anyhow!(
+            "Quickwit indexing payload ({} bytes) exceeds MQ limit ({})",
+            payload_size,
+            max_payload
+        ));
+    }
+
+    queue
+        .publish(&payload, SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_ROUTING_KEY)
+        .await
+        .context("Failed to publish spans to Quickwit indexer queue")?;
+
+    Ok(())
+}
+
+pub async fn process_spans_indexer_queue(
+    queue: Arc<MessageQueue>,
+    quickwit_config: Arc<QuickwitIngestConfig>,
+) {
+    loop {
+        if let Err(e) =
+            inner_process_spans_indexer_queue(queue.clone(), quickwit_config.clone()).await
+        {
+            log::error!(
+                "Quickwit spans indexer worker exited with error: {:?}. Retrying after backoff...",
+                e
+            );
+        } else {
+            log::warn!("Quickwit spans indexer worker exited gracefully. Restarting...");
+        }
+
+        sleep(Duration::from_secs(5)).await;
+    }
+}
+
+async fn inner_process_spans_indexer_queue(
+    queue: Arc<MessageQueue>,
+    quickwit_config: Arc<QuickwitIngestConfig>,
+) -> anyhow::Result<()> {
+    let get_receiver = || async {
+        queue
+            .get_receiver(
+                SPANS_INDEXER_QUEUE,
+                SPANS_INDEXER_EXCHANGE,
+                SPANS_INDEXER_ROUTING_KEY,
+            )
+            .await
+            .map_err(|e| {
+                log::error!(
+                    "Failed to get receiver for Quickwit spans indexer queue: {:?}",
+                    e
+                );
+                backoff::Error::transient(e)
+            })
+    };
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_max_interval(Duration::from_secs(60))
+        .with_max_elapsed_time(Some(Duration::from_secs(300)))
+        .build();
+
+    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
+        Ok(receiver) => {
+            log::info!("Connected to Quickwit spans indexer queue");
+            receiver
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to connect to Quickwit spans indexer queue after retries: {:?}",
+                e
+            );
+            return Err(anyhow::anyhow!(
+                "Could not bind to Quickwit spans indexer queue"
+            ));
+        }
+    };
+
+    let mut quickwit_client = connect_quickwit_client(&quickwit_config.endpoint).await?;
+
+    log::info!(
+        "Quickwit spans indexer worker started (endpoint={})",
+        quickwit_config.endpoint,
+    );
+
+    while let Some(delivery) = receiver.receive().await {
+        let delivery = match delivery {
+            Ok(delivery) => delivery,
+            Err(e) => {
+                log::error!(
+                    "Failed to receive message from Quickwit spans indexer queue: {:?}",
+                    e
+                );
+                continue;
+            }
+        };
+
+        let acker = delivery.acker();
+        let payload = delivery.data();
+
+        let indexed_spans: Vec<QuickwitIndexedSpan> = match serde_json::from_slice(&payload) {
+            Ok(spans) => spans,
+            Err(e) => {
+                log::error!(
+                    "Failed to deserialize Quickwit span payload ({} bytes): {:?}",
+                    payload.len(),
+                    e
+                );
+                let _ = acker.reject(false).await.map_err(|err| {
+                    log::error!(
+                        "Failed to reject malformed Quickwit indexing message: {:?}",
+                        err
+                    );
+                });
+                continue;
+            }
+        };
+
+        if indexed_spans.is_empty() {
+            if let Err(e) = acker.ack().await {
+                log::error!(
+                    "Failed to ack empty Quickwit indexing batch delivery: {:?}",
+                    e
+                );
+            }
+            continue;
+        }
+
+        match ingest_spans_into_quickwit(&mut quickwit_client, "spans", &indexed_spans).await {
+            Ok(_) => {
+                if let Err(e) = acker.ack().await {
+                    log::error!(
+                        "Failed to ack Quickwit indexing delivery after ingest success: {:?}",
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to ingest {} spans into Quickwit: {:?}",
+                    indexed_spans.len(),
+                    e
+                );
+
+                let _ = acker.reject(true).await.map_err(|reject_err| {
+                    log::error!(
+                        "Failed to reject Quickwit indexing delivery after ingest failure: {:?}",
+                        reject_err
+                    );
+                });
+
+                quickwit_client = connect_quickwit_client(&quickwit_config.endpoint).await?;
+            }
+        }
+    }
+
+    log::warn!("Quickwit spans indexer queue closed connection");
+    Ok(())
+}
+
+async fn ingest_spans_into_quickwit(
+    client: &mut IngestServiceClient<Channel>,
+    index_id: &str,
+    spans: &[QuickwitIndexedSpan],
+) -> anyhow::Result<()> {
+    let doc_batch =
+        build_doc_batch(index_id, spans).context("Failed to build Quickwit document batch")?;
+
+    let request = IngestRequest {
+        doc_batches: vec![doc_batch],
+        commit: CommitType::Auto as i32,
+    };
+
+    client
+        .ingest(request)
+        .await
+        .map(|_| ())
+        .map_err(|status| anyhow::anyhow!("Quickwit ingest request failed: {status}"))
+}
+
+fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow::Result<DocBatch> {
+    build_json_doc_batch(index_id, spans).map_err(|err| {
+        anyhow::anyhow!(
+            "Failed to encode spans for Quickwit ingestion ({} docs): {}",
+            spans.len(),
+            err
+        )
+    })
+}
+
+async fn connect_quickwit_client(endpoint: &str) -> anyhow::Result<IngestServiceClient<Channel>> {
+    IngestServiceClient::connect(endpoint.to_string())
+        .await
+        .map_err(|err| {
+            anyhow::anyhow!(
+                "Failed to connect to Quickwit ingest endpoint {}: {}",
+                endpoint,
+                err
+            )
+        })
 }
 
 /// Check spans against trigger conditions and push matching traces to summary queue
