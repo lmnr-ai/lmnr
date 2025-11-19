@@ -18,7 +18,6 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import {
   Evaluation as EvaluationType,
@@ -157,34 +156,6 @@ function EvaluationContent({
     [search, searchIn, filter, params?.projectId, evaluationId, pageSize]
   );
 
-  // Fetch function for target evaluation datapoints (comparison mode)
-  const fetchTargetDatapoints = useCallback(
-    async (pageNumber: number) => {
-      if (!targetId) return { items: [], count: 0 };
-
-      const urlParams = new URLSearchParams();
-      urlParams.set("pageNumber", pageNumber.toString());
-      urlParams.set("pageSize", pageSize.toString());
-
-      if (search) {
-        urlParams.set("search", search);
-      }
-
-      searchIn.forEach((value) => {
-        urlParams.append("searchIn", value);
-      });
-
-      filter.forEach((f) => urlParams.append("filter", f));
-
-      const url = `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
-      const response = await fetch(url);
-      const data: EvaluationResultsInfo = await response.json();
-
-      return { items: data.results, count: 0 };
-    },
-    [targetId, search, searchIn, filter, params?.projectId, pageSize]
-  );
-
   // Use infinite scroll hook for main datapoints
   const {
     data: allDatapoints,
@@ -198,56 +169,34 @@ function EvaluationContent({
     deps: [search, filter, searchIn, evaluationId],
   });
 
-  // Manually manage target datapoints to avoid store conflicts
-  const [targetDatapoints, setTargetDatapoints] = useState<EvaluationDatapointPreviewWithCompared[]>([]);
-  const [isFetchingTarget, setIsFetchingTarget] = useState(false);
-  const targetPagesFetchedRef = useRef(0);
+  // Dynamically fetch target datapoints to match main datapoints length
+  const targetDatapointsUrl = useMemo(() => {
+    if (!targetId || allDatapoints.length === 0) return null;
 
-  // Reset target data when targetId or filters change
-  useEffect(() => {
-    setTargetDatapoints([]);
-    targetPagesFetchedRef.current = 0;
-  }, [targetId, search, filter.join(","), searchIn.join(",")]);
+    const urlParams = new URLSearchParams();
+    urlParams.set("pageNumber", "0");
+    // Fetch all items needed in one call by using allDatapoints.length as page size
+    urlParams.set("pageSize", allDatapoints.length.toString());
 
-  // Fetch target pages to match main datapoints length
-  useEffect(() => {
-    if (!targetId || isFetchingTarget) return;
-
-    const pagesNeeded = Math.ceil(allDatapoints.length / pageSize);
-    const pagesFetched = targetPagesFetchedRef.current;
-
-    if (pagesFetched < pagesNeeded) {
-      setIsFetchingTarget(true);
-
-      const fetchTargetPages = async () => {
-        try {
-          const pagesToFetch = [];
-          for (let page = pagesFetched; page < pagesNeeded; page++) {
-            pagesToFetch.push(fetchTargetDatapoints(page));
-          }
-
-          const results = await Promise.all(pagesToFetch);
-          const allItems = results.flatMap(r => r.items);
-
-          setTargetDatapoints(prev => {
-            // Only append new items beyond what we already have
-            const existingCount = prev.length;
-            const offset = Math.max(0, existingCount - pagesFetched * pageSize);
-            const newItems = allItems.slice(offset);
-            return [...prev, ...newItems];
-          });
-
-          targetPagesFetchedRef.current = pagesNeeded;
-        } catch (error) {
-          console.error("Error fetching target pages:", error);
-        } finally {
-          setIsFetchingTarget(false);
-        }
-      };
-
-      fetchTargetPages();
+    if (search) {
+      urlParams.set("search", search);
     }
-  }, [targetId, allDatapoints.length, isFetchingTarget, fetchTargetDatapoints, pageSize]);
+
+    searchIn.forEach((value) => {
+      urlParams.append("searchIn", value);
+    });
+
+    filter.forEach((f) => urlParams.append("filter", f));
+
+    return `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
+  }, [targetId, allDatapoints.length, search, searchIn, filter, params?.projectId]);
+
+  const { data: targetDatapointsData } = useSWR<EvaluationResultsInfo>(
+    targetDatapointsUrl,
+    swrFetcher
+  );
+
+  const targetDatapoints = targetDatapointsData?.results || [];
 
   const tableData = useMemo(() => {
     if (targetId) {
@@ -297,37 +246,6 @@ function EvaluationContent({
       setSelectedScore(scores[0]);
     }
   }, [scores]);
-
-  const { supabaseClient: supabase } = useUserContext();
-
-  useEffect(() => {
-    if (!supabase || !evaluation) {
-      return;
-    }
-
-    if (filter.length > 0) {
-      supabase.removeAllChannels();
-    }
-
-    supabase.channel("table-db-changes").unsubscribe();
-
-    supabase
-      .channel("table-db-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "evaluation_results",
-          filter: `evaluation_id=eq.${evaluation.id}`,
-        },
-        async (_) => {
-          // Note: Refetching on insert - could be improved with optimistic updates
-          window.location.reload();
-        }
-      )
-      .subscribe();
-  }, [evaluation, filter.length, supabase]);
 
   useEffect(() => {
     const traceId = searchParams.get("traceId");
