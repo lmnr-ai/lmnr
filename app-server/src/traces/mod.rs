@@ -5,6 +5,7 @@ pub mod grpc_service;
 pub mod limits;
 pub mod producer;
 pub mod provider;
+pub mod quickwit_doc_batch;
 pub mod realtime;
 pub mod span_attributes;
 pub mod spans;

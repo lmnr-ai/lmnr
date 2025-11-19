@@ -43,7 +43,6 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait, utils::mq_max_payload,
     },
-    quickwit_doc_batch::build_json_doc_batch,
     quickwit_proto::ingest_service::{
         CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
     },
@@ -54,6 +53,7 @@ use crate::{
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
+        quickwit_doc_batch::build_json_doc_batch,
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },

@@ -74,7 +74,6 @@ mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
 mod query_engine;
-mod quickwit_doc_batch;
 mod quickwit_proto;
 mod realtime;
 mod routes;

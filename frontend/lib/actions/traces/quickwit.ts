@@ -49,7 +49,7 @@ const timeRangeToTimestamps = (timeRange: TimeRange): { start?: number; end?: nu
   return {};
 };
 
-export const searchSpansQuickwit = async ({
+export const searchSpans = async ({
   projectId,
   searchQuery,
   timeRange,

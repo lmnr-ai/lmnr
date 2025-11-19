@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { getTracesByIds } from "@/lib/actions/traces";
-import { searchSpansQuickwit } from "@/lib/actions/traces/quickwit";
+import { searchSpans } from "@/lib/actions/traces/quickwit";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
@@ -82,7 +82,7 @@ export const getEvaluationDatapoints = async (
 
   // Step 1: Get trace IDs from search if provided
   let searchTraceIds: string[] = search
-    ? await searchSpansQuickwit({
+    ? await searchSpans({
       projectId,
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
