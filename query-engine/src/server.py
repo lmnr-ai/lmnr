@@ -16,11 +16,7 @@ from query_engine_pb2 import (
     QueryStructure
 )
 from query_engine_pb2_grpc import QueryEngineServiceServicer, add_QueryEngineServiceServicer_to_server
-
-if os.getenv("USE_LEGACY_VALIDATOR", "false").lower().strip() == "true":
-    from query_validator import validate_and_secure_query, QueryValidationError
-else:
-    from query_validator_v2 import validate_and_secure_query, QueryValidationError
+from query_validator import validate_and_secure_query, QueryValidationError
 
 from json_to_sql import convert_json_to_sql, QueryBuilderError as JsonToSqlError
 from sql_to_json import convert_sql_to_json, QueryBuilderError as SqlToJsonError
