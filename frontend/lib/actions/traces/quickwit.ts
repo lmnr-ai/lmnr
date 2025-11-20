@@ -3,7 +3,10 @@ import { TimeRange } from "@/lib/clickhouse/utils";
 
 const QUICKWIT_SEARCH_BASE_URL = (process.env.QUICKWIT_SEARCH_URL || "http://localhost:7280").replace(/\/$/, "");
 const QUICKWIT_SPANS_INDEX_ID = "spans";
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: SpanSearchType[] = [SpanSearchType.Input, SpanSearchType.Output];
+const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: SpanSearchType[] = [
+  SpanSearchType.Input,
+  SpanSearchType.Output,
+];
 
 type Hit = {
   span_id: string
@@ -18,13 +21,16 @@ type QuickwitSearchResponse = {
 
 const resolveQuickwitSearchFields = (searchType?: SpanSearchType[]): string[] => {
   if (!searchType || searchType.length === 0) {
-    return [...QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS];
+    return QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.map((field) => field.toString());
   }
 
   const requested = new Set(searchType);
   const fields = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.filter((field) => requested.has(field));
 
-  return fields.length > 0 ? fields : [...QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS];
+  const result =
+    fields.length > 0 ? fields : [...QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS];
+
+  return result.map((field) => field.toString());
 };
 
 const timeRangeToTimestamps = (timeRange: TimeRange): { start?: number; end?: number } => {
