@@ -167,7 +167,7 @@ const QueuesContent = () => {
   return (
     <>
       <Header path="labeling queues" />
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-scroll">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
           <Button icon="plus" className="w-fit">
             Queue
