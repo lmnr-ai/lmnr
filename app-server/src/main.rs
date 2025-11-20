@@ -562,7 +562,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Quickwit ==
-    let quickwit_client = QuickwitClient::new(QuickwitIngestConfig::from_env())?;
+    let quickwit_client =
+        runtime_handle.block_on(QuickwitClient::connect(QuickwitIngestConfig::from_env()))?;
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();

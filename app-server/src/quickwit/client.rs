@@ -39,9 +39,9 @@ struct QuickwitClientInner {
 }
 
 impl QuickwitClient {
-    pub fn new(config: QuickwitIngestConfig) -> anyhow::Result<Self> {
+    pub async fn connect(config: QuickwitIngestConfig) -> anyhow::Result<Self> {
         let endpoint = config.endpoint;
-        let channel = create_channel(&endpoint)?;
+        let channel = connect_channel(&endpoint).await?;
         let client = IngestServiceClient::new(channel);
 
         Ok(Self {
@@ -76,7 +76,7 @@ impl QuickwitClient {
     }
 
     pub async fn reconnect(&self) -> anyhow::Result<()> {
-        let channel = create_channel(self.endpoint())?;
+        let channel = connect_channel(self.endpoint()).await?;
         let mut client = self.inner.client.lock().await;
         *client = IngestServiceClient::new(channel);
         Ok(())
@@ -93,7 +93,8 @@ pub fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow:
     })
 }
 
-fn create_channel(endpoint: &str) -> anyhow::Result<Channel> {
-    let channel = Endpoint::from_shared(endpoint.to_string())?.connect_lazy();
-    Ok(channel)
+async fn connect_channel(endpoint: &str) -> anyhow::Result<Channel> {
+    Ok(Endpoint::from_shared(endpoint.to_string())?
+        .connect()
+        .await?)
 }
