@@ -16,10 +16,6 @@ pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
 
-pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
-pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
-pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
-
 pub const TRACE_SUMMARY_QUEUE: &str = "trace_summary_queue";
 pub const TRACE_SUMMARY_EXCHANGE: &str = "trace_summary_exchange";
 pub const TRACE_SUMMARY_ROUTING_KEY: &str = "trace_summary_routing_key";

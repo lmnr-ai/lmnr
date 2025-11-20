@@ -34,16 +34,18 @@ use storage::{PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, Storage, mock::MockStorage, pro
 use tonic::transport::Server;
 use traces::{
     CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
-    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
-    clustering::process_clustering,
-    consumer::{process_queue_spans, process_queue_spans_indexer},
-    grpc_service::ProcessTracesService,
+    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, clustering::process_clustering,
+    consumer::process_queue_spans, grpc_service::ProcessTracesService,
     summary::process_trace_summaries,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
-use quickwit::client::{QuickwitClient, QuickwitIngestConfig};
+use quickwit::{
+    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
+    client::{QuickwitClient, QuickwitIngestConfig},
+    consumer::process_queue_spans_indexer,
+};
 use realtime::{SseConnectionMap, cleanup_closed_connections};
 use sodiumoxide;
 use std::{
@@ -628,7 +630,7 @@ fn main() -> anyhow::Result<()> {
         let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
             .unwrap_or(String::from("1"))
             .parse::<u8>()
-            .unwrap_or(1);
+            .unwrap_or(4);
 
         let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
             .unwrap_or(String::from("4"))
