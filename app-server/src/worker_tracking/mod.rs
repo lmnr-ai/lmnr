@@ -127,6 +127,10 @@ impl WorkerTracker {
         WorkerType::all_variants().iter().all(|worker_type| {
             let actual_count = self.get_worker_count(worker_type);
             let expected_count = expected.get(worker_type);
+            println!(
+                "actual_count: {}, expected_count: {}",
+                actual_count, expected_count
+            );
             actual_count >= expected_count
         })
     }
@@ -247,7 +251,7 @@ mod tests {
     #[test]
     fn test_is_healthy_exactly_at_threshold() {
         let tracker = WorkerTracker::new();
-        let expected = ExpectedWorkerCounts::new(3, 2, 1, 4, 2, 1, 1, 1);
+        let expected = ExpectedWorkerCounts::new(3, 2, 2, 1, 4, 2, 1, 1);
 
         // Register exactly the expected counts
         let _h1 = tracker.register_worker(WorkerType::Spans);

@@ -81,7 +81,7 @@ export async function register() {
       // Run Quickwit index initialization
       const initializeQuickwit = async () => {
         try {
-          const { initializeQuickwitIndexes } = await import("@/lib/quickwit/migrations");
+          const { initializeQuickwitIndexes } = await import("@/lib/quickwit/migrations.ts");
           await initializeQuickwitIndexes();
         } catch (error) {
           console.error("Failed to initialize Quickwit indexes:", error);

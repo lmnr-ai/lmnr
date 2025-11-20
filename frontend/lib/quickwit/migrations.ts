@@ -11,7 +11,6 @@ const QUICKWIT_API_URL = process.env.QUICKWIT_SEARCH_HTTP || "http://localhost:7
 interface QuickwitIndex {
   index_id: string;
   index_uri: string;
-  // ... other fields
 }
 
 /**
