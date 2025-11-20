@@ -73,9 +73,7 @@ export const searchSpans = async ({
 
   const url = new URL(`${QUICKWIT_SEARCH_BASE_URL}/api/v1/${QUICKWIT_SPANS_INDEX_ID}/search`);
   const queryParts = [`project_id:${projectId}`];
-  if (trimmedQuery.length > 0) {
-    queryParts.push(`(${trimmedQuery})`);
-  }
+  queryParts.push(`(${trimmedQuery})`);
   url.searchParams.set("query", queryParts.join(" AND "));
 
   const searchFields = resolveQuickwitSearchFields(searchType);
