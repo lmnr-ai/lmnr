@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { getProjectDetails } from "@/lib/actions/project";
@@ -8,7 +8,7 @@ import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 export async function requireWorkspaceAccess(workspaceId: string) {
   const session = await getServerSession(authOptions);
   if (!session) {
-    throw new Error("Not authenticated");
+    return redirect("/sign-in");
   }
 
   const hasAccess = await isCurrentUserMemberOfWorkspace(workspaceId);
@@ -22,7 +22,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
 export async function requireProjectAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   if (!session) {
-    throw new Error("Not authenticated");
+    return redirect("/sign-in");
   }
 
   let projectDetails;
