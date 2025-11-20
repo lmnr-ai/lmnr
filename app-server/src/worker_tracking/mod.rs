@@ -127,10 +127,6 @@ impl WorkerTracker {
         WorkerType::all_variants().iter().all(|worker_type| {
             let actual_count = self.get_worker_count(worker_type);
             let expected_count = expected.get(worker_type);
-            println!(
-                "actual_count: {}, expected_count: {}",
-                actual_count, expected_count
-            );
             actual_count >= expected_count
         })
     }
