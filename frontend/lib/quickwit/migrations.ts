@@ -6,7 +6,7 @@
 import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 
-const QUICKWIT_CONTROL_PLANE_URL = process.env.QUICKWIT_CONTROL_PLANE_URL || "http://localhost:7280";
+const QUICKWIT_SEARCH_URL = process.env.QUICKWIT_SEARCH_URL || "http://localhost:7280";
 
 interface QuickwitIndex {
   index_id: string;
@@ -18,7 +18,7 @@ interface QuickwitIndex {
  */
 async function indexExists(indexId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${QUICKWIT_CONTROL_PLANE_URL}/api/v1/indexes/${indexId}`);
+    const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes/${indexId}`);
     return response.ok;
   } catch (error) {
     // If index doesn't exist, Quickwit returns 404
@@ -30,7 +30,7 @@ async function indexExists(indexId: string): Promise<boolean> {
  * Create an index in Quickwit
  */
 async function createIndex(indexConfig: any): Promise<void> {
-  const response = await fetch(`${QUICKWIT_CONTROL_PLANE_URL}/api/v1/indexes`, {
+  const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -51,7 +51,7 @@ async function createIndex(indexConfig: any): Promise<void> {
  */
 async function listIndexes(): Promise<QuickwitIndex[]> {
   try {
-    const response = await fetch(`${QUICKWIT_CONTROL_PLANE_URL}/api/v1/indexes`);
+    const response = await fetch(`${QUICKWIT_SEARCH_URL}/api/v1/indexes`);
     if (!response.ok) {
       throw new Error(`Failed to list indexes: ${response.status}`);
     }
