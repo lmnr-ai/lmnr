@@ -2,17 +2,20 @@
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import useSWR from "swr";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
-import { swrFetcher } from "@/lib/utils";
+import { PaginatedResponse } from "@/lib/types";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import {
@@ -49,13 +52,82 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
 
 export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
+const playgroundsTableFilters: ColumnFilter[] = [
+  {
+    name: "ID",
+    key: "id",
+    dataType: "string",
+  },
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+];
+
+const FETCH_SIZE = 50;
+
 const PlaygroundsContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { data, mutate } = useSWR<PlaygroundInfo[]>(`/api/projects/${projectId}/playgrounds`, swrFetcher);
+  const filter = searchParams.getAll("filter");
+  const search = searchParams.get("search");
+
+  const fetchPlaygrounds = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        if (typeof search === "string" && search.length > 0) {
+          urlParams.set("search", search);
+        }
+
+        const url = `/api/projects/${projectId}/playgrounds?${urlParams.toString()}`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          const text = await res.json();
+          throw new Error(text.error || "Failed to fetch playgrounds");
+        }
+
+        const data = await res.json();
+        return { items: data.items, count: data.totalCount };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load playgrounds. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [projectId, toast, filter, search]
+  );
+
+  const {
+    data: playgrounds,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+    updateData,
+  } = useInfiniteScroll<PlaygroundInfo>({
+    fetchFn: fetchPlaygrounds,
+    enabled: true,
+    deps: [projectId, filter, search],
+  });
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -68,7 +140,7 @@ const PlaygroundsContent = () => {
       });
 
       if (res.ok) {
-        mutate();
+        updateData((currentData) => currentData.filter((playground) => !playgroundIds.includes(playground.id)));
         setRowSelection({});
         toast({
           title: "Playgrounds deleted",
@@ -100,11 +172,11 @@ const PlaygroundsContent = () => {
           }}
           getRowId={(row) => row.id}
           columns={columns}
-          data={data ?? []}
-          hasMore={false}
-          isFetching={false}
-          isLoading={!data}
-          fetchNextPage={() => {}}
+          data={playgrounds ?? []}
+          hasMore={hasMore}
+          isFetching={isFetching}
+          isLoading={isLoading}
+          fetchNextPage={fetchNextPage}
           state={{
             rowSelection,
           }}
@@ -140,7 +212,12 @@ const PlaygroundsContent = () => {
             </div>
           )}
         >
-          <ColumnsMenu />
+          <div className="flex flex-1 w-full space-x-2">
+            <DataTableFilter columns={playgroundsTableFilters} />
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <DataTableSearch searchColumns={["name"]} placeholder="Search by playground name..." />
+            <DataTableFilterList />
+          </div>
         </InfiniteDataTable>
       </div>
     </>

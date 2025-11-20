@@ -8,6 +8,7 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
+import { FilterDef } from "@/lib/db/modifiers";
 
 export type EventDefinitionRow = Omit<EventDefinition, "prompt" | "structuredOutput">;
 
@@ -28,6 +29,7 @@ export const GetEventDefinitionsSchema = z.object({
   search: z.string().nullable().optional(),
   pageNumber: z.coerce.number().default(0),
   pageSize: z.coerce.number().default(50),
+  filter: z.array(z.any()).optional().default([]),
 });
 
 export const GetEventDefinitionSchema = z.object({
@@ -62,7 +64,7 @@ export const DeleteEventDefinitionsSchema = z.object({
 });
 
 export async function getEventDefinitions(input: z.infer<typeof GetEventDefinitionsSchema>) {
-  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize } =
+  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } =
     GetEventDefinitionsSchema.parse(input);
 
   const limit = pageSize;
@@ -88,6 +90,26 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
 
   if (search) {
     whereConditions.push(ilike(eventDefinitions.name, `%${search}%`));
+  }
+
+  // Add filter conditions
+  if (filter && Array.isArray(filter)) {
+    filter.forEach((filterItem) => {
+      try {
+        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
+        const { column, operator, value } = f;
+
+        if (column === "name") {
+          if (operator === "eq") whereConditions.push(eq(eventDefinitions.name, value));
+          else if (operator === "contains") whereConditions.push(ilike(eventDefinitions.name, `%${value}%`));
+        } else if (column === "id") {
+          if (operator === "eq") whereConditions.push(eq(eventDefinitions.id, value));
+          else if (operator === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
+        }
+      } catch (error) {
+        // Skip invalid filter
+      }
+    });
   }
 
   const results = await db

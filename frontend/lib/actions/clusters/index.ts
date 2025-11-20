@@ -47,22 +47,27 @@ export async function getClusters(
 
   // Add filter conditions
   if (filter && Array.isArray(filter)) {
-    filter.forEach((f: FilterDef) => {
-      const { column, operator, value } = f;
+    filter.forEach((filterItem) => {
+      try {
+        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
+        const { column, operator, value } = f;
 
-      if (column === "name") {
-        if (operator === "eq") whereConditions.push(eq(clusters.name, value));
-        else if (operator === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
-      } else if (column === "level") {
-        const numValue = Number(value);
-        if (operator === "eq") whereConditions.push(eq(clusters.level, numValue));
-        else if (operator === "gt") whereConditions.push(gte(clusters.level, numValue));
-        else if (operator === "lt") whereConditions.push(lte(clusters.level, numValue));
-      } else if (column === "numTraces") {
-        const numValue = Number(value);
-        if (operator === "eq") whereConditions.push(eq(clusters.numTraces, numValue));
-        else if (operator === "gt") whereConditions.push(gte(clusters.numTraces, numValue));
-        else if (operator === "lt") whereConditions.push(lte(clusters.numTraces, numValue));
+        if (column === "name") {
+          if (operator === "eq") whereConditions.push(eq(clusters.name, value));
+          else if (operator === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
+        } else if (column === "level") {
+          const numValue = Number(value);
+          if (operator === "eq") whereConditions.push(eq(clusters.level, numValue));
+          else if (operator === "gt") whereConditions.push(gte(clusters.level, numValue));
+          else if (operator === "lt") whereConditions.push(lte(clusters.level, numValue));
+        } else if (column === "numTraces") {
+          const numValue = Number(value);
+          if (operator === "eq") whereConditions.push(eq(clusters.numTraces, numValue));
+          else if (operator === "gt") whereConditions.push(gte(clusters.numTraces, numValue));
+          else if (operator === "lt") whereConditions.push(lte(clusters.numTraces, numValue));
+        }
+      } catch (error) {
+        // Skip invalid filter
       }
     });
   }

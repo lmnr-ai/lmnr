@@ -53,15 +53,20 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
 
   // Add filter conditions
   if (filter && Array.isArray(filter)) {
-    filter.forEach((f: FilterDef) => {
-      const { column, operator, value } = f;
+    filter.forEach((filterItem) => {
+      try {
+        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
+        const { column, operator, value } = f;
 
-      if (column === "name") {
-        if (operator === "eq") filters.push(eq(datasets.name, value));
-        else if (operator === "contains") filters.push(ilike(datasets.name, `%${value}%`));
-      } else if (column === "id") {
-        if (operator === "eq") filters.push(eq(datasets.id, value));
-        else if (operator === "contains") filters.push(ilike(datasets.id, `%${value}%`));
+        if (column === "name") {
+          if (operator === "eq") filters.push(eq(datasets.name, value));
+          else if (operator === "contains") filters.push(ilike(datasets.name, `%${value}%`));
+        } else if (column === "id") {
+          if (operator === "eq") filters.push(eq(datasets.id, value));
+          else if (operator === "contains") filters.push(ilike(datasets.id, `%${value}%`));
+        }
+      } catch (error) {
+        // Skip invalid filter
       }
     });
   }

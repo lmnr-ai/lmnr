@@ -1,20 +1,57 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
 import { playgrounds } from "@/lib/db/migrations/schema";
+import { FilterDef } from "@/lib/db/modifiers";
+import { paginatedGet } from "@/lib/db/utils";
 
-export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
 
-  const result = await db.query.playgrounds.findMany({
-    where: eq(playgrounds.projectId, projectId),
+  const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
+  const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+  const search = req.nextUrl.searchParams.get("search");
+  const filterParams = req.nextUrl.searchParams.getAll("filter");
+
+  const filters = [eq(playgrounds.projectId, projectId)];
+
+  // Add search condition
+  if (search) {
+    filters.push(ilike(playgrounds.name, `%${search}%`));
+  }
+
+  // Add filter conditions
+  if (filterParams && filterParams.length > 0) {
+    filterParams.forEach((filterStr) => {
+      try {
+        const filter: FilterDef = JSON.parse(filterStr);
+        const { column, operator, value } = filter;
+
+        if (column === "name") {
+          if (operator === "eq") filters.push(eq(playgrounds.name, value));
+          else if (operator === "contains") filters.push(ilike(playgrounds.name, `%${value}%`));
+        } else if (column === "id") {
+          if (operator === "eq") filters.push(eq(playgrounds.id, value));
+          else if (operator === "contains") filters.push(ilike(playgrounds.id, `%${value}%`));
+        }
+      } catch (error) {
+        // Skip invalid filter
+      }
+    });
+  }
+
+  const result = await paginatedGet({
+    table: playgrounds,
+    pageNumber,
+    pageSize,
+    filters,
     orderBy: [desc(playgrounds.createdAt)],
     columns: {
-      id: true,
-      name: true,
-      createdAt: true,
+      id: playgrounds.id,
+      name: playgrounds.name,
+      createdAt: playgrounds.createdAt,
     },
   });
 

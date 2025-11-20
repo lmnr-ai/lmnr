@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
-import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getClusters, GetClustersSchema } from "@/lib/actions/clusters";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { parseUrlParams } from "@/lib/actions/common/utils";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ): Promise<NextResponse> {
-  // Check if patterns feature is enabled
-  if (!isFeatureEnabled(Feature.PATTERNS)) {
-    return NextResponse.json({ items: [] });
-  }
-
   try {
     const { projectId } = await params;
 
-    const parseResult = parseUrlParams(
-      req.nextUrl.searchParams,
-      GetClustersSchema.omit({ projectId: true }),
-      ["filter"]
-    );
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetClustersSchema.omit({ projectId: true }), [
+      "filter",
+    ]);
 
     if (!parseResult.success) {
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -50,4 +42,3 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
