@@ -9,7 +9,7 @@ use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use serde_json::Value;
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
 use tracing::instrument;
 use uuid::Uuid;
 

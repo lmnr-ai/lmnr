@@ -80,12 +80,15 @@ export async function register() {
 
       // Run Quickwit index initialization
       const initializeQuickwit = async () => {
+        if (!process.env.QUICKWIT_SEARCH_URL) {
+          console.warn("Skipping Quickwit initialization: QUICKWIT_SEARCH_URL is not set.");
+          return;
+        }
         try {
           const { initializeQuickwitIndexes } = await import("@/lib/quickwit/migrations.ts");
           await initializeQuickwitIndexes();
         } catch (error) {
           console.error("Failed to initialize Quickwit indexes:", error);
-          // Don't throw - Quickwit might not be available in all environments
           console.log("Continuing without Quickwit indexes...");
         }
       };
