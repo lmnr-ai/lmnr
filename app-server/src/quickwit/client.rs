@@ -52,7 +52,7 @@ impl QuickwitIngestConfig {
     pub fn from_env() -> Self {
         Self {
             endpoint: env::var("QUICKWIT_INGEST_URL")
-                .unwrap_or_else(|_| DEFAULT_INGEST_ENDPOINT.to_string()),
+                .unwrap_or(DEFAULT_INGEST_ENDPOINT.to_string()),
         }
     }
 }

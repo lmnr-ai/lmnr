@@ -390,8 +390,7 @@ async fn process_batch(
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &sse_connections).await;
 
-    let quickwit_spans: Vec<QuickwitIndexedSpan> =
-        spans.iter().map(QuickwitIndexedSpan::from).collect();
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
 
     if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
         log::error!(
@@ -555,14 +554,12 @@ pub async fn process_queue_spans_indexer(
             inner_process_spans_indexer_queue(queue.clone(), quickwit_client.clone()).await
         {
             log::error!(
-                "Quickwit spans indexer worker exited with error: {:?}. Retrying after backoff...",
+                "Quickwit spans indexer worker exited with error: {:?}. Restarting....",
                 e
             );
         } else {
             log::warn!("Quickwit spans indexer worker exited gracefully. Restarting...");
         }
-
-        sleep(Duration::from_secs(5)).await;
     }
 }
 
