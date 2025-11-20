@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
+import { notFound } from "next/navigation";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/workspace/sidebar";
@@ -9,13 +8,11 @@ import WorkspaceComponent from "@/components/workspace/workspace";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getWorkspace } from "@/lib/actions/workspace";
-import { authOptions } from "@/lib/auth";
+import { requireWorkspaceAccess } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
-import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
-import { requireWorkspaceAccess } from "@/lib/authorization";
 
 export const metadata: Metadata = {
   title: "Workspace",
