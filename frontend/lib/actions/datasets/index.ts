@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { buildSelectQuery } from "@/lib/actions/common/query-builder";
@@ -7,6 +7,7 @@ import { deleteDatapointsByDatasetIds } from "@/lib/clickhouse/datapoints";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
+import { FilterDef } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { PaginatedResponse } from "@/lib/types";
 
@@ -15,10 +16,12 @@ const CreateDatasetSchema = z.object({
   projectId: z.string(),
 });
 
-const getDatasetsSchema = z.object({
+export const getDatasetsSchema = z.object({
   projectId: z.string(),
-  pageNumber: z.number().optional(),
-  pageSize: z.number().optional(),
+  pageNumber: z.coerce.number().default(0),
+  pageSize: z.coerce.number().default(50),
+  search: z.string().nullable().optional(),
+  filter: z.array(z.any()).optional().default([]),
 });
 
 const deleteDatasetsSchema = z.object({
@@ -39,10 +42,29 @@ export async function createDataset(input: z.infer<typeof CreateDatasetSchema>) 
 }
 
 export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
-  const { projectId, pageNumber, pageSize } = getDatasetsSchema.parse(input);
-
+  const { projectId, pageNumber, pageSize, search, filter } = getDatasetsSchema.parse(input);
 
   const filters = [eq(datasets.projectId, projectId)];
+
+  // Add search condition
+  if (search) {
+    filters.push(ilike(datasets.name, `%${search}%`));
+  }
+
+  // Add filter conditions
+  if (filter && Array.isArray(filter)) {
+    filter.forEach((f: FilterDef) => {
+      const { column, operator, value } = f;
+
+      if (column === "name") {
+        if (operator === "eq") filters.push(eq(datasets.name, value));
+        else if (operator === "contains") filters.push(ilike(datasets.name, `%${value}%`));
+      } else if (column === "id") {
+        if (operator === "eq") filters.push(eq(datasets.id, value));
+        else if (operator === "contains") filters.push(ilike(datasets.id, `%${value}%`));
+      }
+    });
+  }
 
   const datasetsData: PaginatedResponse<DatasetInfo> = await paginatedGet({
     table: datasets,
