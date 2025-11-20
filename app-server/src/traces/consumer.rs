@@ -287,7 +287,7 @@ pub struct QuickwitIngestConfig {
 impl QuickwitIngestConfig {
     pub fn from_env() -> Self {
         Self {
-            endpoint: env::var("QUICKWIT_INGEST_GRPC")
+            endpoint: env::var("QUICKWIT_INGEST_URL")
                 .unwrap_or_else(|_| "http://localhost:7281".to_string()),
         }
     }
