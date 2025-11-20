@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-pub async fn process_queue_spans_indexer(
+pub async fn process_indexer_queue_spans(
     queue: Arc<MessageQueue>,
     quickwit_client: QuickwitClient,
 ) {

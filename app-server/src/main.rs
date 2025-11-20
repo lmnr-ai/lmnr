@@ -44,7 +44,7 @@ use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
     client::{QuickwitClient, QuickwitIngestConfig},
-    consumer::process_queue_spans_indexer,
+    consumer::process_indexer_queue_spans,
 };
 use realtime::{SseConnectionMap, cleanup_closed_connections};
 use sodiumoxide;
@@ -730,7 +730,7 @@ fn main() -> anyhow::Result<()> {
                         let quickwit_client_clone = quickwit_client_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle;
-                            process_queue_spans_indexer(mq_clone, quickwit_client_clone).await;
+                            process_indexer_queue_spans(mq_clone, quickwit_client_clone).await;
                         });
                     }
 
