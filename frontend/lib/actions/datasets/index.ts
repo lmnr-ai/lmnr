@@ -32,7 +32,11 @@ const deleteDatasetsSchema = z.object({
 export async function createDataset(input: z.infer<typeof CreateDatasetSchema>) {
   const { name, projectId } = CreateDatasetSchema.parse(input);
 
-  const dataset = await db.insert(datasets).values({ name, projectId }).returning().then((res) => res[0]);
+  const dataset = await db
+    .insert(datasets)
+    .values({ name, projectId })
+    .returning()
+    .then((res) => res[0]);
 
   if (!dataset) {
     throw new Error("Failed to create dataset");
@@ -57,13 +61,14 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       try {
         const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
         const { column, operator, value } = f;
+        const operatorStr = operator as string;
 
         if (column === "name") {
           if (operator === "eq") filters.push(eq(datasets.name, value));
-          else if (operator === "contains") filters.push(ilike(datasets.name, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(datasets.name, `%${value}%`));
         } else if (column === "id") {
           if (operator === "eq") filters.push(eq(datasets.id, value));
-          else if (operator === "contains") filters.push(ilike(datasets.id, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(datasets.id, `%${value}%`));
         }
       } catch (error) {
         // Skip invalid filter
@@ -90,7 +95,7 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       {
         condition: "dataset_id IN {datasetIds: Array(UUID)}",
         params: { datasetIds },
-      }
+      },
     ],
     groupBy: ["dataset_id"],
   });

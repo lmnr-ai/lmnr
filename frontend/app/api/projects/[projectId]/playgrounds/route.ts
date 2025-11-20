@@ -17,28 +17,25 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   const filters = [eq(playgrounds.projectId, projectId)];
 
-  // Add search condition
   if (search) {
     filters.push(ilike(playgrounds.name, `%${search}%`));
   }
 
-  // Add filter conditions
   if (filterParams && filterParams.length > 0) {
     filterParams.forEach((filterStr) => {
       try {
         const filter: FilterDef = JSON.parse(filterStr);
         const { column, operator, value } = filter;
+        const operatorStr = operator as string;
 
         if (column === "name") {
           if (operator === "eq") filters.push(eq(playgrounds.name, value));
-          else if (operator === "contains") filters.push(ilike(playgrounds.name, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(playgrounds.name, `%${value}%`));
         } else if (column === "id") {
           if (operator === "eq") filters.push(eq(playgrounds.id, value));
-          else if (operator === "contains") filters.push(ilike(playgrounds.id, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(playgrounds.id, `%${value}%`));
         }
-      } catch (error) {
-        // Skip invalid filter
-      }
+      } catch (error) {}
     });
   }
 

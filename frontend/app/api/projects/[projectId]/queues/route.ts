@@ -40,28 +40,25 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   const filters = [eq(labelingQueues.projectId, projectId)];
 
-  // Add search condition
   if (search) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
   }
 
-  // Add filter conditions
   if (filterParams && filterParams.length > 0) {
     filterParams.forEach((filterStr) => {
       try {
         const filter: FilterDef = JSON.parse(filterStr);
         const { column, operator, value } = filter;
+        const operatorStr = operator as string;
 
         if (column === "name") {
           if (operator === "eq") filters.push(eq(labelingQueues.name, value));
-          else if (operator === "contains") filters.push(ilike(labelingQueues.name, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.name, `%${value}%`));
         } else if (column === "id") {
           if (operator === "eq") filters.push(eq(labelingQueues.id, value));
-          else if (operator === "contains") filters.push(ilike(labelingQueues.id, `%${value}%`));
+          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.id, `%${value}%`));
         }
-      } catch (error) {
-        // Skip invalid filter
-      }
+      } catch (error) {}
     });
   }
 
@@ -84,10 +81,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   return new Response(JSON.stringify(queuesData), { status: 200 });
 }
 
-export async function DELETE(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
 

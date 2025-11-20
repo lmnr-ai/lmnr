@@ -98,13 +98,14 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
       try {
         const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
         const { column, operator, value } = f;
+        const operatorStr = operator as string;
 
         if (column === "name") {
           if (operator === "eq") whereConditions.push(eq(eventDefinitions.name, value));
-          else if (operator === "contains") whereConditions.push(ilike(eventDefinitions.name, `%${value}%`));
+          else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.name, `%${value}%`));
         } else if (column === "id") {
           if (operator === "eq") whereConditions.push(eq(eventDefinitions.id, value));
-          else if (operator === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
+          else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
         }
       } catch (error) {
         // Skip invalid filter
@@ -253,14 +254,14 @@ const syncTriggerSpans = async (
   const deletions =
     toRemove.length > 0
       ? tx
-        .delete(summaryTriggerSpans)
-        .where(
-          and(
-            eq(summaryTriggerSpans.projectId, projectId),
-            eq(summaryTriggerSpans.eventName, eventName),
-            inArray(summaryTriggerSpans.spanName, toRemove)
+          .delete(summaryTriggerSpans)
+          .where(
+            and(
+              eq(summaryTriggerSpans.projectId, projectId),
+              eq(summaryTriggerSpans.eventName, eventName),
+              inArray(summaryTriggerSpans.spanName, toRemove)
+            )
           )
-        )
       : Promise.resolve();
 
   const insertions =

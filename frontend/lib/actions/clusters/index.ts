@@ -26,9 +26,7 @@ export const GetClustersSchema = z.object({
   filter: z.array(z.any()).optional().default([]),
 });
 
-export async function getClusters(
-  input: z.infer<typeof GetClustersSchema> | string
-): Promise<Cluster[]> {
+export async function getClusters(input: z.infer<typeof GetClustersSchema> | string): Promise<Cluster[]> {
   // Support legacy signature for backward compatibility
   const { projectId, pageNumber, pageSize, search, filter } =
     typeof input === "string"
@@ -51,10 +49,11 @@ export async function getClusters(
       try {
         const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
         const { column, operator, value } = f;
+        const operatorStr = operator as string;
 
         if (column === "name") {
           if (operator === "eq") whereConditions.push(eq(clusters.name, value));
-          else if (operator === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
+          else if (operatorStr === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
         } else if (column === "level") {
           const numValue = Number(value);
           if (operator === "eq") whereConditions.push(eq(clusters.level, numValue));
