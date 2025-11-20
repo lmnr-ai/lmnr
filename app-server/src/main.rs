@@ -36,14 +36,14 @@ use traces::{
     CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
     clustering::process_clustering,
-    consumer::{process_queue_spans, process_spans_indexer_queue},
+    consumer::{process_queue_spans, process_queue_spans_indexer},
     grpc_service::ProcessTracesService,
     summary::process_trace_summaries,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
-use quickwit::client::QuickwitIngestConfig;
+use quickwit::client::{QuickwitClient, QuickwitIngestConfig};
 use realtime::{SseConnectionMap, cleanup_closed_connections};
 use sodiumoxide;
 use std::{
@@ -472,8 +472,6 @@ fn main() -> anyhow::Result<()> {
 
     runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
-    let quickwit_ingest_config = Arc::new(QuickwitIngestConfig::from_env());
-
     // ==== Slack client ====
     let slack_client = Arc::new(reqwest::Client::new());
 
@@ -560,6 +558,9 @@ fn main() -> anyhow::Result<()> {
         log::info!("ClickHouse read-only client disabled");
         None
     };
+
+    // == Quickwit ==
+    let quickwit_client = QuickwitClient::new(QuickwitIngestConfig::from_env())?;
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
@@ -679,7 +680,7 @@ fn main() -> anyhow::Result<()> {
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
         let storage_for_consumer = storage.clone();
-        let quickwit_ingest_config_for_consumer = quickwit_ingest_config.clone();
+        let quickwit_client_for_consumer = quickwit_client.clone();
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
@@ -723,10 +724,10 @@ fn main() -> anyhow::Result<()> {
                         let worker_handle =
                             worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
                         let mq_clone = mq_for_consumer.clone();
-                        let quickwit_config_clone = quickwit_ingest_config_for_consumer.clone();
+                        let quickwit_client_clone = quickwit_client_for_consumer.clone();
                         tokio::spawn(async move {
                             let _handle = worker_handle;
-                            process_spans_indexer_queue(mq_clone, quickwit_config_clone).await;
+                            process_queue_spans_indexer(mq_clone, quickwit_client_clone).await;
                         });
                     }
 

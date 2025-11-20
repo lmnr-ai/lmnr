@@ -4,7 +4,7 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::Serialize;
 
-use crate::quickwit::proto::ingest_service::DocBatch;
+use super::proto::ingest_service::DocBatch;
 
 #[derive(Debug)]
 enum DocCommand<T>

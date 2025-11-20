@@ -10,7 +10,6 @@ use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use serde_json::Value;
 use tokio::time::{Duration, sleep};
-use tonic::transport::Channel;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -41,12 +40,7 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait, utils::mq_max_payload,
     },
-    quickwit::client::{
-        QuickwitIndexedSpan, QuickwitIngestConfig, build_doc_batch, connect_quickwit_client,
-    },
-    quickwit::proto::ingest_service::{
-        CommitType, IngestRequest, ingest_service_client::IngestServiceClient,
-    },
+    quickwit::client::{QuickwitClient, QuickwitIndexedSpan},
     realtime::SseConnectionMap,
     storage::Storage,
     traces::{
@@ -552,13 +546,13 @@ async fn publish_spans_for_indexing(
     Ok(())
 }
 
-pub async fn process_spans_indexer_queue(
+pub async fn process_queue_spans_indexer(
     queue: Arc<MessageQueue>,
-    quickwit_config: Arc<QuickwitIngestConfig>,
+    quickwit_client: QuickwitClient,
 ) {
     loop {
         if let Err(e) =
-            inner_process_spans_indexer_queue(queue.clone(), quickwit_config.clone()).await
+            inner_process_spans_indexer_queue(queue.clone(), quickwit_client.clone()).await
         {
             log::error!(
                 "Quickwit spans indexer worker exited with error: {:?}. Retrying after backoff...",
@@ -574,7 +568,7 @@ pub async fn process_spans_indexer_queue(
 
 async fn inner_process_spans_indexer_queue(
     queue: Arc<MessageQueue>,
-    quickwit_config: Arc<QuickwitIngestConfig>,
+    quickwit_client: QuickwitClient,
 ) -> anyhow::Result<()> {
     let get_receiver = || async {
         queue
@@ -615,11 +609,9 @@ async fn inner_process_spans_indexer_queue(
         }
     };
 
-    let mut quickwit_client = connect_quickwit_client(&quickwit_config.endpoint).await?;
-
     log::info!(
         "Quickwit spans indexer worker started (endpoint={})",
-        quickwit_config.endpoint,
+        quickwit_client.endpoint(),
     );
 
     while let Some(delivery) = receiver.receive().await {
@@ -665,7 +657,7 @@ async fn inner_process_spans_indexer_queue(
             continue;
         }
 
-        match ingest_spans_into_quickwit(&mut quickwit_client, "spans", &indexed_spans).await {
+        match quickwit_client.ingest("spans", &indexed_spans).await {
             Ok(_) => {
                 if let Err(e) = acker.ack().await {
                     log::error!(
@@ -688,33 +680,13 @@ async fn inner_process_spans_indexer_queue(
                     );
                 });
 
-                quickwit_client = connect_quickwit_client(&quickwit_config.endpoint).await?;
+                quickwit_client.reconnect().await?;
             }
         }
     }
 
     log::warn!("Quickwit spans indexer queue closed connection");
     Ok(())
-}
-
-async fn ingest_spans_into_quickwit(
-    client: &mut IngestServiceClient<Channel>,
-    index_id: &str,
-    spans: &[QuickwitIndexedSpan],
-) -> anyhow::Result<()> {
-    let doc_batch =
-        build_doc_batch(index_id, spans).context("Failed to build Quickwit document batch")?;
-
-    let request = IngestRequest {
-        doc_batches: vec![doc_batch],
-        commit: CommitType::Auto as i32,
-    };
-
-    client
-        .ingest(request)
-        .await
-        .map(|_| ())
-        .map_err(|status| anyhow::anyhow!("Quickwit ingest request failed: {status}"))
 }
 
 /// Check spans against trigger conditions and push matching traces to summary queue
