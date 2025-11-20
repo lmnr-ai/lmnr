@@ -1,134 +1,201 @@
-import { isNil } from "lodash";
-import { Search, X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Command as CommandPrimitive } from "cmdk";
+import { debounce, isEmpty, isNil } from "lodash";
+import { Search } from "lucide-react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
+import React, { KeyboardEvent, memo, useCallback, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
-const SearchTracesInput = ({ className, filterBoxClassName }: { className?: string; filterBoxClassName?: string }) => {
-  const [open, setOpen] = useState(false);
+const SearchTracesInput = ({ className }: { className?: string }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const params = useParams();
   const posthog = usePostHog();
 
-  const searchIn = searchParams.getAll("searchIn");
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState<string>(searchIn?.length === 1 ? searchIn?.[0] : "all");
+  const lastSubmittedValueRef = useRef<string>(searchParams.get("search") ?? "");
+  const [isOpen, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
+  const [fetchPrefix, setFetchPrefix] = useState(searchParams.get("search") ?? "");
 
-  const handleWindow = useCallback(
-    (open: boolean) => () => {
-      setOpen(open);
+  const debouncedSetFetchPrefix = useMemo(() => debounce(setFetchPrefix, 400), []);
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInputValue(value);
+      debouncedSetFetchPrefix(value);
     },
-    []
+    [debouncedSetFetchPrefix]
   );
 
-  const submit = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (isNil(inputRef?.current?.value)) {
-      params.delete("search");
-    } else {
-      params.set("search", inputRef?.current?.value);
-    }
+  const fetchUrl = useMemo(
+    () => `/api/projects/${params.projectId}/traces/autocomplete?prefix=${encodeURIComponent(fetchPrefix)}`,
+    [fetchPrefix, params.projectId]
+  );
 
-    if (params.get("searchIn")) {
-      params.delete("searchIn");
+  const { data: { suggestions } = { suggestions: [] }, isLoading } = useSWR<{ suggestions: AutocompleteSuggestion[] }>(
+    fetchUrl,
+    async (url: string) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch suggestions");
+      }
+      return response.json();
+    },
+    {
+      fallbackData: { suggestions: [] },
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     }
+  );
 
-    if (value === "all") {
+  const filteredSuggestions = useMemo(() => {
+    if (!inputValue) return suggestions;
+    const lowerInput = inputValue.toLowerCase();
+    return suggestions.filter((suggestion) => suggestion.value.toLowerCase().includes(lowerInput));
+  }, [suggestions, inputValue]);
+
+  const submit = useCallback(
+    (value: string) => {
+      lastSubmittedValueRef.current = value;
+
+      const params = new URLSearchParams(searchParams.toString());
+      if (isNil(value) || value === "") {
+        params.delete("search");
+      } else {
+        params.set("search", value);
+      }
+
+      if (params.get("searchIn")) {
+        params.delete("searchIn");
+      }
+
       params.append("searchIn", "input");
       params.append("searchIn", "output");
-    } else {
-      params.append("searchIn", value);
-    }
 
-    router.push(`${pathName}?${params.toString()}`);
-    inputRef.current?.blur();
-    if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture("traces_list_searched", {
-        searchParams: searchParams.toString(),
-      });
-    }
-  }, [pathName, posthog, router, searchParams, value]);
+      router.push(`${pathName}?${params.toString()}`);
+      if (isFeatureEnabled(Feature.POSTHOG)) {
+        posthog.capture("traces_list_searched", {
+          searchParams: searchParams.toString(),
+        });
+      }
+    },
+    [pathName, posthog, router, searchParams]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (!isOpen) {
+        setOpen(true);
+      }
+
+      if (event.key === "Enter") {
+        // If dropdown is open with suggestions, let Command handle the selection
+        if (isOpen && filteredSuggestions.length > 0) {
+          return;
+        }
+        // Otherwise, submit the current input value
+        if (inputValue !== "") {
+          submit(inputValue);
+          setOpen(false);
+        }
+      }
+
+      if (event.key === "Escape") {
+        inputRef.current?.blur();
+      }
+    },
+    [isOpen, filteredSuggestions.length, inputValue, submit]
+  );
 
   const handleBlur = useCallback(() => {
-    submit();
-    handleWindow(false)();
-  }, [handleWindow, submit]);
+    setOpen(false);
+    if (inputValue !== lastSubmittedValueRef.current) {
+      submit(inputValue);
+    }
+  }, [inputValue, submit]);
 
-  const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = useCallback(
-    (e) => {
-      if (e?.key === "Enter") {
-        submit();
-      }
+  const handleSelectOption = useCallback(
+    (suggestion: AutocompleteSuggestion) => {
+      setInputValue(suggestion.value);
+      setFetchPrefix(suggestion.value);
+      submit(suggestion.value);
+      setOpen(false);
+      setTimeout(() => {
+        inputRef?.current?.focus();
+      }, 0);
     },
     [submit]
   );
 
-  const handleClearInput = useCallback(() => {
-    if (inputRef.current) {
-      if (inputRef.current?.value !== "") {
-        setInputValue("");
-        inputRef.current.value = "";
-        submit();
-      }
-    }
-  }, [submit]);
-
   return (
-    <div className="flex flex-col flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
-        <Search size={16} className="text-secondary-foreground" />
-        <Input
-          defaultValue={searchParams.get("search") ?? ""}
-          className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
-          type="text"
-          placeholder="Search in traces..."
-          onKeyDown={handleKeyPress}
+    <CommandPrimitive onKeyDown={handleKeyDown} className="flex flex-col flex-1 border-b-0 mr-1">
+      <div className="flex items-center gap-2 px-2 rounded-md [&>div]:border-b-0 focus-within:ring-border/50 focus-within:ring-[3px] box-border max-h-7 not-focus-within:bg-accent transition">
+        <Search className="text-secondary-foreground size-3.5" />
+        <CommandPrimitive.Input
           ref={inputRef}
+          className={cn(
+            "flex h-7 w-full rounded-md bg-transparent py-1 text-xs outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+            className
+          )}
+          value={inputValue}
+          onValueChange={handleInputChange}
           onBlur={handleBlur}
-          onFocus={handleWindow(true)}
-          onChange={(e) => setInputValue(e.target.value)}
+          onFocus={() => setOpen(true)}
+          placeholder="Search in traces..."
         />
-        {inputValue && (
-          <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
-            <X size={16} className="text-secondary-foreground cursor-pointer" />
-          </Button>
-        )}
       </div>
-      {open && (
+      <div className="relative mt-1">
         <div
           className={cn(
-            "absolute z-50 top-10 bg-secondary flex flex-col gap-2 w-full rounded p-2 border",
-            filterBoxClassName
+            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-20 w-full rounded-md bg-secondary outline-none",
+            isOpen ? "block" : "hidden"
           )}
-          onMouseDown={(e) => e.preventDefault()}
         >
-          <span className="text-secondary-foreground text-xs">Search in</span>
-          <RadioGroup value={value} onValueChange={setValue} defaultValue="all">
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="all" id="all" />
-              <Label htmlFor="all">All</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="input" id="input" />
-              <Label htmlFor="input">Input</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="output" id="output" />
-              <Label htmlFor="output">Output</Label>
-            </div>
-          </RadioGroup>
+          <CommandList className="rounded-md max-h-40 border">
+            <CommandGroup>
+              {!isEmpty(filteredSuggestions) &&
+                !isLoading &&
+                filteredSuggestions.map((suggestion, index) => (
+                  <CommandItem
+                    className="text-secondary-foreground text-xs"
+                    key={index}
+                    value={suggestion.value}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onSelect={() => handleSelectOption(suggestion)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-center text-[10px] underline font-medium text-primary">
+                        {suggestion.field}
+                      </span>
+                      <span>{suggestion.value}</span>
+                    </div>
+                  </CommandItem>
+                ))}
+              {isLoading && (
+                <CommandItem>
+                  <Skeleton className="h-7 w-full" />
+                </CommandItem>
+              )}
+            </CommandGroup>
+            {isEmpty(filteredSuggestions) && !isLoading && (
+              <CommandEmpty className="p-2 text-xs text-secondary-foreground">No results found.</CommandEmpty>
+            )}
+          </CommandList>
         </div>
-      )}
-    </div>
+      </div>
+    </CommandPrimitive>
   );
 };
 

@@ -542,6 +542,35 @@ fn main() -> anyhow::Result<()> {
 
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
+
+        // == cache backfill ==
+        let cache_for_backfill = cache.clone();
+        let clickhouse_for_backfill = clickhouse.clone();
+        let clickhouse_ro_for_backfill = clickhouse_readonly_client.clone();
+        let query_engine_for_backfill = query_engine.clone();
+        runtime_handle.spawn(async move {
+            if !cache::autocomplete::is_autocomplete_cache_populated(&cache_for_backfill).await {
+                log::info!("Autocomplete cache is empty, starting backfill");
+                
+                if let (Some(clickhouse_ro), query_engine) = (clickhouse_ro_for_backfill, query_engine_for_backfill) {
+                    if let Err(e) = cache::autocomplete::backfill_autocomplete_cache(
+                        cache_for_backfill,
+                        clickhouse_for_backfill,
+                        clickhouse_ro,
+                        query_engine,
+                    )
+                    .await
+                    {
+                        log::error!("Failed to backfill autocomplete cache: {:?}", e);
+                    }
+                } else {
+                    log::warn!("Skipping autocomplete backfill: clickhouse_ro or query_engine not available");
+                }
+            } else {
+                log::info!("Autocomplete cache already populated, skipping backfill");
+            }
+        });
+
         // == Evaluator client ==
         let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
             let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")

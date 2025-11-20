@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use in_memory::InMemoryCache;
 use redis::RedisCache;
 
+pub mod autocomplete;
 pub mod in_memory;
 pub mod keys;
 pub mod redis;
@@ -49,4 +50,12 @@ pub trait CacheTrait {
 
     /// Release a lock
     async fn release_lock(&self, key: &str) -> Result<(), CacheError>;
+
+    /// Add a member to a sorted set with a given score
+    /// Returns Ok(()) regardless of whether the member was added or already existed
+    async fn zadd(&self, key: &str, score: f64, member: &str) -> Result<(), CacheError>;
+
+    /// Bulk add multiple members to a sorted set
+    /// Uses pipelining for Redis, sequential for InMemory
+    async fn pipeline_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError>;
 }

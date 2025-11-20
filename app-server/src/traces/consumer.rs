@@ -2,20 +2,12 @@
 //! and clickhouse
 use std::sync::Arc;
 
-use backoff::ExponentialBackoffBuilder;
-use futures_util::future::join_all;
-use itertools::Itertools;
-use opentelemetry::trace::FutureExt;
-use rayon::prelude::*;
-use serde_json::Value;
-use tracing::instrument;
-use uuid::Uuid;
-
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
     trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
+use crate::cache::autocomplete::populate_autocomplete_cache;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -48,6 +40,14 @@ use crate::{
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
 };
+use backoff::ExponentialBackoffBuilder;
+use futures_util::future::join_all;
+use itertools::Itertools;
+use opentelemetry::trace::FutureExt;
+use rayon::prelude::*;
+use serde_json::Value;
+use tracing::instrument;
+use uuid::Uuid;
 
 pub async fn process_queue_spans(
     db: Arc<DB>,
@@ -382,6 +382,8 @@ async fn process_batch(
     // Check for spans matching trigger conditions and push to trace summary queue
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
+
+    populate_autocomplete_cache(project_id, &spans, cache.clone()).await;
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &sse_connections).await;

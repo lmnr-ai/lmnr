@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::result::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,6 +11,7 @@ const DEFAULT_CACHE_SIZE: u64 = 100;
 pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
+    sorted_sets: Arc<RwLock<HashMap<String, HashSet<String>>>>,
 }
 
 impl InMemoryCache {
@@ -18,6 +19,7 @@ impl InMemoryCache {
         Self {
             cache: moka::future::Cache::new(capacity.unwrap_or(DEFAULT_CACHE_SIZE)),
             locks: Arc::new(RwLock::new(HashMap::new())),
+            sorted_sets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -69,9 +71,6 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
-        // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
-        // Production should use Redis where increment is atomic.
-        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
         let current_value: i64 = match self.cache.get(key).await {
             Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
             None => 0,
@@ -89,21 +88,34 @@ impl CacheTrait for InMemoryCache {
         let now = tokio::time::Instant::now();
         let expiry = now + Duration::from_secs(ttl_seconds);
 
-        // Clean up expired locks
         locks.retain(|_, &mut expires_at| expires_at > now);
 
-        // Try to acquire lock
         if locks.contains_key(key) {
-            Ok(false) // Lock already held
+            Ok(false)
         } else {
             locks.insert(key.to_string(), expiry);
-            Ok(true) // Lock acquired
+            Ok(true)
         }
     }
 
     async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
         let mut locks = self.locks.write().await;
         locks.remove(key);
+        Ok(())
+    }
+
+    async fn zadd(&self, key: &str, _score: f64, member: &str) -> Result<(), CacheError> {
+        let mut sets = self.sorted_sets.write().await;
+        sets.entry(key.to_string())
+            .or_insert_with(HashSet::new)
+            .insert(member.to_string());
+        Ok(())
+    }
+
+    async fn pipeline_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError> {
+        for member in members {
+            self.zadd(key, 0.0, member).await?;
+        }
         Ok(())
     }
 }

@@ -313,7 +313,7 @@ function TracesTableContent() {
         fetchNextPage={fetchNextPage}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
           <ColumnsMenu lockedColumns={["status"]} />
           <DateRangeFilter />

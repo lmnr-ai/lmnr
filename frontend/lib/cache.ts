@@ -109,6 +109,34 @@ class CacheManager {
       this.memoryCache.delete(key);
     }
   }
+
+  async zrange(key: string, start: number, stop: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrange(key, start, stop);
+      } catch (e) {
+        console.error("Error getting zrange from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
+
+  async zrangebylex(key: string, min: string, max: string, limit: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrangebylex(key, min, max, "LIMIT", 0, limit);
+      } catch (e) {
+        console.error("Error getting zrangebylex from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
 }
 
 export const cache = new CacheManager();
