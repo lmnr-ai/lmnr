@@ -6,6 +6,8 @@ import { posthog } from "posthog-js";
 
 import { Button } from "@/components/ui/button.tsx";
 import { useUserContext } from "@/contexts/user-context";
+import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
@@ -42,8 +44,10 @@ export default function AvatarMenu({ showDetails }: AvatarMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem
-          onClick={() => {
+          onClick={async () => {
             posthog.reset();
+            await deleteLastWorkspaceIdCookie();
+            await deleteLastProjectIdCookie();
             signOut({ callbackUrl: "/" });
           }}
         >

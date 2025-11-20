@@ -22,13 +22,24 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { cn } from "@/lib/utils.ts";
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project, workspace } = useProjectContext();
   const { username, imageUrl, email } = useUserContext();
+
+  const handleLogout = async () => {
+    try {
+      await deleteLastWorkspaceIdCookie();
+      await deleteLastProjectIdCookie();
+      await signOut({ callbackUrl: "/" });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <SidebarHeader className="px-0 mt-2">
@@ -117,7 +128,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />
                 <span className="text-xs">Log out</span>
               </DropdownMenuItem>

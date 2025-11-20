@@ -24,7 +24,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
+import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
+import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
@@ -36,6 +37,16 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
   const { isMobile } = useSidebar();
   const { username, imageUrl, email } = useUserContext();
   const { data } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+
+  const handleLogout = async () => {
+    try {
+      await deleteLastWorkspaceIdCookie();
+      await deleteLastProjectIdCookie();
+      await signOut({ callbackUrl: "/" });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <SidebarHeader className="px-0 mt-2">
@@ -98,7 +109,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
                 </DropdownMenuItem>
               </WorkspaceCreateDialog>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />
                 <span className="text-xs">Log out</span>
               </DropdownMenuItem>
