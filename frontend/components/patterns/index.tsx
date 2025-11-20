@@ -66,8 +66,8 @@ function PatternsTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: PatternRow[] };
-        return { items: data.items, count: 0 };
+        const data = (await res.json()) as { items: PatternRow[]; totalCount: number };
+        return { items: data.items, count: data.totalCount };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load patterns. Please try again.",

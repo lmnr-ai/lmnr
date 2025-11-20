@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { difference } from "lodash";
 import { z } from "zod/v4";
 
@@ -104,25 +104,47 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
         } else if (column === "id") {
           if (operator === "eq") whereConditions.push(eq(eventDefinitions.id, value));
           else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
+        } else if (column === "isSemantic") {
+          const boolValue = value === "true" || value === true;
+          whereConditions.push(eq(eventDefinitions.isSemantic, boolValue));
+        } else if (column === "triggerSpans") {
+          if (operatorStr === "contains") {
+            whereConditions.push(
+              sql`EXISTS (
+                SELECT 1 FROM ${summaryTriggerSpans}
+                WHERE ${summaryTriggerSpans.eventName} = ${eventDefinitions.name}
+                  AND ${summaryTriggerSpans.projectId} = ${projectId}
+                  AND ${summaryTriggerSpans.spanName} ILIKE ${`%${value}%`}
+              )`
+            );
+          }
         }
       } catch (error) {
       }
     });
   }
 
-  const results = await db
-    .select({
-      id: eventDefinitions.id,
-      createdAt: eventDefinitions.createdAt,
-      name: eventDefinitions.name,
-      projectId: eventDefinitions.projectId,
-      isSemantic: eventDefinitions.isSemantic,
-    })
-    .from(eventDefinitions)
-    .where(and(...whereConditions))
-    .orderBy(desc(eventDefinitions.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const [results, totalCountResult] = await Promise.all([
+    db
+      .select({
+        id: eventDefinitions.id,
+        createdAt: eventDefinitions.createdAt,
+        name: eventDefinitions.name,
+        projectId: eventDefinitions.projectId,
+        isSemantic: eventDefinitions.isSemantic,
+      })
+      .from(eventDefinitions)
+      .where(and(...whereConditions))
+      .orderBy(desc(eventDefinitions.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(eventDefinitions)
+      .where(and(...whereConditions)),
+  ]);
+
+  const totalCount = totalCountResult[0]?.count ?? 0;
 
   const triggerSpans = await db
     .select({
@@ -152,10 +174,15 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     {} as Record<string, string[]>
   );
 
-  return results.map((eventDef) => ({
+  const items = results.map((eventDef) => ({
     ...eventDef,
     triggerSpans: triggerSpansByEvent[eventDef.name] || [],
   }));
+
+  return {
+    items,
+    totalCount,
+  };
 }
 
 export async function getEventDefinition(input: z.infer<typeof GetEventDefinitionSchema>) {

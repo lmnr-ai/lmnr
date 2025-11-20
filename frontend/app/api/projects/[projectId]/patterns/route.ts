@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
     }
 
-    const clusters = await getClusters({
+    const { items: clusters, totalCount } = await getClusters({
       ...parseResult.data,
       projectId,
     });
@@ -36,7 +36,7 @@ export async function GET(
       updatedAt: cluster.updatedAt,
     }));
 
-    return NextResponse.json({ items: allPatterns });
+    return NextResponse.json({ items: allPatterns, totalCount });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
