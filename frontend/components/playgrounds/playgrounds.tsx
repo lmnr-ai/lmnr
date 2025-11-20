@@ -15,7 +15,6 @@ import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-fi
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
-import { PaginatedResponse } from "@/lib/types";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import {

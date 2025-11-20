@@ -17,7 +17,6 @@ import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
-import { PaginatedResponse } from "@/lib/types";
 
 import {
   Dialog,

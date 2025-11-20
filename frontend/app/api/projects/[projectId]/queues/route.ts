@@ -1,6 +1,5 @@
 import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
-import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
