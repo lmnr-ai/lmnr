@@ -1,15 +1,13 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
 //! and clickhouse, and quickwit
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use backoff::ExponentialBackoffBuilder;
-use chrono::{DateTime, Utc};
 use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::time::{Duration, sleep};
 use tonic::transport::Channel;
@@ -43,8 +41,11 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait, utils::mq_max_payload,
     },
-    quickwit_proto::ingest_service::{
-        CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
+    quickwit::client::{
+        QuickwitIndexedSpan, QuickwitIngestConfig, build_doc_batch, connect_quickwit_client,
+    },
+    quickwit::proto::ingest_service::{
+        CommitType, IngestRequest, ingest_service_client::IngestServiceClient,
     },
     realtime::SseConnectionMap,
     storage::Storage,
@@ -53,11 +54,9 @@ use crate::{
         events::record_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
-        quickwit_doc_batch::build_json_doc_batch,
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    utils::json_value_to_string,
 };
 
 pub async fn process_queue_spans(
@@ -252,45 +251,6 @@ struct StrippedSpan {
     tags: Vec<String>,
     path: Vec<String>,
     output: Option<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QuickwitIndexedSpan {
-    pub span_id: Uuid,
-    pub project_id: Uuid,
-    pub trace_id: Uuid,
-    pub start_time: DateTime<Utc>,
-    pub input: Option<String>,
-    pub output: Option<String>,
-    pub attributes: Value,
-}
-
-impl From<&Span> for QuickwitIndexedSpan {
-    fn from(span: &Span) -> Self {
-        Self {
-            span_id: span.span_id,
-            project_id: span.project_id,
-            trace_id: span.trace_id,
-            start_time: span.start_time,
-            input: span.input.as_ref().map(json_value_to_string),
-            output: span.output.as_ref().map(json_value_to_string),
-            attributes: span.attributes.to_value(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct QuickwitIngestConfig {
-    pub endpoint: String,
-}
-
-impl QuickwitIngestConfig {
-    pub fn from_env() -> Self {
-        Self {
-            endpoint: env::var("QUICKWIT_INGEST_URL")
-                .unwrap_or_else(|_| "http://localhost:7281".to_string()),
-        }
-    }
 }
 
 #[instrument(skip(
@@ -755,28 +715,6 @@ async fn ingest_spans_into_quickwit(
         .await
         .map(|_| ())
         .map_err(|status| anyhow::anyhow!("Quickwit ingest request failed: {status}"))
-}
-
-fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow::Result<DocBatch> {
-    build_json_doc_batch(index_id, spans).map_err(|err| {
-        anyhow::anyhow!(
-            "Failed to encode spans for Quickwit ingestion ({} docs): {}",
-            spans.len(),
-            err
-        )
-    })
-}
-
-async fn connect_quickwit_client(endpoint: &str) -> anyhow::Result<IngestServiceClient<Channel>> {
-    IngestServiceClient::connect(endpoint.to_string())
-        .await
-        .map_err(|err| {
-            anyhow::anyhow!(
-                "Failed to connect to Quickwit ingest endpoint {}: {}",
-                endpoint,
-                err
-            )
-        })
 }
 
 /// Check spans against trigger conditions and push matching traces to summary queue

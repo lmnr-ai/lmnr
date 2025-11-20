@@ -1,10 +1,10 @@
 // Portions of this module are adapted from Quickwit's Apache-2.0 licensed
-// implementation in quickwit-ingest/src/doc_batch.rs.
+// implementation in https://github.com/quickwit-oss/quickwit/blob/main/quickwit/quickwit-ingest/src/doc_batch.rs
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::Serialize;
 
-use crate::quickwit_proto::ingest_service::DocBatch;
+use crate::quickwit::proto::ingest_service::DocBatch;
 
 #[derive(Debug)]
 enum DocCommand<T>
