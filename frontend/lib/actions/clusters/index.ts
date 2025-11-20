@@ -27,7 +27,6 @@ export const GetClustersSchema = z.object({
 });
 
 export async function getClusters(input: z.infer<typeof GetClustersSchema> | string): Promise<Cluster[]> {
-  // Support legacy signature for backward compatibility
   const { projectId, pageNumber, pageSize, search, filter } =
     typeof input === "string"
       ? GetClustersSchema.parse({ projectId: input, pageNumber: 0, pageSize: 50 })
@@ -38,12 +37,10 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema> | str
 
   const whereConditions = [eq(clusters.projectId, projectId)];
 
-  // Add search condition
   if (search) {
     whereConditions.push(ilike(clusters.name, `%${search}%`));
   }
 
-  // Add filter conditions
   if (filter && Array.isArray(filter)) {
     filter.forEach((filterItem) => {
       try {
@@ -66,7 +63,6 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema> | str
           else if (operator === "lt") whereConditions.push(lte(clusters.numTraces, numValue));
         }
       } catch (error) {
-        // Skip invalid filter
       }
     });
   }

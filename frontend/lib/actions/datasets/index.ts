@@ -50,12 +50,10 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
 
   const filters = [eq(datasets.projectId, projectId)];
 
-  // Add search condition
   if (search) {
     filters.push(ilike(datasets.name, `%${search}%`));
   }
 
-  // Add filter conditions
   if (filter && Array.isArray(filter)) {
     filter.forEach((filterItem) => {
       try {
@@ -71,7 +69,6 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
           else if (operatorStr === "contains") filters.push(ilike(datasets.id, `%${value}%`));
         }
       } catch (error) {
-        // Skip invalid filter
       }
     });
   }

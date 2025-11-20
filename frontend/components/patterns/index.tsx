@@ -93,19 +93,16 @@ function PatternsTableContent() {
     deps: [projectId, filter, search],
   });
 
-  // Build hierarchical structure from flat data
   const patterns = useMemo(() => {
     if (!rawPatterns) return [];
 
     const patternMap = new Map<string, PatternRow>();
     const rootPatterns: PatternRow[] = [];
 
-    // First pass: create map of all patterns
     rawPatterns.forEach((pattern) => {
       patternMap.set(pattern.clusterId, { ...pattern, subRows: [] });
     });
 
-    // Second pass: build hierarchy
     rawPatterns.forEach((pattern) => {
       const node = patternMap.get(pattern.clusterId);
       if (!node) return;
@@ -125,7 +122,6 @@ function PatternsTableContent() {
   }, [rawPatterns]);
 
   const handleRowClick = useCallback((row: Row<PatternRow>) => {
-    // Just toggle expand/collapse - data is already loaded
     if (row.original.numChildrenClusters > 0) {
       row.toggleExpanded();
     }

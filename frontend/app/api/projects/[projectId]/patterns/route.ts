@@ -24,7 +24,6 @@ export async function GET(
       projectId,
     });
 
-    // Transform all clusters to table format
     const allPatterns = clusters.map((cluster) => ({
       id: cluster.id,
       clusterId: cluster.id,

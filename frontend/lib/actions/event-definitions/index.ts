@@ -72,7 +72,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
 
   const whereConditions = [eq(eventDefinitions.projectId, projectId)];
 
-  // Time range is optional for event definitions
   if (pastHours || (startDate && endDate)) {
     const timeRange = getTimeRange(pastHours, startDate, endDate);
 
@@ -92,7 +91,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     whereConditions.push(ilike(eventDefinitions.name, `%${search}%`));
   }
 
-  // Add filter conditions
   if (filter && Array.isArray(filter)) {
     filter.forEach((filterItem) => {
       try {
@@ -108,7 +106,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
           else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
         }
       } catch (error) {
-        // Skip invalid filter
       }
     });
   }
