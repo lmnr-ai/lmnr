@@ -96,6 +96,13 @@ function PatternsTableContent() {
   const patterns = useMemo(() => {
     if (!rawPatterns) return [];
 
+    if (filter.length > 0 || (search && search.length > 0)) {
+      return rawPatterns.map((pattern) => ({
+        ...pattern,
+        subRows: [],
+      }));
+    }
+
     const patternMap = new Map<string, PatternRow>();
     const rootPatterns: PatternRow[] = [];
 
@@ -119,7 +126,7 @@ function PatternsTableContent() {
     });
 
     return rootPatterns;
-  }, [rawPatterns]);
+  }, [rawPatterns, filter, search]);
 
   const handleRowClick = useCallback((row: Row<PatternRow>) => {
     if (row.original.numChildrenClusters > 0) {
