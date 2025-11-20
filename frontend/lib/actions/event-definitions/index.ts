@@ -254,14 +254,14 @@ const syncTriggerSpans = async (
   const deletions =
     toRemove.length > 0
       ? tx
-          .delete(summaryTriggerSpans)
-          .where(
-            and(
-              eq(summaryTriggerSpans.projectId, projectId),
-              eq(summaryTriggerSpans.eventName, eventName),
-              inArray(summaryTriggerSpans.spanName, toRemove)
-            )
+        .delete(summaryTriggerSpans)
+        .where(
+          and(
+            eq(summaryTriggerSpans.projectId, projectId),
+            eq(summaryTriggerSpans.eventName, eventName),
+            inArray(summaryTriggerSpans.spanName, toRemove)
           )
+        )
       : Promise.resolve();
 
   const insertions =
