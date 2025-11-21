@@ -134,7 +134,7 @@ const EvaluationDatapointsTableContent = ({
       <InfiniteDataTable
         columns={columns}
         data={data ?? []}
-        hasMore={hasMore}
+        hasMore={!searchParams && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
