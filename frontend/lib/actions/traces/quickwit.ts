@@ -60,11 +60,15 @@ export const searchSpans = async ({
   searchQuery,
   timeRange,
   searchType,
+  pageSize,
+  offset,
 }: {
   projectId: string;
   searchQuery: string;
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
+  pageSize: number;
+  offset: number;
 }): Promise<string[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
@@ -89,7 +93,15 @@ export const searchSpans = async ({
     url.searchParams.set("end_timestamp", end.toString());
   }
 
-  url.searchParams.set("max_hits", "1000");
+  if (pageSize) {
+    url.searchParams.set("max_hits", pageSize.toString());
+  }
+
+  if (offset) {
+    url.searchParams.set("offset", offset.toString());
+  }
+
+  url.searchParams.set("sort_by", "start_time"); // default sort for timestamp in quickwit is desc!
   url.searchParams.set("format", "json");
 
   try {

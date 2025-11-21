@@ -51,6 +51,8 @@ export async function getTraceStats(
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
+      pageSize: 0,
+      offset: 0,
     })
     : [];
 

@@ -87,6 +87,8 @@ export const getEvaluationDatapoints = async (
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
+      pageSize,
+      offset,
     })
     : [];
 
@@ -255,6 +257,8 @@ export const getEvaluationStatistics = async (
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
+      pageSize: 0,
+      offset: 0,
     })
     : [];
 
