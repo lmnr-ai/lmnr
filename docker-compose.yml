@@ -84,6 +84,7 @@ services:
       CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server
@@ -110,6 +111,8 @@ services:
       ENVIRONMENT: LITE # this disables runtime dependency on rabbitmq
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUERY_ENGINE_URL: http://query-engine:8903
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      QUICKWIT_INGEST_URL: http://quickwit:7281
 
   quickwit:
     image: quickwit/quickwit:v0.8.2
