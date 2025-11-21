@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { getTracesByIds } from "@/lib/actions/traces";
-import { searchSpans } from "@/lib/actions/traces/quickwit";
+import { searchSpans } from "@/lib/actions/traces/search";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";

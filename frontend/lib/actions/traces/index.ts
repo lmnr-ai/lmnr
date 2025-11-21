@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/quickwit";
+import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";

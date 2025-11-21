@@ -74,7 +74,7 @@ async fn inner_process_spans_indexer_queue(
 
     log::info!(
         "Quickwit spans indexer worker started (endpoint={})",
-        quickwit_client.endpoint(),
+        quickwit_client.ingest_endpoint(),
     );
 
     while let Some(delivery) = receiver.receive().await {

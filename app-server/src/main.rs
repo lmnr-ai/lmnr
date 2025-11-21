@@ -43,7 +43,7 @@ use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
-    client::{QuickwitClient, QuickwitIngestConfig},
+    client::{QuickwitClient, QuickwitConfig},
     consumer::process_indexer_queue_spans,
 };
 use realtime::{SseConnectionMap, cleanup_closed_connections};
@@ -563,7 +563,7 @@ fn main() -> anyhow::Result<()> {
 
     // == Quickwit ==
     let quickwit_client =
-        runtime_handle.block_on(QuickwitClient::connect(QuickwitIngestConfig::from_env()))?;
+        runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env()))?;
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
@@ -876,6 +876,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(connection_for_health.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
+                            .app_data(web::Data::new(quickwit_client.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -923,7 +924,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
-                                    .service(routes::sql::json_to_sql),
+                                    .service(routes::sql::json_to_sql)
+                                    .service(routes::spans::search_spans),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

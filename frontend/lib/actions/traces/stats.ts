@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
-import { searchSpans } from "@/lib/actions/traces/quickwit";
+import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesStatsWhereConditions } from "@/lib/actions/traces/utils";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";

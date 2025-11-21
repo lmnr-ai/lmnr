@@ -13,17 +13,21 @@ use super::{
 };
 
 const DEFAULT_INGEST_ENDPOINT: &str = "http://localhost:7281";
+const DEFAULT_SEARCH_ENDPOINT: &str = "http://localhost:7280";
 
 #[derive(Clone)]
-pub struct QuickwitIngestConfig {
-    pub endpoint: String,
+pub struct QuickwitConfig {
+    pub ingest_endpoint: String,
+    pub search_endpoint: String,
 }
 
-impl QuickwitIngestConfig {
+impl QuickwitConfig {
     pub fn from_env() -> Self {
         Self {
-            endpoint: env::var("QUICKWIT_INGEST_URL")
+            ingest_endpoint: env::var("QUICKWIT_INGEST_URL")
                 .unwrap_or(DEFAULT_INGEST_ENDPOINT.to_string()),
+            search_endpoint: env::var("QUICKWIT_SEARCH_URL")
+                .unwrap_or(DEFAULT_SEARCH_ENDPOINT.to_string()),
         }
     }
 }
@@ -34,26 +38,31 @@ pub struct QuickwitClient {
 }
 
 struct QuickwitClientInner {
-    endpoint: String,
-    client: Mutex<IngestServiceClient<Channel>>,
+    ingest_endpoint: String,
+    search_endpoint: String,
+    ingest_client: Mutex<IngestServiceClient<Channel>>, // gRPC
+    search_client: reqwest::Client,                     // HTTP
 }
 
 impl QuickwitClient {
-    pub async fn connect(config: QuickwitIngestConfig) -> anyhow::Result<Self> {
-        let endpoint = config.endpoint;
-        let channel = connect_channel(&endpoint).await?;
-        let client = IngestServiceClient::new(channel);
+    pub async fn connect(config: QuickwitConfig) -> anyhow::Result<Self> {
+        let ingest_endpoint = config.ingest_endpoint;
+        let channel = connect_channel(&ingest_endpoint).await?;
+        let grpc_client = IngestServiceClient::new(channel);
+        let http_client = reqwest::Client::new();
 
         Ok(Self {
             inner: Arc::new(QuickwitClientInner {
-                endpoint,
-                client: Mutex::new(client),
+                ingest_endpoint,
+                search_endpoint: config.search_endpoint,
+                ingest_client: Mutex::new(grpc_client),
+                search_client: http_client,
             }),
         })
     }
 
-    pub fn endpoint(&self) -> &str {
-        &self.inner.endpoint
+    pub fn ingest_endpoint(&self) -> &str {
+        &self.inner.ingest_endpoint
     }
 
     pub async fn ingest(
@@ -67,7 +76,7 @@ impl QuickwitClient {
             commit: CommitType::Auto as i32,
         };
 
-        let mut client = self.inner.client.lock().await;
+        let mut client = self.inner.ingest_client.lock().await;
         client
             .ingest(request)
             .await
@@ -75,9 +84,32 @@ impl QuickwitClient {
             .map_err(|status| anyhow!("Quickwit ingest request failed: {status}"))
     }
 
+    pub async fn search_spans(
+        &self,
+        query_body: serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        let url = format!("{}/api/v1/spans/search", self.inner.search_endpoint);
+
+        let response = self
+            .inner
+            .search_client
+            .post(&url)
+            .json(&query_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(anyhow!("Quickwit search failed: {}", error_text));
+        }
+
+        let result = response.json::<serde_json::Value>().await?;
+        Ok(result)
+    }
+
     pub async fn reconnect(&self) -> anyhow::Result<()> {
-        let channel = connect_channel(self.endpoint()).await?;
-        let mut client = self.inner.client.lock().await;
+        let channel = connect_channel(self.ingest_endpoint()).await?;
+        let mut client = self.inner.ingest_client.lock().await;
         *client = IngestServiceClient::new(channel);
         Ok(())
     }
