@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createDataset, deleteDatasets, getDatasets } from "@/lib/actions/datasets";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import { createDataset, deleteDatasets, getDatasets, getDatasetsSchema } from "@/lib/actions/datasets";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -24,11 +25,21 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const params = await props.params;
   const projectId = params.projectId;
 
-  const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
-  const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    getDatasetsSchema.omit({ projectId: true }),
+    ["filter"]
+  );
+
+  if (!parseResult.success) {
+    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
 
   try {
-    const response = await getDatasets({ projectId, pageNumber, pageSize });
+    const response = await getDatasets({
+      ...parseResult.data,
+      projectId,
+    });
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {

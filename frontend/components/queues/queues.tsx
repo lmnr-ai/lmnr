@@ -2,20 +2,21 @@
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import useSWR from "swr";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LabelingQueue } from "@/lib/queue/types";
-import { PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
 
 import {
   Dialog,
@@ -55,16 +56,82 @@ const columns: ColumnDef<LabelingQueue>[] = [
 
 export const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "count", "createdAt"];
 
+const queuesTableFilters: ColumnFilter[] = [
+  {
+    name: "ID",
+    key: "id",
+    dataType: "string",
+  },
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+];
+
+const FETCH_SIZE = 50;
+
 const QueuesContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { data, mutate } = useSWR<PaginatedResponse<LabelingQueue & { count: number }>>(
-    `/api/projects/${projectId}/queues`,
-    swrFetcher
+  const filter = searchParams.getAll("filter");
+  const search = searchParams.get("search");
+
+  const fetchQueues = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        if (typeof search === "string" && search.length > 0) {
+          urlParams.set("search", search);
+        }
+
+        const url = `/api/projects/${projectId}/queues?${urlParams.toString()}`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          const text = await res.json();
+          throw new Error(text.error || "Failed to fetch queues");
+        }
+
+        const data = await res.json();
+        return { items: data.items, count: data.totalCount };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load queues. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [projectId, toast, filter, search]
   );
+
+  const {
+    data: queues,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+    updateData,
+  } = useInfiniteScroll<LabelingQueue & { count: number }>({
+    fetchFn: fetchQueues,
+    enabled: true,
+    deps: [projectId, filter, search],
+  });
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -77,7 +144,7 @@ const QueuesContent = () => {
       });
 
       if (res.ok) {
-        mutate();
+        updateData((currentData) => currentData.filter((queue) => !queueIds.includes(queue.id)));
         setRowSelection({});
         toast({
           title: "Queues deleted",
@@ -100,7 +167,7 @@ const QueuesContent = () => {
   return (
     <>
       <Header path="labeling queues" />
-      <div className="flex flex-col gap-4 px-4 pb-4">
+      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-scroll">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
           <Button icon="plus" className="w-fit">
             Queue
@@ -113,11 +180,11 @@ const QueuesContent = () => {
           }}
           getRowId={(row: LabelingQueue) => row.id}
           columns={columns}
-          data={data?.items ?? []}
-          hasMore={false}
-          isFetching={false}
-          isLoading={!data}
-          fetchNextPage={() => {}}
+          data={queues ?? []}
+          hasMore={hasMore}
+          isFetching={isFetching}
+          isLoading={isLoading}
+          fetchNextPage={fetchNextPage}
           state={{
             rowSelection,
           }}
@@ -153,7 +220,12 @@ const QueuesContent = () => {
             </div>
           )}
         >
-          <ColumnsMenu />
+          <div className="flex flex-1 w-full space-x-2">
+            <DataTableFilter columns={queuesTableFilters} />
+            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <DataTableSearch searchColumns={["name"]} placeholder="Search by queue name..." />
+            <DataTableFilterList />
+          </div>
         </InfiniteDataTable>
       </div>
     </>

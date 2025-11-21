@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prettifyError } from "zod/v4";
 
-import { getClusters } from "@/lib/actions/clusters";
+import { getClusters, GetClustersSchema } from "@/lib/actions/clusters";
+import { parseUrlParams } from "@/lib/actions/common/utils";
 
 export async function GET(
   req: NextRequest,
@@ -9,9 +11,19 @@ export async function GET(
   try {
     const { projectId } = await params;
 
-    const clusters = await getClusters(projectId);
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetClustersSchema.omit({ projectId: true }), [
+      "filter",
+    ]);
 
-    // Transform all clusters to table format
+    if (!parseResult.success) {
+      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    const { items: clusters, totalCount } = await getClusters({
+      ...parseResult.data,
+      projectId,
+    });
+
     const allPatterns = clusters.map((cluster) => ({
       id: cluster.id,
       clusterId: cluster.id,
@@ -24,9 +36,8 @@ export async function GET(
       updatedAt: cluster.updatedAt,
     }));
 
-    return NextResponse.json({ items: allPatterns });
+    return NextResponse.json({ items: allPatterns, totalCount });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

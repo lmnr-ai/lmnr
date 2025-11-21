@@ -1,8 +1,9 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 import { db } from "@/lib/db/drizzle";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
+import { FilterDef } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -34,8 +35,32 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   const pageNumber = parseInt(req.nextUrl.searchParams.get("pageNumber") ?? "0") || 0;
   const pageSize = parseInt(req.nextUrl.searchParams.get("pageSize") ?? "50") || 50;
+  const search = req.nextUrl.searchParams.get("search");
+  const filterParams = req.nextUrl.searchParams.getAll("filter");
 
   const filters = [eq(labelingQueues.projectId, projectId)];
+
+  if (search) {
+    filters.push(ilike(labelingQueues.name, `%${search}%`));
+  }
+
+  if (filterParams && filterParams.length > 0) {
+    filterParams.forEach((filterStr) => {
+      try {
+        const filter: FilterDef = JSON.parse(filterStr);
+        const { column, operator, value } = filter;
+        const operatorStr = operator as string;
+
+        if (column === "name") {
+          if (operator === "eq") filters.push(eq(labelingQueues.name, value));
+          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.name, `%${value}%`));
+        } else if (column === "id") {
+          if (operator === "eq") filters.push(eq(labelingQueues.id, value));
+          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.id, `%${value}%`));
+        }
+      } catch (error) {}
+    });
+  }
 
   const queuesData = await paginatedGet({
     table: labelingQueues,
@@ -56,10 +81,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   return new Response(JSON.stringify(queuesData), { status: 200 });
 }
 
-export async function DELETE(
-  req: Request,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
 

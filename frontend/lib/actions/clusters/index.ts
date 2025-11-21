@@ -1,9 +1,9 @@
-"use server";
-
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, lt, lte, sql } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { clusters, projects } from "@/lib/db/migrations/schema";
+import { FilterDef } from "@/lib/db/modifiers";
 
 export type Cluster = {
   id: string;
@@ -18,26 +18,91 @@ export type Cluster = {
   updatedAt: string;
 };
 
-export async function getClusters(projectId: string): Promise<Cluster[]> {
-  const result = await db
-    .select({
-      id: clusters.id,
-      projectId: clusters.projectId,
-      name: clusters.name,
-      parentId: clusters.parentId,
-      level: clusters.level,
-      numChildrenClusters: clusters.numChildrenClusters,
-      numTraces: clusters.numTraces,
-      centroid: clusters.centroid,
-      createdAt: clusters.createdAt,
-      updatedAt: clusters.updatedAt,
-    })
-    .from(clusters)
-    .innerJoin(projects, eq(clusters.projectId, projects.id))
-    .where(eq(clusters.projectId, projectId))
-    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt);
+export const GetClustersSchema = z.object({
+  projectId: z.string(),
+  pageNumber: z.coerce.number().default(0),
+  pageSize: z.coerce.number().default(50),
+  search: z.string().nullable().optional(),
+  filter: z.array(z.any()).optional().default([]),
+});
 
-  return result.map((row) => ({
+export async function getClusters(
+  input: z.infer<typeof GetClustersSchema> | string
+): Promise<{ items: Cluster[]; totalCount: number }> {
+  const { projectId, pageNumber, pageSize, search, filter } =
+    typeof input === "string"
+      ? GetClustersSchema.parse({ projectId: input, pageNumber: 0, pageSize: 50 })
+      : GetClustersSchema.parse(input);
+
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const whereConditions = [eq(clusters.projectId, projectId)];
+
+  if (search) {
+    whereConditions.push(ilike(clusters.name, `%${search}%`));
+  }
+
+  if (filter && Array.isArray(filter)) {
+    filter.forEach((filterItem) => {
+      try {
+        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
+        const { column, operator, value } = f;
+        const operatorStr = operator as string;
+
+        if (column === "name") {
+          if (operator === "eq") whereConditions.push(eq(clusters.name, value));
+          else if (operatorStr === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
+        } else if (column === "level") {
+          const numValue = Number(value);
+          if (operator === "eq") whereConditions.push(eq(clusters.level, numValue));
+          else if (operator === "gt") whereConditions.push(gt(clusters.level, numValue));
+          else if (operator === "gte") whereConditions.push(gte(clusters.level, numValue));
+          else if (operator === "lt") whereConditions.push(lt(clusters.level, numValue));
+          else if (operator === "lte") whereConditions.push(lte(clusters.level, numValue));
+        } else if (column === "numTraces") {
+          const numValue = Number(value);
+          if (operator === "eq") whereConditions.push(eq(clusters.numTraces, numValue));
+          else if (operator === "gt") whereConditions.push(gt(clusters.numTraces, numValue));
+          else if (operator === "gte") whereConditions.push(gte(clusters.numTraces, numValue));
+          else if (operator === "lt") whereConditions.push(lt(clusters.numTraces, numValue));
+          else if (operator === "lte") whereConditions.push(lte(clusters.numTraces, numValue));
+        }
+      } catch (error) {
+      }
+    });
+  }
+
+  const [result, totalCountResult] = await Promise.all([
+    db
+      .select({
+        id: clusters.id,
+        projectId: clusters.projectId,
+        name: clusters.name,
+        parentId: clusters.parentId,
+        level: clusters.level,
+        numChildrenClusters: clusters.numChildrenClusters,
+        numTraces: clusters.numTraces,
+        centroid: clusters.centroid,
+        createdAt: clusters.createdAt,
+        updatedAt: clusters.updatedAt,
+      })
+      .from(clusters)
+      .innerJoin(projects, eq(clusters.projectId, projects.id))
+      .where(and(...whereConditions))
+      .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt)
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(clusters)
+      .innerJoin(projects, eq(clusters.projectId, projects.id))
+      .where(and(...whereConditions)),
+  ]);
+
+  const totalCount = totalCountResult[0]?.count ?? 0;
+
+  const items = result.map((row) => ({
     id: row.id,
     projectId: row.projectId,
     name: row.name,
@@ -49,4 +114,9 @@ export async function getClusters(projectId: string): Promise<Cluster[]> {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
+
+  return {
+    items,
+    totalCount,
+  };
 }
