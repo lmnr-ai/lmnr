@@ -10,6 +10,7 @@ import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
+import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
@@ -23,7 +24,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const { children } = props;
 
   const projectId = params.projectId;
-  const { session, project: projectDetails } = await requireProjectAccess(projectId);
+  const session = await requireProjectAccess(projectId);
+  const projectDetails = await getProjectDetails(projectId);
 
   const user = session?.user;
   const workspace = await getWorkspaceInfo(projectDetails.workspaceId);

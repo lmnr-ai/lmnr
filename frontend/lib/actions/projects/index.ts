@@ -5,7 +5,6 @@ import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects } from "@/lib/db/migrations/schema";
-import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 import { Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
@@ -26,11 +25,6 @@ const populateDefaultDashboardCharts = async (projectId: string): Promise<void> 
 
 export async function createProject(input: z.infer<typeof CreateProjectSchema>) {
   const { name, workspaceId } = CreateProjectSchema.parse(input);
-
-  // Check if user is member of workspace
-  if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
-    throw new Error("Unauthorized: User is not a member of this workspace");
-  }
 
   try {
     const [project] = await db
