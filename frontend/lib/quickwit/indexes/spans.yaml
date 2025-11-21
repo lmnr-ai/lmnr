@@ -24,19 +24,23 @@ doc_mapping:
       tokenizer: default
       fast: false
       stored: false
+      record: position
     - name: output
       type: text
       tokenizer: default
       fast: false
       stored: false
+      record: position
     - name: attributes
-      type: json
+      type: text
+      tokenizer: default
       fast: false
       stored: false
+      record: position
   tag_fields: []
   timestamp_field: start_time
 search_settings:
-  default_search_fields: [input, output]
+  default_search_fields: [input, output, attributes]
 retention:
   period: 90 days
   schedule: daily

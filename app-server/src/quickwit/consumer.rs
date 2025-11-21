@@ -92,7 +92,7 @@ async fn inner_process_spans_indexer_queue(
         let acker = delivery.acker();
         let payload = delivery.data();
 
-        let indexed_spans: Vec<QuickwitIndexedSpan> = match serde_json::from_slice(&payload) {
+        let mut indexed_spans: Vec<QuickwitIndexedSpan> = match serde_json::from_slice(&payload) {
             Ok(spans) => spans,
             Err(e) => {
                 log::error!(
@@ -118,6 +118,12 @@ async fn inner_process_spans_indexer_queue(
                 );
             }
             continue;
+        }
+
+        for span in &mut indexed_spans {
+            let attributes = span.attributes.to_string();
+            let attributes = attributes.replace('{', " { ").replace('}', " } ");
+            span.attributes = serde_json::Value::String(attributes);
         }
 
         match quickwit_client.ingest("spans", &indexed_spans).await {
