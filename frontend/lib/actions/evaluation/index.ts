@@ -27,6 +27,7 @@ import {
   EvaluationScoreDistributionBucket,
   EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
+import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
@@ -74,8 +75,8 @@ export const getEvaluationDatapoints = async (
 
   const allFilters: FilterDef[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
   // Separate filters into trace and datapoint filters
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
@@ -92,15 +93,21 @@ export const getEvaluationDatapoints = async (
       offset,
     })
     : [];
-  let searchTraceIds = spanHits.map((span) => span.trace_id);
+  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  if (search && searchTraceIds.length === 0) {
-    return {
-      evaluation: evaluation as Evaluation,
-      results: [],
-      allStatistics: {},
-      allDistributions: {},
-    };
+  if (search) {
+    if (searchTraceIds.length === 0) {
+      return {
+        evaluation: evaluation as Evaluation,
+        results: [],
+        allStatistics: {},
+        allDistributions: {},
+      };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   // Step 2: Apply trace-specific filters if any exist
@@ -264,7 +271,7 @@ export const getEvaluationStatistics = async (
       offset: 0,
     })
     : [];
-  let searchTraceIds = spanHits.map((span) => span.trace_id);
+  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && searchTraceIds.length === 0) {
     return {

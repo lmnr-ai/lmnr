@@ -14,6 +14,7 @@ import { db } from "@/lib/db/drizzle";
 import { clusters } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
+import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
 const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
@@ -56,8 +57,8 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const filters: FilterDef[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -70,12 +71,16 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       offset,
     })
     : [];
-  console.log("=========> spanHits", spanHits);
-  let traceIds = spanHits.map((span) => span.trace_id);
-  console.log("=========> traceIds", traceIds);
+  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  if (search && traceIds?.length === 0) {
-    return { items: [] };
+  if (search) {
+    if (traceIds?.length === 0) {
+      return { items: [] };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)

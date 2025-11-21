@@ -137,6 +137,8 @@ const tracesSelectColumns = [
   "user_id as userId",
 ];
 
+export const DEFAULT_SEARCH_MAX_HITS = 500;
+
 export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
@@ -182,6 +184,12 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     },
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
+    orderBy: [
+      {
+        column: "start_time",
+        direction: "DESC",
+      },
+    ],
     customConditions,
     pagination: {
       limit,

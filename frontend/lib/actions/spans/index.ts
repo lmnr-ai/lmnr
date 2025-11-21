@@ -13,6 +13,7 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { FilterDef } from "@/lib/db/modifiers";
 import { Span } from "@/lib/traces/types";
 import { searchSpans } from "../traces/search";
+import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -90,8 +91,8 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const filters: FilterDef[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
   const traceSubquery = buildTraceSubquery({
     startTime,
@@ -112,8 +113,14 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     : [];
   let spanIds = spanHits.map((span) => span.span_id);
 
-  if (search && spanIds?.length === 0) {
-    return { items: [] };
+  if (search) {
+    if (spanIds?.length === 0) {
+      return { items: [] };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
@@ -269,7 +276,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     })
     : [];
   let spanIds = spanHits.map((span) => span.span_id);
-  console.log("=========> spanIds", spanIds);
 
   if (search && spanIds?.length === 0) {
     return [];

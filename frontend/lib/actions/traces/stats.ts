@@ -56,7 +56,7 @@ export async function getTraceStats(
       offset: 0,
     })
     : [];
-  let traceIds = spanHits.map((span) => span.trace_id);
+  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
     return { items: [] };
