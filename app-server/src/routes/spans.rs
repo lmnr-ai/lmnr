@@ -121,7 +121,7 @@ struct QuickwitResponse {
 pub async fn search_spans(
     project_id: web::Path<Uuid>,
     request: web::Json<SearchSpansRequest>,
-    quickwit_client: web::Data<QuickwitClient>,
+    quickwit_client: web::Data<Option<QuickwitClient>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
     let request = request.into_inner();
@@ -130,6 +130,15 @@ pub async fn search_spans(
     if trimmed_query.is_empty() {
         return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
     }
+
+    // If Quickwit is not available, return empty results (graceful degradation)
+    let quickwit_client = match quickwit_client.as_ref() {
+        Some(client) => client,
+        None => {
+            log::warn!("Quickwit search requested but Quickwit client is not available");
+            return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
+        }
+    };
 
     let query_parts = vec![
         format!("project_id:{}", project_id),

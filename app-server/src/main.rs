@@ -562,8 +562,21 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Quickwit ==
+    // Quickwit is optional - if unavailable, the server will start but search/indexing will be disabled
     let quickwit_client =
-        runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env()))?;
+        match runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env())) {
+            Ok(client) => {
+                log::info!("Quickwit client connected successfully");
+                Some(client)
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to connect to Quickwit (search/indexing will be disabled): {:?}",
+                    e
+                );
+                None
+            }
+        };
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
@@ -689,9 +702,15 @@ fn main() -> anyhow::Result<()> {
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
                     // On the consumer side, we only need to serve health and ready probes
+                    // Adjust expected counts based on Quickwit availability
+                    let expected_spans_indexer_workers = if quickwit_client_for_consumer.is_some() {
+                        num_spans_indexer_workers as usize
+                    } else {
+                        0
+                    };
                     let expected_counts = ExpectedWorkerCounts::new(
                         num_spans_workers as usize,
-                        num_spans_indexer_workers as usize,
+                        expected_spans_indexer_workers,
                         num_browser_events_workers as usize,
                         num_evaluators_workers as usize,
                         num_payload_workers as usize,
@@ -722,16 +741,21 @@ fn main() -> anyhow::Result<()> {
                         });
                     }
 
-                    for _ in 0..num_spans_indexer_workers {
-                        log::info!("Spawning spans indexer worker");
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
-                        let mq_clone = mq_for_consumer.clone();
-                        let quickwit_client_clone = quickwit_client_for_consumer.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle;
-                            process_indexer_queue_spans(mq_clone, quickwit_client_clone).await;
-                        });
+                    if let Some(quickwit_client_for_indexer) = quickwit_client_for_consumer.as_ref()
+                    {
+                        for _ in 0..num_spans_indexer_workers {
+                            log::info!("Spawning spans indexer worker");
+                            let worker_handle =
+                                worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
+                            let mq_clone = mq_for_consumer.clone();
+                            let quickwit_client_clone = quickwit_client_for_indexer.clone();
+                            tokio::spawn(async move {
+                                let _handle = worker_handle;
+                                process_indexer_queue_spans(mq_clone, quickwit_client_clone).await;
+                            });
+                        }
+                    } else {
+                        log::warn!("Quickwit not available - skipping spans indexer workers");
                     }
 
                     for _ in 0..num_browser_events_workers {
