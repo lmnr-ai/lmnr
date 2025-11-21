@@ -379,12 +379,12 @@ async fn process_batch(
         return;
     }
 
+    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
+    send_span_updates(&spans, &sse_connections).await;
+
     // Check for spans matching trigger conditions and push to trace summary queue
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
-
-    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
-    send_span_updates(&spans, &sse_connections).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans

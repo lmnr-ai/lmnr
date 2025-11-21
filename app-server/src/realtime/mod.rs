@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, Result as ActixResult, rt::time::interval, web::Bytes};
+use actix_web::{HttpResponse, Result as ActixResult, web::Bytes};
 use dashmap::DashMap;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,8 @@ impl SseStream {
         subscription_key: SubscriptionKey,
         connections: SseConnectionMap,
     ) -> Self {
-        let mut heartbeat_interval = interval(Duration::from_secs(10));
+        // Set heartbeat to 30 seconds - well within AWS ALB's 60s default idle timeout
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(30));
         heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         Self {
@@ -70,13 +71,8 @@ impl Stream for SseStream {
     type Item = Result<Bytes, actix_web::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check for heartbeat
-        if self.heartbeat_interval.poll_tick(cx).is_ready() {
-            let heartbeat = Bytes::from(": heartbeat\n\n");
-            return Poll::Ready(Some(Ok(heartbeat)));
-        }
-
-        // Check for messages
+        // ALWAYS check for messages first - they take priority over heartbeat
+        // This ensures span updates are never delayed by heartbeat timing
         match self.receiver.poll_recv(cx) {
             Poll::Ready(Some(message)) => {
                 let json_data = serde_json::to_string(&message.data).unwrap_or_default();
@@ -87,7 +83,17 @@ impl Stream for SseStream {
                 log::info!("SSE receiver closed for project: {}", self.project_id);
                 Poll::Ready(None)
             }
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => {
+                // No messages available, check if heartbeat is due
+                // This keeps ALB connection alive during idle periods
+                if self.heartbeat_interval.poll_tick(cx).is_ready() {
+                    let heartbeat = Bytes::from(": heartbeat\n\n");
+                    return Poll::Ready(Some(Ok(heartbeat)));
+                }
+
+                // No messages and heartbeat not ready - stay pending
+                Poll::Pending
+            }
         }
     }
 }
@@ -171,6 +177,7 @@ pub fn create_sse_response(
         .insert_header(("Content-Type", "text/event-stream"))
         .insert_header(("Cache-Control", "no-cache"))
         .insert_header(("Connection", "keep-alive"))
+        .insert_header(("X-Accel-Buffering", "no"))
         .insert_header(("Access-Control-Allow-Origin", "*"))
         .insert_header(("Access-Control-Allow-Headers", "Cache-Control"))
         .streaming(stream))
@@ -189,11 +196,21 @@ pub fn send_to_key(
         let initial_count = conns.len();
 
         // Remove closed connections while sending
-        conns.retain(|conn| conn.sender.send(message.clone()).is_ok());
+        conns.retain(|conn| match conn.sender.send(message.clone()) {
+            Ok(_) => true,
+            Err(e) => {
+                log::warn!(
+                    "Failed to send SSE message to connection {}: {:?}",
+                    conn.id,
+                    e
+                );
+                false
+            }
+        });
 
         let final_count = conns.len();
         if final_count < initial_count {
-            log::debug!(
+            log::info!(
                 "Cleaned up {} closed SSE connections for project {} key {}",
                 initial_count - final_count,
                 project_id,
@@ -211,6 +228,13 @@ pub fn send_to_key(
                 subscription_key
             );
         }
+    } else {
+        log::debug!(
+            "No SSE connections found for project {} key {} (event: {})",
+            project_id,
+            subscription_key,
+            message.event_type
+        );
     }
 }
 
