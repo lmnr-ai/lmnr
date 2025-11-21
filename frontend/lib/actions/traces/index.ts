@@ -1,3 +1,4 @@
+
 import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
@@ -58,9 +59,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const traceIds = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: "",
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
@@ -68,6 +70,9 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       offset,
     })
     : [];
+  console.log("=========> spanHits", spanHits);
+  let traceIds = spanHits.map((span) => span.trace_id);
+  console.log("=========> traceIds", traceIds);
 
   if (search && traceIds?.length === 0) {
     return { items: [] };
@@ -114,6 +119,16 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
+
+  // If we have traceIds from search, sort items to match the search order
+  if (search && traceIds.length > 0) {
+    const traceIdIndexMap = new Map(traceIds.map((id, index) => [id, index]));
+    items.sort((a, b) => {
+      const indexA = traceIdIndexMap.get(a.id) ?? Infinity;
+      const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
+      return indexA - indexB;
+    });
+  }
 
   return {
     items,

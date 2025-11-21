@@ -12,6 +12,7 @@ import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { FilterDef } from "@/lib/db/modifiers";
 import { Span } from "@/lib/traces/types";
+import { searchSpans } from "../traces/search";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -98,13 +99,18 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     pastHours,
   });
 
-  const spanIds = search
-    ? await searchSpanIds({
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
       projectId,
+      traceId: "",
       searchQuery: search,
+      timeRange: { pastHours: "all" },
       searchType: searchIn as SpanSearchType[],
+      pageSize: 0,
+      offset: 0,
     })
     : [];
+  let spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
     return { items: [] };
@@ -251,14 +257,19 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
   const filters: FilterDef[] = compact(inputFilters);
 
-  const spanIds = search
-    ? await searchSpanIds({
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
       projectId,
       traceId,
       searchQuery: search,
+      timeRange: { pastHours: "all" },
       searchType: searchIn as SpanSearchType[],
+      pageSize: 0,
+      offset: 0,
     })
     : [];
+  let spanIds = spanHits.map((span) => span.span_id);
+  console.log("=========> spanIds", spanIds);
 
   if (search && spanIds?.length === 0) {
     return [];

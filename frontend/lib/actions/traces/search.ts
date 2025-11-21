@@ -4,6 +4,7 @@ import { fetcherJSON } from "@/lib/utils";
 
 export const searchSpans = async ({
   projectId,
+  traceId,
   searchQuery,
   timeRange,
   searchType,
@@ -11,12 +12,13 @@ export const searchSpans = async ({
   offset,
 }: {
   projectId: string;
+  traceId: string;
   searchQuery: string;
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
   pageSize: number;
   offset: number;
-}): Promise<string[]> => {
+}): Promise<{ trace_id: string; span_id: string }[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
     return [];
@@ -38,16 +40,18 @@ export const searchSpans = async ({
   }
 
   const body = {
+    traceId: traceId,
     searchQuery: trimmedQuery,
     startTime,
     endTime,
     searchIn: searchType?.map((t) => t.toString()),
-    limit: pageSize,
-    offset,
+    // Pagination is currently disabled (defaults on app-server side): API paginates by traces, search engine by spans
+    limit: 0,
+    offset: 0,
   };
 
   try {
-    return await fetcherJSON<string[]>(`/projects/${projectId}/spans/search`, {
+    return await fetcherJSON<{ trace_id: string; span_id: string }[]>(`/projects/${projectId}/spans/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -18,6 +18,8 @@ use crate::{
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
+const DEFAULT_SEARCH_MAX_HITS: usize = 500;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSpanRequest {
@@ -97,6 +99,7 @@ pub async fn create_span(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchSpansRequest {
+    pub trace_id: String,
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
@@ -110,6 +113,7 @@ const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "att
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
     trace_id: String,
+    span_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -140,15 +144,23 @@ pub async fn search_spans(
         }
     };
 
-    let query_parts = vec![
+    let mut query_parts = vec![
         format!("project_id:{}", project_id),
         format!("({})", trimmed_query),
     ];
+
+    let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
+
+    if !request.trace_id.is_empty() {
+        query_parts.push(format!("trace_id:{}", request.trace_id));
+        sort_by = "start_time"; // sort by timestamp (desc) inside a single trace
+    }
+
     let query_string = query_parts.join(" AND ");
 
     let mut search_body = json!({
         "query": query_string,
-        "sort_by": "start_time", // default sort for timestamp in quickwit is desc!
+        "sort_by": sort_by,
     });
 
     // Handle search fields
@@ -187,6 +199,8 @@ pub async fn search_spans(
     // Handle pagination
     if request.limit != 0 {
         search_body["max_hits"] = json!(request.limit);
+    } else {
+        search_body["max_hits"] = json!(DEFAULT_SEARCH_MAX_HITS);
     }
 
     if request.offset != 0 {
@@ -206,11 +220,6 @@ pub async fn search_spans(
             Error::InternalAnyhowError(anyhow::anyhow!("Failed to parse Quickwit response: {}", e))
         })?;
 
-    let trace_ids: Vec<String> = quickwit_response
-        .hits
-        .into_iter()
-        .map(|hit| hit.trace_id)
-        .collect();
-
-    Ok(HttpResponse::Ok().json(trace_ids))
+    let hits = quickwit_response.hits;
+    Ok(HttpResponse::Ok().json(hits))
 }

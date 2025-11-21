@@ -45,9 +45,10 @@ export async function getTraceStats(
 
   const filters: FilterDef[] = compact(inputFilters);
 
-  const traceIds = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: "",
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
@@ -55,6 +56,7 @@ export async function getTraceStats(
       offset: 0,
     })
     : [];
+  let traceIds = spanHits.map((span) => span.trace_id);
 
   if (search && traceIds?.length === 0) {
     return { items: [] };

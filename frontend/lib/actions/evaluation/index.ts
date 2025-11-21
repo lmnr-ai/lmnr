@@ -81,9 +81,10 @@ export const getEvaluationDatapoints = async (
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let searchTraceIds: string[] = search
+  let spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: "",
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
@@ -91,6 +92,7 @@ export const getEvaluationDatapoints = async (
       offset,
     })
     : [];
+  let searchTraceIds = spanHits.map((span) => span.trace_id);
 
   if (search && searchTraceIds.length === 0) {
     return {
@@ -251,9 +253,10 @@ export const getEvaluationStatistics = async (
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let searchTraceIds: string[] = search
+  let spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: "",
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
@@ -261,6 +264,7 @@ export const getEvaluationStatistics = async (
       offset: 0,
     })
     : [];
+  let searchTraceIds = spanHits.map((span) => span.trace_id);
 
   if (search && searchTraceIds.length === 0) {
     return {

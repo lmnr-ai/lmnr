@@ -156,11 +156,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -183,12 +183,6 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
     customConditions,
-    orderBy: [
-      {
-        column: "start_time",
-        direction: "DESC",
-      },
-    ],
     pagination: {
       limit,
       offset,
