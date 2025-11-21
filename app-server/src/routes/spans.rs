@@ -105,7 +105,7 @@ pub struct SearchSpansRequest {
     pub offset: usize,
 }
 
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
+const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
