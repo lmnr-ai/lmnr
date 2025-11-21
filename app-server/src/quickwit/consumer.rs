@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use backoff::ExponentialBackoffBuilder;
-use serde_json;
+use serde_json::{self, Value};
 use tokio::time::Duration;
 
 use crate::{
@@ -12,6 +12,30 @@ use crate::{
         SPANS_INDEXER_ROUTING_KEY, client::QuickwitClient,
     },
 };
+
+/// Extract text content from a JSON value for searchability.
+/// Recursively extracts all string values and keys, avoiding double-encoding.
+fn extract_text_from_json_value(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Object(obj) => {
+            let mut parts = Vec::new();
+            for (key, val) in obj {
+                parts.push(key.clone());
+                parts.push(extract_text_from_json_value(val));
+            }
+            parts.join(" ")
+        }
+        Value::Array(arr) => arr
+            .iter()
+            .map(extract_text_from_json_value)
+            .collect::<Vec<_>>()
+            .join(" "),
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Null => String::new(),
+    }
+}
 
 pub async fn process_indexer_queue_spans(
     queue: Arc<MessageQueue>,
@@ -121,9 +145,11 @@ async fn inner_process_spans_indexer_queue(
         }
 
         for span in &mut indexed_spans {
-            let attributes = span.attributes.to_string();
-            let attributes = attributes.replace('{', " { ").replace('}', " } ");
-            span.attributes = serde_json::Value::String(attributes);
+            // Extract text content from JSON value for searchability
+            // This avoids double-encoding: we want plain text, not a JSON-encoded string
+            let attributes_text = extract_text_from_json_value(&span.attributes);
+            let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
+            span.attributes = serde_json::Value::String(attributes_text);
         }
 
         match quickwit_client.ingest("spans", &indexed_spans).await {

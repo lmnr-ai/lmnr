@@ -629,7 +629,7 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(4);
 
         let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
-            .unwrap_or(String::from("1"))
+            .unwrap_or(String::from("4"))
             .parse::<u8>()
             .unwrap_or(4);
 

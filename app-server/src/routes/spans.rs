@@ -101,8 +101,8 @@ pub struct SearchSpansRequest {
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
     pub search_in: Option<Vec<String>>,
-    pub limit: Option<usize>,
-    pub offset: Option<usize>,
+    pub limit: usize,
+    pub offset: usize,
 }
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
@@ -176,11 +176,12 @@ pub async fn search_spans(
     }
 
     // Handle pagination
-    if let Some(limit) = request.limit {
-        search_body["max_hits"] = json!(limit);
+    if request.limit != 0 {
+        search_body["max_hits"] = json!(request.limit);
     }
-    if let Some(offset) = request.offset {
-        search_body["start_offset"] = json!(offset);
+
+    if request.offset != 0 {
+        search_body["start_offset"] = json!(request.offset);
     }
 
     let response_value = quickwit_client
