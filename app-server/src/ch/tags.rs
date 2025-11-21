@@ -22,26 +22,22 @@ impl Into<u8> for TagSource {
 }
 
 #[derive(Row, Serialize, Deserialize)]
-pub struct CHTag {
+struct CHTag {
     #[serde(with = "clickhouse::serde::uuid")]
-    pub project_id: Uuid,
+    project_id: Uuid,
+    created_at: i64, // unix timestamp in nanoseconds
     #[serde(with = "clickhouse::serde::uuid")]
-    pub class_id: Uuid,
-    pub created_at: i64, // unix timestamp in nanoseconds
+    id: Uuid,
+    name: String,
+    source: u8,
     #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    pub name: String,
-    pub source: u8,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub span_id: Uuid,
+    span_id: Uuid,
 }
 
 impl CHTag {
     pub fn new(project_id: Uuid, id: Uuid, name: String, source: TagSource, span_id: Uuid) -> Self {
         Self {
             project_id,
-            // TODO: Remove this once we drop the class_id column
-            class_id: Uuid::nil(),
             created_at: chrono_to_nanoseconds(Utc::now()),
             id,
             name,
