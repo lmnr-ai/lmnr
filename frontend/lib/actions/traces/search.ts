@@ -8,16 +8,12 @@ export const searchSpans = async ({
   searchQuery,
   timeRange,
   searchType,
-  pageSize,
-  offset,
 }: {
   projectId: string;
   traceId: string;
   searchQuery: string;
   timeRange: TimeRange;
   searchType?: SpanSearchType[];
-  pageSize: number;
-  offset: number;
 }): Promise<{ trace_id: string; span_id: string }[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {

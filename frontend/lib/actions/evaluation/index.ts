@@ -90,8 +90,6 @@ export const getEvaluationDatapoints = async (
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
-      pageSize,
-      offset,
     })
     : [];
   let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
@@ -268,8 +266,6 @@ export const getEvaluationStatistics = async (
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
-      pageSize: 0,
-      offset: 0,
     })
     : [];
   let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];

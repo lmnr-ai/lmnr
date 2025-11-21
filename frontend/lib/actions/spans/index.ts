@@ -108,8 +108,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
       searchQuery: search,
       timeRange: { pastHours: "all" },
       searchType: searchIn as SpanSearchType[],
-      pageSize: 0,
-      offset: 0,
     })
     : [];
   let spanIds = spanHits.map((span) => span.span_id);
@@ -272,8 +270,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       searchQuery: search,
       timeRange: { pastHours: "all" },
       searchType: searchIn as SpanSearchType[],
-      pageSize: 0,
-      offset: 0,
     })
     : [];
   let spanIds = spanHits.map((span) => span.span_id);

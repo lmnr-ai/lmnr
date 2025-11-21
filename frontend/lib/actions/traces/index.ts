@@ -68,8 +68,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
-      pageSize,
-      offset,
     })
     : [];
   let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
