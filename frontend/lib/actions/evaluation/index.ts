@@ -27,6 +27,7 @@ import {
   EvaluationScoreDistributionBucket,
   EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
+
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";

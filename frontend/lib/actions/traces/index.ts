@@ -14,6 +14,7 @@ import { db } from "@/lib/db/drizzle";
 import { clusters } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
+
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";

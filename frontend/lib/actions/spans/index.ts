@@ -12,6 +12,7 @@ import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { FilterDef } from "@/lib/db/modifiers";
 import { Span } from "@/lib/traces/types";
+
 import { searchSpans } from "../traces/search";
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
