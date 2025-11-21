@@ -175,7 +175,14 @@ async fn inner_process_spans_indexer_queue(
                     );
                 });
 
-                quickwit_client.reconnect().await?;
+                // Attempt to reconnect, but don't propagate errors to avoid worker restart loops
+                // If Quickwit is unavailable, we'll continue processing other messages
+                if let Err(reconnect_err) = quickwit_client.reconnect().await {
+                    log::warn!(
+                        "Failed to reconnect to Quickwit (will retry on next message): {:?}",
+                        reconnect_err
+                    );
+                }
             }
         }
     }
