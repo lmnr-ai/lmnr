@@ -2,7 +2,8 @@
 
 import { uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useRef } from "react";
-import { createStore } from "zustand";
+import { createStore, StoreApi } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
@@ -29,6 +30,9 @@ export interface InfiniteScrollActions<TData> {
 
 export interface SelectionState {
   selectedRows: Set<string>;
+  columnVisibility: Record<string, boolean>;
+  columnOrder: string[];
+  draggingColumnId: string | null;
 }
 
 export interface SelectionActions {
@@ -37,6 +41,10 @@ export interface SelectionActions {
   toggleRow: (id: string) => void;
   selectAll: (ids: string[]) => void;
   clearSelection: () => void;
+  setColumnVisibility: (visibility: Record<string, boolean>) => void;
+  setColumnOrder: (order: string[]) => void;
+  setDraggingColumnId: (columnId: string | null) => void;
+  resetColumns: () => void;
 }
 
 type DataTableStore<TData> = InfiniteScrollState<TData> &
@@ -44,8 +52,16 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
   SelectionState &
   SelectionActions;
 
-const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number = 50) =>
-  createStore<DataTableStore<TData>>((set) => ({
+function createDataTableStore<TData>(
+  uniqueKey: string = "id",
+  storageKey?: string,
+  defaultColumnOrder: string[] = [],
+  pageSize: number = 50
+): StoreApi<DataTableStore<TData>> {
+  const storeConfig = (
+    set: StoreApi<DataTableStore<TData>>["setState"],
+    get: StoreApi<DataTableStore<TData>>["getState"]
+  ): DataTableStore<TData> => ({
     data: [],
     currentPage: 0,
     isFetching: false,
@@ -54,14 +70,23 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
     uniqueKey,
     hasMore: true,
     pageSize,
-
+    columnVisibility: {},
+    columnOrder: defaultColumnOrder,
+    draggingColumnId: null,
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
     setIsLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error }),
     setHasMore: (hasMore) => set({ hasMore }),
-
+    setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
+    setColumnOrder: (order) => set({ columnOrder: order }),
+    setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
+    resetColumns: () =>
+      set({
+        columnVisibility: {},
+        columnOrder: defaultColumnOrder,
+      }),
     appendData: (items, count) =>
       set((state) => {
         const combined = [...state.data, ...items];
@@ -125,7 +150,22 @@ const createDataTableStore = <TData,>(uniqueKey: string = "id", pageSize: number
         selectedRows: new Set(ids),
       }),
     clearSelection: () => set({ selectedRows: new Set() }),
-  }));
+  });
+
+  if (storageKey) {
+    return createStore<DataTableStore<TData>>()(
+      persist(storeConfig, {
+        name: storageKey,
+        partialize: (state) => ({
+          columnVisibility: state.columnVisibility,
+          columnOrder: state.columnOrder,
+        }),
+      })
+    );
+  }
+
+  return createStore<DataTableStore<TData>>()(storeConfig);
+}
 
 type DataTableStoreApi<TData> = ReturnType<typeof createDataTableStore<TData>>;
 
@@ -135,16 +175,20 @@ export interface DataTableStateProviderProps {
   children: ReactNode;
   uniqueKey?: string;
   pageSize?: number;
+  storageKey?: string;
+  defaultColumnOrder?: string[];
 }
 
 export function DataTableStateProvider<TData>({
   children,
+  storageKey,
   uniqueKey = "id",
   pageSize = 50,
+  defaultColumnOrder = [],
 }: DataTableStateProviderProps) {
   const storeRef = useRef<DataTableStoreApi<TData> | undefined>(undefined);
   if (!storeRef.current) {
-    storeRef.current = createDataTableStore<TData>(uniqueKey, pageSize);
+    storeRef.current = createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize);
   }
 
   return <DataTableContext.Provider value={storeRef.current}>{children}</DataTableContext.Provider>;

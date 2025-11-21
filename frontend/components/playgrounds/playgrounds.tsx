@@ -8,7 +8,8 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
@@ -32,6 +33,7 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     cell: ({ row }) => <Mono>{row.original.id}</Mono>,
     size: 300,
     header: "ID",
+    id: "id",
   },
   {
     accessorKey: "name",
@@ -44,6 +46,8 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
 ];
+
+export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
 const PlaygroundsContent = () => {
   const { projectId } = useParams();
@@ -105,6 +109,7 @@ const PlaygroundsContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -134,7 +139,9 @@ const PlaygroundsContent = () => {
               </Dialog>
             </div>
           )}
-        />
+        >
+          <ColumnsMenu />
+        </InfiniteDataTable>
       </div>
     </>
   );
@@ -142,7 +149,7 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider>
+    <DataTableStateProvider storageKey="playgrounds-table" defaultColumnOrder={defaultPlaygroundsColumnOrder}>
       <PlaygroundsContent />
     </DataTableStateProvider>
   );

@@ -8,14 +8,14 @@ import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button.tsx";
+import { Calendar, CalendarProps } from "@/components/ui/calendar.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import { cn } from "@/lib/utils.ts";
 
-import { Button } from "../button";
-import { Calendar, CalendarProps } from "../calendar";
-import { Input } from "../input";
-import { Label } from "../label";
-import { Popover, PopoverContent, PopoverTrigger } from "../popover";
-import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils";
+import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils.ts";
 
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } | null }) => (
   <div className="flex items-center space-x-2">
@@ -157,8 +157,12 @@ const AbsoluteDatePicker = ({
 
 export default function DateRangeFilter({
   disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  buttonDisabled = false,
+  className,
 }: {
   disabled?: CalendarProps["disabled"];
+  buttonDisabled?: boolean;
+  className?: string;
 }) {
   const pathName = usePathname();
   const router = useRouter();
@@ -213,8 +217,13 @@ export default function DateRangeFilter({
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
         <Button
+          disabled={buttonDisabled}
           variant="outline"
-          className={cn("justify-between text-left font-normal text-xs", !displayRange && "text-muted-foreground")}
+          className={cn(
+            "justify-between text-left font-normal text-xs",
+            !displayRange && "text-muted-foreground",
+            className
+          )}
         >
           <DateRangeButton displayRange={displayRange} />
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />
@@ -224,7 +233,7 @@ export default function DateRangeFilter({
         <AnimatePresence mode="wait" initial={false}>
           {!showCalendar ? (
             <QuickRangesList
-              pastHours={pastHours}
+              pastHours={pastHours ?? "24"}
               onSelect={handleQuickRangeSelect}
               onAbsoluteClick={() => setShowCalendar(true)}
             />

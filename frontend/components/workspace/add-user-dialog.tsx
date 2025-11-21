@@ -114,7 +114,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats, usersCou
         <div className="flex flex-col space-y-2">
           <Label>Email</Label>
           <div className="relative">
-            <User className="w-4 h-4 absolute left-2.5 top-2.5" />
+            <User className="w-4 h-4 absolute left-2 top-1.5" />
             <Input className="pl-8" autoFocus placeholder="Enter email" onChange={(e) => setUser(e.target.value)} />
           </div>
         </div>

@@ -42,4 +42,11 @@ pub trait CacheTrait {
     /// Callers should use get() first if they need to distinguish between missing keys
     /// and existing keys (to trigger recomputation logic, for example).
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError>;
+
+    /// Try to acquire a lock. Returns true if lock was acquired, false if already locked.
+    /// Lock expires after TTL seconds if not manually released.
+    async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError>;
+
+    /// Release a lock
+    async fn release_lock(&self, key: &str) -> Result<(), CacheError>;
 }

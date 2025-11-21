@@ -4,7 +4,7 @@ import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { SessionRow } from "@/lib/traces/types";
 import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -117,6 +117,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
       return row.duration.toFixed(2) + "s";
     },
     header: "Duration",
+    id: "duration",
     size: 100,
   },
   {
@@ -189,4 +190,20 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     accessorKey: "tags",
     id: "tags",
   },
+];
+
+export const defaultSessionsColumnOrder = [
+  "type",
+  "id",
+  "start_time",
+  "duration",
+  "input_cost",
+  "output_cost",
+  "total_cost",
+  "input_tokens",
+  "output_tokens",
+  "total_tokens",
+  "trace_count",
+  "user_id",
+  "tags",
 ];

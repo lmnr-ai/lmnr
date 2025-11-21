@@ -1,7 +1,7 @@
 import { isNil } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -145,10 +145,12 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     filters,
     columnFilterConfig: spansColumnFilterConfig,
     customConditions,
-    orderBy: [{
-      column: "start_time",
-      direction: "DESC",
-    }],
+    orderBy: [
+      {
+        column: "start_time",
+        direction: "DESC",
+      },
+    ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
       pagination: {

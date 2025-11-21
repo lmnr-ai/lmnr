@@ -132,4 +132,33 @@ impl CacheTrait for RedisCache {
             }
         }
     }
+
+    async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
+        // Use SET with NX (only if not exists) and EX (expiry in seconds)
+        let result: RedisResult<Option<String>> = redis::cmd("SET")
+            .arg(key)
+            .arg("locked")
+            .arg("NX")
+            .arg("EX")
+            .arg(ttl_seconds)
+            .query_async(&mut self.connection.clone())
+            .await;
+
+        match result {
+            Ok(Some(_)) => Ok(true), // Lock acquired
+            Ok(None) => Ok(false),   // Lock already held
+            Err(e) => {
+                log::error!("Redis try_acquire_lock error: {}", e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
+        }
+    }
+
+    async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
+        let result: RedisResult<()> = self.connection.clone().del(key).await;
+        result.map_err(|e| {
+            log::error!("Redis release_lock error: {}", e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
 }

@@ -77,6 +77,15 @@ pub struct Span {
     pub output_url: Option<String>,
 }
 
+impl Span {
+    pub fn should_record_to_clickhouse(&self) -> bool {
+        // This function is intended to filter out "signal" spans from record to clickhouse
+        // One of the signal spans is the span that carries the attribute to indicate whether
+        // the trace has a browser session or not and is named "cdp_use.session".
+        !(self.attributes.has_browser_session().unwrap_or(false) && self.name == "cdp_use.session")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

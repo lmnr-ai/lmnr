@@ -11,13 +11,14 @@ import ProjectSidebarContent from "./content";
 
 interface ProjectSidebarProps {
   details: ProjectDetails;
+  shouldShowPatterns?: boolean;
 }
 
-export default function ProjectSidebar({ details }: ProjectSidebarProps) {
+export default function ProjectSidebar({ details, shouldShowPatterns }: ProjectSidebarProps) {
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
-      <ProjectSidebarContent details={details} />
+      <ProjectSidebarContent details={details} shouldShowPatterns={shouldShowPatterns} />
       <SidebarFooter />
     </Sidebar>
   );

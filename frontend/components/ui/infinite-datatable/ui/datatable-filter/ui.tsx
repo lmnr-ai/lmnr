@@ -3,8 +3,8 @@ import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
 import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   ColumnFilter,
   DatatableFilter,
@@ -13,12 +13,12 @@ import {
   NUMBER_OPERATIONS,
   Operator,
   STRING_OPERATIONS,
-} from "@/components/ui/datatable-filter/utils";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Input } from "@/components/ui/input.tsx";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface FilterUIProps {
   columns: ColumnFilter[];
@@ -83,10 +83,9 @@ const FilterPopover = ({
 
   return (
     <Popover>
-      <PopoverTrigger asChild className={className}>
+      <PopoverTrigger asChild className={cn("text-secondary-foreground", className)}>
         {children || (
-          <Button variant="outline">
-            <ListFilter size={14} className="mr-2" />
+          <Button icon="filter" variant="outline">
             Add filter
           </Button>
         )}

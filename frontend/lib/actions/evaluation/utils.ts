@@ -1,4 +1,4 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -74,6 +74,13 @@ export interface BuildEvaluationDatapointsQueryOptions {
   offset: number;
 }
 
+export interface BuildEvaluationStatisticsQueryOptions {
+  projectId: string;
+  evaluationId: string;
+  traceIds: string[];
+  filters: FilterDef[];
+}
+
 export interface BuildTracesForEvaluationQueryOptions {
   projectId: string;
   evaluationId: string;
@@ -106,7 +113,6 @@ export const buildEvaluationDatapointsQueryWithParams = (
   // Handle score filters separately
   const scoreFilters = filters.filter((f) => f.column.startsWith("score:"));
   const nonScoreFilters = filters.filter((f) => !f.column.startsWith("score:"));
-
 
   // Add score filter conditions
   scoreFilters.forEach((filter, index) => {
@@ -149,6 +155,65 @@ export const buildEvaluationDatapointsQueryWithParams = (
       limit,
       offset,
     },
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
+// Build query for evaluation statistics (only fetches scores)
+export const buildEvaluationStatisticsQueryWithParams = (
+  options: BuildEvaluationStatisticsQueryOptions
+): QueryResult => {
+  const { evaluationId, traceIds, filters } = options;
+
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `evaluation_id = {evaluationId:UUID}`,
+      params: { evaluationId },
+    },
+  ];
+
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `trace_id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
+
+  // Handle score filters separately
+  const scoreFilters = filters.filter((f) => f.column.startsWith("score:"));
+  const nonScoreFilters = filters.filter((f) => !f.column.startsWith("score:"));
+
+  // Add score filter conditions
+  scoreFilters.forEach((filter, index) => {
+    const scoreName = filter.column.split(":")[1];
+    const numValue = parseFloat(filter.value);
+
+    if (scoreName && !isNaN(numValue)) {
+      const opSymbol = OperatorLabelMap[filter.operator as Operator];
+      const paramKey = `score_${scoreName}_${index}`;
+
+      customConditions.push({
+        condition: `JSONExtractFloat(scores, {${paramKey}_name:String}) ${opSymbol} {${paramKey}_value:Float64}`,
+        params: {
+          [`${paramKey}_name`]: scoreName,
+          [`${paramKey}_value`]: numValue,
+        },
+      });
+    }
+  });
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["scores"],
+      table: "evaluation_datapoints",
+    },
+    filters: nonScoreFilters,
+    columnFilterConfig: evaluationDatapointsColumnFilterConfig,
+    customConditions,
   };
 
   return buildSelectQuery(queryOptions);
@@ -256,9 +321,7 @@ export function separateFilters(filters: FilterDef[]): {
 }
 
 // Build query to get trace IDs from traces table with filters
-export const buildTracesForEvaluationQueryWithParams = (
-  options: BuildTracesForEvaluationQueryOptions
-): QueryResult => {
+export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForEvaluationQueryOptions): QueryResult => {
   const { evaluationId, traceIds, filters } = options;
 
   const customConditions: Array<{
@@ -319,7 +382,7 @@ export const buildTracesForEvaluationQueryWithParams = (
           (filter, paramKey) => `id = {${paramKey}:UUID}`,
           (filter, paramKey) => ({ [paramKey]: filter.value })
         ),
-      ]
+      ],
     ]),
   };
 

@@ -17,14 +17,17 @@ interface Props {
 }
 function Minimap({ onSpanSelect }: Props) {
   const { state, scrollTo, createScrollHandler } = useScrollContext();
-  const { getMinimapSpans, trace, spans } = useTraceViewStoreContext((state) => ({
+  const { getMinimapSpans, trace, spans, setSessionTime } = useTraceViewStoreContext((state) => ({
     getMinimapSpans: state.getMinimapSpans,
     trace: state.trace,
     spans: state.spans,
+    setSessionTime: state.setSessionTime,
   }));
 
   const store = useTraceViewStore();
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
+  const hoverTimeNeedleRef = useRef<HTMLDivElement>(null);
+  const spansContainerRef = useRef<HTMLDivElement>(null);
 
   const traceDuration = useMemo(
     () => new Date(trace?.endTime || 0).getTime() - new Date(trace?.startTime || 0).getTime(),
@@ -162,10 +165,32 @@ function Minimap({ onSpanSelect }: Props) {
     } as React.UIEvent<HTMLDivElement>);
   }, [state.scrollTop, handleTreeScroll, state]);
 
+  const calculateTimeFromY = useCallback(
+    (clientY: number) => {
+      if (!minimapRef.current) return null;
+
+      const rect = minimapRef.current.getBoundingClientRect();
+      const scrollTop = minimapRef.current.scrollTop;
+      const y = clientY - rect.top + scrollTop;
+
+      return Math.max(0, y / pixelsPerSecond);
+    },
+    [pixelsPerSecond]
+  );
+
   const handleSpanClick = useCallback(
     (spanIndex: number, e: React.MouseEvent) => {
       e.stopPropagation();
       const span = minimapSpans[spanIndex];
+
+      const timeInSeconds = calculateTimeFromY(e.clientY);
+      if (timeInSeconds !== null) {
+        setSessionTime(timeInSeconds);
+      }
+
+      if (hoverTimeNeedleRef.current) {
+        hoverTimeNeedleRef.current.style.display = "none";
+      }
 
       if (span) {
         scrollTo(span.yOffset - 48);
@@ -174,8 +199,39 @@ function Minimap({ onSpanSelect }: Props) {
         }
       }
     },
-    [minimapSpans, scrollTo, onSpanSelect]
+    [minimapSpans, scrollTo, onSpanSelect, calculateTimeFromY, setSessionTime]
   );
+
+  const handleMinimapClick = useCallback(
+    (e: React.MouseEvent) => {
+      const timeInSeconds = calculateTimeFromY(e.clientY);
+      if (timeInSeconds !== null) {
+        setSessionTime(timeInSeconds);
+      }
+
+      if (hoverTimeNeedleRef.current) {
+        hoverTimeNeedleRef.current.style.display = "none";
+      }
+    },
+    [calculateTimeFromY, setSessionTime]
+  );
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!minimapRef.current || !hoverTimeNeedleRef.current) return;
+
+    const rect = minimapRef.current.getBoundingClientRect();
+    const scrollTop = minimapRef.current.scrollTop;
+    const y = e.clientY - rect.top + scrollTop;
+
+    hoverTimeNeedleRef.current.style.top = `${y}px`;
+    hoverTimeNeedleRef.current.style.display = "block";
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeNeedleRef.current) {
+      hoverTimeNeedleRef.current.style.display = "none";
+    }
+  }, []);
 
   if (!minimapSpans.length) {
     return null;
@@ -187,13 +243,24 @@ function Minimap({ onSpanSelect }: Props) {
         ref={minimapRef}
         className="pl-1 h-full py-1 no-scrollbar no-scrollbar::-webkit-scrollbar overflow-auto overflow-x-hidden flex space-x-1 relative"
         onScroll={handleMinimapScroll}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       >
         <div
           ref={sessionTimeNeedleRef}
           className="bg-primary absolute left-0 w-full h-px z-30"
           style={{ display: "none" }}
         />
-        <div className="relative w-2 flex-none">
+        <div
+          ref={hoverTimeNeedleRef}
+          className="bg-primary absolute left-0 w-full h-px z-20 opacity-50 pointer-events-none"
+          style={{ display: "none" }}
+        />
+        <div
+          ref={spansContainerRef}
+          className="relative w-2 flex-none cursor-pointer"
+          onClick={handleMinimapClick}
+        >
           {minimapSpans.map((span, index) => (
             <div
               style={{

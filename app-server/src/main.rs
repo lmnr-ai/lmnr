@@ -33,7 +33,8 @@ use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use storage::{PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, Storage, mock::MockStorage, process_payloads};
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
+    CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
+    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, clustering::process_clustering,
     consumer::process_queue_spans, grpc_service::ProcessTracesService,
     summary::process_trace_summaries,
 };
@@ -373,6 +374,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.7 Clustering message queue ====
+            channel
+                .exchange_declare(
+                    CLUSTERING_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    CLUSTERING_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -402,6 +429,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
+        // ==== 3.7 Clustering message queue ====
+        queue.register_queue(CLUSTERING_EXCHANGE, CLUSTERING_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -586,14 +615,20 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_clustering_workers = env::var("NUM_CLUSTERING_WORKERS")
+            .unwrap_or(String::from("1"))
+            .parse::<u8>()
+            .unwrap_or(1);
+
         log::info!(
-            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}",
+            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
             num_spans_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
             num_trace_summary_workers,
-            num_notification_workers
+            num_notification_workers,
+            num_clustering_workers
         );
 
         let connection_for_health_clone = connection_for_health.clone();
@@ -616,6 +651,7 @@ fn main() -> anyhow::Result<()> {
                         num_payload_workers as usize,
                         num_trace_summary_workers as usize,
                         num_notification_workers as usize,
+                        num_clustering_workers as usize,
                     );
                     for _ in 0..num_spans_workers {
                         let worker_handle = worker_tracker_clone.register_worker(WorkerType::Spans);
@@ -705,6 +741,18 @@ fn main() -> anyhow::Result<()> {
                         tokio::spawn(async move {
                             let _handle = worker_handle;
                             process_notifications(db_clone, slack_client_clone, mq_clone).await;
+                        });
+                    }
+
+                    for _ in 0..num_clustering_workers {
+                        let worker_handle =
+                            worker_tracker_clone.register_worker(WorkerType::Clustering);
+                        let db_clone = db_for_consumer.clone();
+                        let cache_clone = cache_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        tokio::spawn(async move {
+                            let _handle = worker_handle;
+                            process_clustering(db_clone, cache_clone, mq_clone).await;
                         });
                     }
 
@@ -815,7 +863,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::evaluations::get_evaluation_score_distribution)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
-                                    .service(routes::sql::validate_sql_query),
+                                    .service(routes::sql::validate_sql_query)
+                                    .service(routes::sql::sql_to_json)
+                                    .service(routes::sql::json_to_sql),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

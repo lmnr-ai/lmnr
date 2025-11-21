@@ -12,12 +12,17 @@ export const enum Feature {
   SUBSCRIPTION = "SUBSCRIPTION",
   SLACK = "SLACK",
   LANDING = "LANDING",
+  PATTERNS = "PATTERNS",
 }
 
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
   if (feature === Feature.LANDING) {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
+  }
+
+  if (feature === Feature.PATTERNS) {
+    return process.env.ENVIRONMENT === "PRODUCTION";
   }
 
   if (feature === Feature.EMAIL_AUTH) {

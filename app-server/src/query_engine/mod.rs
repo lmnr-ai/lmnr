@@ -22,4 +22,8 @@ pub trait QueryEngineTrait {
         query: String,
         project_id: Uuid,
     ) -> Result<QueryEngineValidationResult>;
+
+    async fn sql_to_json(&self, sql: String) -> Result<query_engine::QueryStructure>;
+
+    async fn json_to_sql(&self, query_structure: query_engine::QueryStructure) -> Result<String>;
 }

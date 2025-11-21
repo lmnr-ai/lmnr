@@ -4,13 +4,14 @@ import { Row } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
-import { columns } from "@/components/event-definitions/columns.tsx";
+import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
-import DeleteSelectedRows from "@/components/ui/DeleteSelectedRows";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -19,7 +20,11 @@ import Header from "../ui/header";
 
 export default function EventDefinitions() {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider
+      storageKey="event-definitions-table"
+      uniqueKey="id"
+      defaultColumnOrder={defaultEventDefinitionsColumnOrder}
+    >
       <EventDefinitionsContent />
     </DataTableStateProvider>
   );
@@ -130,12 +135,12 @@ function EventDefinitionsContent() {
           isFetching={isFetching}
           isLoading={isLoading}
           fetchNextPage={fetchNextPage}
-          estimatedRowHeight={41}
           enableRowSelection
           state={{
             rowSelection,
           }}
           onRowSelectionChange={onRowSelectionChange}
+          lockedColumns={["__row_selection"]}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows
@@ -145,7 +150,9 @@ function EventDefinitionsContent() {
               />
             </div>
           )}
-        />
+        >
+          <ColumnsMenu lockedColumns={["__row_selection"]} />
+        </InfiniteDataTable>
       </div>
     </>
   );

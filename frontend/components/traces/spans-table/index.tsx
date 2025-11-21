@@ -5,23 +5,24 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
-import RefreshButton from "@/components/traces/refresh-button";
-import { columns, filters } from "@/components/traces/spans-table/columns";
+import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/datatable-filter";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanRow } from "@/lib/traces/types";
+import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider uniqueKey="spanId">
+    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" defaultColumnOrder={defaultSpansColumnOrder}>
       <SpansTableContent />
     </DataTableStateProvider>
   );
@@ -33,7 +34,6 @@ function SpansTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-
   const { setTraceId, setSpanId, spanId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
     spanId: state.spanId,
@@ -149,13 +149,13 @@ function SpansTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        estimatedRowHeight={41}
-        childrenClassName="flex flex-col gap-2 items-start h-fit space-x-0"
+        lockedColumns={["status"]}
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
+          <ColumnsMenu lockedColumns={["status"]} />
           <DateRangeFilter />
-          <RefreshButton iconClassName="w-3.5 h-3.5" onClick={refetch} variant="outline" className="text-xs" />
+          <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in spans..." />
         </div>
         <DataTableFilterList />

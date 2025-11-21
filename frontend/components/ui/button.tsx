@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleAlert,
+  Columns2,
   Database,
   Download,
   Edit,
@@ -55,6 +56,11 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border border-white/25",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        destructiveOutline:
+          "border border-destructive text-destructive shadow-sm hover:bg-destructive/90 hover:text-destructive-foreground",
+        warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
+        warningOutline:
+          "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
         outline: "border border-input bg-background hover:bg-accent",
         outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
@@ -65,7 +71,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-3 text-xs py-2",
+        default: "h-7 px-2 text-xs py-2",
         sm: "h-[22px] rounded-md px-2 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-7 w-7",
@@ -123,6 +129,7 @@ const iconMap = {
   filter: ListFilter,
   minus: Minus,
   rows4: Rows4,
+  columns2: Columns2,
 };
 
 type HandledKey = {
@@ -203,7 +210,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && (
-          <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "-ml-1 mr-1": !!children })} />
+          <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}
         {children}
       </Comp>

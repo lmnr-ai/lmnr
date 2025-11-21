@@ -2,14 +2,10 @@ import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator } from "@/components/ui/datatable-filter/utils.ts";
+import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import {
-  buildSpansQueryWithParams,
-  createParentRewiring,
-  transformSpanWithEvents,
-} from "@/lib/actions/spans/utils";
+import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
@@ -62,10 +58,12 @@ function buildTraceSubquery({
         params: { traceType: "DEFAULT" },
       },
     ],
-    orderBy: [{
-      column: "start_time",
-      direction: "DESC" as const,
-    }],
+    orderBy: [
+      {
+        column: "start_time",
+        direction: "DESC" as const,
+      },
+    ],
   };
 
   const { query, parameters } = buildSelectQuery(queryOptions);

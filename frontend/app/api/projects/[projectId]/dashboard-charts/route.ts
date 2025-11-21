@@ -43,25 +43,25 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ project
   }
 }
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const { projectId } = await props.params;
 
   try {
     const body = await req.json();
 
-    await createChart({
+    const chart = await createChart({
       projectId,
       ...body,
     });
 
-    return Response.json({ success: true });
+    return Response.json(chart);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart layouts. Please try again." },
+      { error: error instanceof Error ? error.message : "Failed to create chart. Please try again." },
       { status: 500 }
     );
   }

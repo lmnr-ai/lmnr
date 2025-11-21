@@ -55,6 +55,14 @@ const UpdateChartNameSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
+const UpdateChartSchema = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  name: z.string().min(1, "Name is required"),
+  query: z.string(),
+  config: ChartSettingsSchema.shape["config"],
+});
+
 const CreateChartSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
@@ -114,6 +122,21 @@ export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchem
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 };
 
+export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
+  const { projectId, id, name, query, config } = UpdateChartSchema.parse(input);
+
+  await db
+    .update(dashboardCharts)
+    .set({
+      name,
+      query,
+      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`
+    })
+    .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
+
+  return await getChart({ projectId, id });
+};
+
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
   const { name, config, projectId, query } = CreateChartSchema.parse(input);
 
@@ -137,8 +160,11 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
 
   const reorderedCharts = repositionCharts(chartSettings);
 
-  await db.transaction(async (tx) => {
-    await tx.insert(dashboardCharts).values(newChart);
+  const [created] = await db.transaction(async (tx) => {
+    const result = await tx.insert(dashboardCharts).values(newChart).returning();
     await updateChartsLayout({ projectId, updates: reorderedCharts });
+    return result;
   });
+
+  return created as DashboardChart;
 };

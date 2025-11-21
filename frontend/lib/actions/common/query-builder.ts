@@ -1,4 +1,4 @@
-import { OperatorLabelMap } from "@/components/ui/datatable-filter/utils";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
 export interface QueryParams {

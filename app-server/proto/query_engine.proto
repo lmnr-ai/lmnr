@@ -2,6 +2,46 @@ syntax = "proto3";
 
 package query_engine;
 
+message Metric {
+    string fn = 1;
+    string column = 2;
+    repeated double args = 3;
+    optional string alias = 4;
+}
+
+message Filter {
+    string field = 1;
+    string op = 2;
+    oneof value {
+        string string_value = 3;
+        double number_value = 4;
+    }
+}
+
+message TimeRange {
+    string column = 1;
+    string from = 2;
+    string to = 3;
+    string interval_unit = 4;
+    string interval_value = 5;
+    bool fill_gaps = 6;
+}
+
+message OrderBy {
+    string field = 1;
+    string dir = 2;
+}
+
+message QueryStructure {
+    string table = 1;
+    repeated Metric metrics = 2;
+    repeated string dimensions = 3;
+    repeated Filter filters = 4;
+    optional TimeRange time_range = 5;
+    repeated OrderBy order_by = 6;
+    optional int32 limit = 7;
+}
+
 message QueryRequest {
     string query = 1;
     string project_id = 2;
@@ -22,6 +62,38 @@ message ErrorResponse {
     string error = 1;
 }
 
+message JsonToSqlRequest {
+    QueryStructure query_structure = 1;
+}
+
+message JsonToSqlSuccessResponse {
+    string sql = 1;
+}
+
+message JsonToSqlResponse {
+    oneof result {
+        JsonToSqlSuccessResponse success = 1;
+        ErrorResponse error = 2;
+    }
+}
+
+message SqlToJsonRequest {
+    string sql = 1;
+}
+
+message SqlToJsonSuccessResponse {
+    QueryStructure query_structure = 1;
+}
+
+message SqlToJsonResponse {
+    oneof result {
+        SqlToJsonSuccessResponse success = 1;
+        ErrorResponse error = 2;
+    }
+}
+
 service QueryEngineService {
     rpc ValidateQuery(QueryRequest) returns (QueryResponse);
+    rpc JsonToSql(JsonToSqlRequest) returns (JsonToSqlResponse);
+    rpc SqlToJson(SqlToJsonRequest) returns (SqlToJsonResponse);
 }

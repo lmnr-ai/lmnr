@@ -26,10 +26,11 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
       traceType: "DEFAULT",
     },
     projectId,
-  }).catch((e) => {
-    console.error(e);
-    return [{ exists: 1 }];
-  });
+  })
+    .catch((e) => {
+      console.error(e);
+      return [{ exists: 1 }];
+    });
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(TRACES_TRACE_VIEW_WIDTH);

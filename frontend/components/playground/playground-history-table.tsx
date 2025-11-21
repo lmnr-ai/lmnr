@@ -7,8 +7,9 @@ import { useCallback } from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/datatable-store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
@@ -125,6 +126,18 @@ const columns: ColumnDef<Trace, any>[] = [
   },
 ];
 
+export const defaultPlaygroundHistoryColumnOrder = [
+  "status",
+  "id",
+  "top_span_type",
+  "input",
+  "output",
+  "start_time",
+  "latency",
+  "cost",
+  "total_token_count",
+];
+
 interface PlaygroundHistoryTableProps {
   playgroundId: string;
   onRowClick?: (trace: Trace) => void;
@@ -135,7 +148,11 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <DataTableStateProvider uniqueKey="id">
+    <DataTableStateProvider
+      storageKey="playground-history-table"
+      uniqueKey="id"
+      defaultColumnOrder={defaultPlaygroundHistoryColumnOrder}
+    >
       <PlaygroundHistoryTableContent {...props} />
     </DataTableStateProvider>
   );
@@ -222,6 +239,8 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       isFetching={isFetching}
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
-    />
+    >
+      <ColumnsMenu />
+    </InfiniteDataTable>
   );
 }

@@ -1,4 +1,5 @@
-import { Edit, EllipsisVertical, GripVertical, Trash2 } from "lucide-react";
+import { Edit, EllipsisVertical, GripVertical, Pen, Trash2 } from "lucide-react";
+import Link from "next/link";
 import React, { FocusEvent, KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
@@ -150,9 +151,15 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               }}
               className="cursor-pointer"
             >
-              <Edit className="h-3 w-3 mr-2" />
+              <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
               Rename
             </DropdownMenuItem>
+            <Link passHref href={`/project/${projectId}/dashboard/${id}`}>
+              <DropdownMenuItem className="cursor-pointer">
+                <Edit className="h-3.5 w-3.5 mr-1 text-inherit" />
+                Edit
+              </DropdownMenuItem>
+            </Link>
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
@@ -160,7 +167,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               }}
               className="cursor-pointer text-destructive focus:text-destructive"
             >
-              <Trash2 className="h-3 w-3 mr-2" />
+              <Trash2 className="h-3.5 w-3.5 mr-1 text-inherit" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>

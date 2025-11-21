@@ -2,9 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
-import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
 import {
   buildEvaluationDatapointsQueryWithParams,
+  buildEvaluationStatisticsQueryWithParams,
   buildTracesForEvaluationQueryWithParams,
   calculateScoreDistribution,
   calculateScoreStatistics,
@@ -30,6 +31,13 @@ import {
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
 export const GetEvaluationDatapointsSchema = PaginationFiltersSchema.extend({
+  evaluationId: z.string(),
+  projectId: z.string(),
+  search: z.string().nullable().optional(),
+  searchIn: z.array(z.string()).default([]),
+});
+
+export const GetEvaluationStatisticsSchema = FiltersSchema.extend({
   evaluationId: z.string(),
   projectId: z.string(),
   search: z.string().nullable().optional(),
@@ -207,6 +215,135 @@ export const getEvaluationDatapoints = async (
     results,
     allStatistics,
     allDistributions,
+  };
+};
+
+export const getEvaluationStatistics = async (
+  input: z.infer<typeof GetEvaluationStatisticsSchema>
+): Promise<{
+  evaluation: Evaluation;
+  allStatistics: Record<string, EvaluationScoreStatistics>;
+  allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  scores: string[];
+}> => {
+  const {
+    projectId,
+    evaluationId,
+    search,
+    searchIn,
+    filter: inputFilters,
+  } = input;
+
+  // First, get the evaluation
+  const evaluation = await db.query.evaluations.findFirst({
+    where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
+  });
+
+  if (!evaluation) {
+    throw new Error("Evaluation not found");
+  }
+
+  const allFilters: FilterDef[] = compact(inputFilters);
+
+  // Separate filters into trace and datapoint filters
+  const { traceFilters, datapointFilters } = separateFilters(allFilters);
+
+  // Step 1: Get trace IDs from search if provided
+  let searchTraceIds: string[] = search
+    ? await searchSpans({
+      projectId,
+      searchQuery: search,
+      timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+      searchType: searchIn as SpanSearchType[],
+    })
+    : [];
+
+  if (search && searchTraceIds.length === 0) {
+    return {
+      evaluation: evaluation as Evaluation,
+      allStatistics: {},
+      allDistributions: {},
+      scores: [],
+    };
+  }
+
+  // Step 2: Apply trace-specific filters if any exist
+  let filteredTraceIds: string[] = [];
+  if (traceFilters.length > 0) {
+    const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
+      projectId,
+      evaluationId,
+      traceIds: searchTraceIds,
+      filters: traceFilters,
+    });
+
+    const traceResults = await executeQuery<{ id: string }>({
+      query: tracesQuery,
+      parameters: tracesParams,
+      projectId,
+    });
+
+    filteredTraceIds = traceResults.map((r) => r.id);
+
+    if (filteredTraceIds.length === 0) {
+      return {
+        evaluation: evaluation as Evaluation,
+        allStatistics: {},
+        allDistributions: {},
+        scores: [],
+      };
+    }
+  } else {
+    filteredTraceIds = searchTraceIds;
+  }
+
+  // Step 3: Query only scores from evaluation datapoints
+  const { query: statsQuery, parameters: statsParams } = buildEvaluationStatisticsQueryWithParams({
+    projectId,
+    evaluationId,
+    traceIds: filteredTraceIds,
+    filters: datapointFilters,
+  });
+
+  const rawResults = await executeQuery<{ scores: string }>({
+    query: statsQuery,
+    parameters: statsParams,
+    projectId,
+  });
+
+  // Step 4: Parse scores and calculate statistics
+  const parsedResults = rawResults.map((row) => {
+    let scores: Record<string, any> | undefined;
+    try {
+      const parsed = row.scores ? JSON.parse(row.scores) : {};
+      scores = Object.keys(parsed).length > 0 ? parsed : undefined;
+    } catch (e) {
+      console.error("Error parsing scores:", e);
+      scores = undefined;
+    }
+    return { scores };
+  });
+
+  // Step 5: Calculate statistics and distributions
+  const allScoreNames = [
+    ...new Set(
+      parsedResults.flatMap((result) => result.scores ? Object.keys(result.scores) : [])
+    ),
+  ];
+
+  const allStatistics: Record<string, EvaluationScoreStatistics> = {};
+  const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
+
+  allScoreNames.forEach((scoreName) => {
+    allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
+    allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
+  });
+
+  return {
+    evaluation: evaluation as Evaluation,
+    allStatistics,
+    allDistributions,
+    scores: allScoreNames,
   };
 };
 

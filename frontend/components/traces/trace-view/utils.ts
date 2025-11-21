@@ -2,7 +2,7 @@ import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { ColumnFilter } from "@/components/ui/datatable-filter/utils";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
@@ -147,15 +147,13 @@ export const getDefaultTraceViewWidth = () => {
   return 1000;
 };
 
-
 export const onRealtimeUpdateSpans =
   (
     setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,
     setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
-    setShowBrowserSession: (show: boolean) => void,
+    setShowBrowserSession: (show: boolean) => void
   ) =>
     (newSpan: RealtimeSpan) => {
-
       if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
         setShowBrowserSession(true);
       }
@@ -165,18 +163,21 @@ export const onRealtimeUpdateSpans =
 
         const newTrace = { ...trace };
 
-        newTrace.startTime = new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime() ? newTrace.startTime : newSpan.startTime;
-        newTrace.endTime = new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+        newTrace.startTime =
+        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+          ? newTrace.startTime
+          : newSpan.startTime;
+        newTrace.endTime =
+        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
         newTrace.totalTokens +=
-          (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-          (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
+        (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
+        (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
         newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
         newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
         newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
         newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
         newTrace.totalCost +=
-          (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) +
-          (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+        (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) + (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
         return newTrace;
       });
 
@@ -184,7 +185,7 @@ export const onRealtimeUpdateSpans =
         const newSpans = [...spans];
         const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
         if (index !== -1) {
-          // Always replace existing span, regardless of pending status
+        // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
             collapsed: newSpans[index].collapsed || false,
