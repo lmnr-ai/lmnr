@@ -254,7 +254,7 @@ fn main() -> anyhow::Result<()> {
             channel
                 .exchange_declare(
                     SPANS_INDEXER_EXCHANGE,
-                    ExchangeKind::Direct,
+                    ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
                         ..Default::default()
