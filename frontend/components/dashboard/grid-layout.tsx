@@ -3,13 +3,14 @@ import "./styles.css";
 
 import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { Responsive, ResponsiveProps, WidthProvider } from "react-grid-layout";
 import useSWR from "swr";
 
 import Chart from "@/components/dashboard/chart";
 import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -27,7 +28,16 @@ const GridLayout = () => {
     data = [],
     isLoading,
     mutate,
+    error,
   } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (error) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  }, [error, toast]);
 
   const layout = (data || []).map((chart) => ({
     i: chart.id,

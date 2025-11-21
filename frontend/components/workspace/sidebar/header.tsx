@@ -4,7 +4,7 @@ import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
 import { ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import React from "react";
+import React, { useEffect } from "react";
 import useSWR from "swr";
 
 import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog.tsx";
@@ -24,7 +24,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
+import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
+import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
+import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
@@ -35,7 +37,24 @@ interface WorkspaceSidebarHeaderProps {
 const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
   const { isMobile } = useSidebar();
   const { username, imageUrl, email } = useUserContext();
-  const { data } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+  const { data, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (error) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  }, [error, toast]);
+
+  const handleLogout = async () => {
+    try {
+      await deleteLastWorkspaceIdCookie();
+      await deleteLastProjectIdCookie();
+      await signOut({ callbackUrl: "/" });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <SidebarHeader className="px-0 mt-2">
@@ -98,7 +117,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
                 </DropdownMenuItem>
               </WorkspaceCreateDialog>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />
                 <span className="text-xs">Log out</span>
               </DropdownMenuItem>

@@ -208,6 +208,14 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
   };
 }
 
+export async function isTracePublic(traceId: string): Promise<boolean> {
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
+
+  return !!sharedTrace;
+}
+
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 

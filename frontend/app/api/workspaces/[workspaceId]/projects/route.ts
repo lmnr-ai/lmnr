@@ -2,16 +2,11 @@ import { NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
-import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   try {
     const params = await props.params;
     const { workspaceId } = params;
-
-    if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
-      return Response.json({ error: "Unauthorized: User is not a member of this workspace" }, { status: 403 });
-    }
 
     const projects = await getProjectsByWorkspace(workspaceId);
 

@@ -146,7 +146,8 @@ function TracesTableContent() {
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
           variant: "destructive",
         });
         throw error;

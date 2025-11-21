@@ -16,3 +16,8 @@ export const setLastProjectIdCookie = async (projectId: string) => {
   });
 };
 
+export const deleteLastProjectIdCookie = async () => {
+  const cookieStore = await cookies();
+  cookieStore.delete(LAST_PROJECT_ID);
+};
+

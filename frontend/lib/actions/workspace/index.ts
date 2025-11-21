@@ -5,11 +5,10 @@ import { z } from "zod/v4";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY } from "@/lib/cache";
+import { cache, PROJECT_MEMBER_CACHE_KEY,WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
-import { isCurrentUserMemberOfWorkspace } from "@/lib/db/utils";
 import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
@@ -36,6 +35,11 @@ const UpdateRoleSchema = z.object({
   workspaceId: z.string(),
   userId: z.string(),
   role: z.enum(["member", "admin"]),
+});
+
+const RemoveUserSchema = z.object({
+  workspaceId: z.string(),
+  userId: z.string(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
@@ -82,10 +86,6 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
 export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): Promise<Workspace> => {
   const { workspaceId } = GetWorkspaceSchema.parse(input);
 
-  if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
-    throw new Error("Unauthorized: User is not a member of this workspace");
-  }
-
   const workspace = await db
     .select({
       id: workspaces.id,
@@ -110,10 +110,6 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
 
 export const getWorkspaceUsers = async (input: z.infer<typeof GetWorkspaceUsersSchema>): Promise<WorkspaceUser[]> => {
   const { workspaceId } = GetWorkspaceUsersSchema.parse(input);
-
-  if (!(await isCurrentUserMemberOfWorkspace(workspaceId))) {
-    throw new Error("Unauthorized: User is not a member of this workspace");
-  }
 
   const workspaceUsers = (await db
     .select({
@@ -308,6 +304,31 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
       .set({ memberRole: "owner" })
       .where(and(eq(membersOfWorkspaces.userId, newOwnerId), eq(membersOfWorkspaces.workspaceId, workspaceId)));
   });
+
+  return { success: true };
+}
+
+export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
+  const { workspaceId, userId } = RemoveUserSchema.parse(input);
+
+  await db
+    .delete(membersOfWorkspaces)
+    .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
+
+  try {
+    await cache.remove(WORKSPACE_MEMBER_CACHE_KEY(workspaceId, userId));
+
+    const workspaceProjects = await db.query.projects.findMany({
+      where: eq(projects.workspaceId, workspaceId),
+      columns: { id: true },
+    });
+
+    await Promise.all(
+      workspaceProjects.map((project) => cache.remove(PROJECT_MEMBER_CACHE_KEY(project.id, userId)))
+    );
+  } catch (e) {
+    console.error("Error clearing cache after user removal", e);
+  }
 
   return { success: true };
 }

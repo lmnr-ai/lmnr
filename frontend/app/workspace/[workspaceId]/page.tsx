@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
+import { notFound } from "next/navigation";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/workspace/sidebar";
@@ -9,12 +8,11 @@ import WorkspaceComponent from "@/components/workspace/workspace";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getWorkspace } from "@/lib/actions/workspace";
-import { authOptions } from "@/lib/auth";
+import { requireWorkspaceAccess } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
-import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 export const metadata: Metadata = {
   title: "Workspace",
@@ -22,32 +20,16 @@ export const metadata: Metadata = {
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect("/sign-in");
-  }
+
+  const session = await requireWorkspaceAccess(params.workspaceId);
   const user = session.user;
 
-  // check if user part of the workspace
-  let workspace: WorkspaceWithOptionalUsers;
-  try {
-    workspace = await getWorkspace({ workspaceId: params.workspaceId });
-  } catch (error) {
-    return notFound();
-  }
-
-  const userId = user?.id;
-
-  if (!userId) {
-    return notFound();
-  }
+  const workspace = await getWorkspace({ workspaceId: params.workspaceId });
 
   const userMembership = await db
-    .select({
-      role: membersOfWorkspaces.memberRole,
-    })
+    .select({ role: membersOfWorkspaces.memberRole })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, userId), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
+    .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
     .limit(1)
     .then((res) => res[0]);
 

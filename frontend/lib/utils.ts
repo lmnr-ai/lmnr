@@ -58,10 +58,16 @@ export async function fetcherJSON<JSON = any>(url: string, init: any): Promise<J
   return (await res.json()) as JSON;
 }
 
-export const swrFetcher = (url: string) =>
-  fetch(url)
-    .then((res) => res.json())
-    .catch((err) => console.error(err));
+export const swrFetcher = async (url: string) => {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    const errorText = (await res.json()) as { error: string };
+    throw new Error(errorText.error);
+  }
+
+  return res.json();
+};
 
 // return string such as 0319 for March 19 or 1201 for December 1
 // Note that the date is calculated for local time

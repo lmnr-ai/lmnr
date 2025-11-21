@@ -1,13 +1,15 @@
 "use client";
 
 import { isEmpty, times } from "lodash";
-import { FolderOpen } from "lucide-react";
-import React from "react";
+import { AlertCircleIcon, FolderOpen } from "lucide-react";
+import React, { useEffect } from "react";
 import useSWR from "swr";
 
 import ProjectCard from "@/components/projects/project-card.tsx";
 import ProjectCreateDialog from "@/components/projects/project-create-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 import { Project } from "@/lib/workspaces/types";
 
@@ -16,7 +18,25 @@ interface ProjectsProps {
 }
 
 export default function Projects({ workspaceId }: ProjectsProps) {
-  const { data, mutate, isLoading } = useSWR<Project[]>(`/api/workspaces/${workspaceId}/projects`, swrFetcher);
+  const { data, mutate, isLoading, error } = useSWR<Project[]>(`/api/workspaces/${workspaceId}/projects`, swrFetcher);
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (error && error instanceof Error) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  }, [error, toast]);
+
+  if (error && error instanceof Error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircleIcon className="size-5" />
+        <AlertTitle>{error.name}</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

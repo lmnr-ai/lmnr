@@ -43,14 +43,18 @@ function EventDefinitionsContent() {
   const fetchEventDefinitions = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${projectId}/event-definitions`);
-      if (!response.ok) throw new Error("Failed to fetch event definitions");
+      if (!response.ok) {
+        const text = (await response.json()) as { error: string };
+        throw new Error(text.error);
+      }
 
       const data = (await response.json()) as EventDefinitionRow[];
-      // Since API doesn't paginate, return all data on first page
+
       return { items: data, count: data.length };
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Failed to load event definitions.",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load event definitions.",
         variant: "destructive",
       });
       throw error;

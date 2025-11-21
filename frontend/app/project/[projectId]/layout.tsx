@@ -1,8 +1,6 @@
 import "@/app/globals.css";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
@@ -15,7 +13,7 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
-import { authOptions } from "@/lib/auth";
+import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const projectSidebarCookieName = "project-sidebar-state";
@@ -26,13 +24,10 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const { children } = props;
 
   const projectId = params.projectId;
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect("/sign-in");
-  }
-  const user = session.user;
-
+  const session = await requireProjectAccess(projectId);
   const projectDetails = await getProjectDetails(projectId);
+
+  const user = session?.user;
   const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
   const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =

@@ -1,8 +1,7 @@
-/** @type {import('next').NextConfig} */
-const path = require("path");
-const { withSentryConfig } = require("@sentry/nextjs");
+import { withSentryConfig } from "@sentry/nextjs";
+import { NextConfig } from "next";
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: false,
   logging: {
     fetches: {
