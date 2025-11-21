@@ -204,6 +204,10 @@ function TracesTableContent() {
             newTraces.splice(FETCH_SIZE);
           }
 
+          if (traceData.startTime) {
+            incrementStat(traceData.startTime, traceData.status === "error");
+          }
+
           return newTraces;
         }
       });
@@ -236,9 +240,6 @@ function TracesTableContent() {
           // Process batched trace updates
           for (const trace of payload.traces) {
             updateRealtimeTrace(trace);
-            if (trace.startTime) {
-              incrementStat(trace.startTime, trace.status === "error");
-            }
           }
         }
       } catch (error) {
