@@ -41,7 +41,7 @@ use traces::{
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
-use realtime::{SseConnectionMap, cleanup_closed_connections};
+use realtime::SseConnectionMap;
 use sodiumoxide;
 use std::{
     borrow::Cow,
@@ -437,8 +437,6 @@ fn main() -> anyhow::Result<()> {
 
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
-
-    runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
 
     // ==== Slack client ====
     let slack_client = Arc::new(reqwest::Client::new());
