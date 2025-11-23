@@ -1,6 +1,7 @@
 "use client"; // Error components must be Client Components
 
 import * as Sentry from "@sentry/nextjs";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,16 +22,19 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <Link href={"/projects"} className="flex h-10 mb-8 items-center justify-center">
           <Image alt="Laminar icon" className="rounded-lg" src={icon} width={80} />
         </Link>
-        <h1 className="text-xl font-medium text-center">Oops, something went wrong</h1>
-        <div>
-          <h1 className="font-medium text-center text-destructive">{error?.name}</h1>
-          <h1 className="font-medium text-center text-destructive">{error?.message}</h1>
-        </div>
-        <Link href="/projects" passHref>
-          <Button onClick={router.refresh} className="px-4" size="lg" variant="outline">
-            Refresh Page
+        <h1 className="text-2xl font-medium text-center">Oops, something went wrong</h1>
+        <h1 className="font-medium text-center text-destructive">{error?.name}</h1>
+
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <Button onClick={router.back} className="px-4" size="lg" variant="outline">
+            <ArrowLeft className="mr-2 size-4" />
+            Back
           </Button>
-        </Link>
+          <Button onClick={router.refresh} className="px-4" size="lg" variant="outlinePrimary">
+            <RefreshCw className="mr-2 size-4" />
+            Try Again
+          </Button>
+        </div>
       </div>
     </div>
   );

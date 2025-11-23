@@ -14,6 +14,17 @@ export async function requireWorkspaceAccess(workspaceId: string) {
     return redirect("/sign-in");
   }
 
+  const cacheKey = WORKSPACE_MEMBER_CACHE_KEY(workspaceId, session?.user?.id);
+
+  try {
+    const cached = await cache.get<boolean>(cacheKey);
+    if (!isNil(cached)) {
+      return cached ? session : notFound();
+    }
+  } catch (e) {
+    console.error("Error getting entry from cache", e);
+  }
+
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
@@ -31,6 +42,17 @@ export async function requireProjectAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return redirect("/sign-in");
+  }
+
+  const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, session?.user?.id);
+
+  try {
+    const cached = await cache.get<boolean>(cacheKey);
+    if (!isNil(cached)) {
+      return cached ? session : notFound();
+    }
+  } catch (e) {
+    console.error("Error getting entry from cache", e);
   }
 
   const results = await db
