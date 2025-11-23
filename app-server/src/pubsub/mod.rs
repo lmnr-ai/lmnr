@@ -1,4 +1,5 @@
 use enum_dispatch::enum_dispatch;
+use uuid::Uuid;
 
 use in_memory::InMemoryPubSub;
 use redis::RedisPubSub;
@@ -6,6 +7,44 @@ use redis::RedisPubSub;
 pub mod in_memory;
 pub mod keys;
 pub mod redis;
+
+/// Strongly typed SSE channel identifier
+/// Format: "sse:project_id:subscription_key"
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SseChannel {
+    pub project_id: Uuid,
+    pub subscription_key: String,
+}
+
+impl SseChannel {
+    pub fn new(project_id: Uuid, subscription_key: impl Into<String>) -> Self {
+        Self {
+            project_id,
+            subscription_key: subscription_key.into(),
+        }
+    }
+
+    /// Parse channel string into SseChannel
+    pub fn from_str(channel: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = channel.split(':').collect();
+        if parts.len() != 3 || parts[0] != "sse" {
+            return Err(format!("Invalid SSE channel format: {}", channel));
+        }
+
+        let project_id = Uuid::parse_str(parts[1])
+            .map_err(|e| format!("Invalid project_id in channel {}: {}", channel, e))?;
+
+        Ok(Self {
+            project_id,
+            subscription_key: parts[2].to_string(),
+        })
+    }
+
+    /// Convert to channel string
+    pub fn to_string(&self) -> String {
+        format!("sse:{}:{}", self.project_id, self.subscription_key)
+    }
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum PubSubError {
