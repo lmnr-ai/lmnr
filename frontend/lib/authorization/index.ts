@@ -31,7 +31,16 @@ export async function requireWorkspaceAccess(workspaceId: string) {
     .where(and(eq(membersOfWorkspaces.userId, session?.user?.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
     .limit(1);
 
-  if (results?.length === 0) {
+  const isMember = results?.length > 0;
+
+  try {
+    // 30 days
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+  } catch (e) {
+    console.error("Error setting entry in cache", e);
+  }
+
+  if (!isMember) {
     return notFound();
   }
 
@@ -62,7 +71,16 @@ export async function requireProjectAccess(projectId: string) {
     .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session?.user?.id)))
     .limit(1);
 
-  if (results?.length === 0) {
+  const isMember = results?.length > 0;
+
+  try {
+    // 30 days
+    await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+  } catch (e) {
+    console.error("Error setting entry in cache", e);
+  }
+
+  if (!isMember) {
     return notFound();
   }
 
