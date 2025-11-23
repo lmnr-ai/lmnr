@@ -308,7 +308,7 @@ function TracesTableContent() {
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
         focusedRowId={traceId || searchParams.get("traceId")}
-        hasMore={hasMore}
+        hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}

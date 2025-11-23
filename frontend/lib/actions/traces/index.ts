@@ -1,10 +1,12 @@
+
 import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/utils";
+import { searchSpans } from "@/lib/actions/traces/search";
+import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -12,6 +14,8 @@ import { db } from "@/lib/db/drizzle";
 import { clusters } from "@/lib/db/migrations/schema";
 import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
+
+import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
 const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
@@ -54,20 +58,28 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const filters: FilterDef[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
-  const traceIds = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: undefined,
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  if (search && traceIds?.length === 0) {
-    return { items: [] };
+  if (search) {
+    if (traceIds?.length === 0) {
+      return { items: [] };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)
@@ -111,6 +123,16 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
+
+  // If we have traceIds from search, sort items to match the search order
+  if (search && traceIds.length > 0) {
+    const traceIdIndexMap = new Map(traceIds.map((id, index) => [id, index]));
+    items.sort((a, b) => {
+      const indexA = traceIdIndexMap.get(a.id) ?? Infinity;
+      const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
+      return indexA - indexB;
+    });
+  }
 
   return {
     items,

@@ -145,7 +145,7 @@ function SpansTableContent() {
         getRowId={(span) => span.spanId}
         onRowClick={handleRowClick}
         focusedRowId={spanId || searchParams.get("spanId")}
-        hasMore={hasMore}
+        hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
