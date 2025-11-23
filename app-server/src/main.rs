@@ -41,6 +41,7 @@ use traces::{
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
+use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
     client::{QuickwitClient, QuickwitConfig},
@@ -76,6 +77,7 @@ mod names;
 mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
+mod pubsub;
 mod query_engine;
 mod quickwit;
 mod realtime;
@@ -169,20 +171,45 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Cache ===
-    let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
+    // === 1. Redis client (shared for cache and pub/sub) ===
+    let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
+        log::info!("Initializing Redis client");
+        match redis::Client::open(redis_url.as_str()) {
+            Ok(client) => Some(Arc::new(client)),
+            Err(e) => {
+                log::warn!("Failed to create Redis client: {:?}", e);
+                None
+            }
+        }
+    } else {
+        log::info!("REDIS_URL not set");
+        None
+    };
+
+    // === 2. Cache ===
+    let cache = if let Some(ref client) = redis_client {
         log::info!("Using Redis cache");
         runtime_handle.block_on(async {
-            let redis_cache = RedisCache::new(&redis_url).await.unwrap();
+            let redis_cache = RedisCache::new(client).await.unwrap();
             Cache::Redis(redis_cache)
         })
     } else {
-        log::info!("using in-memory cache");
+        log::info!("Using in-memory cache");
         Cache::InMemory(InMemoryCache::new(None))
     };
     let cache = Arc::new(cache);
 
-    // === 2. Database ===
+    // === 3. Pub/Sub ===
+    let pubsub = if let Some(ref client) = redis_client {
+        log::info!("Using Redis pub/sub");
+        PubSub::Redis(runtime_handle.block_on(RedisPubSub::new(client)).unwrap())
+    } else {
+        log::info!("Using in-memory pub/sub");
+        PubSub::InMemory(InMemoryPubSub::new())
+    };
+    let pubsub = Arc::new(pubsub);
+
+    // === 4. Database ===
     let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
     let db = Arc::new(inner_db);
 
@@ -472,6 +499,15 @@ fn main() -> anyhow::Result<()> {
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
+    let sse_connections_clone = sse_connections.clone();
+    let pubsub_clone = pubsub.clone();
+    runtime_handle.spawn(async move {
+        if let Err(e) = realtime::start_redis_subscriber(pubsub_clone, sse_connections_clone).await
+        {
+            log::error!("Redis SSE subscriber failed: {:?}", e);
+        }
+    });
+
     // ==== Slack client ====
     let slack_client = Arc::new(reqwest::Client::new());
 
@@ -695,6 +731,7 @@ fn main() -> anyhow::Result<()> {
         let clickhouse_for_consumer = clickhouse.clone();
         let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
+        let pubsub_for_consumer = pubsub.clone();
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
@@ -723,7 +760,7 @@ fn main() -> anyhow::Result<()> {
                         let mq_clone = mq_for_consumer.clone();
                         let ch_clone = clickhouse_for_consumer.clone();
                         let storage_clone = storage_for_consumer.clone();
-                        let sse_connections_clone = sse_connections.clone();
+                        let pubsub_clone = pubsub_for_consumer.clone();
 
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
@@ -733,7 +770,7 @@ fn main() -> anyhow::Result<()> {
                                 mq_clone,
                                 ch_clone,
                                 storage_clone,
-                                sse_connections_clone,
+                                pubsub_clone,
                             )
                             .await;
                         });
