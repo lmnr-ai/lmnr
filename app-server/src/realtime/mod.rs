@@ -7,6 +7,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use crate::pubsub::{PubSub, PubSubTrait, keys::SSE_CHANNEL_PATTERN};
+
 /// Connection with unique ID for tracking
 #[derive(Clone)]
 pub struct SseConnection {
@@ -141,12 +143,12 @@ pub fn create_sse_response(
         .streaming(stream))
 }
 
-/// Send message to all SSE connections for a specific project and subscription key
-pub fn send_to_key(
+/// Send message to local SSE connections only (used by Redis subscriber)
+pub fn send_to_local_connections(
     connections: &SseConnectionMap,
     project_id: &Uuid,
     subscription_key: &str,
-    message: SseMessage,
+    message: &SseMessage,
 ) {
     let key = (*project_id, subscription_key.to_string());
 
@@ -186,12 +188,72 @@ pub fn send_to_key(
                 subscription_key
             );
         }
-    } else {
-        log::debug!(
-            "No SSE connections found for project {} key {} (event: {})",
+    }
+}
+
+/// Publish message to Pub/Sub for distribution across pods
+/// The subscriber on each pod will forward to its local connections
+pub async fn send_to_key(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    subscription_key: &str,
+    message: SseMessage,
+) {
+    let channel = format!("sse:{}:{}", project_id, subscription_key);
+    let payload = match serde_json::to_string(&message) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to serialize SSE message: {:?}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = pubsub.publish(&channel, &payload).await {
+        log::error!(
+            "Failed to publish SSE message for project {} key {}: {:?}",
             project_id,
             subscription_key,
-            message.event_type
+            e
         );
     }
+}
+
+/// Start Redis Pub/Sub subscriber that forwards messages to local SSE connections
+pub async fn start_redis_subscriber(
+    pubsub: Arc<PubSub>,
+    connections: SseConnectionMap,
+) -> anyhow::Result<()> {
+    pubsub
+        .as_ref()
+        .subscribe(SSE_CHANNEL_PATTERN, move |channel, payload| {
+            // Parse channel: "sse:project_id:subscription_key"
+            let parts: Vec<&str> = channel.split(':').collect();
+            if parts.len() != 3 || parts[0] != "sse" {
+                log::error!("Invalid SSE channel format: {}", channel);
+                return;
+            }
+
+            let project_id = match Uuid::parse_str(parts[1]) {
+                Ok(id) => id,
+                Err(e) => {
+                    log::error!("Invalid project_id in channel {}: {}", channel, e);
+                    return;
+                }
+            };
+
+            let subscription_key = parts[2];
+
+            let message: SseMessage = match serde_json::from_str(&payload) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    log::error!("Failed to deserialize SSE message: {}", e);
+                    return;
+                }
+            };
+
+            // Forward to local connections
+            send_to_local_connections(&connections, &project_id, subscription_key, &message);
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("Redis subscriber failed: {:?}", e))
 }
