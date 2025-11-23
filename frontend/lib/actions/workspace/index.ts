@@ -5,7 +5,12 @@ import { z } from "zod/v4";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { cache, PROJECT_MEMBER_CACHE_KEY,WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache";
+import {
+  cache,
+  PROJECT_MEMBER_CACHE_KEY,
+  WORKSPACE_BYTES_USAGE_CACHE_KEY,
+  WORKSPACE_MEMBER_CACHE_KEY,
+} from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
@@ -311,6 +316,8 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+
   await db
     .delete(membersOfWorkspaces)
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userId)));
@@ -323,9 +330,7 @@ export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSc
       columns: { id: true },
     });
 
-    await Promise.all(
-      workspaceProjects.map((project) => cache.remove(PROJECT_MEMBER_CACHE_KEY(project.id, userId)))
-    );
+    await Promise.all(workspaceProjects.map((project) => cache.remove(PROJECT_MEMBER_CACHE_KEY(project.id, userId))));
   } catch (e) {
     console.error("Error clearing cache after user removal", e);
   }

@@ -14,7 +14,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
     return redirect("/sign-in");
   }
 
-  const cacheKey = WORKSPACE_MEMBER_CACHE_KEY(workspaceId, session?.user?.id);
+  const cacheKey = WORKSPACE_MEMBER_CACHE_KEY(workspaceId, session.user.id);
 
   try {
     const cached = await cache.get<boolean>(cacheKey);
@@ -28,7 +28,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
   const results = await db
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, session?.user?.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
+    .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
     .limit(1);
 
   const isMember = results?.length > 0;
@@ -68,7 +68,7 @@ export async function requireProjectAccess(projectId: string) {
     .select({ userId: membersOfWorkspaces.userId })
     .from(membersOfWorkspaces)
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session?.user?.id)))
+    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
     .limit(1);
 
   const isMember = results?.length > 0;
