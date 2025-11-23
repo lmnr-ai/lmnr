@@ -48,5 +48,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &["proto"],
         )?;
 
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .build_client(true)
+        .build_server(false)
+        .include_file("mod.rs")
+        .out_dir("./src/quickwit/proto/")
+        .compile_protos(&["./proto/quickwit/ingest_service.proto"], &["proto"])?;
+
     Ok(())
 }

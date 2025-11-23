@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { getTracesByIds } from "@/lib/actions/traces";
-import { searchSpans } from "@/lib/actions/traces/utils";
+import { searchSpans } from "@/lib/actions/traces/search";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
@@ -27,6 +27,8 @@ import {
   EvaluationScoreDistributionBucket,
   EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
+
+import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
@@ -74,29 +76,37 @@ export const getEvaluationDatapoints = async (
 
   const allFilters: FilterDef[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
   // Separate filters into trace and datapoint filters
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let searchTraceIds: string[] = search
+  let spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: undefined,
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  if (search && searchTraceIds.length === 0) {
-    return {
-      evaluation: evaluation as Evaluation,
-      results: [],
-      allStatistics: {},
-      allDistributions: {},
-    };
+  if (search) {
+    if (searchTraceIds.length === 0) {
+      return {
+        evaluation: evaluation as Evaluation,
+        results: [],
+        allStatistics: {},
+        allDistributions: {},
+      };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   // Step 2: Apply trace-specific filters if any exist
@@ -249,14 +259,16 @@ export const getEvaluationStatistics = async (
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let searchTraceIds: string[] = search
+  let spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: undefined,
       searchQuery: search,
       timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && searchTraceIds.length === 0) {
     return {

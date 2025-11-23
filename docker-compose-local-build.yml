@@ -98,6 +98,9 @@ services:
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUERY_ENGINE_URL: http://query-engine:8903
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+      QUICKWIT_INGEST_URL: http://quickwit:7281
+      QUICKWIT_SPANS_INDEX_ID: spans
 
   frontend:
     build:
@@ -122,8 +125,22 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+      QUICKWIT_SEARCH_URL: http://quickwit:7280
+
+  quickwit:
+    image: quickwit/quickwit:v0.8.2
+    pull_policy: always
+    ports:
+      - "7280:7280" # REST API and UI
+      - "7281:7281" # OTLP / gRPC
+    environment:
+      QW_DATA_DIR: /quickwit/qwdata
+    command: [ "run" ]
+    volumes:
+      - quickwit-data:/quickwit/qwdata
 
 volumes:
   clickhouse-data:
   clickhouse-logs:
   postgres-data:
+  quickwit-data:

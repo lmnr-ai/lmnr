@@ -1,5 +1,5 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
-//! and clickhouse
+//! and clickhouse, and quickwit
 use std::sync::Arc;
 
 use backoff::ExponentialBackoffBuilder;
@@ -37,6 +37,7 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait,
     },
+    quickwit::{QuickwitIndexedSpan, producer::publish_spans_for_indexing},
     realtime::SseConnectionMap,
     storage::Storage,
     traces::{
@@ -385,6 +386,16 @@ async fn process_batch(
     // Check for spans matching trigger conditions and push to trace summary queue
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
+
+    // Index spans in Quickwit
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
+    if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
+        log::error!(
+            "Failed to publish {} spans for Quickwit indexing: {:?}",
+            quickwit_spans.len(),
+            e
+        );
+    }
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
