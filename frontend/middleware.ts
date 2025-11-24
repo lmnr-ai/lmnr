@@ -8,39 +8,43 @@ export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
     const token = req.nextauth.token;
 
-    const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects\/([^\/]+)/);
+    const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^\/]+))?/);
     if (projectIdMatch) {
       if (!token) {
         return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
       }
 
-      const userId = token.userId as string;
       const projectId = projectIdMatch[1];
-      const hasAccess = await isUserMemberOfProject(projectId, userId);
+      if (projectId) {
+        const userId = token.userId as string;
+        const hasAccess = await isUserMemberOfProject(projectId, userId);
 
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: "You do not have access to this project", code: "FORBIDDEN" },
-          { status: 403 }
-        );
+        if (!hasAccess) {
+          return NextResponse.json(
+            { error: "You do not have access to this project", code: "FORBIDDEN" },
+            { status: 403 }
+          );
+        }
       }
     }
 
-    const workspaceIdMatch = req.nextUrl.pathname.match(/^\/api\/workspaces\/([^\/]+)/);
+    const workspaceIdMatch = req.nextUrl.pathname.match(/^\/api\/workspaces(?:\/([^\/]+))?/);
     if (workspaceIdMatch) {
       if (!token) {
         return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
       }
 
-      const userId = token.userId as string;
       const workspaceId = workspaceIdMatch[1];
-      const hasAccess = await isUserMemberOfWorkspace(workspaceId, userId);
+      if (workspaceId) {
+        const userId = token.userId as string;
+        const hasAccess = await isUserMemberOfWorkspace(workspaceId, userId);
 
-      if (!hasAccess) {
-        return NextResponse.json(
-          { error: "You do not have access to this workspace", code: "FORBIDDEN" },
-          { status: 403 }
-        );
+        if (!hasAccess) {
+          return NextResponse.json(
+            { error: "You do not have access to this workspace", code: "FORBIDDEN" },
+            { status: 403 }
+          );
+        }
       }
     }
 

@@ -50,10 +50,10 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
 
   const handleLogout = async () => {
     try {
-      broadcastLogout();
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut({ callbackUrl: "/" });
+      broadcastLogout();
     } catch (e) {
       console.error(e);
     }
