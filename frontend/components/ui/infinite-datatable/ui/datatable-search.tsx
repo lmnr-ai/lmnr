@@ -1,13 +1,12 @@
-import { isNil } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { KeyboardEventHandler, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input.tsx";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
@@ -28,18 +27,19 @@ export const DataTableSearch = ({
   const posthog = usePostHog();
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
-
+  const [debouncedValue, setDebouncedValue] = useState(searchParams.get("search") ?? "");
   const store = useDataTableStore();
   const { getStorageKey } = useStore(store, (state) => ({
     getStorageKey: state.getStorageKey,
   }));
 
-  const submit = () => {
+  const submit = (searchValue: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (isNil(inputRef?.current?.value)) {
+
+    if (!searchValue) {
       params.delete("search");
     } else {
-      params.set("search", inputRef?.current?.value);
+      params.set("search", searchValue);
     }
 
     params.delete("searchIn");
@@ -48,40 +48,39 @@ export const DataTableSearch = ({
     });
 
     router.push(`${pathName}?${params.toString()}`);
-    inputRef.current?.blur();
+
     if (isFeatureEnabled(Feature.POSTHOG)) {
       posthog.capture(`${getStorageKey()}_list_searched`, {
-        searchParams: searchParams.toString(),
+        searchParams: params.toString(),
       });
     }
   };
 
-  const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = (e) => {
-    if (e?.key === "Enter") {
-      submit();
-    }
+  const handleClearInput = () => {
+    setInputValue("");
+    setDebouncedValue("");
   };
 
-  const handleClearInput = () => {
-    if (inputRef.current) {
-      if (inputRef.current?.value !== "") {
-        setInputValue("");
-        inputRef.current.value = "";
-        submit();
-      }
-    }
-  };
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedValue(inputValue);
+    }, 200);
+    return () => clearTimeout(timeout);
+  }, [inputValue]);
+
+  useEffect(() => {
+    submit(debouncedValue);
+  }, [debouncedValue]);
 
   return (
     <div className="flex flex-col flex-1 relative">
       <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
         <Search size={16} className="text-secondary-foreground" />
         <Input
-          defaultValue={searchParams.get("search") ?? ""}
+          value={inputValue}
           className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
           type="text"
           placeholder={placeholder}
-          onKeyDown={handleKeyPress}
           ref={inputRef}
           onChange={(e) => setInputValue(e.target.value)}
         />
