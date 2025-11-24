@@ -160,6 +160,16 @@ function createDataTableStore<TData>(
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
         }),
+        merge: (persistedState: any, currentState) => {
+          const existingColumns = new Set(persistedState.columnOrder || []);
+          const newColumns = defaultColumnOrder.filter((col) => !existingColumns.has(col));
+
+          return {
+            ...currentState,
+            ...persistedState,
+            columnOrder: [...(persistedState.columnOrder || []), ...newColumns],
+          };
+        },
       })
     );
   }

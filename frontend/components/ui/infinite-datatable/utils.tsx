@@ -38,9 +38,13 @@ export function createCheckboxColumn<TData extends RowData>(options?: CheckboxCo
 
 export function getColumnLabels<TData>(columns: ColumnDef<TData, any>[]): Record<string, string> {
   return columns.reduce(
-    (acc, col) => {
-      const id = col.id || col?.["accessorKey"];
-      if (!id) return acc;
+    (acc, col: ColumnDef<TData, any>) => {
+      let id = col.id;
+      if (!id && "accessorKey" in col) {
+        id = col.accessorKey as string;
+      } else {
+        return acc;
+      }
 
       let label = id;
       if (typeof col.header === "string") {
