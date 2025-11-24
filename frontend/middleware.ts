@@ -54,7 +54,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        // if false returns redirect, let return true and handle for proper errors in case.
+        if (req.nextUrl.pathname.startsWith("/api/")) {
+          return true;
+        }
+        return !!token;
+      },
     },
     pages: {
       signIn: "/sign-in",
@@ -63,6 +69,6 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/api/projects/:path+", "/api/workspaces/:path+", "/api/shared/traces/:path+"],
+  matcher: ["/api/projects", "/api/workspaces", "/api/projects/:path+", "/api/workspaces/:path+", "/api/shared/traces/:path+"],
   runtime: "nodejs",
 };
