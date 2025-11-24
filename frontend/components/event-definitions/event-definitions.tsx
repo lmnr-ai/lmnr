@@ -75,8 +75,8 @@ function EventDefinitionsContent() {
         const response = await fetch(`/api/projects/${projectId}/event-definitions?${urlParams.toString()}`);
         if (!response.ok) throw new Error("Failed to fetch event definitions");
 
-        const data = (await response.json()) as { items: EventDefinitionRow[]; totalCount: number };
-        return { items: data.items, count: data.totalCount };
+        const data = (await response.json()) as { items: EventDefinitionRow[] };
+        return { items: data.items };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load event definitions.",

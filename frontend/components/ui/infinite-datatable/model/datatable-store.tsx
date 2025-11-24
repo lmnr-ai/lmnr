@@ -23,8 +23,8 @@ export interface InfiniteScrollActions<TData> {
   setIsLoading: (loading: boolean) => void;
   setError: (error: Error | null) => void;
   setHasMore: (hasMore: boolean) => void;
-  appendData: (items: TData[], count: number) => void;
-  replaceData: (items: TData[], count: number) => void;
+  appendData: (items: TData[], count?: number) => void;
+  replaceData: (items: TData[], count?: number) => void;
   resetInfiniteScroll: () => void;
 }
 
