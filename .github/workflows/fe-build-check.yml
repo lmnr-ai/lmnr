@@ -16,7 +16,7 @@ jobs:
     steps:
       # Step 1: Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # Step 2: Install pnpm
       - name: Install pnpm
