@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import React from "react";
 
+import { useSessionSync } from "@/components/auth/session-sync-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
@@ -30,9 +31,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project, workspace } = useProjectContext();
   const { username, imageUrl, email } = useUserContext();
+  const { broadcastLogout } = useSessionSync();
 
   const handleLogout = async () => {
     try {
+      broadcastLogout();
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut({ callbackUrl: "/" });

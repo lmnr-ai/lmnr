@@ -5,6 +5,7 @@ import { ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
+import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -56,18 +57,20 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
       imageUrl={user.image!}
       supabaseAccessToken={session.supabaseAccessToken}
     >
-      <PostHogIdentifier email={user.email!} />
-      <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
-        <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
-          <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-            <ProjectSidebar details={projectDetails} shouldShowPatterns={shouldShowPatterns} />
-            <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-              {showBanner && <ProjectUsageBanner details={projectDetails} />}
-              {children}
-            </SidebarInset>
-          </SidebarProvider>
-        </div>
-      </ProjectContextProvider>
+      <SessionSyncProvider>
+        <PostHogIdentifier email={user.email!} />
+        <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
+          <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
+            <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
+              <ProjectSidebar details={projectDetails} shouldShowPatterns={shouldShowPatterns} />
+              <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
+                {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                {children}
+              </SidebarInset>
+            </SidebarProvider>
+          </div>
+        </ProjectContextProvider>
+      </SessionSyncProvider>
     </UserContextProvider>
   );
 }

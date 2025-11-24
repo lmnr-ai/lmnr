@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import React, { useEffect } from "react";
 import useSWR from "swr";
 
+import { useSessionSync } from "@/components/auth/session-sync-provider";
 import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog.tsx";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
@@ -39,6 +40,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
   const { username, imageUrl, email } = useUserContext();
   const { data, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
   const { toast } = useToast();
+  const { broadcastLogout } = useSessionSync();
 
   useEffect(() => {
     if (error) {
@@ -48,6 +50,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
 
   const handleLogout = async () => {
     try {
+      broadcastLogout();
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
       await signOut({ callbackUrl: "/" });

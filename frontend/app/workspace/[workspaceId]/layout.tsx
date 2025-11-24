@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { PropsWithChildren } from "react";
 
+import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import { UserContextProvider } from "@/contexts/user-context";
 import { requireWorkspaceAccess } from "@/lib/authorization";
 
@@ -20,7 +21,9 @@ export default async function WorkspaceLayout(props: PropsWithChildren<{ params:
       username={session.user.name!}
       imageUrl={session.user.image!}
     >
-      {props.children}
+      <SessionSyncProvider>
+        {props.children}
+      </SessionSyncProvider>
     </UserContextProvider>
   );
 }
