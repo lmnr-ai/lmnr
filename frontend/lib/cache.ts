@@ -80,10 +80,10 @@ class CacheManager {
       const client = await this.getRedisClient();
       let args: any[] = [];
       if (options.expireAfterSeconds) {
-        args.push('EX', options.expireAfterSeconds);
+        args.push("EX", options.expireAfterSeconds);
       }
       if (options.expireAt) {
-        args.push('PXAT', options.expireAt.getTime());
+        args.push("PXAT", options.expireAt.getTime());
       }
       try {
         await client.set(key, JSON.stringify(value), ...args);
@@ -135,6 +135,20 @@ class CacheManager {
       }
     } else {
       return [];
+    }
+  }
+
+  async hmget(key: string, fields: string[]): Promise<(string | null)[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.hmget(key, ...fields);
+      } catch (e) {
+        console.error("Error getting hmget from cache", e);
+        return fields.map(() => null);
+      }
+    } else {
+      return fields.map(() => null);
     }
   }
 }

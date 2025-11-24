@@ -30,6 +30,13 @@ pub fn autocomplete_key(resource: &str, project_id: Uuid, field: &str) -> String
     format!("autocomplete:{}:{}:{}", resource, project_id, field)
 }
 
+pub fn autocomplete_original_key(resource: &str, project_id: Uuid, field: &str) -> String {
+    format!(
+        "autocomplete:{}:{}:{}:original",
+        resource, project_id, field
+    )
+}
+
 pub async fn is_autocomplete_cache_populated(cache: &Cache) -> bool {
     match cache {
         Cache::Redis(redis) => match redis.get::<String>(BACKFILL_SENTINEL_KEY).await {
@@ -161,15 +168,24 @@ pub async fn backfill_autocomplete_cache(
                 continue;
             }
 
-            let lowercase_values: Vec<String> = result
-                .into_iter()
-                .filter_map(|row| {
-                    row.get("value")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_lowercase())
-                })
-                .filter(|v| !v.is_empty())
-                .collect();
+            // Collect both lowercase and original values
+            let mut lowercase_values = Vec::new();
+            let mut originals_map: HashMap<String, String> = HashMap::new();
+
+            for row in result {
+                if let Some(original_value) = row.get("value").and_then(|v| v.as_str()) {
+                    if original_value.is_empty() {
+                        continue;
+                    }
+                    let lowercase = original_value.to_lowercase();
+                    lowercase_values.push(lowercase.clone());
+
+                    // Only store if original differs from lowercase (optimization)
+                    if lowercase != original_value {
+                        originals_map.insert(lowercase, original_value.to_string());
+                    }
+                }
+            }
 
             if lowercase_values.is_empty() {
                 continue;
@@ -177,9 +193,25 @@ pub async fn backfill_autocomplete_cache(
 
             let key = autocomplete_key(resource, project_id, field);
 
+            // Store lowercase values in sorted set for search
             for chunk in lowercase_values.chunks(PIPELINE_BATCH_SIZE) {
-                if let Err(e) = redis_cache.pipeline_zadd(&key, chunk).await {
+                if let Err(e) = redis_cache.pipe_zadd(&key, chunk).await {
                     log::error!("Failed to pipeline insert into {}: {}", key, e);
+                }
+            }
+
+            if !originals_map.is_empty() {
+                let original_key = autocomplete_original_key(resource, project_id, field);
+                let field_values: Vec<(String, String)> = originals_map.into_iter().collect();
+
+                for chunk in field_values.chunks(PIPELINE_BATCH_SIZE) {
+                    if let Err(e) = redis_cache.pipe_hset(&original_key, chunk).await {
+                        log::error!(
+                            "Failed to pipeline insert originals into {}: {}",
+                            original_key,
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -196,87 +228,202 @@ pub async fn backfill_autocomplete_cache(
 }
 
 pub async fn populate_autocomplete_cache(project_id: Uuid, spans: &[Span], cache: Arc<Cache>) {
-    let mut span_names = Vec::new();
-    let mut trace_names = Vec::new();
-    let mut span_tags = Vec::new();
-    let mut trace_tags = Vec::new();
-    let mut span_models = Vec::new();
-    let mut trace_models = Vec::new();
+    let mut span_names_lowercase = Vec::new();
+    let mut trace_names_lowercase = Vec::new();
+    let mut span_tags_lowercase = Vec::new();
+    let mut trace_tags_lowercase = Vec::new();
+    let mut span_models_lowercase = Vec::new();
+    let mut trace_models_lowercase = Vec::new();
+
+    let mut span_names_originals: HashMap<String, String> = HashMap::new();
+    let mut trace_names_originals: HashMap<String, String> = HashMap::new();
+    let mut span_tags_originals: HashMap<String, String> = HashMap::new();
+    let mut trace_tags_originals: HashMap<String, String> = HashMap::new();
+    let mut span_models_originals: HashMap<String, String> = HashMap::new();
+    let mut trace_models_originals: HashMap<String, String> = HashMap::new();
 
     for span in spans {
         let is_top_level = span.parent_span_id.is_none();
 
-        span_names.push(span.name.to_lowercase());
-        if is_top_level {
-            trace_names.push(span.name.to_lowercase());
+        // Process span names
+        let span_name_lowercase = span.name.to_lowercase();
+        span_names_lowercase.push(span_name_lowercase.clone());
+        if span_name_lowercase != span.name {
+            span_names_originals.insert(span_name_lowercase.clone(), span.name.clone());
         }
 
-        let tags = span.attributes.tags();
-        for tag in tags {
-            span_tags.push(tag.to_lowercase());
-            if is_top_level {
-                trace_tags.push(tag.to_lowercase());
+        if is_top_level {
+            trace_names_lowercase.push(span_name_lowercase.clone());
+            if span_name_lowercase != span.name {
+                trace_names_originals.insert(span_name_lowercase, span.name.clone());
             }
         }
 
+        // Process tags
+        let tags = span.attributes.tags();
+        for tag in tags {
+            let tag_lowercase = tag.to_lowercase();
+            span_tags_lowercase.push(tag_lowercase.clone());
+            if tag_lowercase != tag {
+                span_tags_originals.insert(tag_lowercase.clone(), tag.to_string());
+            }
+
+            if is_top_level {
+                trace_tags_lowercase.push(tag_lowercase.clone());
+                if tag_lowercase != tag {
+                    trace_tags_originals.insert(tag_lowercase, tag.to_string());
+                }
+            }
+        }
+
+        // Process request model
         if let Some(Value::String(request_model)) =
             span.attributes.raw_attributes.get(GEN_AI_REQUEST_MODEL)
         {
-            span_models.push(request_model.to_lowercase());
+            let model_lowercase = request_model.to_lowercase();
+            span_models_lowercase.push(model_lowercase.clone());
+            if model_lowercase != request_model.as_str() {
+                span_models_originals.insert(model_lowercase.clone(), request_model.clone());
+            }
+
             if is_top_level {
-                trace_models.push(request_model.to_lowercase());
+                trace_models_lowercase.push(model_lowercase.clone());
+                if model_lowercase != request_model.as_str() {
+                    trace_models_originals.insert(model_lowercase, request_model.clone());
+                }
             }
         }
 
+        // Process response model
         if let Some(Value::String(response_model)) =
             span.attributes.raw_attributes.get(GEN_AI_RESPONSE_MODEL)
         {
-            span_models.push(response_model.to_lowercase());
+            let model_lowercase = response_model.to_lowercase();
+            span_models_lowercase.push(model_lowercase.clone());
+            if model_lowercase != response_model.as_str() {
+                span_models_originals.insert(model_lowercase.clone(), response_model.clone());
+            }
+
             if is_top_level {
-                trace_models.push(response_model.to_lowercase());
+                trace_models_lowercase.push(model_lowercase.clone());
+                if model_lowercase != response_model.as_str() {
+                    trace_models_originals.insert(model_lowercase, response_model.clone());
+                }
             }
         }
     }
 
-    if !span_names.is_empty() {
+    // Store span names
+    if !span_names_lowercase.is_empty() {
         let key = autocomplete_key("spans", project_id, "names");
-        if let Err(e) = cache.pipeline_zadd(&key, &span_names).await {
+        if let Err(e) = cache.pipe_zadd(&key, &span_names_lowercase).await {
             log::error!("Failed to add span names to autocomplete cache: {}", e);
         }
+
+        if !span_names_originals.is_empty() {
+            let original_key = autocomplete_original_key("spans", project_id, "names");
+            let field_values: Vec<(String, String)> = span_names_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add span name originals to autocomplete cache: {}",
+                    e
+                );
+            }
+        }
     }
 
-    if !trace_names.is_empty() {
+    // Store trace names
+    if !trace_names_lowercase.is_empty() {
         let key = autocomplete_key("traces", project_id, "names");
-        if let Err(e) = cache.pipeline_zadd(&key, &trace_names).await {
+        if let Err(e) = cache.pipe_zadd(&key, &trace_names_lowercase).await {
             log::error!("Failed to add trace names to autocomplete cache: {}", e);
         }
+
+        if !trace_names_originals.is_empty() {
+            let original_key = autocomplete_original_key("traces", project_id, "names");
+            let field_values: Vec<(String, String)> = trace_names_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add trace name originals to autocomplete cache: {}",
+                    e
+                );
+            }
+        }
     }
 
-    if !span_tags.is_empty() {
+    // Store span tags
+    if !span_tags_lowercase.is_empty() {
         let key = autocomplete_key("spans", project_id, "tags");
-        if let Err(e) = cache.pipeline_zadd(&key, &span_tags).await {
+        if let Err(e) = cache.pipe_zadd(&key, &span_tags_lowercase).await {
             log::error!("Failed to add span tags to autocomplete cache: {}", e);
         }
+
+        if !span_tags_originals.is_empty() {
+            let original_key = autocomplete_original_key("spans", project_id, "tags");
+            let field_values: Vec<(String, String)> = span_tags_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add span tag originals to autocomplete cache: {}",
+                    e
+                );
+            }
+        }
     }
 
-    if !trace_tags.is_empty() {
+    // Store trace tags
+    if !trace_tags_lowercase.is_empty() {
         let key = autocomplete_key("traces", project_id, "tags");
-        if let Err(e) = cache.pipeline_zadd(&key, &trace_tags).await {
+        if let Err(e) = cache.pipe_zadd(&key, &trace_tags_lowercase).await {
             log::error!("Failed to add trace tags to autocomplete cache: {}", e);
         }
-    }
 
-    if !span_models.is_empty() {
-        let key = autocomplete_key("spans", project_id, "models");
-        if let Err(e) = cache.pipeline_zadd(&key, &span_models).await {
-            log::error!("Failed to add span models to autocomplete cache: {}", e);
+        if !trace_tags_originals.is_empty() {
+            let original_key = autocomplete_original_key("traces", project_id, "tags");
+            let field_values: Vec<(String, String)> = trace_tags_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add trace tag originals to autocomplete cache: {}",
+                    e
+                );
+            }
         }
     }
 
-    if !trace_models.is_empty() {
+    // Store span models
+    if !span_models_lowercase.is_empty() {
+        let key = autocomplete_key("spans", project_id, "models");
+        if let Err(e) = cache.pipe_zadd(&key, &span_models_lowercase).await {
+            log::error!("Failed to add span models to autocomplete cache: {}", e);
+        }
+
+        if !span_models_originals.is_empty() {
+            let original_key = autocomplete_original_key("spans", project_id, "models");
+            let field_values: Vec<(String, String)> = span_models_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add span model originals to autocomplete cache: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    // Store trace models
+    if !trace_models_lowercase.is_empty() {
         let key = autocomplete_key("traces", project_id, "models");
-        if let Err(e) = cache.pipeline_zadd(&key, &trace_models).await {
+        if let Err(e) = cache.pipe_zadd(&key, &trace_models_lowercase).await {
             log::error!("Failed to add trace models to autocomplete cache: {}", e);
+        }
+
+        if !trace_models_originals.is_empty() {
+            let original_key = autocomplete_original_key("traces", project_id, "models");
+            let field_values: Vec<(String, String)> = trace_models_originals.into_iter().collect();
+            if let Err(e) = cache.pipe_hset(&original_key, &field_values).await {
+                log::error!(
+                    "Failed to add trace model originals to autocomplete cache: {}",
+                    e
+                );
+            }
         }
     }
 }

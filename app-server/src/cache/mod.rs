@@ -57,5 +57,16 @@ pub trait CacheTrait {
 
     /// Bulk add multiple members to a sorted set
     /// Uses pipelining for Redis, sequential for InMemory
-    async fn pipeline_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError>;
+    async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError>;
+
+    /// Set a field in a hash to a value
+    async fn hset(&self, key: &str, field: &str, value: &str) -> Result<(), CacheError>;
+
+    /// Get multiple fields from a hash
+    /// Returns a vector of Option<String> where None indicates the field doesn't exist
+    async fn hmget(&self, key: &str, fields: &[String]) -> Result<Vec<Option<String>>, CacheError>;
+
+    /// Bulk set multiple field-value pairs in a hash
+    /// Uses pipelining for Redis, sequential for InMemory
+    async fn pipe_hset(&self, key: &str, field_values: &[(String, String)]) -> Result<(), CacheError>;
 }

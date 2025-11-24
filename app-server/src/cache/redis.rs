@@ -177,7 +177,7 @@ impl CacheTrait for RedisCache {
         })
     }
 
-    async fn pipeline_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError> {
+    async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError> {
         if members.is_empty() {
             return Ok(());
         }
@@ -193,6 +193,66 @@ impl CacheTrait for RedisCache {
             .await
             .map_err(|e| {
                 log::error!("Redis pipeline zadd error: {}", e);
+                CacheError::InternalError(anyhow::Error::from(e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn hset(&self, key: &str, field: &str, value: &str) -> Result<(), CacheError> {
+        let result: RedisResult<()> = redis::cmd("HSET")
+            .arg(key)
+            .arg(field)
+            .arg(value)
+            .query_async(&mut self.connection.clone())
+            .await;
+
+        result.map_err(|e| {
+            log::error!("Redis HSET error for key {}: {}", key, e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
+
+    async fn hmget(&self, key: &str, fields: &[String]) -> Result<Vec<Option<String>>, CacheError> {
+        if fields.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut cmd = redis::cmd("HMGET");
+        cmd.arg(key);
+        for field in fields {
+            cmd.arg(field);
+        }
+
+        let result: RedisResult<Vec<Option<String>>> =
+            cmd.query_async(&mut self.connection.clone()).await;
+
+        result.map_err(|e| {
+            log::error!("Redis HMGET error for key {}: {}", key, e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
+
+    async fn pipe_hset(
+        &self,
+        key: &str,
+        field_values: &[(String, String)],
+    ) -> Result<(), CacheError> {
+        if field_values.is_empty() {
+            return Ok(());
+        }
+
+        let mut pipe = redis::pipe();
+
+        for (field, value) in field_values {
+            pipe.cmd("HSET").arg(key).arg(field).arg(value);
+        }
+
+        let _: () = pipe
+            .query_async(&mut self.connection.clone())
+            .await
+            .map_err(|e| {
+                log::error!("Redis pipeline hset error for key {}: {}", key, e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
 
