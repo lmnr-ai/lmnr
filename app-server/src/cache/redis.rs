@@ -8,11 +8,7 @@ pub struct RedisCache {
 }
 
 impl RedisCache {
-    pub async fn new(redis_url: &str) -> Result<Self, CacheError> {
-        let client = redis::Client::open(redis_url)
-            .map_err(anyhow::Error::from)
-            .map_err(CacheError::InternalError)?;
-
+    pub async fn new(client: &redis::Client) -> Result<Self, CacheError> {
         let connection = client
             .get_multiplexed_async_connection()
             .await

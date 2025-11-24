@@ -99,7 +99,8 @@ pub struct QueryResponse {
 }
 /// Nested message and enum types in `QueryResponse`.
 pub mod query_response {
-    #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Oneof)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
         Success(super::SuccessResponse),
@@ -144,7 +145,8 @@ pub struct JsonToSqlResponse {
 }
 /// Nested message and enum types in `JsonToSqlResponse`.
 pub mod json_to_sql_response {
-    #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Oneof)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
         Success(super::JsonToSqlSuccessResponse),
@@ -175,7 +177,8 @@ pub struct SqlToJsonResponse {
 }
 /// Nested message and enum types in `SqlToJsonResponse`.
 pub mod sql_to_json_response {
-    #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Oneof)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
         Success(super::SqlToJsonSuccessResponse),
@@ -190,10 +193,10 @@ pub mod query_engine_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::http::Uri;
     use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct QueryEngineServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -232,13 +235,14 @@ pub mod query_engine_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::Body>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::Body>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             QueryEngineServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -277,52 +281,71 @@ pub mod query_engine_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::QueryRequest>,
         ) -> std::result::Result<tonic::Response<super::QueryResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/query_engine.QueryEngineService/ValidateQuery",
             );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "query_engine.QueryEngineService",
-                "ValidateQuery",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("query_engine.QueryEngineService", "ValidateQuery"),
+                );
             self.inner.unary(req, path, codec).await
         }
         pub async fn json_to_sql(
             &mut self,
             request: impl tonic::IntoRequest<super::JsonToSqlRequest>,
-        ) -> std::result::Result<tonic::Response<super::JsonToSqlResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::JsonToSqlResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/query_engine.QueryEngineService/JsonToSql");
+            let path = http::uri::PathAndQuery::from_static(
+                "/query_engine.QueryEngineService/JsonToSql",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "query_engine.QueryEngineService",
-                "JsonToSql",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("query_engine.QueryEngineService", "JsonToSql"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn sql_to_json(
             &mut self,
             request: impl tonic::IntoRequest<super::SqlToJsonRequest>,
-        ) -> std::result::Result<tonic::Response<super::SqlToJsonResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::SqlToJsonResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/query_engine.QueryEngineService/SqlToJson");
+            let path = http::uri::PathAndQuery::from_static(
+                "/query_engine.QueryEngineService/SqlToJson",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "query_engine.QueryEngineService",
-                "SqlToJson",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("query_engine.QueryEngineService", "SqlToJson"));
             self.inner.unary(req, path, codec).await
         }
     }

@@ -9,10 +9,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, TimeRange } from "@/lib/clickhouse/utils";
 import { FilterDef } from "@/lib/db/modifiers";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
@@ -141,6 +137,8 @@ const tracesSelectColumns = [
   "user_id as userId",
 ];
 
+export const DEFAULT_SEARCH_MAX_HITS = 500;
+
 export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
@@ -186,13 +184,13 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     },
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
-    customConditions,
     orderBy: [
       {
         column: "start_time",
         direction: "DESC",
       },
     ],
+    customConditions,
     pagination: {
       limit,
       offset,
@@ -200,42 +198,6 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   };
 
   return buildSelectQuery(queryOptions);
-};
-
-export const searchSpans = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
-  });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
 };
 
 export const buildTracesStatsWhereConditions = (options: {

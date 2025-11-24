@@ -146,7 +146,8 @@ function TracesTableContent() {
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
           variant: "destructive",
         });
         throw error;
@@ -204,6 +205,10 @@ function TracesTableContent() {
             newTraces.splice(FETCH_SIZE);
           }
 
+          if (traceData.startTime) {
+            incrementStat(traceData.startTime, traceData.status === "error");
+          }
+
           return newTraces;
         }
       });
@@ -236,9 +241,6 @@ function TracesTableContent() {
           // Process batched trace updates
           for (const trace of payload.traces) {
             updateRealtimeTrace(trace);
-            if (trace.startTime) {
-              incrementStat(trace.startTime, trace.status === "error");
-            }
           }
         }
       } catch (error) {
@@ -307,7 +309,7 @@ function TracesTableContent() {
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
         focusedRowId={traceId || searchParams.get("traceId")}
-        hasMore={hasMore}
+        hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}

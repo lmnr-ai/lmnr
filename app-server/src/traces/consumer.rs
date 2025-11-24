@@ -1,5 +1,5 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
-//! and clickhouse
+//! and clickhouse, and quickwit
 use std::sync::Arc;
 
 use super::{
@@ -29,7 +29,8 @@ use crate::{
         MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
         MessageQueueTrait,
     },
-    realtime::SseConnectionMap,
+    pubsub::PubSub,
+    quickwit::{QuickwitIndexedSpan, producer::publish_spans_for_indexing},
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -55,7 +56,7 @@ pub async fn process_queue_spans(
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
-    sse_connections: SseConnectionMap,
+    pubsub: Arc<PubSub>,
 ) {
     loop {
         inner_process_queue_spans(
@@ -64,7 +65,7 @@ pub async fn process_queue_spans(
             queue.clone(),
             clickhouse.clone(),
             storage.clone(),
-            sse_connections.clone(),
+            pubsub.clone(),
         )
         .await;
         log::warn!("Span listener exited. Rebinding queue conneciton...");
@@ -77,7 +78,7 @@ async fn inner_process_queue_spans(
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
-    sse_connections: SseConnectionMap,
+    pubsub: Arc<PubSub>,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
@@ -139,7 +140,7 @@ async fn inner_process_queue_spans(
             storage.clone(),
             acker,
             queue.clone(),
-            sse_connections.clone(),
+            pubsub.clone(),
         )
         .await;
     }
@@ -147,16 +148,7 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(
-    messages,
-    db,
-    clickhouse,
-    cache,
-    storage,
-    acker,
-    queue,
-    sse_connections
-))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -165,7 +157,7 @@ async fn process_spans_and_events_batch(
     storage: Arc<Storage>,
     acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
-    sse_connections: SseConnectionMap,
+    pubsub: Arc<PubSub>,
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -229,7 +221,7 @@ async fn process_spans_and_events_batch(
         cache,
         acker,
         queue,
-        sse_connections,
+        pubsub,
     )
     .with_current_context()
     .await;
@@ -252,7 +244,7 @@ struct StrippedSpan {
     cache,
     acker,
     queue,
-    sse_connections
+    pubsub
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -263,7 +255,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
-    sse_connections: SseConnectionMap,
+    pubsub: Arc<PubSub>,
 ) {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
@@ -335,7 +327,7 @@ async fn process_batch(
                     }
 
                     // Send trace_update events for realtime updates
-                    send_trace_updates(&updated_traces, &sse_connections).await;
+                    send_trace_updates(&updated_traces, &pubsub).await;
                 }
                 Err(e) => {
                     log::error!(
@@ -379,14 +371,24 @@ async fn process_batch(
         return;
     }
 
+    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
+    send_span_updates(&spans, &pubsub).await;
+
     // Check for spans matching trigger conditions and push to trace summary queue
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
 
     populate_autocomplete_cache(project_id, &spans, cache.clone()).await;
 
-    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
-    send_span_updates(&spans, &sse_connections).await;
+    // Index spans in Quickwit
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
+    if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
+        log::error!(
+            "Failed to publish {} spans for Quickwit indexing: {:?}",
+            quickwit_spans.len(),
+            e
+        );
+    }
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans

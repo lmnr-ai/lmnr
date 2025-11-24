@@ -34,6 +34,9 @@ interface EvaluationDatapointsTableProps {
   data: EvaluationDatapointPreview[] | undefined;
   scores: string[];
   handleRowClick: (row: Row<EvaluationDatapointPreviewWithCompared>) => void;
+  hasMore: boolean;
+  isFetching: boolean;
+  fetchNextPage: () => void;
 }
 
 const filters: ColumnFilter[] = [
@@ -54,6 +57,9 @@ const EvaluationDatapointsTableContent = ({
   handleRowClick,
   datapointId,
   isLoading,
+  hasMore,
+  isFetching,
+  fetchNextPage,
 }: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
 
@@ -128,10 +134,10 @@ const EvaluationDatapointsTableContent = ({
       <InfiniteDataTable
         columns={columns}
         data={data ?? []}
-        hasMore={false}
-        isFetching={false}
+        hasMore={!searchParams.get("search") && hasMore}
+        isFetching={isFetching}
         isLoading={isLoading}
-        fetchNextPage={() => {}}
+        fetchNextPage={fetchNextPage}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}

@@ -41,7 +41,13 @@ use traces::{
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
-use realtime::{SseConnectionMap, cleanup_closed_connections};
+use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
+use quickwit::{
+    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
+    client::{QuickwitClient, QuickwitConfig},
+    consumer::process_indexer_queue_spans,
+};
+use realtime::SseConnectionMap;
 use sodiumoxide;
 use std::{
     borrow::Cow,
@@ -71,7 +77,9 @@ mod names;
 mod notifications;
 mod opentelemetry_proto;
 mod project_api_keys;
+mod pubsub;
 mod query_engine;
+mod quickwit;
 mod realtime;
 mod routes;
 mod runtime;
@@ -163,20 +171,45 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Cache ===
-    let cache = if let Ok(redis_url) = env::var("REDIS_URL") {
+    // === 1. Redis client (shared for cache and pub/sub) ===
+    let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
+        log::info!("Initializing Redis client");
+        match redis::Client::open(redis_url.as_str()) {
+            Ok(client) => Some(Arc::new(client)),
+            Err(e) => {
+                log::warn!("Failed to create Redis client: {:?}", e);
+                None
+            }
+        }
+    } else {
+        log::info!("REDIS_URL not set");
+        None
+    };
+
+    // === 2. Cache ===
+    let cache = if let Some(ref client) = redis_client {
         log::info!("Using Redis cache");
         runtime_handle.block_on(async {
-            let redis_cache = RedisCache::new(&redis_url).await.unwrap();
+            let redis_cache = RedisCache::new(client).await.unwrap();
             Cache::Redis(redis_cache)
         })
     } else {
-        log::info!("using in-memory cache");
+        log::info!("Using in-memory cache");
         Cache::InMemory(InMemoryCache::new(None))
     };
     let cache = Arc::new(cache);
 
-    // === 2. Database ===
+    // === 3. Pub/Sub ===
+    let pubsub = if let Some(ref client) = redis_client {
+        log::info!("Using Redis pub/sub");
+        PubSub::Redis(runtime_handle.block_on(RedisPubSub::new(client)).unwrap())
+    } else {
+        log::info!("Using in-memory pub/sub");
+        PubSub::InMemory(InMemoryPubSub::new())
+    };
+    let pubsub = Arc::new(pubsub);
+
+    // === 4. Database ===
     let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
     let db = Arc::new(inner_db);
 
@@ -235,6 +268,32 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.1b Spans indexer message queue ====
+            channel
+                .exchange_declare(
+                    SPANS_INDEXER_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SPANS_INDEXER_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -419,6 +478,8 @@ fn main() -> anyhow::Result<()> {
         // register queues
         // ==== 3.1 Spans message queue ====
         queue.register_queue(OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE);
+        // ==== 3.1b Spans indexer message queue ====
+        queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
         // ==== 3.3 Evaluators message queue ====
@@ -438,7 +499,14 @@ fn main() -> anyhow::Result<()> {
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
 
-    runtime_handle.spawn(cleanup_closed_connections(sse_connections.clone()));
+    let sse_connections_clone = sse_connections.clone();
+    let pubsub_clone = pubsub.clone();
+    runtime_handle.spawn(async move {
+        if let Err(e) = realtime::start_redis_subscriber(pubsub_clone, sse_connections_clone).await
+        {
+            log::error!("Redis SSE subscriber failed: {:?}", e);
+        }
+    });
 
     // ==== Slack client ====
     let slack_client = Arc::new(reqwest::Client::new());
@@ -526,6 +594,23 @@ fn main() -> anyhow::Result<()> {
         log::info!("ClickHouse read-only client disabled");
         None
     };
+
+    // == Quickwit ==
+    // Quickwit is optional - if unavailable, the server will start but search/indexing will be disabled
+    let quickwit_client =
+        match runtime_handle.block_on(QuickwitClient::connect(QuickwitConfig::from_env())) {
+            Ok(client) => {
+                log::info!("Quickwit client connected successfully");
+                Some(client)
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to connect to Quickwit (search/indexing will be disabled): {:?}",
+                    e
+                );
+                None
+            }
+        };
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
@@ -619,6 +704,11 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(4);
 
+        let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
+
         let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
             .unwrap_or(String::from("4"))
             .parse::<u8>()
@@ -650,8 +740,9 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(1);
 
         log::info!(
-            "Spans workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
             num_spans_workers,
+            num_spans_indexer_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
@@ -668,13 +759,22 @@ fn main() -> anyhow::Result<()> {
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
         let storage_for_consumer = storage.clone();
+        let quickwit_client_for_consumer = quickwit_client.clone();
+        let pubsub_for_consumer = pubsub.clone();
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
                     // On the consumer side, we only need to serve health and ready probes
+                    // Adjust expected counts based on Quickwit availability
+                    let expected_spans_indexer_workers = if quickwit_client_for_consumer.is_some() {
+                        num_spans_indexer_workers as usize
+                    } else {
+                        0
+                    };
                     let expected_counts = ExpectedWorkerCounts::new(
                         num_spans_workers as usize,
+                        expected_spans_indexer_workers,
                         num_browser_events_workers as usize,
                         num_evaluators_workers as usize,
                         num_payload_workers as usize,
@@ -689,7 +789,7 @@ fn main() -> anyhow::Result<()> {
                         let mq_clone = mq_for_consumer.clone();
                         let ch_clone = clickhouse_for_consumer.clone();
                         let storage_clone = storage_for_consumer.clone();
-                        let sse_connections_clone = sse_connections.clone();
+                        let pubsub_clone = pubsub_for_consumer.clone();
 
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
@@ -699,10 +799,27 @@ fn main() -> anyhow::Result<()> {
                                 mq_clone,
                                 ch_clone,
                                 storage_clone,
-                                sse_connections_clone,
+                                pubsub_clone,
                             )
                             .await;
                         });
+                    }
+
+                    if let Some(quickwit_client_for_indexer) = quickwit_client_for_consumer.as_ref()
+                    {
+                        for _ in 0..num_spans_indexer_workers {
+                            log::info!("Spawning spans indexer worker");
+                            let worker_handle =
+                                worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
+                            let mq_clone = mq_for_consumer.clone();
+                            let quickwit_client_clone = quickwit_client_for_indexer.clone();
+                            tokio::spawn(async move {
+                                let _handle = worker_handle;
+                                process_indexer_queue_spans(mq_clone, quickwit_client_clone).await;
+                            });
+                        }
+                    } else {
+                        log::warn!("Quickwit not available - skipping spans indexer workers");
                     }
 
                     for _ in 0..num_browser_events_workers {
@@ -847,6 +964,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(connection_for_health.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
+                            .app_data(web::Data::new(quickwit_client.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -894,7 +1012,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
-                                    .service(routes::sql::json_to_sql),
+                                    .service(routes::sql::json_to_sql)
+                                    .service(routes::spans::search_spans),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
