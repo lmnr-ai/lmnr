@@ -8,14 +8,13 @@ export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
     const token = req.nextauth.token;
 
-    if (!token) {
-      return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
-    }
-
-    const userId = token.userId as string;
-
     const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects\/([^\/]+)/);
     if (projectIdMatch) {
+      if (!token) {
+        return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
+      }
+
+      const userId = token.userId as string;
       const projectId = projectIdMatch[1];
       const hasAccess = await isUserMemberOfProject(projectId, userId);
 
@@ -29,6 +28,11 @@ export default withAuth(
 
     const workspaceIdMatch = req.nextUrl.pathname.match(/^\/api\/workspaces\/([^\/]+)/);
     if (workspaceIdMatch) {
+      if (!token) {
+        return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
+      }
+
+      const userId = token.userId as string;
       const workspaceId = workspaceIdMatch[1];
       const hasAccess = await isUserMemberOfWorkspace(workspaceId, userId);
 
@@ -69,6 +73,12 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/api/projects", "/api/workspaces", "/api/projects/:path+", "/api/workspaces/:path+", "/api/shared/traces/:path+"],
+  matcher: [
+    "/api/projects",
+    "/api/workspaces",
+    "/api/projects/:path+",
+    "/api/workspaces/:path+",
+    "/api/shared/traces/:path+",
+  ],
   runtime: "nodejs",
 };
