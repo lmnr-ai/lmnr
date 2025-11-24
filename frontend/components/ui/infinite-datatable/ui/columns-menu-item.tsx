@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils.ts";
 
 interface ColumnsMenuItemProps {
   id: string;
+  label: string;
   isVisible: boolean;
   isLocked: boolean;
   onToggleVisibility: (columnId: string) => void;
 }
 
-export const ColumnsMenuItem = ({ id, isVisible, isLocked, onToggleVisibility }: ColumnsMenuItemProps) => {
+export const ColumnsMenuItem = ({ id, label, isVisible, isLocked, onToggleVisibility }: ColumnsMenuItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id,
     disabled: isLocked,
@@ -28,12 +29,12 @@ export const ColumnsMenuItem = ({ id, isVisible, isLocked, onToggleVisibility }:
       <div
         ref={setNodeRef}
         {...(!isLocked && { ...attributes, ...listeners })}
-        className={cn("mr-auto cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
+        className={cn("cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
       >
         <GripHorizontal />
       </div>
 
-      <span className={isLocked ? "text-muted-foreground" : ""}>{id}</span>
+      <span className={isLocked ? "text-muted-foreground" : ""}>{label}</span>
 
       <Switch
         checked={isVisible}

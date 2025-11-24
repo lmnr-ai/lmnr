@@ -2,7 +2,7 @@
 
 import { Row } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import { columns, defaultEventDefinitionsColumnOrder } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
@@ -12,6 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useProjectContext } from "@/contexts/project-context";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -39,6 +40,7 @@ function EventDefinitionsContent() {
   const { rowSelection, onRowSelectionChange } = useSelection();
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
+  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const fetchEventDefinitions = useCallback(async () => {
     try {
@@ -151,7 +153,7 @@ function EventDefinitionsContent() {
             </div>
           )}
         >
-          <ColumnsMenu lockedColumns={["__row_selection"]} />
+          <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
         </InfiniteDataTable>
       </div>
     </>

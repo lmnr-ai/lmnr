@@ -11,6 +11,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 
 export default function PatternsTable() {
@@ -30,6 +31,7 @@ function PatternsTableContent() {
   const { toast } = useToast();
 
   const columns = useMemo(() => getColumns(projectId), [projectId]);
+  const columnLabels = useMemo(() => getColumnLabels(columns), [columns]);
 
   const fetchPatterns = useCallback(
     async (_pageNumber: number) => {
@@ -129,7 +131,7 @@ function PatternsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <RefreshButton onClick={refetch} variant="outline" />
-          <ColumnsMenu />
+          <ColumnsMenu columnLabels={columnLabels} lockedColumns={["expand"]} />
         </div>
       </InfiniteDataTable>
     </div>

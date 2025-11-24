@@ -2,13 +2,14 @@
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -51,6 +52,8 @@ function DatasetsContent() {
   const router = useRouter();
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const fetchDatasets = useCallback(
     async (pageNumber: number) => {
@@ -167,7 +170,7 @@ function DatasetsContent() {
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
           </InfiniteDataTable>
         </div>
       </div>

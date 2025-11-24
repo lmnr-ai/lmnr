@@ -3,13 +3,14 @@
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PlaygroundInfo } from "@/lib/playground/types";
 import { swrFetcher } from "@/lib/utils";
@@ -59,6 +60,8 @@ const PlaygroundsContent = () => {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const handleDeletePlaygrounds = async (playgroundIds: string[]) => {
     setIsDeleting(true);
@@ -140,7 +143,7 @@ const PlaygroundsContent = () => {
             </div>
           )}
         >
-          <ColumnsMenu />
+          <ColumnsMenu columnLabels={columnLabels} lockedColumns={["__row_selection"]} />
         </InfiniteDataTable>
       </div>
     </>

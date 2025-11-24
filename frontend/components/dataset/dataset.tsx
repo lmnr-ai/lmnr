@@ -12,6 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -152,6 +153,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
+  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const handleDatapointSelect = useCallback(
     (datapoint: Row<Datapoint> | null) => {
@@ -307,7 +309,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>

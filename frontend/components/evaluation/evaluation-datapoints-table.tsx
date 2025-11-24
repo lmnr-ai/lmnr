@@ -25,6 +25,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
@@ -123,6 +124,8 @@ const EvaluationDatapointsTableContent = ({
     return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
 
+  const columnLabels = useMemo(() => getColumnLabels(columns), [columns]);
+
   const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
 
   useEffect(() => {
@@ -145,7 +148,7 @@ const EvaluationDatapointsTableContent = ({
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
-          <ColumnsMenu />
+          <ColumnsMenu columnLabels={columnLabels} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

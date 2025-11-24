@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import SearchTracesInput from "@/components/traces/search-traces-input";
@@ -17,6 +17,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
@@ -69,6 +70,8 @@ function TracesTableContent() {
   const searchIn = searchParams.getAll("searchIn");
 
   const [realtimeEnabled, setRealtimeEnabled] = useState(false);
+
+  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -316,7 +319,7 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} />
+          <ColumnsMenu lockedColumns={["status"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

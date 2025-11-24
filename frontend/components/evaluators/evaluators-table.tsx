@@ -7,6 +7,7 @@ import useSWR from "swr";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { getColumnLabels } from "@/components/ui/infinite-datatable/utils.tsx";
 import { Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { PaginatedResponse } from "@/lib/types";
@@ -61,6 +62,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
     [mutate, projectId, toast]
   );
 
+  const columnLabels = getColumnLabels(columns);
   return (
     <InfiniteDataTable
       columns={columns}
@@ -87,7 +89,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
         </div>
       )}
     >
-      <ColumnsMenu lockedColumns={["__row_selection"]} />
+      <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
     </InfiniteDataTable>
   );
 }
