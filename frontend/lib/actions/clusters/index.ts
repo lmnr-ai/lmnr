@@ -1,9 +1,9 @@
-import { and, desc, eq, gt, gte, ilike, lt, lte } from "drizzle-orm";
+import { and, desc, eq, ilike } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
+import { parseFilters } from "@/lib/db/filter-parser";
 import { clusters, projects } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export type Cluster = {
   id: string;
@@ -41,32 +41,12 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema> | str
   }
 
   if (filter && Array.isArray(filter)) {
-    filter.forEach((filterItem) => {
-      try {
-        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
-        const { column, operator, value } = f;
-        const operatorStr = operator as string;
-
-        if (column === "name") {
-          if (operator === "eq") whereConditions.push(eq(clusters.name, value));
-          else if (operatorStr === "contains") whereConditions.push(ilike(clusters.name, `%${value}%`));
-        } else if (column === "level") {
-          const numValue = Number(value);
-          if (operator === "eq") whereConditions.push(eq(clusters.level, numValue));
-          else if (operator === "gt") whereConditions.push(gt(clusters.level, numValue));
-          else if (operator === "gte") whereConditions.push(gte(clusters.level, numValue));
-          else if (operator === "lt") whereConditions.push(lt(clusters.level, numValue));
-          else if (operator === "lte") whereConditions.push(lte(clusters.level, numValue));
-        } else if (column === "numTraces") {
-          const numValue = Number(value);
-          if (operator === "eq") whereConditions.push(eq(clusters.numTraces, numValue));
-          else if (operator === "gt") whereConditions.push(gt(clusters.numTraces, numValue));
-          else if (operator === "gte") whereConditions.push(gte(clusters.numTraces, numValue));
-          else if (operator === "lt") whereConditions.push(lt(clusters.numTraces, numValue));
-          else if (operator === "lte") whereConditions.push(lte(clusters.numTraces, numValue));
-        }
-      } catch (error) {}
+    const filterConditions = parseFilters(filter, {
+      name: { column: clusters.name, type: "string" },
+      level: { column: clusters.level, type: "number" },
+      numTraces: { column: clusters.numTraces, type: "number" },
     });
+    whereConditions.push(...filterConditions);
   }
 
   const result = await db

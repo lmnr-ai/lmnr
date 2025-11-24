@@ -7,8 +7,8 @@ import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
+import { parseFilters } from "@/lib/db/filter-parser";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export type EventDefinitionRow = Omit<EventDefinition, "prompt" | "structuredOutput">;
 
@@ -92,36 +92,27 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
   }
 
   if (filter && Array.isArray(filter)) {
-    filter.forEach((filterItem) => {
-      try {
-        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
-        const { column, operator, value } = f;
-        const operatorStr = operator as string;
-
-        if (column === "name") {
-          if (operator === "eq") whereConditions.push(eq(eventDefinitions.name, value));
-          else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.name, `%${value}%`));
-        } else if (column === "id") {
-          if (operator === "eq") whereConditions.push(eq(eventDefinitions.id, value));
-          else if (operatorStr === "contains") whereConditions.push(ilike(eventDefinitions.id, `%${value}%`));
-        } else if (column === "isSemantic") {
-          const boolValue = value === "true" || value === true;
-          whereConditions.push(eq(eventDefinitions.isSemantic, boolValue));
-        } else if (column === "triggerSpans") {
-          if (operatorStr === "contains") {
-            whereConditions.push(
-              sql`EXISTS (
-                SELECT 1 FROM ${summaryTriggerSpans}
-                WHERE ${summaryTriggerSpans.eventName} = ${eventDefinitions.name}
-                  AND ${summaryTriggerSpans.projectId} = ${projectId}
-                  AND ${summaryTriggerSpans.spanName} ILIKE ${`%${value}%`}
-              )`
-            );
+    const filterConditions = parseFilters(filter, {
+      name: { column: eventDefinitions.name, type: "string" },
+      id: { column: eventDefinitions.id, type: "string" },
+      isSemantic: { column: eventDefinitions.isSemantic, type: "boolean" },
+      triggerSpans: {
+        column: null as any,
+        type: "custom",
+        handler: (f) => {
+          if (f.operator === "contains" || (f.operator as string) === "contains") {
+            return sql`EXISTS (
+              SELECT 1 FROM ${summaryTriggerSpans}
+              WHERE ${summaryTriggerSpans.eventName} = ${eventDefinitions.name}
+                AND ${summaryTriggerSpans.projectId} = ${projectId}
+                AND ${summaryTriggerSpans.spanName} ILIKE ${`%${f.value}%`}
+            )`;
           }
-        }
-      } catch (error) {
-      }
+          return null;
+        },
+      },
     });
+    whereConditions.push(...filterConditions);
   }
 
   const results = await db

@@ -2,8 +2,8 @@ import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
+import { parseFilters } from "@/lib/db/filter-parser";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 
 export type Queue = {
@@ -42,21 +42,11 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
   }
 
   if (filter && Array.isArray(filter)) {
-    filter.forEach((filterItem) => {
-      try {
-        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
-        const { column, operator, value } = f;
-        const operatorStr = operator as string;
-
-        if (column === "name") {
-          if (operator === "eq") filters.push(eq(labelingQueues.name, value));
-          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.name, `%${value}%`));
-        } else if (column === "id") {
-          if (operator === "eq") filters.push(eq(labelingQueues.id, value));
-          else if (operatorStr === "contains") filters.push(ilike(labelingQueues.id, `%${value}%`));
-        }
-      } catch (error) {}
+    const filterConditions = parseFilters(filter, {
+      name: { column: labelingQueues.name, type: "string" },
+      id: { column: labelingQueues.id, type: "string" },
     });
+    filters.push(...filterConditions);
   }
 
   const queuesData = await paginatedGet({

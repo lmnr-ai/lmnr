@@ -2,8 +2,8 @@ import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
+import { parseFilters } from "@/lib/db/filter-parser";
 import { playgrounds } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 
 export type Playground = {
@@ -40,21 +40,11 @@ export async function getPlaygrounds(input: z.infer<typeof GetPlaygroundsSchema>
   }
 
   if (filter && Array.isArray(filter)) {
-    filter.forEach((filterItem) => {
-      try {
-        const f: FilterDef = typeof filterItem === "string" ? JSON.parse(filterItem) : filterItem;
-        const { column, operator, value } = f;
-        const operatorStr = operator as string;
-
-        if (column === "name") {
-          if (operator === "eq") filters.push(eq(playgrounds.name, value));
-          else if (operatorStr === "contains") filters.push(ilike(playgrounds.name, `%${value}%`));
-        } else if (column === "id") {
-          if (operator === "eq") filters.push(eq(playgrounds.id, value));
-          else if (operatorStr === "contains") filters.push(ilike(playgrounds.id, `%${value}%`));
-        }
-      } catch (error) {}
+    const filterConditions = parseFilters(filter, {
+      name: { column: playgrounds.name, type: "string" },
+      id: { column: playgrounds.id, type: "string" },
     });
+    filters.push(...filterConditions);
   }
 
   const result = await paginatedGet({
