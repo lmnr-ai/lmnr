@@ -3,8 +3,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripHorizontal } from "lucide-react";
 import React from "react";
 
-import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
 import { cn } from "@/lib/utils.ts";
 
 interface ColumnsMenuItemProps {
@@ -24,22 +24,23 @@ export const ColumnsMenuItem = ({ id, isVisible, isLocked, onToggleVisibility }:
     transition,
   };
   return (
-    <DropdownMenuItem style={style}>
-      <Checkbox
-        className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
+    <DropdownMenuItem style={style} className={cn("flex justify-between items-center", isLocked && "hidden")}>
+      <div
+        ref={setNodeRef}
+        {...(!isLocked && { ...attributes, ...listeners })}
+        className={cn("mr-auto cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
+      >
+        <GripHorizontal />
+      </div>
+
+      <span className={isLocked ? "text-muted-foreground" : ""}>{id}</span>
+
+      <Switch
         checked={isVisible}
         disabled={isLocked}
         onCheckedChange={() => !isLocked && onToggleVisibility(id)}
         onClick={(e) => e.stopPropagation()}
       />
-      <span className={isLocked ? "text-muted-foreground" : ""}>{id}</span>
-      <div
-        ref={setNodeRef}
-        {...(!isLocked && { ...attributes, ...listeners })}
-        className={cn("ml-auto cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
-      >
-        <GripHorizontal />
-      </div>
     </DropdownMenuItem>
   );
 };
