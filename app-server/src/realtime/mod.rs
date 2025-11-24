@@ -1,15 +1,13 @@
-use actix_web::{HttpResponse, Result as ActixResult, rt::time::interval, web::Bytes};
+use actix_web::{HttpResponse, Result as ActixResult, web::Bytes};
+use async_stream::stream;
 use dashmap::DashMap;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
+
+use crate::pubsub::{PubSub, PubSubTrait, SseChannel, keys::SSE_CHANNEL_PATTERN};
 
 /// Connection with unique ID for tracking
 #[derive(Clone)]
@@ -35,97 +33,17 @@ pub struct SseMessage {
     pub data: serde_json::Value,
 }
 
-pub struct SseStream {
-    receiver: SseReceiver,
-    heartbeat_interval: tokio::time::Interval,
-    project_id: Uuid,
-    connection_id: Uuid,
-    subscription_key: SubscriptionKey,
-    connections: SseConnectionMap,
-}
-
-impl SseStream {
-    pub fn new(
-        receiver: SseReceiver,
-        project_id: Uuid,
-        connection_id: Uuid,
-        subscription_key: SubscriptionKey,
-        connections: SseConnectionMap,
-    ) -> Self {
-        let mut heartbeat_interval = interval(Duration::from_secs(10));
-        heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        Self {
-            receiver,
-            heartbeat_interval,
-            project_id,
-            connection_id,
-            subscription_key,
-            connections,
-        }
-    }
-}
-
-impl Stream for SseStream {
-    type Item = Result<Bytes, actix_web::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check for heartbeat
-        if self.heartbeat_interval.poll_tick(cx).is_ready() {
-            let heartbeat = Bytes::from(": heartbeat\n\n");
-            return Poll::Ready(Some(Ok(heartbeat)));
-        }
-
-        // Check for messages
-        match self.receiver.poll_recv(cx) {
-            Poll::Ready(Some(message)) => {
-                let json_data = serde_json::to_string(&message.data).unwrap_or_default();
-                let sse_data = format!("event: {}\ndata: {}\n\n", message.event_type, json_data);
-                Poll::Ready(Some(Ok(Bytes::from(sse_data))))
-            }
-            Poll::Ready(None) => {
-                log::info!("SSE receiver closed for project: {}", self.project_id);
-                Poll::Ready(None)
-            }
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-impl Drop for SseStream {
-    fn drop(&mut self) {
-        log::info!(
-            "SSE stream dropped for project: {} key: {} (connection: {})",
-            self.project_id,
-            self.subscription_key,
-            self.connection_id
-        );
-
-        // Remove this specific connection from the connections map
-        let key = (self.project_id, self.subscription_key.clone());
-
-        if let Some(mut connections) = self.connections.get_mut(&key) {
-            connections.retain(|conn| conn.id != self.connection_id);
-
-            let remaining = connections.len();
-
-            if remaining == 0 {
-                drop(connections);
-                self.connections.remove(&key);
-                log::info!(
-                    "Removed empty SSE connection entry for project {} key {}",
-                    self.project_id,
-                    self.subscription_key
-                );
-            } else {
-                log::info!(
-                    "Removed connection {} for project {} key {}, {} connections remaining",
-                    self.connection_id,
-                    self.project_id,
-                    self.subscription_key,
-                    remaining
-                );
-            }
+/// Create SSE response stream - simply forwards messages from the receiver
+/// Stream ends when the browser closes the connection (HTTP connection drops)
+fn create_sse_stream(
+    mut receiver: SseReceiver,
+) -> impl Stream<Item = Result<Bytes, actix_web::Error>> {
+    stream! {
+        // Simply forward messages as they arrive
+        while let Some(message) = receiver.recv().await {
+            let json_data = serde_json::to_string(&message.data).unwrap_or_default();
+            let sse_data = format!("event: {}\ndata: {}\n\n", message.event_type, json_data);
+            yield Ok(Bytes::from(sse_data));
         }
     }
 }
@@ -142,13 +60,13 @@ pub fn create_sse_response(
     // Add connection to the global map
     let connection = SseConnection {
         id: connection_id,
-        sender,
+        sender: sender.clone(),
     };
 
     let key = (project_id, subscription_key.clone());
 
     connections
-        .entry(key)
+        .entry(key.clone())
         .or_insert_with(Vec::new)
         .push(connection);
 
@@ -159,29 +77,78 @@ pub fn create_sse_response(
         connection_id,
     );
 
-    let stream = SseStream::new(
-        receiver,
-        project_id,
-        connection_id,
-        subscription_key,
-        connections.clone(),
-    );
+    // Spawn per-connection heartbeat task
+    // This task will detect when the browser closes the connection and clean up
+    let connections_clone = connections.clone();
+    let subscription_key_clone = subscription_key.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        loop {
+            interval.tick().await;
+
+            let heartbeat = SseMessage {
+                event_type: "heartbeat".to_string(),
+                data: serde_json::json!({}),
+            };
+
+            // Try to send heartbeat - if it fails, connection is dead
+            if sender.send(heartbeat).is_err() {
+                log::info!(
+                    "Heartbeat failed for connection {} (browser closed), cleaning up",
+                    connection_id
+                );
+
+                // Remove this connection from the map
+                let key = (project_id, subscription_key_clone.clone());
+                if let Some(mut conns) = connections_clone.get_mut(&key) {
+                    conns.retain(|conn| conn.id != connection_id);
+                    let remaining = conns.len();
+
+                    if remaining == 0 {
+                        drop(conns);
+                        connections_clone.remove(&key);
+                        log::info!(
+                            "Removed empty SSE connection entry for project {} key {}",
+                            project_id,
+                            subscription_key_clone
+                        );
+                    } else {
+                        log::info!(
+                            "Removed connection {} for project {} key {}, {} remaining",
+                            connection_id,
+                            project_id,
+                            subscription_key_clone,
+                            remaining
+                        );
+                    }
+                }
+
+                // Exit the heartbeat task
+                break;
+            }
+        }
+    });
+
+    let stream = create_sse_stream(receiver);
 
     Ok(HttpResponse::Ok()
         .insert_header(("Content-Type", "text/event-stream"))
         .insert_header(("Cache-Control", "no-cache"))
         .insert_header(("Connection", "keep-alive"))
+        .insert_header(("X-Accel-Buffering", "no"))
         .insert_header(("Access-Control-Allow-Origin", "*"))
         .insert_header(("Access-Control-Allow-Headers", "Cache-Control"))
         .streaming(stream))
 }
 
-/// Send message to all SSE connections for a specific project and subscription key
-pub fn send_to_key(
+/// Send message to local SSE connections only (used by Redis subscriber)
+pub fn send_to_local_connections(
     connections: &SseConnectionMap,
     project_id: &Uuid,
     subscription_key: &str,
-    message: SseMessage,
+    message: &SseMessage,
 ) {
     let key = (*project_id, subscription_key.to_string());
 
@@ -189,11 +156,21 @@ pub fn send_to_key(
         let initial_count = conns.len();
 
         // Remove closed connections while sending
-        conns.retain(|conn| conn.sender.send(message.clone()).is_ok());
+        conns.retain(|conn| match conn.sender.send(message.clone()) {
+            Ok(_) => true,
+            Err(e) => {
+                log::info!(
+                    "Removing dead SSE connection {} (send failed: {:?})",
+                    conn.id,
+                    e
+                );
+                false
+            }
+        });
 
         let final_count = conns.len();
         if final_count < initial_count {
-            log::debug!(
+            log::info!(
                 "Cleaned up {} closed SSE connections for project {} key {}",
                 initial_count - final_count,
                 project_id,
@@ -214,51 +191,67 @@ pub fn send_to_key(
     }
 }
 
-/// Periodically clean up closed SSE connections
-pub async fn cleanup_closed_connections(connections: SseConnectionMap) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(60 * 60)); // Clean up every hour
-
-    loop {
-        interval.tick().await;
-
-        // First collect all keys
-        let all_keys: Vec<_> = connections
-            .iter()
-            .map(|entry| entry.key().clone())
-            .collect();
-
-        let mut keys_to_remove = Vec::new();
-
-        // Check each connection
-        for key in all_keys {
-            if let Some(mut conns) = connections.get_mut(&key) {
-                let (project_id, subscription_key) = &key;
-                let initial_count = conns.len();
-
-                // Test each connection by checking if sender is closed
-                conns.retain(|conn| !conn.sender.is_closed());
-
-                let final_count = conns.len();
-                let cleaned = initial_count - final_count;
-
-                if cleaned > 0 {
-                    log::info!(
-                        "Periodic cleanup: removed {} closed connections for project {} key {}",
-                        cleaned,
-                        project_id,
-                        subscription_key
-                    );
-                }
-
-                if conns.is_empty() {
-                    keys_to_remove.push(key.clone());
-                }
-            }
+/// Publish message to Pub/Sub for distribution across pods
+/// The subscriber on each pod will forward to its local connections
+pub async fn send_to_key(
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    subscription_key: &str,
+    message: SseMessage,
+) {
+    let channel = SseChannel::new(*project_id, subscription_key);
+    let channel_str = channel.to_string();
+    let payload = match serde_json::to_string(&message) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to serialize SSE message: {:?}", e);
+            return;
         }
+    };
 
-        // Remove empty entries
-        for key in keys_to_remove {
-            connections.remove(&key);
-        }
+    if let Err(e) = pubsub.publish(&channel_str, &payload).await {
+        log::error!(
+            "Failed to publish SSE message for project {} key {}: {:?}",
+            project_id,
+            subscription_key,
+            e
+        );
     }
+}
+
+/// Start Redis Pub/Sub subscriber that forwards messages to local SSE connections
+pub async fn start_redis_subscriber(
+    pubsub: Arc<PubSub>,
+    connections: SseConnectionMap,
+) -> anyhow::Result<()> {
+    pubsub
+        .as_ref()
+        .subscribe(SSE_CHANNEL_PATTERN, move |channel, payload| {
+            // Parse channel using strongly typed SseChannel
+            let sse_channel = match SseChannel::from_str(&channel) {
+                Ok(ch) => ch,
+                Err(e) => {
+                    log::error!("{}", e);
+                    return;
+                }
+            };
+
+            let message: SseMessage = match serde_json::from_str(&payload) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    log::error!("Failed to deserialize SSE message: {}", e);
+                    return;
+                }
+            };
+
+            // Forward to local connections
+            send_to_local_connections(
+                &connections,
+                &sse_channel.project_id,
+                &sse_channel.subscription_key,
+                &message,
+            );
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("Redis subscriber failed: {:?}", e))
 }

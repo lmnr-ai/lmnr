@@ -7,7 +7,9 @@ import grpc
 from dotenv import load_dotenv, find_dotenv
 from google.protobuf.json_format import MessageToDict, ParseDict
 
-sys.path.insert(0, os.path.dirname(__file__))
+# Add parent directory to path if running directly (not as a module)
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from query_engine_pb2 import (
     QueryRequest, QueryResponse, ErrorResponse, SuccessResponse,

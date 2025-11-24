@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     db::{spans::Span, spans::SpanType, trace::Trace},
-    realtime::{SseConnectionMap, SseMessage, send_to_key},
+    pubsub::PubSub,
+    realtime::{SseMessage, send_to_key},
 };
 
 /// Realtime trace data for frontend consumption
@@ -52,7 +53,7 @@ struct RealtimeSpan {
 }
 
 /// Send realtime span update events to SSE connections for specific traces
-pub async fn send_span_updates(spans: &[Span], sse_connections: &SseConnectionMap) {
+pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     // All spans in a batch have the same project_id
     let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
 
@@ -79,12 +80,12 @@ pub async fn send_span_updates(spans: &[Span], sse_connections: &SseConnectionMa
 
         // Send to specific trace subscription key
         let trace_key = format!("trace_{}", trace_id);
-        send_to_key(sse_connections, &project_id, &trace_key, span_message);
+        send_to_key(pubsub, &project_id, &trace_key, span_message).await;
     }
 }
 
 /// Send trace update events to SSE connections for the traces table
-pub async fn send_trace_updates(traces: &[Trace], sse_connections: &SseConnectionMap) {
+pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
     if traces.is_empty() {
         return;
     }
@@ -115,7 +116,7 @@ pub async fn send_trace_updates(traces: &[Trace], sse_connections: &SseConnectio
     };
 
     // Send batched traces to "traces" subscription key for traces table
-    send_to_key(sse_connections, &project_id, "traces", trace_message);
+    send_to_key(pubsub, &project_id, "traces", trace_message).await;
 }
 
 impl RealtimeTrace {
