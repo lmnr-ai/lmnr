@@ -1,5 +1,9 @@
 import { ReactNode } from "react";
 
+import { JSON_OPERATORS, NUMBER_OPERATORS, Operator, STRING_OPERATORS } from "@/lib/actions/common/operators";
+
+export { Operator };
+
 export type ColumnFilter = ColumnFilterPrimitives | ColumnFilterEnum;
 type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" };
 type ColumnFilterEnum = {
@@ -9,15 +13,6 @@ type ColumnFilterEnum = {
   options: { label: string; value: string; icon?: ReactNode }[];
 };
 
-export enum Operator {
-  Eq = "eq",
-  Lt = "lt",
-  Gt = "gt",
-  Lte = "lte",
-  Gte = "gte",
-  Ne = "ne",
-}
-
 export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Eq]: "=",
   [Operator.Lt]: "<",
@@ -26,10 +21,6 @@ export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Gte]: ">=",
   [Operator.Ne]: "!=",
 };
-
-const STRING_OPERATORS = [Operator.Eq, Operator.Ne];
-const NUMBER_OPERATORS = [Operator.Eq, Operator.Lt, Operator.Gt, Operator.Lte, Operator.Gte, Operator.Ne];
-const JSON_OPERATORS = [Operator.Eq];
 
 export const STRING_OPERATIONS = STRING_OPERATORS.map((op) => ({
   key: op,
@@ -56,5 +47,5 @@ export const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: Oper
 export type DatatableFilter = {
   column: string;
   operator: Operator;
-  value: string;
+  value: string | number;
 };

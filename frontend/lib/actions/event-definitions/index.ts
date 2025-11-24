@@ -1,13 +1,13 @@
-import { and, desc, eq, gte, ilike, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lte } from "drizzle-orm";
 import { difference } from "lodash";
 import { z } from "zod/v4";
 
-import { TimeRangeSchema } from "@/lib/actions/common/types";
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { parseFilters } from "@/lib/db/filter-parser";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
 export type EventDefinitionRow = Omit<EventDefinition, "prompt" | "structuredOutput">;
@@ -23,13 +23,10 @@ export type EventDefinition = {
   triggerSpans: string[];
 };
 
-export const GetEventDefinitionsSchema = z.object({
+export const GetEventDefinitionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   search: z.string().nullable().optional(),
-  pageNumber: z.coerce.number().default(0),
-  pageSize: z.coerce.number().default(50),
-  filter: z.array(z.any()).optional().default([]),
 });
 
 export const GetEventDefinitionSchema = z.object({
@@ -64,8 +61,7 @@ export const DeleteEventDefinitionsSchema = z.object({
 });
 
 export async function getEventDefinitions(input: z.infer<typeof GetEventDefinitionsSchema>) {
-  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } =
-    GetEventDefinitionsSchema.parse(input);
+  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
@@ -91,29 +87,12 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     whereConditions.push(ilike(eventDefinitions.name, `%${search}%`));
   }
 
-  if (filter && Array.isArray(filter)) {
-    const filterConditions = parseFilters(filter, {
-      name: { column: eventDefinitions.name, type: "string" },
-      id: { column: eventDefinitions.id, type: "string" },
-      isSemantic: { column: eventDefinitions.isSemantic, type: "boolean" },
-      triggerSpans: {
-        column: null as any,
-        type: "custom",
-        handler: (f) => {
-          if (f.operator === "contains" || (f.operator as string) === "contains") {
-            return sql`EXISTS (
-              SELECT 1 FROM ${summaryTriggerSpans}
-              WHERE ${summaryTriggerSpans.eventName} = ${eventDefinitions.name}
-                AND ${summaryTriggerSpans.projectId} = ${projectId}
-                AND ${summaryTriggerSpans.spanName} ILIKE ${`%${f.value}%`}
-            )`;
-          }
-          return null;
-        },
-      },
-    });
-    whereConditions.push(...filterConditions);
-  }
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: eventDefinitions.name },
+    id: { type: "string", column: eventDefinitions.id },
+  } as const);
+
+  whereConditions.push(...filterConditions);
 
   const results = await db
     .select({

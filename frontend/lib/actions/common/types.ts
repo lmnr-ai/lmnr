@@ -1,30 +1,29 @@
 import { z } from "zod/v4";
 
-import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { FilterSchema } from "./filters";
 
-export const FilterDefSchema = z.object({
-  column: z.string(),
-  operator: z.enum(Operator),
-  value: z.string(),
-});
+export { FilterSchema };
 
 export const FiltersSchema = z.object({
   filter: z
     .array(z.string())
     .default([])
     .transform((filters, ctx) =>
-      filters.map((filter) => {
-        try {
-          const parsed = JSON.parse(filter);
-          return FilterDefSchema.parse(parsed);
-        } catch (error) {
-          ctx.issues.push({
-            code: "custom",
-            message: `Invalid filter JSON: ${filter}`,
-            input: filter,
-          });
-        }
-      })
+      filters
+        .map((filter) => {
+          try {
+            const parsed = JSON.parse(filter);
+            return FilterSchema.parse(parsed);
+          } catch (error) {
+            ctx.issues.push({
+              code: "custom",
+              message: `Invalid filter JSON: ${filter}`,
+              input: filter,
+            });
+            return undefined;
+          }
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== undefined)
     ),
 });
 

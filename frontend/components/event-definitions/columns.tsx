@@ -62,14 +62,4 @@ export const eventsDefinitionsTableFilters: ColumnFilter[] = [
     key: "name",
     dataType: "string",
   },
-  {
-    name: "Trigger Spans",
-    key: "triggerSpans",
-    dataType: "string",
-  },
-  {
-    name: "Semantic",
-    key: "isSemantic",
-    dataType: "string",
-  },
 ];

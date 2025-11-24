@@ -35,7 +35,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
-      const [key, value] = filter.value.split(/=(.*)/);
+      const [key, value] = String(filter.value).split(/=(.*)/);
       return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: value })}`;
     });
 

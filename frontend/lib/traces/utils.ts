@@ -70,5 +70,5 @@ export const createModelFilter = (filter: FilterDef) => {
       sql`((${requestModelColumn} NOT LIKE ${`%${value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${value}%`} OR ${responseModelColumn} IS NULL))`,
   };
 
-  return operators[filter.operator as keyof typeof operators]?.(filter.value) ?? sql`1=1`;
+  return operators[filter.operator as keyof typeof operators]?.(String(filter.value)) ?? sql`1=1`;
 };

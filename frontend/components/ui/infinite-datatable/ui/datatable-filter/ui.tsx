@@ -177,13 +177,14 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
   const dataType = column?.dataType || "string";
 
   const { currentKey, currentValue } = useMemo(() => {
-    const equalIndex = filter.value.indexOf("=");
+    const valueStr = String(filter.value);
+    const equalIndex = valueStr.indexOf("=");
     if (equalIndex === -1) {
-      return { currentKey: filter.value, currentValue: "" };
+      return { currentKey: valueStr, currentValue: "" };
     }
     return {
-      currentKey: filter.value.substring(0, equalIndex),
-      currentValue: filter.value.substring(equalIndex + 1),
+      currentKey: valueStr.substring(0, equalIndex),
+      currentValue: valueStr.substring(equalIndex + 1),
     };
   }, [filter.value]);
 
@@ -236,7 +237,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Select value={filter.value} onValueChange={(value) => onValueChange({ field: "value", value })}>
+          <Select value={String(filter.value)} onValueChange={(value) => onValueChange({ field: "value", value })}>
             <SelectTrigger className="font-medium flex-1">
               <SelectValue placeholder="Select option..." />
             </SelectTrigger>

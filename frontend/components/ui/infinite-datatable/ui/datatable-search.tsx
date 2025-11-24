@@ -1,7 +1,8 @@
+import { debounce } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { Button } from "@/components/ui/button.tsx";
@@ -27,50 +28,54 @@ export const DataTableSearch = ({
   const posthog = usePostHog();
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
-  const [debouncedValue, setDebouncedValue] = useState(searchParams.get("search") ?? "");
   const store = useDataTableStore();
   const { getStorageKey } = useStore(store, (state) => ({
     getStorageKey: state.getStorageKey,
   }));
 
-  const submit = (searchValue: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+  const submit = useCallback(
+    (searchValue: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      const currentSearch = searchParams.get("search") ?? "";
 
-    if (!searchValue) {
-      params.delete("search");
-    } else {
-      params.set("search", searchValue);
-    }
+      if (searchValue !== currentSearch) {
+        if (!searchValue) {
+          params.delete("search");
+        } else {
+          params.set("search", searchValue);
+        }
 
-    params.delete("searchIn");
-    searchColumns.forEach((column) => {
-      params.append("searchIn", column);
-    });
+        params.delete("searchIn");
+        searchColumns.forEach((column) => {
+          params.append("searchIn", column);
+        });
 
-    router.push(`${pathName}?${params.toString()}`);
+        router.push(`${pathName}?${params.toString()}`);
 
-    if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture(`${getStorageKey()}_list_searched`, {
-        searchParams: params.toString(),
-      });
-    }
-  };
+        if (isFeatureEnabled(Feature.POSTHOG)) {
+          posthog.capture(`${getStorageKey()}_list_searched`, {
+            searchParams: params.toString(),
+          });
+        }
+      }
+    },
+    [searchParams, pathName, router, posthog, getStorageKey, searchColumns]
+  );
+
+  const debouncedSubmit = useMemo(() => debounce(submit, 300), [submit]);
 
   const handleClearInput = () => {
     setInputValue("");
-    setDebouncedValue("");
+    debouncedSubmit.cancel();
   };
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedValue(inputValue);
-    }, 200);
-    return () => clearTimeout(timeout);
-  }, [inputValue]);
+    debouncedSubmit(inputValue);
 
-  useEffect(() => {
-    submit(debouncedValue);
-  }, [debouncedValue]);
+    return () => {
+      debouncedSubmit.cancel();
+    };
+  }, [inputValue, debouncedSubmit]);
 
   return (
     <div className="flex flex-col flex-1 relative">

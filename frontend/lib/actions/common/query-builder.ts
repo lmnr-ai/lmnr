@@ -156,7 +156,7 @@ const createNumberFilter =
     (filter, paramKey) => {
       const { column, operator, value } = filter;
       const opSymbol = OperatorLabelMap[operator];
-      const numValue = clickHouseType === "Int64" ? parseInt(value) : parseFloat(value);
+      const numValue = clickHouseType === "Int64" ? parseInt(String(value)) : parseFloat(String(value));
 
       return {
         condition: `${column} ${opSymbol} {${paramKey}:${clickHouseType}}`,
@@ -168,11 +168,11 @@ const createArrayFilter =
   (clickHouseType: string): ColumnFilterProcessor =>
     (filter, paramKey) => {
       const { column, value } = filter;
-      const values = Array.isArray(value) ? value : [value];
+      const values: (string | number)[] = Array.isArray(value) ? value : [value];
 
       return {
         condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
-        params: { [paramKey]: values },
+        params: { [paramKey]: values as string[] | number[] },
       };
     };
 

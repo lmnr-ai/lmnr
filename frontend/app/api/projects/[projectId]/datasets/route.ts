@@ -25,11 +25,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const params = await props.params;
   const projectId = params.projectId;
 
-  const parseResult = parseUrlParams(
-    req.nextUrl.searchParams,
-    getDatasetsSchema.omit({ projectId: true }),
-    ["filter"]
-  );
+  const parseResult = parseUrlParams(req.nextUrl.searchParams, getDatasetsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
     return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -47,7 +43,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     }
     return NextResponse.json({ error: "Failed to get datasets" }, { status: 500 });
   }
-
 }
 
 export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {

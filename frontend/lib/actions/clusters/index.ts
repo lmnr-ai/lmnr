@@ -1,8 +1,9 @@
 import { and, desc, eq, ilike } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { parseFilters } from "@/lib/db/filter-parser";
 import { clusters, projects } from "@/lib/db/migrations/schema";
 
 export type Cluster = {
@@ -17,19 +18,13 @@ export type Cluster = {
   updatedAt: string;
 };
 
-export const GetClustersSchema = z.object({
+export const GetClustersSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
-  pageNumber: z.coerce.number().default(0),
-  pageSize: z.coerce.number().default(50),
   search: z.string().nullable().optional(),
-  filter: z.array(z.any()).optional().default([]),
 });
 
-export async function getClusters(input: z.infer<typeof GetClustersSchema> | string): Promise<{ items: Cluster[] }> {
-  const { projectId, pageNumber, pageSize, search, filter } =
-    typeof input === "string"
-      ? GetClustersSchema.parse({ projectId: input, pageNumber: 0, pageSize: 50 })
-      : GetClustersSchema.parse(input);
+export async function getClusters(input: z.infer<typeof GetClustersSchema>): Promise<{ items: Cluster[] }> {
+  const { projectId, pageNumber, pageSize, search, filter } = input;
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
@@ -40,14 +35,12 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema> | str
     whereConditions.push(ilike(clusters.name, `%${search}%`));
   }
 
-  if (filter && Array.isArray(filter)) {
-    const filterConditions = parseFilters(filter, {
-      name: { column: clusters.name, type: "string" },
-      level: { column: clusters.level, type: "number" },
-      numTraces: { column: clusters.numTraces, type: "number" },
-    });
-    whereConditions.push(...filterConditions);
-  }
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: clusters.name },
+    level: { type: "number", column: clusters.level },
+    numTraces: { type: "number", column: clusters.numTraces },
+  } as const);
+  whereConditions.push(...filterConditions);
 
   const result = await db
     .select({
@@ -68,19 +61,7 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema> | str
     .limit(limit)
     .offset(offset);
 
-  const items = result.map((row) => ({
-    id: row.id,
-    projectId: row.projectId,
-    name: row.name,
-    parentId: row.parentId,
-    level: Number(row.level),
-    numChildrenClusters: Number(row.numChildrenClusters),
-    numTraces: Number(row.numTraces),
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
-
   return {
-    items,
+    items: result,
   };
 }

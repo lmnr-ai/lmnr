@@ -27,9 +27,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     const params = await props.params;
     const projectId = params.projectId;
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetQueuesSchema.omit({ projectId: true }), [
-      "filter",
-    ]);
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetQueuesSchema.omit({ projectId: true }));
 
     if (!parseResult.success) {
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });

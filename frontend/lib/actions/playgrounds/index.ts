@@ -1,8 +1,9 @@
 import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { parseFilters } from "@/lib/db/filter-parser";
 import { playgrounds } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
@@ -12,12 +13,9 @@ export type Playground = {
   createdAt: string;
 };
 
-export const GetPlaygroundsSchema = z.object({
+export const GetPlaygroundsSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
-  pageNumber: z.coerce.number().default(0),
-  pageSize: z.coerce.number().default(50),
   search: z.string().nullable().optional(),
-  filter: z.array(z.any()).optional().default([]),
 });
 
 export const CreatePlaygroundSchema = z.object({
@@ -31,7 +29,7 @@ export const DeletePlaygroundsSchema = z.object({
 });
 
 export async function getPlaygrounds(input: z.infer<typeof GetPlaygroundsSchema>) {
-  const { projectId, pageNumber, pageSize, search, filter } = GetPlaygroundsSchema.parse(input);
+  const { projectId, pageNumber, pageSize, search, filter } = input;
 
   const filters = [eq(playgrounds.projectId, projectId)];
 
@@ -39,13 +37,11 @@ export async function getPlaygrounds(input: z.infer<typeof GetPlaygroundsSchema>
     filters.push(ilike(playgrounds.name, `%${search}%`));
   }
 
-  if (filter && Array.isArray(filter)) {
-    const filterConditions = parseFilters(filter, {
-      name: { column: playgrounds.name, type: "string" },
-      id: { column: playgrounds.id, type: "string" },
-    });
-    filters.push(...filterConditions);
-  }
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: playgrounds.name },
+    id: { type: "string", column: playgrounds.id },
+  } as const);
+  filters.push(...filterConditions);
 
   const result = await paginatedGet({
     table: playgrounds,
@@ -80,9 +76,7 @@ export async function createPlayground(input: z.infer<typeof CreatePlaygroundSch
 export async function deletePlaygrounds(input: z.infer<typeof DeletePlaygroundsSchema>) {
   const { projectId, playgroundIds } = DeletePlaygroundsSchema.parse(input);
 
-  await db
-    .delete(playgrounds)
-    .where(and(inArray(playgrounds.id, playgroundIds), eq(playgrounds.projectId, projectId)));
+  await db.delete(playgrounds).where(and(inArray(playgrounds.id, playgroundIds), eq(playgrounds.projectId, projectId)));
 
   return { success: true };
 }

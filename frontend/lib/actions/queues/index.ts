@@ -1,25 +1,15 @@
 import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { parseFilters } from "@/lib/db/filter-parser";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
-export type Queue = {
-  id: string;
-  name: string;
-  projectId: string;
-  createdAt: string;
-  count: number;
-};
-
-export const GetQueuesSchema = z.object({
+export const GetQueuesSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
-  pageNumber: z.coerce.number().default(0),
-  pageSize: z.coerce.number().default(50),
   search: z.string().nullable().optional(),
-  filter: z.array(z.any()).optional().default([]),
 });
 
 export const CreateQueueSchema = z.object({
@@ -33,7 +23,7 @@ export const DeleteQueuesSchema = z.object({
 });
 
 export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
-  const { projectId, pageNumber, pageSize, search, filter } = GetQueuesSchema.parse(input);
+  const { projectId, pageNumber, pageSize, search, filter } = input;
 
   const filters = [eq(labelingQueues.projectId, projectId)];
 
@@ -41,13 +31,11 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
   }
 
-  if (filter && Array.isArray(filter)) {
-    const filterConditions = parseFilters(filter, {
-      name: { column: labelingQueues.name, type: "string" },
-      id: { column: labelingQueues.id, type: "string" },
-    });
-    filters.push(...filterConditions);
-  }
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: labelingQueues.name },
+    id: { type: "string", column: labelingQueues.id },
+  } as const);
+  filters.push(...filterConditions);
 
   const queuesData = await paginatedGet({
     table: labelingQueues,

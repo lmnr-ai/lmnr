@@ -1,4 +1,5 @@
 import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters.ts";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -26,14 +27,14 @@ const evaluationDatapointsColumnFilterConfig: ColumnFilterConfig = {
       "metadata",
       createCustomFilter(
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
           }
           return "";
         },
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
@@ -117,7 +118,7 @@ export const buildEvaluationDatapointsQueryWithParams = (
   // Add score filter conditions
   scoreFilters.forEach((filter, index) => {
     const scoreName = filter.column.split(":")[1];
-    const numValue = parseFloat(filter.value);
+    const numValue = parseFloat(String(filter.value));
 
     if (scoreName && !isNaN(numValue)) {
       const opSymbol = OperatorLabelMap[filter.operator as Operator];
@@ -190,7 +191,7 @@ export const buildEvaluationStatisticsQueryWithParams = (
   // Add score filter conditions
   scoreFilters.forEach((filter, index) => {
     const scoreName = filter.column.split(":")[1];
-    const numValue = parseFloat(filter.value);
+    const numValue = parseFloat(String(filter.value));
 
     if (scoreName && !isNaN(numValue)) {
       const opSymbol = OperatorLabelMap[filter.operator as Operator];
@@ -308,9 +309,9 @@ export function calculateScoreDistribution(
 }
 
 // Helper to separate filters into trace and datapoint filters
-export function separateFilters(filters: FilterDef[]): {
-  traceFilters: FilterDef[];
-  datapointFilters: FilterDef[];
+export function separateFilters(filters: Filter[]): {
+  traceFilters: Filter[];
+  datapointFilters: Filter[];
 } {
   const traceFilterColumns = new Set(["traceId", "startTime", "duration", "cost"]);
 
@@ -353,7 +354,7 @@ export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForE
             const opSymbol = OperatorLabelMap[filter.operator as Operator];
             return `start_time ${opSymbol} {${paramKey}:DateTime64}`;
           },
-          (filter, paramKey) => ({ [paramKey]: filter.value.replace("Z", "") })
+          (filter, paramKey) => ({ [paramKey]: String(filter.value).replace("Z", "") })
         ),
       ],
       [
@@ -363,7 +364,7 @@ export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForE
             const opSymbol = OperatorLabelMap[filter.operator as Operator];
             return `(end_time - start_time) ${opSymbol} {${paramKey}:Float64}`;
           },
-          (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+          (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
         ),
       ],
       [
@@ -373,7 +374,7 @@ export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForE
             const opSymbol = OperatorLabelMap[filter.operator as Operator];
             return `(input_cost + output_cost) ${opSymbol} {${paramKey}:Float64}`;
           },
-          (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+          (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
         ),
       ],
       [

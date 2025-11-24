@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
   const params = await props.params;
   const projectId = params.projectId;
 
-  const parseResult = parseUrlParams(request.nextUrl.searchParams, GetEventDefinitionsSchema.omit({ projectId: true }), ["filter"]);
+  const parseResult = parseUrlParams(request.nextUrl.searchParams, GetEventDefinitionsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
     return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });

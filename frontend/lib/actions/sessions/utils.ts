@@ -42,7 +42,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `COUNT(*) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -53,7 +53,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(input_tokens) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -64,7 +64,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(output_tokens) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -75,7 +75,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(total_tokens) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -86,7 +86,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(input_cost) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -97,7 +97,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(output_cost) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -108,7 +108,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(total_cost) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
     [
@@ -119,7 +119,7 @@ const sessionsHavingColumnFilterConfig: ColumnFilterConfig = {
           const opSymbol = OperatorLabelMap[operator];
           return `SUM(end_time - start_time) ${opSymbol} {${paramKey}:Float64}`;
         },
-        (filter, paramKey) => ({ [paramKey]: parseFloat(filter.value) })
+        (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
       ),
     ],
   ]),

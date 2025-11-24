@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prettifyError } from "zod/v4";
+import { prettifyError, ZodError } from "zod/v4";
 
 import { getClusters, GetClustersSchema } from "@/lib/actions/clusters";
 import { parseUrlParams } from "@/lib/actions/common/utils";
@@ -11,9 +11,7 @@ export async function GET(
   try {
     const { projectId } = await params;
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetClustersSchema.omit({ projectId: true }), [
-      "filter",
-    ]);
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetClustersSchema.omit({ projectId: true }));
 
     if (!parseResult.success) {
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -37,7 +35,14 @@ export async function GET(
     }));
 
     return NextResponse.json({ items: allPatterns });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ success: false, error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to get patterns. Please try again." },
+      { status: 500 }
+    );
   }
 }

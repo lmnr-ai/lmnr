@@ -79,14 +79,14 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       "metadata",
       createCustomFilter(
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
           }
           return "";
         },
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
