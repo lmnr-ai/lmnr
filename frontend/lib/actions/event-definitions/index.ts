@@ -124,27 +124,19 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     });
   }
 
-  const [results, totalCountResult] = await Promise.all([
-    db
-      .select({
-        id: eventDefinitions.id,
-        createdAt: eventDefinitions.createdAt,
-        name: eventDefinitions.name,
-        projectId: eventDefinitions.projectId,
-        isSemantic: eventDefinitions.isSemantic,
-      })
-      .from(eventDefinitions)
-      .where(and(...whereConditions))
-      .orderBy(desc(eventDefinitions.createdAt))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(eventDefinitions)
-      .where(and(...whereConditions)),
-  ]);
-
-  const totalCount = totalCountResult[0]?.count ?? 0;
+  const results = await db
+    .select({
+      id: eventDefinitions.id,
+      createdAt: eventDefinitions.createdAt,
+      name: eventDefinitions.name,
+      projectId: eventDefinitions.projectId,
+      isSemantic: eventDefinitions.isSemantic,
+    })
+    .from(eventDefinitions)
+    .where(and(...whereConditions))
+    .orderBy(desc(eventDefinitions.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   const triggerSpans = await db
     .select({
@@ -181,7 +173,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
 
   return {
     items,
-    totalCount,
   };
 }
 

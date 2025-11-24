@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, ilike, lt, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, lt, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -13,7 +13,6 @@ export type Cluster = {
   level: number;
   numChildrenClusters: number;
   numTraces: number;
-  centroid: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -26,9 +25,7 @@ export const GetClustersSchema = z.object({
   filter: z.array(z.any()).optional().default([]),
 });
 
-export async function getClusters(
-  input: z.infer<typeof GetClustersSchema> | string
-): Promise<{ items: Cluster[]; totalCount: number }> {
+export async function getClusters(input: z.infer<typeof GetClustersSchema> | string): Promise<{ items: Cluster[] }> {
   const { projectId, pageNumber, pageSize, search, filter } =
     typeof input === "string"
       ? GetClustersSchema.parse({ projectId: input, pageNumber: 0, pageSize: 50 })
@@ -68,39 +65,28 @@ export async function getClusters(
           else if (operator === "lt") whereConditions.push(lt(clusters.numTraces, numValue));
           else if (operator === "lte") whereConditions.push(lte(clusters.numTraces, numValue));
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     });
   }
 
-  const [result, totalCountResult] = await Promise.all([
-    db
-      .select({
-        id: clusters.id,
-        projectId: clusters.projectId,
-        name: clusters.name,
-        parentId: clusters.parentId,
-        level: clusters.level,
-        numChildrenClusters: clusters.numChildrenClusters,
-        numTraces: clusters.numTraces,
-        centroid: clusters.centroid,
-        createdAt: clusters.createdAt,
-        updatedAt: clusters.updatedAt,
-      })
-      .from(clusters)
-      .innerJoin(projects, eq(clusters.projectId, projects.id))
-      .where(and(...whereConditions))
-      .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt)
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(clusters)
-      .innerJoin(projects, eq(clusters.projectId, projects.id))
-      .where(and(...whereConditions)),
-  ]);
-
-  const totalCount = totalCountResult[0]?.count ?? 0;
+  const result = await db
+    .select({
+      id: clusters.id,
+      projectId: clusters.projectId,
+      name: clusters.name,
+      parentId: clusters.parentId,
+      level: clusters.level,
+      numChildrenClusters: clusters.numChildrenClusters,
+      numTraces: clusters.numTraces,
+      createdAt: clusters.createdAt,
+      updatedAt: clusters.updatedAt,
+    })
+    .from(clusters)
+    .innerJoin(projects, eq(clusters.projectId, projects.id))
+    .where(and(...whereConditions))
+    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt)
+    .limit(limit)
+    .offset(offset);
 
   const items = result.map((row) => ({
     id: row.id,
@@ -110,13 +96,11 @@ export async function getClusters(
     level: Number(row.level),
     numChildrenClusters: Number(row.numChildrenClusters),
     numTraces: Number(row.numTraces),
-    centroid: row.centroid as number[],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
 
   return {
     items,
-    totalCount,
   };
 }
