@@ -194,4 +194,12 @@ impl CacheTrait for RedisCache {
 
         Ok(())
     }
+
+    async fn exists(&self, key: &str) -> Result<bool, CacheError> {
+        let result: RedisResult<bool> = self.connection.clone().exists(key).await;
+        result.map_err(|e| {
+            log::error!("Redis EXISTS error for key {}: {}", key, e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
 }

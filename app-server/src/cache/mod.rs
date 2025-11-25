@@ -58,4 +58,7 @@ pub trait CacheTrait {
     /// Bulk add multiple members to a sorted set
     /// Uses pipelining for Redis, sequential for InMemory
     async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError>;
+
+    /// Check if a key exists in the cache
+    async fn exists(&self, key: &str) -> Result<bool, CacheError>;
 }

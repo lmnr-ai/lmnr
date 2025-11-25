@@ -30,19 +30,12 @@ const SuggestionItem = ({ suggestion }: { suggestion: AutocompleteSuggestion }) 
   <div className="flex items-center gap-2 text-secondary-foreground">
     {suggestion.field === "search" ? (
       <>
-        <Search className="size-3.5!" />
+        <span>Full text search:</span>
         <span className="font-medium">{suggestion.value}</span>
       </>
     ) : (
       <>
-        <Badge
-          variant="outline"
-          className={cn("text-[10px] py-0 px-1", {
-            "border-[hsl(var(--chart-3))] text-[hsl(var(--chart-3))]": suggestion.field === "tag",
-            "border-primary text-primary": suggestion.field === "name",
-            "border-[hsl(var(--chart-5))] text-[hsl(var(--chart-5))]": suggestion.field === "model",
-          })}
-        >
+        <Badge variant="outline" className="font-semibold text-[10px] py-0.5 px-1">
           {suggestion.field}
         </Badge>
         <span>{suggestion.value}</span>
@@ -55,14 +48,16 @@ const SuggestionsList = ({
   suggestions,
   onSelect,
   isPendingDebounce,
+  inputValue,
 }: {
   suggestions: AutocompleteSuggestion[];
   onSelect: (suggestion: AutocompleteSuggestion) => void;
   isPendingDebounce: boolean;
+  inputValue: string;
 }) => (
   <>
     {!isEmpty(suggestions) && (
-      <CommandGroup className="p-0">
+      <CommandGroup>
         {suggestions.map((suggestion) => (
           <CommandItem
             className="text-secondary-foreground text-xs"
@@ -78,12 +73,26 @@ const SuggestionsList = ({
         ))}
       </CommandGroup>
     )}
-    {isEmpty(suggestions) && isPendingDebounce && (
-      <div className="flex items-center gap-2 py-1.5 px-1">
-        <Skeleton className="h-4 w-8" />
-        <Skeleton className="h-4 w-32" />
-      </div>
-    )}
+    {isEmpty(suggestions) &&
+      (isPendingDebounce || inputValue ? (
+        <div className="flex items-center gap-2 p-2">
+          <Skeleton className="h-5 w-8" />
+          <Skeleton className="h-5 w-32" />
+        </div>
+      ) : (
+        <CommandGroup>
+          <CommandItem
+            value=""
+            className="text-secondary-foreground text-xs"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            No results found.
+          </CommandItem>
+        </CommandGroup>
+      ))}
   </>
 );
 
@@ -136,9 +145,9 @@ const AutocompleteSearchInput = ({
   const filteredSuggestions = useMemo(() => {
     const staticSuggestions = getStaticSuggestions(inputValue);
 
-    const searchTerm = inputValue.toLowerCase().trim();
+    const searchTerm = inputValue.trim();
     const filteredApiSuggestions = searchTerm
-      ? suggestions.filter((suggestion) => suggestion.value.toLowerCase().includes(searchTerm))
+      ? suggestions.filter((suggestion) => suggestion.value.toLowerCase().includes(searchTerm.toLowerCase()))
       : suggestions;
 
     const combined = [...filteredApiSuggestions, ...staticSuggestions];
@@ -248,14 +257,13 @@ const AutocompleteSearchInput = ({
 
   return (
     <CommandPrimitive
-      disablePointerSelection
       loop
       shouldFilter={false}
       onKeyDown={handleKeyDown}
-      className="flex flex-col flex-1 border-b-0 mr-1"
+      className="flex flex-col flex-1 border-b-0 mr-1 h-fit"
     >
       <div className="flex items-center gap-2 px-2 rounded-md [&>div]:border-b-0 focus-within:ring-border/50 focus-within:ring-[3px] box-border max-h-7 not-focus-within:bg-accent transition duration-300">
-        <Search className="text-secondary-foreground size-3.5" />
+        <Search className="text-secondary-foreground size-3.5 min-w-3.5" />
         <CommandPrimitive.Input
           ref={inputRef}
           className={cn(
@@ -269,21 +277,19 @@ const AutocompleteSearchInput = ({
           placeholder={placeholder}
         />
       </div>
-      <div className="relative mt-1">
-        <div
+      <div className={cn("relative ", isOpen ? "block" : "hidden")}>
+        <CommandList
           className={cn(
-            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none overflow-hidden p-1 rounded-md border",
-            isOpen ? "block" : "hidden"
+            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none rounded-md border max-h-64 mt-1"
           )}
         >
-          <CommandList className="max-h-64">
-            <SuggestionsList
-              suggestions={filteredSuggestions}
-              onSelect={handleSelectOption}
-              isPendingDebounce={isPendingDebounce}
-            />
-          </CommandList>
-        </div>
+          <SuggestionsList
+            suggestions={filteredSuggestions}
+            onSelect={handleSelectOption}
+            isPendingDebounce={isPendingDebounce}
+            inputValue={inputValue}
+          />
+        </CommandList>
       </div>
     </CommandPrimitive>
   );

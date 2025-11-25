@@ -148,7 +148,7 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub,))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -244,7 +244,7 @@ struct StrippedSpan {
     cache,
     acker,
     queue,
-    pubsub
+    pubsub,
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -378,7 +378,7 @@ async fn process_batch(
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
 
-    populate_autocomplete_cache(project_id, &spans, cache.clone()).await;
+    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
 
     // Index spans in Quickwit
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();

@@ -71,6 +71,9 @@ impl CacheTrait for InMemoryCache {
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
+        // Note: This is not truly atomic for in-memory cache, but should be fine for dev/testing.
+        // Production should use Redis where increment is atomic.
+        // Like Redis INCRBY, this creates the key with value=0 if it doesn't exist
         let current_value: i64 = match self.cache.get(key).await {
             Some(bytes) => serde_json::from_slice(&bytes).map_err(|e| CacheError::SerDeError(e))?,
             None => 0,
@@ -88,8 +91,10 @@ impl CacheTrait for InMemoryCache {
         let now = tokio::time::Instant::now();
         let expiry = now + Duration::from_secs(ttl_seconds);
 
+        // Clean up expired locks
         locks.retain(|_, &mut expires_at| expires_at > now);
 
+        // Try to acquire lock
         if locks.contains_key(key) {
             Ok(false)
         } else {
@@ -117,5 +122,12 @@ impl CacheTrait for InMemoryCache {
             self.zadd(key, 0.0, member).await?;
         }
         Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> Result<bool, CacheError> {
+        // Check both regular cache and sorted sets
+        let in_cache = self.cache.get(key).await.is_some();
+        let in_sorted_sets = self.sorted_sets.read().await.contains_key(key);
+        Ok(in_cache || in_sorted_sets)
     }
 }

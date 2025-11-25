@@ -1,5 +1,6 @@
 import AutocompleteSearchInput from "@/components/common/autocomplete";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { cn } from "@/lib/utils.ts";
 
 const STATIC_FIELD_VALUES: Record<string, string[]> = {
   span_type: ["DEFAULT", "LLM", "PIPELINE", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "EVENT"],
@@ -22,7 +23,7 @@ const getStaticSuggestions = (prefix: string): AutocompleteSuggestion[] => {
 
 const SearchSpansInput = ({ className }: { className?: string }) => (
   <AutocompleteSearchInput
-    className={className}
+    className={cn("min-w-32", className)}
     resource="spans"
     placeholder="Search in spans..."
     getStaticSuggestions={getStaticSuggestions}

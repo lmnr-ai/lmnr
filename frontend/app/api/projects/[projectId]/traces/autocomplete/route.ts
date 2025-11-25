@@ -1,11 +1,6 @@
 import { NextRequest } from "next/server";
-import { z } from "zod/v4";
 
 import { getAutocompleteSuggestions } from "@/lib/actions/autocomplete";
-
-const QueryParamsSchema = z.object({
-  prefix: z.string().default(""),
-});
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -14,7 +9,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   try {
     const suggestions = await getAutocompleteSuggestions({
       projectId: params.projectId,
-      resource: "traces",
+      entity: "traces",
       prefix: searchParams.get("prefix") || "",
     });
 
