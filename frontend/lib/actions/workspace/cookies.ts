@@ -15,3 +15,8 @@ export const setLastWorkspaceIdCookie = async (workspaceId: string) => {
     maxAge: MAX_AGE,
   });
 };
+
+export const deleteLastWorkspaceIdCookie = async () => {
+  const cookieStore = await cookies();
+  cookieStore.delete(LAST_WORKSPACE_ID);
+};

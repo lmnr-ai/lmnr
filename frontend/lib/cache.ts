@@ -80,10 +80,10 @@ class CacheManager {
       const client = await this.getRedisClient();
       let args: any[] = [];
       if (options.expireAfterSeconds) {
-        args.push('EX', options.expireAfterSeconds);
+        args.push("EX", options.expireAfterSeconds);
       }
       if (options.expireAt) {
-        args.push('PXAT', options.expireAt.getTime());
+        args.push("PXAT", options.expireAt.getTime());
       }
       try {
         await client.set(key, JSON.stringify(value), ...args);
@@ -113,7 +113,6 @@ class CacheManager {
 
 export const cache = new CacheManager();
 
-// This cache keys MUST match the keys in the app-server
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
@@ -122,3 +121,8 @@ export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
+
+export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
+  `workspace_member:${workspaceId}:${userId}`;
+
+export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
