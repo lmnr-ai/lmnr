@@ -1,5 +1,5 @@
 "use client";
-import { Column, ColumnDef, Row } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { ArrowRight, Check, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
@@ -241,9 +241,9 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       fetchNextPage={fetchNextPage}
     >
       <ColumnsMenu
-        columnLabels={columns.map((column: Column) => ({
-          id: column.id,
-          label: typeof column.header === "string" ? column.header : column.id,
+        columnLabels={columns.map((column) => ({
+          id: column.id!,
+          label: typeof column.header === "string" ? column.header : column.id!,
         }))}
       />
     </InfiniteDataTable>

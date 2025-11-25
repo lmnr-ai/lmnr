@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, Row } from "@tanstack/react-table";
+import { Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
@@ -224,9 +224,9 @@ function SessionsTableContent() {
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
-            columnLabels={columns.map((column: Column) => ({
-              id: column.id,
-              label: typeof column.header === "string" ? column.header : column.id,
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
           <DateRangeFilter />

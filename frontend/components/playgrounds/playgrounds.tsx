@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -143,9 +143,9 @@ const PlaygroundsContent = () => {
           )}
         >
           <ColumnsMenu
-            columnLabels={columns.map((column: Column) => ({
-              id: column.id,
-              label: typeof column.header === "string" ? column.header : column.id,
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
             }))}
             lockedColumns={["__row_selection"]}
           />

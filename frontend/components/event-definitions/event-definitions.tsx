@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, Row } from "@tanstack/react-table";
+import { Row } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
@@ -153,9 +153,9 @@ function EventDefinitionsContent() {
         >
           <ColumnsMenu
             lockedColumns={["__row_selection"]}
-            columnLabels={columns.map((column: Column) => ({
-              id: column.id,
-              label: typeof column.header === "string" ? column.header : column.id,
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
         </InfiniteDataTable>
