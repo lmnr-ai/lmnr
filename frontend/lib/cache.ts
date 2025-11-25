@@ -137,20 +137,6 @@ class CacheManager {
       return [];
     }
   }
-
-  async hmget(key: string, fields: string[]): Promise<(string | null)[]> {
-    if (this.useRedis) {
-      const client = await this.getRedisClient();
-      try {
-        return await client.hmget(key, ...fields);
-      } catch (e) {
-        console.error("Error getting hmget from cache", e);
-        return fields.map(() => null);
-      }
-    } else {
-      return fields.map(() => null);
-    }
-  }
 }
 
 export const cache = new CacheManager();
