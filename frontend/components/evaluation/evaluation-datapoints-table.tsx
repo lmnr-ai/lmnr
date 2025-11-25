@@ -146,9 +146,9 @@ const EvaluationDatapointsTableContent = ({
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
           <ColumnsMenu
-            columnLabels={columns.map((column: Column) => ({
-              id: column.id,
-              label: typeof column.header === "string" ? column.header : column.id,
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
           <DropdownMenu>

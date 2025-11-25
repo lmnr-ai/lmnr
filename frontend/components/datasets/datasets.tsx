@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -172,9 +172,9 @@ function DatasetsContent() {
           >
             <ColumnsMenu
               lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column: Column) => ({
-                id: column.id,
-                label: typeof column.header === "string" ? column.header : column.id,
+              columnLabels={columns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
               }))}
             />
           </InfiniteDataTable>

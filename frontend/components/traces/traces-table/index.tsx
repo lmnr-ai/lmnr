@@ -318,9 +318,9 @@ function TracesTableContent() {
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
           <ColumnsMenu
             lockedColumns={["status"]}
-            columnLabels={columns.map((column: Column) => ({
-              id: column.id,
-              label: typeof column.header === "string" ? column.header : column.id,
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
           <DateRangeFilter />

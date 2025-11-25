@@ -309,9 +309,9 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           >
             <ColumnsMenu
               lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column: Column) => ({
-                id: column.id,
-                label: typeof column.header === "string" ? column.header : column.id,
+              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
               }))}
             />
           </InfiniteDataTable>
