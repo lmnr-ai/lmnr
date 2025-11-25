@@ -5,11 +5,11 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
-import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
+import SearchTracesInput from "@/components/traces/traces-table/search";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";

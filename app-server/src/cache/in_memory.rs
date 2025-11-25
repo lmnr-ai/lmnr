@@ -12,7 +12,6 @@ pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
     sorted_sets: Arc<RwLock<HashMap<String, HashSet<String>>>>,
-    hash_maps: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
 }
 
 impl InMemoryCache {
@@ -21,7 +20,6 @@ impl InMemoryCache {
             cache: moka::future::Cache::new(capacity.unwrap_or(DEFAULT_CACHE_SIZE)),
             locks: Arc::new(RwLock::new(HashMap::new())),
             sorted_sets: Arc::new(RwLock::new(HashMap::new())),
-            hash_maps: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -117,38 +115,6 @@ impl CacheTrait for InMemoryCache {
     async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError> {
         for member in members {
             self.zadd(key, 0.0, member).await?;
-        }
-        Ok(())
-    }
-
-    async fn hset(&self, key: &str, field: &str, value: &str) -> Result<(), CacheError> {
-        let mut hash_maps = self.hash_maps.write().await;
-        hash_maps
-            .entry(key.to_string())
-            .or_insert_with(HashMap::new)
-            .insert(field.to_string(), value.to_string());
-        Ok(())
-    }
-
-    async fn hmget(&self, key: &str, fields: &[String]) -> Result<Vec<Option<String>>, CacheError> {
-        let hash_maps = self.hash_maps.read().await;
-        let result = match hash_maps.get(key) {
-            Some(hash_map) => fields
-                .iter()
-                .map(|field| hash_map.get(field).cloned())
-                .collect(),
-            None => fields.iter().map(|_| None).collect(),
-        };
-        Ok(result)
-    }
-
-    async fn pipe_hset(
-        &self,
-        key: &str,
-        field_values: &[(String, String)],
-    ) -> Result<(), CacheError> {
-        for (field, value) in field_values {
-            self.hset(key, field, value).await?;
         }
         Ok(())
     }

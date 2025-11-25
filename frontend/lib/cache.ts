@@ -168,3 +168,6 @@ export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) 
   `workspace_member:${workspaceId}:${userId}`;
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
+
+export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
+  `autocomplete:${resource}:${projectId}:${field}`;
