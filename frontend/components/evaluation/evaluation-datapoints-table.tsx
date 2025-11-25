@@ -1,4 +1,4 @@
-import { Column, Row } from "@tanstack/react-table";
+import { Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";

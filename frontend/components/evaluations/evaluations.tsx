@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, ColumnDef, Row } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useState } from "react";

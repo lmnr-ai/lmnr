@@ -1,5 +1,5 @@
 "use client";
-import { Column, Row } from "@tanstack/react-table";
+import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";

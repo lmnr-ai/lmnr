@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, Row, RowSelectionState } from "@tanstack/react-table";
+import { Row, RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 

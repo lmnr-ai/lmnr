@@ -1,6 +1,6 @@
 "use client";
 
-import { Column, ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
+import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
