@@ -1,9 +1,9 @@
 "use client";
 
-import { ColumnDef, Row } from "@tanstack/react-table";
+import { Column, ColumnDef, Row } from "@tanstack/react-table";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
@@ -14,7 +14,6 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -34,24 +33,29 @@ const columns: ColumnDef<Evaluation>[] = [
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "ID",
+    id: "id",
     size: 300,
   },
   {
+    id: "name",
     accessorKey: "name",
     header: "Name",
     size: 300,
   },
   {
+    id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
   },
   {
+    id: "accessorKey",
     accessorKey: "metadata",
     header: "Metadata",
     accessorFn: (row) => row.metadata,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
   },
   {
+    id: "createdAt",
     header: "Created at",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
@@ -112,8 +116,6 @@ function EvaluationsContent() {
   const search = searchParams.get("search");
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
-
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const fetchEvaluations = useCallback(
     async (pageNumber: number) => {
@@ -276,7 +278,13 @@ function EvaluationsContent() {
               >
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
-                  <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
+                  <ColumnsMenu
+                    lockedColumns={["__row_selection"]}
+                    columnLabels={columns.map((column: Column) => ({
+                      id: column.id,
+                      label: typeof column.header === "string" ? column.header : column.id,
+                    }))}
+                  />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />

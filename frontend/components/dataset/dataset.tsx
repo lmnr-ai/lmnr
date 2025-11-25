@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
+import { Column, ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,7 +12,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -43,6 +42,7 @@ const columns: ColumnDef<Datapoint>[] = [
     id: "index",
   },
   {
+    id: "createdAt",
     accessorKey: "createdAt",
     header: "Updated at",
     size: 150,
@@ -153,8 +153,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
-
   const handleDatapointSelect = useCallback(
     (datapoint: Row<Datapoint> | null) => {
       const params = new URLSearchParams(searchParams);
@@ -309,7 +307,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={columns.map((column: Column) => ({
+                id: column.id,
+                label: typeof column.header === "string" ? column.header : column.id,
+              }))}
+            />
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>

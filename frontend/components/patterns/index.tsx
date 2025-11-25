@@ -1,6 +1,6 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
+import { Column, Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -11,7 +11,6 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 
 export default function PatternsTable() {
@@ -31,7 +30,6 @@ function PatternsTableContent() {
   const { toast } = useToast();
 
   const columns = useMemo(() => getColumns(projectId), [projectId]);
-  const columnLabels = useMemo(() => getColumnLabels(columns), [columns]);
 
   const fetchPatterns = useCallback(
     async (_pageNumber: number) => {
@@ -131,7 +129,13 @@ function PatternsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <RefreshButton onClick={refetch} variant="outline" />
-          <ColumnsMenu columnLabels={columnLabels} lockedColumns={["expand"]} />
+          <ColumnsMenu
+            columnLabels={columns.map((column: Column) => ({
+              id: column.id,
+              label: typeof column.header === "string" ? column.header : column.id,
+            }))}
+            lockedColumns={["expand"]}
+          />
         </div>
       </InfiniteDataTable>
     </div>

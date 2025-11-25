@@ -1,8 +1,8 @@
 "use client";
-import { Row } from "@tanstack/react-table";
+import { Column, Row } from "@tanstack/react-table";
 import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
@@ -14,7 +14,6 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanRow } from "@/lib/traces/types";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
@@ -50,8 +49,6 @@ function SpansTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
 
   const shouldFetch = !!(pastHours || startDate || endDate);
-
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const fetchSpans = useCallback(
     async (pageNumber: number) => {
@@ -156,7 +153,13 @@ function SpansTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} columnLabels={columnLabels} />
+          <ColumnsMenu
+            lockedColumns={["status"]}
+            columnLabels={columns.map((column: Column) => ({
+              id: column.id,
+              label: typeof column.header === "string" ? column.header : column.id,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in spans..." />

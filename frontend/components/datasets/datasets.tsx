@@ -1,15 +1,14 @@
 "use client";
 
-import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { Column, ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -30,16 +29,19 @@ const columns: ColumnDef<DatasetInfo>[] = [
     accessorKey: "name",
     header: "name",
     size: 300,
+    id: "name",
   },
   {
     accessorKey: "datapointsCount",
     header: "Datapoints Count",
     size: 300,
+    id: "datapointsCount",
   },
   {
     header: "Created at",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    id: "createdAt",
   },
 ];
 
@@ -52,8 +54,6 @@ function DatasetsContent() {
   const router = useRouter();
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   const fetchDatasets = useCallback(
     async (pageNumber: number) => {
@@ -170,7 +170,13 @@ function DatasetsContent() {
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} columnLabels={columnLabels} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={columns.map((column: Column) => ({
+                id: column.id,
+                label: typeof column.header === "string" ? column.header : column.id,
+              }))}
+            />
           </InfiniteDataTable>
         </div>
       </div>

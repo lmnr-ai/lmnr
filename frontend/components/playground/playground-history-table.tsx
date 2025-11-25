@@ -1,8 +1,8 @@
 "use client";
-import { ColumnDef, Row } from "@tanstack/react-table";
+import { Column, ColumnDef, Row } from "@tanstack/react-table";
 import { ArrowRight, Check, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -10,7 +10,6 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Trace } from "@/lib/traces/types";
@@ -229,8 +228,6 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
     [onRowClick, onTraceSelect]
   );
 
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
-
   return (
     <InfiniteDataTable<Trace>
       className="w-full"
@@ -243,7 +240,12 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
     >
-      <ColumnsMenu columnLabels={columnLabels} />
+      <ColumnsMenu
+        columnLabels={columns.map((column: Column) => ({
+          id: column.id,
+          label: typeof column.header === "string" ? column.header : column.id,
+        }))}
+      />
     </InfiniteDataTable>
   );
 }

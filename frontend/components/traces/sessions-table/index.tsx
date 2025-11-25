@@ -1,9 +1,9 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
+import { Column, Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
@@ -15,7 +15,6 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
@@ -52,8 +51,6 @@ function SessionsTableContent() {
   const textSearchFilter = searchParams.get("search");
 
   const { setNavigationRefList } = useTraceViewNavigation();
-
-  const columnLabels = useMemo(() => getColumnLabels(columns), []);
 
   // Initialize with default time range if needed - do this BEFORE useInfiniteScroll
   useEffect(() => {
@@ -226,7 +223,12 @@ function SessionsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu columnLabels={columnLabels} />
+          <ColumnsMenu
+            columnLabels={columns.map((column: Column) => ({
+              id: column.id,
+              label: typeof column.header === "string" ? column.header : column.id,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in sessions..." />

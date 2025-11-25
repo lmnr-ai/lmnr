@@ -1,4 +1,4 @@
-import { Row } from "@tanstack/react-table";
+import { Column, Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
@@ -25,7 +25,6 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import { Switch } from "@/components/ui/switch";
 import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
@@ -101,12 +100,12 @@ const EvaluationDatapointsTableContent = ({
 
         return allValues.length > 0
           ? {
-            ...ranges,
-            [scoreName]: {
-              min: Math.min(...allValues),
-              max: Math.max(...allValues),
-            },
-          }
+              ...ranges,
+              [scoreName]: {
+                min: Math.min(...allValues),
+                max: Math.max(...allValues),
+              },
+            }
           : ranges;
       },
       {} as Record<string, { min: number; max: number }>
@@ -123,8 +122,6 @@ const EvaluationDatapointsTableContent = ({
     }
     return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
-
-  const columnLabels = useMemo(() => getColumnLabels(columns), [columns]);
 
   const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
 
@@ -148,7 +145,12 @@ const EvaluationDatapointsTableContent = ({
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
-          <ColumnsMenu columnLabels={columnLabels} />
+          <ColumnsMenu
+            columnLabels={columns.map((column: Column) => ({
+              id: column.id,
+              label: typeof column.header === "string" ? column.header : column.id,
+            }))}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

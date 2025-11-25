@@ -1,6 +1,6 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
+import { Column, Row } from "@tanstack/react-table";
 import { format, formatRelative } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
@@ -22,7 +22,6 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { getColumnLabels } from "@/components/ui/infinite-datatable/utils";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
@@ -242,8 +241,6 @@ function EventsContentInner({
     return events?.find((event) => event.traceId === traceId && event.spanId === spanId)?.id;
   }, [events, traceId, spanId]);
 
-  const columnLabels = useMemo(() => getColumnLabels(eventsTableColumns), []);
-
   const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
     const newWidth = defaultTraceViewWidth + delta.width;
     setDefaultTraceViewWidth(newWidth);
@@ -315,7 +312,12 @@ function EventsContentInner({
             <div className="flex flex-1 w-full space-x-2">
               <DateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
-              <ColumnsMenu columnLabels={columnLabels} />
+              <ColumnsMenu
+                columnLabels={eventsTableColumns.map((column: Column) => ({
+                  id: column.id,
+                  label: typeof column.header === "string" ? column.header : column.id,
+                }))}
+              />
             </div>
             <DataTableFilterList />
             <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />

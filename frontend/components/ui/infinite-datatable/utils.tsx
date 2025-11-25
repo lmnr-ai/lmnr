@@ -35,27 +35,3 @@ export function createCheckboxColumn<TData extends RowData>(options?: CheckboxCo
     ),
   };
 }
-
-export function getColumnLabels<TData>(columns: ColumnDef<TData, any>[]): Record<string, string> {
-  return columns.reduce(
-    (acc, col: ColumnDef<TData, any>) => {
-      let id;
-      if (col.id) {
-        id = col.id;
-      } else if ("accessorKey" in col) {
-        id = col.accessorKey as string;
-      } else {
-        return acc;
-      }
-
-      let label = id;
-      if (typeof col.header === "string") {
-        label = col.header;
-      } else if (col.meta && "label" in col.meta && typeof col.meta.label === "string") {
-        label = col.meta.label;
-      }
-      return { ...acc, [id]: label };
-    },
-    {} as Record<string, string>
-  );
-}
