@@ -2,6 +2,15 @@
 //! and clickhouse, and quickwit
 use std::sync::Arc;
 
+use backoff::ExponentialBackoffBuilder;
+use futures_util::future::join_all;
+use itertools::Itertools;
+use opentelemetry::trace::FutureExt;
+use rayon::prelude::*;
+use serde_json::Value;
+use tracing::instrument;
+use uuid::Uuid;
+
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
@@ -41,14 +50,6 @@ use crate::{
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
 };
-use backoff::ExponentialBackoffBuilder;
-use futures_util::future::join_all;
-use itertools::Itertools;
-use opentelemetry::trace::FutureExt;
-use rayon::prelude::*;
-use serde_json::Value;
-use tracing::instrument;
-use uuid::Uuid;
 
 pub async fn process_queue_spans(
     db: Arc<DB>,
@@ -148,7 +149,7 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub,))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -378,8 +379,6 @@ async fn process_batch(
     check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
         .await;
 
-    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
-
     // Index spans in Quickwit
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
     if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
@@ -389,6 +388,13 @@ async fn process_batch(
             e
         );
     }
+
+    let _ = acker.ack().await.map_err(|e| {
+        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
+    });
+
+    // Populate autocomplete cache
+    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
@@ -401,10 +407,6 @@ async fn process_batch(
             output: span.output,
         })
         .collect::<Vec<_>>();
-
-    let _ = acker.ack().await.map_err(|e| {
-        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
-    });
 
     let total_events_ingested_bytes = match record_events(
         cache.clone(),

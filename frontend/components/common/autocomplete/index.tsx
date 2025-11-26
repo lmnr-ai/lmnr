@@ -199,6 +199,7 @@ const AutocompleteSearchInput = ({
       setFetchPrefix("");
 
       const params = new URLSearchParams(searchParams);
+      params.delete("search");
       const filter: DatatableFilter = { column: field, operator: Operator.Eq, value };
       params.append("filter", JSON.stringify(filter));
       params.delete("pageNumber");

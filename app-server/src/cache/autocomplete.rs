@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::cache::keys::{AUTOCOMPLETE_CACHE_KEY, AUTOCOMPLETE_LOCK_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
+use crate::ch::utils::chrono_to_nanoseconds;
 use crate::db::spans::Span;
 use crate::traces::span_attributes::{GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL};
 
@@ -69,14 +70,8 @@ async fn prefill_autocomplete_key_if_missing(
     let end_time = Utc::now();
     let start_time = end_time - Duration::days(BACKFILL_DAYS);
 
-    let start_time_str = start_time
-        .naive_utc()
-        .format("%Y-%m-%d %H:%M:%S%.9f")
-        .to_string();
-    let end_time_str = end_time
-        .naive_utc()
-        .format("%Y-%m-%d %H:%M:%S%.9f")
-        .to_string();
+    let start_time_ns = chrono_to_nanoseconds(start_time);
+    let end_time_ns = chrono_to_nanoseconds(end_time);
 
     let mut all_values = Vec::new();
 
@@ -84,8 +79,8 @@ async fn prefill_autocomplete_key_if_missing(
         let results = clickhouse
             .query(query)
             .param("project_id", Value::String(project_id.to_string()))
-            .param("start_time", Value::String(start_time_str.clone()))
-            .param("end_time", Value::String(end_time_str.clone()))
+            .param("start_time", Value::Number(start_time_ns.into()))
+            .param("end_time", Value::Number(end_time_ns.into()))
             .fetch_all::<AutocompleteValue>()
             .await;
 
@@ -96,11 +91,9 @@ async fn prefill_autocomplete_key_if_missing(
         }
     }
 
-    if !all_values.is_empty() {
-        for chunk in all_values.chunks(PIPELINE_BATCH_SIZE) {
-            if let Err(e) = cache.pipe_zadd(key, chunk).await {
-                log::error!("Failed to prefill autocomplete key {}: {}", key, e);
-            }
+    for chunk in all_values.chunks(PIPELINE_BATCH_SIZE) {
+        if let Err(e) = cache.pipe_zadd(key, chunk).await {
+            log::error!("Failed to prefill autocomplete key {}: {}", key, e);
         }
     }
 

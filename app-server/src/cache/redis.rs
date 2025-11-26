@@ -181,6 +181,7 @@ impl CacheTrait for RedisCache {
         let mut pipe = redis::pipe();
 
         for member in members {
+            // score is 0.0 because we need only unique members not sorted set
             pipe.cmd("ZADD").arg(key).arg("NX").arg(0.0).arg(member);
         }
 
