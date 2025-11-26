@@ -24,9 +24,10 @@ import { ColumnsMenuItem } from "@/components/ui/infinite-datatable/ui/columns-m
 
 interface ColumnsMenuProps {
   lockedColumns?: string[];
+  columnLabels?: { id: string; label: string }[];
 }
 
-export default function ColumnsMenu({ lockedColumns = [] }: ColumnsMenuProps) {
+export default function ColumnsMenu({ lockedColumns = [], columnLabels = [] }: ColumnsMenuProps) {
   const store = useDataTableStore();
   const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(
     store,
@@ -72,7 +73,7 @@ export default function ColumnsMenu({ lockedColumns = [] }: ColumnsMenuProps) {
           Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="relative min-w-32">
+      <DropdownMenuContent align="start" className="relative min-w-32">
         <DropdownMenuGroup>
           <DndContext
             sensors={sensors}
@@ -85,6 +86,7 @@ export default function ColumnsMenu({ lockedColumns = [] }: ColumnsMenuProps) {
                 <ColumnsMenuItem
                   key={columnId}
                   id={columnId}
+                  label={columnLabels?.find((col) => col.id === columnId)?.label || columnId}
                   isVisible={columnVisibility[columnId] !== false}
                   isLocked={lockedColumns.includes(columnId)}
                   onToggleVisibility={handleToggleVisibility}
