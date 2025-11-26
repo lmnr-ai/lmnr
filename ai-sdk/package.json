@@ -1,0 +1,38 @@
+{
+  "name": "ai-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch api.ts",
+    "start": "node dist/api.js",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.22.0",
+  "devDependencies": {
+    "@types/estree": "^1.0.8",
+    "@types/express": "^5.0.5",
+    "@types/json-schema": "^7.0.15",
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^3.0.60",
+    "@ai-sdk/anthropic": "^2.0.48",
+    "@ai-sdk/azure": "^2.0.74",
+    "@ai-sdk/google": "^2.0.43",
+    "@ai-sdk/groq": "^2.0.31",
+    "@ai-sdk/mistral": "^2.0.24",
+    "@ai-sdk/openai": "^2.0.72",
+    "ai": "^5.0.101",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "libsodium-wrappers": "^0.7.15",
+    "tsx": "^4.20.6",
+    "zod": "^4.1.13"
+  }
+}

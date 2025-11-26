@@ -23,6 +23,9 @@ jobs:
           - dockerfile: ./query-engine/Dockerfile
             context: ./query-engine
             image: ghcr.io/lmnr-ai/query-engine
+          - dockerfile: ./ai-sdk/Dockerfile
+            context: ./ai-sdk
+            image: ghcr.io/lmnr-ai/ai-sdk
     permissions:
       contents: read
       packages: write

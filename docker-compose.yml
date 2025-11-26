@@ -127,6 +127,15 @@ services:
     volumes:
       - quickwit-data:/quickwit/qwdata
 
+  ai-sdk:
+    image: ghcr.io/lmnr-ai/ai-sdk
+    pull_policy: always
+    ports:
+      - "${AI_SDK_HOST_PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+  
 volumes:
   postgres-data:
   clickhouse-data:
