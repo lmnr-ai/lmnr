@@ -14,7 +14,7 @@ use crate::db::spans::Span;
 use crate::traces::span_attributes::{GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL};
 
 const BACKFILL_DAYS: i64 = 30;
-const PIPELINE_BATCH_SIZE: usize = 500;
+const PIPELINE_BATCH_SIZE: usize = 256;
 
 const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
     (
