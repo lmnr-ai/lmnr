@@ -20,7 +20,7 @@ const getSuggestions = async (
   field: string,
   prefix: string = ""
 ): Promise<string[]> => {
-  const exists = await isAutocompleteCacheExists(resource, projectId, field);
+  const exists = await isAutocompleteCacheExists("spans", projectId, "names");
 
   if (exists) {
     return prefix
@@ -28,8 +28,10 @@ const getSuggestions = async (
       : await getTopSuggestions(resource, projectId, field);
   }
 
-  const queries = getAutocompleteQueries(field, prefix);
-  const results = await Promise.all(queries.map((query) => executeQuery<{ value: string }>({ query, projectId })));
+  const { queries, parameters } = getAutocompleteQueries(field, prefix);
+  const results = await Promise.all(
+    queries.map((query) => executeQuery<{ value: string }>({ query, projectId, parameters }))
+  );
 
   return results.flatMap((result) => result.map((r) => r.value));
 };
@@ -72,28 +74,45 @@ export async function getAutocompleteSuggestions(
   }
 }
 
-const getAutocompleteQueries = (field: string, prefix: string = ""): string[] => {
-  const prefixFilter = prefix ? `ILIKE '${prefix}%'` : `!= ''`;
+const getAutocompleteQueries = (
+  field: string,
+  prefix: string = ""
+): { queries: string[]; parameters?: Record<string, string> } => {
+  const hasPrefix = prefix.length > 0;
+  const prefixFilter = hasPrefix ? `ILIKE {prefix:String}` : `!= ''`;
+  const parameters = hasPrefix ? { prefix: `${prefix}%` } : undefined;
 
   switch (field) {
     case "names":
-      return [
-        `SELECT DISTINCT name as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND name ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
-      ];
+      return {
+        queries: [
+          `SELECT DISTINCT name as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND name ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
+        ],
+        parameters,
+      };
     case "top_span_names":
-      return [
-        `SELECT DISTINCT name as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND parent_span_id = '00000000-0000-0000-0000-000000000000' AND name ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
-      ];
+      return {
+        queries: [
+          `SELECT DISTINCT name as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND parent_span_id = '00000000-0000-0000-0000-000000000000' AND name ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
+        ],
+        parameters,
+      };
     case "models":
-      return [
-        `SELECT DISTINCT request_model as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND request_model ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
-        `SELECT DISTINCT response_model as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND response_model ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
-      ];
+      return {
+        queries: [
+          `SELECT DISTINCT request_model as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND request_model ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
+          `SELECT DISTINCT response_model as value FROM spans WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND response_model ${prefixFilter} ORDER BY start_time DESC LIMIT 5`,
+        ],
+        parameters,
+      };
     case "tags":
-      return [
-        `SELECT DISTINCT name as value FROM tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name ${prefixFilter} ORDER BY created_at DESC LIMIT 5`,
-      ];
+      return {
+        queries: [
+          `SELECT DISTINCT name as value FROM tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name ${prefixFilter} ORDER BY created_at DESC LIMIT 5`,
+        ],
+        parameters,
+      };
     default:
-      return [];
+      return { queries: [] };
   }
 };
