@@ -240,7 +240,12 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
     >
-      <ColumnsMenu />
+      <ColumnsMenu
+        columnLabels={columns.map((column) => ({
+          id: column.id!,
+          label: typeof column.header === "string" ? column.header : column.id!,
+        }))}
+      />
     </InfiniteDataTable>
   );
 }

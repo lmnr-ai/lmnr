@@ -1,4 +1,3 @@
-import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { RowData } from "@tanstack/react-table";
 
 import { TableRow } from "@/components/ui/table.tsx";
@@ -40,11 +39,9 @@ export function InfiniteDatatableRow<TData extends RowData>({
       }}
     >
       {row.getIsSelected() && <div className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
-      <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
-        {row.getVisibleCells().map((cell) => (
-          <InfiniteTableCell key={cell.id} cell={cell} />
-        ))}
-      </SortableContext>
+      {row.getVisibleCells().map((cell) => (
+        <InfiniteTableCell key={cell.id} cell={cell} />
+      ))}
     </TableRow>
   );
 }

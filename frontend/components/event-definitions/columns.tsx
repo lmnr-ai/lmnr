@@ -41,7 +41,7 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     id: "isSemantic",
   },
   {
-    header: "Created At",
+    header: "Created",
     accessorFn: (row) => row.createdAt,
     cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
     id: "createdAt",

@@ -92,13 +92,13 @@ export function InfiniteTableHead<TData extends RowData>({
                 className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
               >
                 <DropdownMenuItem
-                  className="flex w-full justify-between items-center"
+                  className="flex w-full items-center"
                   onClick={(e) => {
                     e.stopPropagation();
                     onHideColumn?.(header.column.id);
                   }}
                 >
-                  <EyeOff className="size-3 mr-2" />
+                  <EyeOff className="size-3.5" />
                   Hide column
                 </DropdownMenuItem>
               </DropdownMenuContent>

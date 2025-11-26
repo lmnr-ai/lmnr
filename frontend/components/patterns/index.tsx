@@ -150,9 +150,15 @@ function PatternsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={patternsTableFilters} />
-          <ColumnsMenu />
-          <DataTableSearch searchColumns={["name"]} placeholder="Search by pattern name..." />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+            lockedColumns={["expand"]}
+          />
           <RefreshButton onClick={refetch} variant="outline" />
+          <DataTableSearch searchColumns={["name"]} placeholder="Search by pattern name..." />
         </div>
         <DataTableFilterList />
       </InfiniteDataTable>

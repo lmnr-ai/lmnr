@@ -90,10 +90,11 @@ export function InfiniteDataTable<TData extends RowData>({
     }
   }
 
-  // reorder columns after drag & drop
+  // Reorder columns ONLY on drop (not during drag)
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setDraggingColumnId(null);
+
     if (active && over && active.id !== over.id) {
       const oldIndex = columnOrder.indexOf(active.id as string);
       const newIndex = columnOrder.indexOf(over.id as string);
@@ -232,40 +233,6 @@ export function InfiniteDataTable<TData extends RowData>({
                 }}
                 lockedColumns={lockedColumns}
               />
-              <DragOverlay
-                dropAnimation={null}
-                adjustScale={false}
-                style={{
-                  top: `${headerTop}px`,
-                  position: "fixed",
-                  pointerEvents: "none",
-                }}
-              >
-                {draggingColumnId
-                  ? (() => {
-                    const column = table.getColumn(draggingColumnId);
-                    if (!column) return null;
-                    const headerGroups = table.getHeaderGroups();
-                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
-                    if (!header) return null;
-                    return (
-                      <div
-                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
-                        style={{
-                          width: column.getSize(),
-                          height: 32,
-                        }}
-                      >
-                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
-                          <div className="truncate">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()
-                  : null}
-              </DragOverlay>
               <InfiniteDatatableBody
                 table={table}
                 rowVirtualizer={rowVirtualizer}
@@ -281,6 +248,40 @@ export function InfiniteDataTable<TData extends RowData>({
                 columnOrder={columnOrder}
               />
             </Table>
+            <DragOverlay
+              dropAnimation={null}
+              adjustScale={false}
+              style={{
+                top: `${headerTop}px`,
+                position: "fixed",
+                pointerEvents: "none",
+              }}
+            >
+              {draggingColumnId
+                ? (() => {
+                  const column = table.getColumn(draggingColumnId);
+                  if (!column) return null;
+                  const headerGroups = table.getHeaderGroups();
+                  const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
+                  if (!header) return null;
+                  return (
+                    <div
+                      className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+                      style={{
+                        width: column.getSize(),
+                        height: 32,
+                      }}
+                    >
+                      <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+                        <div className="truncate">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+                : null}
+            </DragOverlay>
           </DndContext>
 
           {isFetching && !isLoading && (

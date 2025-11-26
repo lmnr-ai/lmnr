@@ -38,17 +38,20 @@ const columns: ColumnDef<LabelingQueue>[] = [
     id: "id",
   },
   {
+    id: "name",
     accessorKey: "name",
     header: "Name",
     size: 300,
   },
   {
+    id: "count",
     accessorKey: "count",
     header: "Count",
     size: 300,
   },
   {
-    header: "Created at",
+    id: "createdAt",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
@@ -222,7 +225,13 @@ const QueuesContent = () => {
         >
           <div className="flex flex-1 w-full space-x-2">
             <DataTableFilter columns={queuesTableFilters} />
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu
+              columnLabels={columns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+              lockedColumns={["__row_selection"]}
+            />
             <DataTableSearch searchColumns={["name"]} placeholder="Search by queue name..." />
             <DataTableFilterList />
           </div>

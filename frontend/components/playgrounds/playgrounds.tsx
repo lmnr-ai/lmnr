@@ -38,12 +38,14 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     id: "id",
   },
   {
+    id: "name",
     accessorKey: "name",
-    header: "name",
+    header: "Name",
     size: 300,
   },
   {
-    header: "Created at",
+    id: "createdAt",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
@@ -213,7 +215,13 @@ const PlaygroundsContent = () => {
         >
           <div className="flex flex-1 w-full space-x-2">
             <DataTableFilter columns={playgroundsTableFilters} />
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu
+              columnLabels={columns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+              lockedColumns={["__row_selection"]}
+            />
             <DataTableSearch searchColumns={["name"]} placeholder="Search by playground name..." />
             <DataTableFilterList />
           </div>

@@ -223,7 +223,12 @@ function SessionsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in sessions..." />

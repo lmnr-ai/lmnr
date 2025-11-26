@@ -30,18 +30,21 @@ const columns: ColumnDef<DatasetInfo>[] = [
   },
   {
     accessorKey: "name",
-    header: "name",
+    header: "Name",
     size: 300,
+    id: "name",
   },
   {
     accessorKey: "datapointsCount",
     header: "Datapoints Count",
     size: 300,
+    id: "datapointsCount",
   },
   {
-    header: "Created at",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    id: "createdAt",
   },
 ];
 
@@ -199,7 +202,13 @@ function DatasetsContent() {
           >
             <div className="flex flex-1 w-full space-x-2">
               <DataTableFilter columns={datasetsTableFilters} />
-              <ColumnsMenu lockedColumns={["__row_selection"]} />
+              <ColumnsMenu
+                lockedColumns={["__row_selection"]}
+                columnLabels={columns.map((column) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
               <DataTableSearch searchColumns={["name"]} placeholder="Search by dataset name..." />
               <DataTableFilterList />
             </div>

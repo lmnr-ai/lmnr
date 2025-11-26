@@ -312,7 +312,12 @@ function EventsContentInner({
             <div className="flex flex-1 w-full space-x-2">
               <DateRangeFilter />
               <DataTableFilter columns={eventsTableFilters} />
-              <ColumnsMenu />
+              <ColumnsMenu
+                columnLabels={eventsTableColumns.map((column) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
             </div>
             <DataTableFilterList />
             <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />

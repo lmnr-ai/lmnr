@@ -33,25 +33,30 @@ const columns: ColumnDef<Evaluation>[] = [
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "ID",
+    id: "id",
     size: 300,
   },
   {
+    id: "name",
     accessorKey: "name",
     header: "Name",
     size: 300,
   },
   {
+    id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
   },
   {
+    id: "metadata",
     accessorKey: "metadata",
     header: "Metadata",
     accessorFn: (row) => row.metadata,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
   },
   {
-    header: "Created at",
+    id: "createdAt",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
@@ -273,7 +278,13 @@ function EvaluationsContent() {
               >
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
-                  <ColumnsMenu lockedColumns={["__row_selection"]} />
+                  <ColumnsMenu
+                    lockedColumns={["__row_selection"]}
+                    columnLabels={columns.map((column) => ({
+                      id: column.id!,
+                      label: typeof column.header === "string" ? column.header : column.id!,
+                    }))}
+                  />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />
