@@ -42,8 +42,9 @@ const columns: ColumnDef<Datapoint>[] = [
     id: "index",
   },
   {
+    id: "createdAt",
     accessorKey: "createdAt",
-    header: "Updated at",
+    header: "Updated",
     size: 150,
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
   },
@@ -152,7 +153,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
-
   const handleDatapointSelect = useCallback(
     (datapoint: Row<Datapoint> | null) => {
       const params = new URLSearchParams(searchParams);
@@ -307,7 +307,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+            />
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>

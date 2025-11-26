@@ -153,7 +153,13 @@ function SpansTableContent() {
       >
         <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} />
+          <ColumnsMenu
+            lockedColumns={["status"]}
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchSpansInput />

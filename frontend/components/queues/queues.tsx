@@ -37,17 +37,20 @@ const columns: ColumnDef<LabelingQueue>[] = [
     id: "id",
   },
   {
+    id: "name",
     accessorKey: "name",
     header: "Name",
     size: 300,
   },
   {
+    id: "count",
     accessorKey: "count",
     header: "Count",
     size: 300,
   },
   {
-    header: "Created at",
+    id: "createdAt",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
@@ -153,7 +156,13 @@ const QueuesContent = () => {
             </div>
           )}
         >
-          <ColumnsMenu />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+            lockedColumns={["__row_selection"]}
+          />
         </InfiniteDataTable>
       </div>
     </>

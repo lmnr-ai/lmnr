@@ -27,18 +27,21 @@ const columns: ColumnDef<DatasetInfo>[] = [
   },
   {
     accessorKey: "name",
-    header: "name",
+    header: "Name",
     size: 300,
+    id: "name",
   },
   {
     accessorKey: "datapointsCount",
     header: "Datapoints Count",
     size: 300,
+    id: "datapointsCount",
   },
   {
-    header: "Created at",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    id: "createdAt",
   },
 ];
 
@@ -167,7 +170,13 @@ function DatasetsContent() {
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={columns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+            />
           </InfiniteDataTable>
         </div>
       </div>

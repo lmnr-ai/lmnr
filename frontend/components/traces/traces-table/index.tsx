@@ -317,7 +317,13 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} />
+          <ColumnsMenu
+            lockedColumns={["status"]}
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
