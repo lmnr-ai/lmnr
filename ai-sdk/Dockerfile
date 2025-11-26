@@ -12,7 +12,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN corepack enable && pnpm build
+RUN corepack enable
 RUN pnpm build
 
 FROM base AS runner
