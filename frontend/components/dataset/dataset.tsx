@@ -44,7 +44,7 @@ const columns: ColumnDef<Datapoint>[] = [
   {
     id: "createdAt",
     accessorKey: "createdAt",
-    header: "Updated at",
+    header: "Updated",
     size: 150,
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
   },

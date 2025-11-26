@@ -1,6 +1,6 @@
 "use client";
 
-import { uniqBy } from "lodash";
+import { intersection, pick, uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useRef } from "react";
 import { createStore, StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
@@ -162,12 +162,15 @@ function createDataTableStore<TData>(
         }),
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<Pick<SelectionState, "columnVisibility" | "columnOrder">>;
-          const validColumns = persisted?.columnOrder?.filter((col) => defaultColumnOrder.includes(col)) || [];
+          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
           const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
+          const mergedColumnOrder = [...validColumns, ...newColumns];
+          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
+
           return {
             ...currentState,
-            ...persisted,
-            columnOrder: [...validColumns, ...newColumns],
+            columnVisibility: filteredColumnVisibility,
+            columnOrder: mergedColumnOrder,
           };
         },
       })

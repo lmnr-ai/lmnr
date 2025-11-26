@@ -25,18 +25,20 @@ export const ColumnsMenuItem = ({ id, label, isVisible, isLocked, onToggleVisibi
     transition,
   };
   return (
-    <DropdownMenuItem style={style} className={cn("flex justify-between items-center", isLocked && "hidden")}>
-      <div
-        ref={setNodeRef}
-        {...(!isLocked && { ...attributes, ...listeners })}
-        className={cn("cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
-      >
-        <GripHorizontal />
+    <DropdownMenuItem style={style} className={cn("flex items-center gap-4", isLocked && "hidden")}>
+      <div className="flex items-center gap-2">
+        <div
+          ref={setNodeRef}
+          {...(!isLocked && { ...attributes, ...listeners })}
+          className={cn("cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
+        >
+          <GripHorizontal />
+        </div>
+        <span className={isLocked ? "text-muted-foreground mr-4" : ""}>{label}</span>
       </div>
 
-      <span className={isLocked ? "text-muted-foreground" : ""}>{label}</span>
-
       <Switch
+        className="ml-auto h-fit"
         checked={isVisible}
         disabled={isLocked}
         onCheckedChange={() => !isLocked && onToggleVisibility(id)}

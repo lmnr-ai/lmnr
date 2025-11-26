@@ -38,12 +38,12 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
   {
     id: "name",
     accessorKey: "name",
-    header: "name",
+    header: "Name",
     size: 300,
   },
   {
     id: "createdAt",
-    header: "Created at",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },

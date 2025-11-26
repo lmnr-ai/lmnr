@@ -44,12 +44,14 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     id: "userId",
   },
   {
+    id: "sessionId",
     accessorKey: "sessionId",
     cell: (row) => <span>{String(row.getValue()) || "-"}</span>,
     header: "Session ID",
     size: 200,
   },
   {
+    id: "attributes",
     accessorKey: "attributes",
     header: "Attributes",
     accessorFn: (row) => row.attributes,

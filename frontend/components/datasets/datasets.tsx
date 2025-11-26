@@ -27,7 +27,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
   },
   {
     accessorKey: "name",
-    header: "name",
+    header: "Name",
     size: 300,
     id: "name",
   },
@@ -38,7 +38,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
     id: "datapointsCount",
   },
   {
-    header: "Created at",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "createdAt",

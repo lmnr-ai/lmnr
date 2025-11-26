@@ -73,7 +73,7 @@ export default function ColumnsMenu({ lockedColumns = [], columnLabels = [] }: C
           Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="relative min-w-32">
+      <DropdownMenuContent align="start" className="relative min-w-32">
         <DropdownMenuGroup>
           <DndContext
             sensors={sensors}

@@ -48,7 +48,7 @@ const columns: ColumnDef<Evaluation>[] = [
     header: "Datapoints",
   },
   {
-    id: "accessorKey",
+    id: "metadata",
     accessorKey: "metadata",
     header: "Metadata",
     accessorFn: (row) => row.metadata,
@@ -56,7 +56,7 @@ const columns: ColumnDef<Evaluation>[] = [
   },
   {
     id: "createdAt",
-    header: "Created at",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
