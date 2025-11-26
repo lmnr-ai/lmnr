@@ -1,7 +1,6 @@
-import { isEmpty } from "lodash";
 import { z } from "zod/v4";
 
-import { getTopSuggestions, searchSuggestions } from "@/lib/actions/autocomplete/cache.ts";
+import { getTopSuggestions, isAutocompleteCacheExists, searchSuggestions } from "@/lib/actions/autocomplete/cache.ts";
 import { executeQuery } from "@/lib/actions/sql";
 
 const GetAutocompleteSuggestionsSchema = z.object({
@@ -16,11 +15,11 @@ export type AutocompleteSuggestion = {
 };
 
 const getSuggestions = async (resource: string, projectId: string, field: string) => {
-  const cacheResults = await getTopSuggestions(resource, projectId, "names");
-
-  if (!isEmpty(cacheResults)) {
-    return cacheResults;
+  const exists = await isAutocompleteCacheExists(resource, projectId, field);
+  if (exists) {
+    return await getTopSuggestions(resource, projectId, field);
   }
+
   const queries = getAutocompleteQueries(field);
   const results = await Promise.all(queries.map((query) => executeQuery<{ value: string }>({ query, projectId })));
 

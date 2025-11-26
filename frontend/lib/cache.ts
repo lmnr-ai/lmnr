@@ -137,6 +137,22 @@ class CacheManager {
       return [];
     }
   }
+
+  async exists(key: string): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.exists(key);
+        return result === 1;
+      } catch (e) {
+        console.error("Error checking if key exists in cache", e);
+        return false;
+      }
+    } else {
+      const entry = this.memoryCache.get(key);
+      return !!entry;
+    }
+  }
 }
 
 export const cache = new CacheManager();
