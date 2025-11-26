@@ -3,6 +3,7 @@ use std::{env, sync::Arc};
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Endpoint};
+use tracing::instrument;
 
 use super::{
     QuickwitIndexedSpan,
@@ -65,6 +66,7 @@ impl QuickwitClient {
         &self.inner.ingest_endpoint
     }
 
+    #[instrument(skip(self, spans))]
     pub async fn ingest(
         &self,
         index_id: &str,
@@ -84,6 +86,7 @@ impl QuickwitClient {
             .map_err(|status| anyhow!("Quickwit ingest request failed: {status}"))
     }
 
+    #[instrument(skip(self))]
     pub async fn search_spans(
         &self,
         query_body: serde_json::Value,
@@ -115,6 +118,7 @@ impl QuickwitClient {
     }
 }
 
+#[instrument(skip(spans))]
 pub fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow::Result<DocBatch> {
     build_json_doc_batch(index_id, spans).map_err(|err| {
         anyhow!(
