@@ -20,26 +20,26 @@ const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
     (
         "names",
         &[
-            "SELECT DISTINCT name as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND name != ''",
+            "SELECT arrayJoin(topK(512)(name)) as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND name != ''",
         ],
     ),
     (
         "top_span_names",
         &[
-            "SELECT DISTINCT name as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND parent_span_id = '00000000-0000-0000-0000-000000000000' AND name != ''",
+            "SELECT arrayJoin(topK(512)(name)) as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND empty(parent_span_id) AND name != ''",
         ],
     ),
     (
         "models",
         &[
-            "SELECT DISTINCT request_model as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND request_model != ''",
-            "SELECT DISTINCT response_model as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND response_model != ''",
+            "SELECT arrayJoin(topK(256)(request_model)) as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND request_model != ''",
+            "SELECT arrayJoin(topK(256)(response_model)) as value FROM spans WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND response_model != ''",
         ],
     ),
     (
         "tags",
         &[
-            "SELECT DISTINCT name as value FROM tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
+            "SELECT arrayJoin(topK(512)(name)) as value FROM tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
         ],
     ),
 ];
