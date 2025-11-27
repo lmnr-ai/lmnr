@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
-import { DatatableFilter, Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { FilterDef } from "@/lib/db/modifiers";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 
 import { SpanMetricGroupBy } from "../clickhouse/types";
 import { SpanType } from "./types";
@@ -17,7 +17,7 @@ export const SPAN_TYPE_TO_COLOR = {
   [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
 };
 
-const buildFilters = (groupBy: SpanMetricGroupBy, value: string): DatatableFilter[] => [
+const buildFilters = (groupBy: SpanMetricGroupBy, value: string): Filter[] => [
   {
     column: groupBy,
     operator: Operator.Eq,
@@ -58,7 +58,7 @@ export const isStringDateOld = (date: string) => {
   return d < new Date(Date.now() - MILLISECONDS_DATE_THRESHOLD);
 };
 
-export const createModelFilter = (filter: FilterDef) => {
+export const createModelFilter = (filter: Filter) => {
   const requestModelColumn = sql`(attributes ->> 'gen_ai.request.model')::text`;
   const responseModelColumn = sql`(attributes ->> 'gen_ai.response.model')::text`;
 
@@ -70,5 +70,5 @@ export const createModelFilter = (filter: FilterDef) => {
       sql`((${requestModelColumn} NOT LIKE ${`%${value}%`} OR ${requestModelColumn} IS NULL) AND (${responseModelColumn} NOT LIKE ${`%${value}%`} OR ${responseModelColumn} IS NULL))`,
   };
 
-  return operators[filter.operator as keyof typeof operators]?.(filter.value) ?? sql`1=1`;
+  return operators[filter.operator as keyof typeof operators]?.(String(filter.value)) ?? sql`1=1`;
 };

@@ -1,9 +1,12 @@
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lte } from "drizzle-orm";
 import { difference } from "lodash";
 import { z } from "zod/v4";
 
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
 
@@ -20,8 +23,10 @@ export type EventDefinition = {
   triggerSpans: string[];
 };
 
-export const GetEventDefinitionsSchema = z.object({
+export const GetEventDefinitionsSchema = PaginationFiltersSchema.extend({
+  ...TimeRangeSchema.shape,
   projectId: z.string(),
+  search: z.string().nullable().optional(),
 });
 
 export const GetEventDefinitionSchema = z.object({
@@ -56,7 +61,39 @@ export const DeleteEventDefinitionsSchema = z.object({
 });
 
 export async function getEventDefinitions(input: z.infer<typeof GetEventDefinitionsSchema>) {
-  const { projectId } = GetEventDefinitionsSchema.parse(input);
+  const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;
+
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const whereConditions = [eq(eventDefinitions.projectId, projectId)];
+
+  if (pastHours || (startDate && endDate)) {
+    const timeRange = getTimeRange(pastHours, startDate, endDate);
+
+    if ("start" in timeRange && timeRange.start) {
+      whereConditions.push(gte(eventDefinitions.createdAt, timeRange.start.toISOString()));
+    }
+    if ("end" in timeRange && timeRange.end) {
+      whereConditions.push(lte(eventDefinitions.createdAt, timeRange.end.toISOString()));
+    }
+    if ("pastHours" in timeRange && typeof timeRange.pastHours === "number") {
+      const start = new Date(Date.now() - timeRange.pastHours * 60 * 60 * 1000);
+      whereConditions.push(gte(eventDefinitions.createdAt, start.toISOString()));
+    }
+  }
+
+  if (search) {
+    whereConditions.push(ilike(eventDefinitions.name, `%${search}%`));
+  }
+
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: eventDefinitions.name },
+    id: { type: "string", column: eventDefinitions.id },
+    semantic: { type: 'boolean', column: eventDefinitions.isSemantic },
+  } as const);
+
+  whereConditions.push(...filterConditions);
 
   const results = await db
     .select({
@@ -67,8 +104,10 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
       isSemantic: eventDefinitions.isSemantic,
     })
     .from(eventDefinitions)
-    .where(eq(eventDefinitions.projectId, projectId))
-    .orderBy(desc(eventDefinitions.createdAt));
+    .where(and(...whereConditions))
+    .orderBy(desc(eventDefinitions.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   const triggerSpans = await db
     .select({
@@ -98,10 +137,14 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     {} as Record<string, string[]>
   );
 
-  return results.map((eventDef) => ({
+  const items = results.map((eventDef) => ({
     ...eventDef,
     triggerSpans: triggerSpansByEvent[eventDef.name] || [],
   }));
+
+  return {
+    items,
+  };
 }
 
 export async function getEventDefinition(input: z.infer<typeof GetEventDefinitionSchema>) {

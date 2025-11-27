@@ -3,7 +3,7 @@ import { RowData } from "@tanstack/react-table";
 import { TableRow } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { InfiniteDataTableRowProps } from "../types.ts";
+import { InfiniteDataTableRowProps } from "../model/types.ts";
 import { InfiniteTableCell } from "./cell.tsx";
 
 export function InfiniteDatatableRow<TData extends RowData>({

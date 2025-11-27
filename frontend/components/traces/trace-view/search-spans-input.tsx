@@ -5,10 +5,10 @@ import React, { KeyboardEventHandler, memo, PropsWithChildren, useCallback, useR
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Filter } from "@/lib/actions/common/filters";
 import { cn } from "@/lib/utils";
 
 const SearchSpansInput = ({
@@ -16,7 +16,7 @@ const SearchSpansInput = ({
   className,
   filterBoxClassName,
 }: PropsWithChildren<{
-  submit: (search: string, searchIn: string[], filters: DatatableFilter[]) => Promise<void>;
+  submit: (search: string, searchIn: string[], filters: Filter[]) => Promise<void>;
   className?: string;
   filterBoxClassName?: string;
 }>) => {

@@ -26,8 +26,8 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Filter } from "@/lib/actions/common/filters";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -194,7 +194,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   const fetchSpans = useCallback(
-    async (search: string, searchIn: string[], filters: DatatableFilter[]) => {
+    async (search: string, searchIn: string[], filters: Filter[]) => {
       try {
         setIsSpansLoading(true);
         setSpansError(undefined);

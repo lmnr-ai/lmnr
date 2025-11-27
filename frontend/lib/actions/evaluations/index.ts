@@ -2,10 +2,11 @@ import { and, desc, eq, getTableColumns, inArray, SQL, sql } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
-import { FilterDef, filtersToSql } from "@/lib/db/modifiers";
+import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { Evaluation } from "@/lib/evaluation/types";
 
@@ -23,7 +24,7 @@ export const DeleteEvaluationsSchema = z.object({
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {
   const { projectId, groupId, pageSize, pageNumber, search, filter } = input;
 
-  const urlParamFilters: FilterDef[] = compact(filter);
+  const urlParamFilters: Filter[] = compact(filter);
 
   const baseFilters: SQL[] = [eq(evaluations.projectId, projectId)];
   if (groupId) {
@@ -35,7 +36,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   const metadataFilters = urlParamFilters
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
-      const [key, value] = filter.value.split(/=(.*)/);
+      const [key, value] = String(filter.value).split(/=(.*)/);
       return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: value })}`;
     });
 

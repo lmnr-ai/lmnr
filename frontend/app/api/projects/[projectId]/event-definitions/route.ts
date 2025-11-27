@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createEventDefinition, deleteEventDefinitions, getEventDefinitions } from "@/lib/actions/event-definitions";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import {
+  createEventDefinition,
+  deleteEventDefinitions,
+  getEventDefinitions,
+  GetEventDefinitionsSchema,
+} from "@/lib/actions/event-definitions";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
 
+  const parseResult = parseUrlParams(request.nextUrl.searchParams, GetEventDefinitionsSchema.omit({ projectId: true }));
+
+  if (!parseResult.success) {
+    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
+
   try {
-    const result = await getEventDefinitions({ projectId });
+    const result = await getEventDefinitions({ ...parseResult.data, projectId });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {

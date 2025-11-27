@@ -3,6 +3,7 @@ import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
 
 export const columns: ColumnDef<EventDefinitionRow>[] = [
@@ -53,4 +54,17 @@ export const defaultEventDefinitionsColumnOrder = [
   "triggerSpans",
   "isSemantic",
   "createdAt",
+];
+
+export const eventsDefinitionsTableFilters: ColumnFilter[] = [
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+  {
+    name: "Semantic",
+    key: "semantic",
+    dataType: "boolean",
+  }
 ];

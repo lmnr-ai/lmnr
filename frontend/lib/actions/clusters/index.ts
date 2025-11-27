@@ -1,7 +1,8 @@
-"use server";
+import { and, desc, eq, ilike } from "drizzle-orm";
+import { z } from "zod/v4";
 
-import { desc, eq } from "drizzle-orm";
-
+import { parseFilters } from "@/lib/actions/common/filters";
+import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
 import { clusters, projects } from "@/lib/db/migrations/schema";
 
@@ -13,12 +14,34 @@ export type Cluster = {
   level: number;
   numChildrenClusters: number;
   numTraces: number;
-  centroid: number[];
   createdAt: string;
   updatedAt: string;
 };
 
-export async function getClusters(projectId: string): Promise<Cluster[]> {
+export const GetClustersSchema = PaginationFiltersSchema.extend({
+  projectId: z.string(),
+  search: z.string().nullable().optional(),
+});
+
+export async function getClusters(input: z.infer<typeof GetClustersSchema>): Promise<{ items: Cluster[] }> {
+  const { projectId, pageNumber, pageSize, search, filter } = input;
+
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
+
+  const whereConditions = [eq(clusters.projectId, projectId)];
+
+  if (search) {
+    whereConditions.push(ilike(clusters.name, `%${search}%`));
+  }
+
+  const filterConditions = parseFilters(filter, {
+    name: { type: "string", column: clusters.name },
+    numChildrenPatterns: { type: "number", column: clusters.numChildrenClusters },
+    numTraces: { type: "number", column: clusters.numTraces },
+  } as const);
+  whereConditions.push(...filterConditions);
+
   const result = await db
     .select({
       id: clusters.id,
@@ -28,25 +51,17 @@ export async function getClusters(projectId: string): Promise<Cluster[]> {
       level: clusters.level,
       numChildrenClusters: clusters.numChildrenClusters,
       numTraces: clusters.numTraces,
-      centroid: clusters.centroid,
       createdAt: clusters.createdAt,
       updatedAt: clusters.updatedAt,
     })
     .from(clusters)
     .innerJoin(projects, eq(clusters.projectId, projects.id))
-    .where(eq(clusters.projectId, projectId))
-    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt);
+    .where(and(...whereConditions))
+    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt)
+    .limit(limit)
+    .offset(offset);
 
-  return result.map((row) => ({
-    id: row.id,
-    projectId: row.projectId,
-    name: row.name,
-    parentId: row.parentId,
-    level: Number(row.level),
-    numChildrenClusters: Number(row.numChildrenClusters),
-    numTraces: Number(row.numTraces),
-    centroid: row.centroid as number[],
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
+  return {
+    items: result,
+  };
 }

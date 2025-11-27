@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
 import {
   buildEvaluationDatapointsQueryWithParams,
@@ -18,7 +19,6 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import {
   Evaluation,
   EvaluationDatapointPreview,
@@ -55,15 +55,7 @@ export const RenameEvaluationSchema = z.object({
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
 ): Promise<EvaluationResultsInfo> => {
-  const {
-    projectId,
-    evaluationId,
-    pageNumber,
-    pageSize,
-    search,
-    searchIn,
-    filter: inputFilters,
-  } = input;
+  const { projectId, evaluationId, pageNumber, pageSize, search, searchIn, filter: inputFilters } = input;
 
   // First, get the evaluation
   const evaluation = await db.query.evaluations.findFirst({
@@ -74,7 +66,7 @@ export const getEvaluationDatapoints = async (
     throw new Error("Evaluation not found");
   }
 
-  const allFilters: FilterDef[] = compact(inputFilters);
+  const allFilters = compact(inputFilters);
 
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
@@ -151,12 +143,15 @@ export const getEvaluationDatapoints = async (
     offset,
   });
 
-  const rawResults = await executeQuery<EvaluationDatapointRow>({ query: mainQuery, parameters: mainParams, projectId });
+  const rawResults = await executeQuery<EvaluationDatapointRow>({
+    query: mainQuery,
+    parameters: mainParams,
+    projectId,
+  });
 
   // Step 4: Fetch full trace data for all trace_ids in the results
   const uniqueTraceIds = [...new Set(rawResults.map((item) => item.traceId).filter(Boolean))];
-  const traces =
-    uniqueTraceIds.length > 0 ? await getTracesByIds({ projectId, traceIds: uniqueTraceIds }) : [];
+  const traces = uniqueTraceIds.length > 0 ? await getTracesByIds({ projectId, traceIds: uniqueTraceIds }) : [];
 
   // Step 5: Transform and join data
   const tracesMap = groupBy(traces, "id");
@@ -206,11 +201,7 @@ export const getEvaluationDatapoints = async (
   });
 
   // Step 6: Calculate statistics and distributions
-  const allScoreNames = [
-    ...new Set(
-      results.flatMap((result) => result.scores ? Object.keys(result.scores) : [])
-    ),
-  ];
+  const allScoreNames = [...new Set(results.flatMap((result) => (result.scores ? Object.keys(result.scores) : [])))];
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
@@ -236,13 +227,7 @@ export const getEvaluationStatistics = async (
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
   scores: string[];
 }> => {
-  const {
-    projectId,
-    evaluationId,
-    search,
-    searchIn,
-    filter: inputFilters,
-  } = input;
+  const { projectId, evaluationId, search, searchIn, filter: inputFilters } = input;
 
   // First, get the evaluation
   const evaluation = await db.query.evaluations.findFirst({
@@ -253,7 +238,7 @@ export const getEvaluationStatistics = async (
     throw new Error("Evaluation not found");
   }
 
-  const allFilters: FilterDef[] = compact(inputFilters);
+  const allFilters: Filter[] = compact(inputFilters);
 
   // Separate filters into trace and datapoint filters
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
@@ -338,9 +323,7 @@ export const getEvaluationStatistics = async (
 
   // Step 5: Calculate statistics and distributions
   const allScoreNames = [
-    ...new Set(
-      parsedResults.flatMap((result) => result.scores ? Object.keys(result.scores) : [])
-    ),
+    ...new Set(parsedResults.flatMap((result) => (result.scores ? Object.keys(result.scores) : []))),
   ];
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};

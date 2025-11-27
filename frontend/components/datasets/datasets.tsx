@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -47,18 +50,50 @@ const columns: ColumnDef<DatasetInfo>[] = [
 
 export const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
+const datasetsTableFilters: ColumnFilter[] = [
+  {
+    name: "ID",
+    key: "id",
+    dataType: "string",
+  },
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+  {
+    name: "Datapoints count",
+    key: "count",
+    dataType: "number",
+  },
+];
+
 const FETCH_SIZE = 50;
 
 function DatasetsContent() {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const filter = searchParams.getAll("filter");
+  const search = searchParams.get("search");
 
   const fetchDatasets = useCallback(
     async (pageNumber: number) => {
       try {
-        const url = `/api/projects/${projectId}/datasets?pageNumber=${pageNumber}&pageSize=${FETCH_SIZE}`;
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        filter.forEach((f) => urlParams.append("filter", f));
+
+        if (typeof search === "string" && search.length > 0) {
+          urlParams.set("search", search);
+        }
+
+        const url = `/api/projects/${projectId}/datasets?${urlParams.toString()}`;
         const res = await fetch(url, {
           method: "GET",
           headers: {
@@ -81,7 +116,7 @@ function DatasetsContent() {
         throw error;
       }
     },
-    [projectId, toast]
+    [projectId, toast, filter, search]
   );
 
   const {
@@ -94,7 +129,7 @@ function DatasetsContent() {
   } = useInfiniteScroll<DatasetInfo>({
     fetchFn: fetchDatasets,
     enabled: true,
-    deps: [projectId],
+    deps: [projectId, filter, search],
   });
 
   const handleCreateDataset = useCallback(
@@ -170,13 +205,18 @@ function DatasetsContent() {
               </div>
             )}
           >
-            <ColumnsMenu
-              lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
+            <div className="flex flex-1 w-full space-x-2 pt-1">
+              <DataTableFilter columns={datasetsTableFilters} />
+              <ColumnsMenu
+                lockedColumns={["__row_selection"]}
+                columnLabels={columns.map((column) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
+              <DataTableSearch className="mr-0.5" placeholder="Search by dataset name..." />
+            </div>
+            <DataTableFilterList />
           </InfiniteDataTable>
         </div>
       </div>

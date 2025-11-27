@@ -1,11 +1,12 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, Dispatch, PropsWithChildren, SetStateAction, useContext, useMemo, useState } from "react";
 
-import { ColumnFilter, DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
 
 type FiltersContextType = {
-  value: DatatableFilter[];
-  onChange: Dispatch<SetStateAction<DatatableFilter[]>>;
+  value: Filter[];
+  onChange: Dispatch<SetStateAction<Filter[]>>;
 };
 
 const FiltersContext = createContext<FiltersContextType>({
@@ -17,7 +18,7 @@ const FiltersContext = createContext<FiltersContextType>({
 
 export const useFiltersContextProvider = () => useContext<FiltersContextType>(FiltersContext);
 
-const getFiltersFromUrl = (searchParams: URLSearchParams, columns: ColumnFilter[]): DatatableFilter[] => {
+const getFiltersFromUrl = (searchParams: URLSearchParams, columns: ColumnFilter[]): Filter[] => {
   if (columns?.length === 0) {
     return [];
   }
@@ -27,7 +28,7 @@ const getFiltersFromUrl = (searchParams: URLSearchParams, columns: ColumnFilter[
 
   return urlFilters.flatMap((filterParam) => {
     try {
-      const parsed = JSON.parse(filterParam) as DatatableFilter;
+      const parsed = JSON.parse(filterParam) as Filter;
 
       if (
         typeof parsed === "object" &&
@@ -50,7 +51,7 @@ const FiltersContextProvider = ({ columns, children }: PropsWithChildren<{ colum
 
   const urlParamsFilters = useMemo(() => getFiltersFromUrl(searchParams, columns || []), [columns, searchParams]);
 
-  const [filters, setFilters] = useState<DatatableFilter[]>(!columns ? [] : urlParamsFilters);
+  const [filters, setFilters] = useState<Filter[]>(!columns ? [] : urlParamsFilters);
   const value = useMemo<FiltersContextType>(
     () => ({
       value: filters,

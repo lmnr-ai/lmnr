@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans } from "@/lib/actions/traces/search";
@@ -12,7 +13,6 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { clusters } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -56,7 +56,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     filter: inputFilters,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
@@ -107,7 +107,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
         }
         return filter;
       })
-      .filter((f): f is FilterDef => f !== null);
+      .filter((f): f is Filter => f !== null);
   }
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({

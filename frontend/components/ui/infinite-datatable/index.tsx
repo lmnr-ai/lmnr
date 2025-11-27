@@ -24,7 +24,7 @@ import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import { useDataTableStore } from "./model/datatable-store.tsx";
-import { InfiniteDataTableProps } from "./types.ts";
+import { InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";

@@ -15,14 +15,14 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
+import { Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
 
-const presetFilters: DatatableFilter[] = [];
+const presetFilters: Filter[] = [];
 
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;

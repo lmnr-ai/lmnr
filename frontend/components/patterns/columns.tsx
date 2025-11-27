@@ -4,6 +4,7 @@ import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export type PatternRow = {
@@ -92,3 +93,21 @@ export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
 ];
 
 export const defaultPatternsColumnOrder = ["expand", "name", "children_clusters", "traces", "created_at", "updated_at"];
+
+export const patternsTableFilters: ColumnFilter[] = [
+  {
+    name: "Pattern",
+    key: "name",
+    dataType: "string",
+  },
+  {
+    name: "Children patterns",
+    key: "numChildrenPatterns",
+    dataType: "number",
+  },
+  {
+    name: "Traces",
+    key: "numTraces",
+    dataType: "number",
+  },
+];

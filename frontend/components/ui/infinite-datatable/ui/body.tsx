@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table.tsx";
 
-import { InfiniteDataTableBodyProps } from "../types.ts";
+import { InfiniteDataTableBodyProps } from "../model/types.ts";
 import { InfiniteDatatableRow } from "./row.tsx";
 
 export function InfiniteDatatableBody<TData extends RowData>({

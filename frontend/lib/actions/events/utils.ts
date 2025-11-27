@@ -1,3 +1,4 @@
+import { Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -7,7 +8,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -18,14 +18,14 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       "attributes",
       createCustomFilter(
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return `simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
           }
           return "";
         },
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
@@ -52,7 +52,7 @@ const eventsSelectColumns = [
 
 export interface BuildEventsQueryOptions {
   eventName: string;
-  filters: FilterDef[];
+  filters: Filter[];
   limit: number;
   offset: number;
   startTime?: string;
