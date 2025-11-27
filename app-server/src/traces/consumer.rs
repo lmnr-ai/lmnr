@@ -16,6 +16,7 @@ use super::{
     summary::push_to_trace_summary_queue,
     trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
+use crate::cache::autocomplete::populate_autocomplete_cache;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -244,7 +245,7 @@ struct StrippedSpan {
     cache,
     acker,
     queue,
-    pubsub
+    pubsub,
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -388,6 +389,13 @@ async fn process_batch(
         );
     }
 
+    let _ = acker.ack().await.map_err(|e| {
+        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
+    });
+
+    // Populate autocomplete cache
+    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
+
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
         .into_iter()
@@ -399,10 +407,6 @@ async fn process_batch(
             output: span.output,
         })
         .collect::<Vec<_>>();
-
-    let _ = acker.ack().await.map_err(|e| {
-        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
-    });
 
     let total_events_ingested_bytes = match record_events(
         cache.clone(),
