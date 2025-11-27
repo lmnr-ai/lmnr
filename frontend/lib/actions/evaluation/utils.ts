@@ -1,5 +1,6 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -9,7 +10,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 import {
   EvaluationResultWithScores,
   EvaluationScoreDistributionBucket,
@@ -70,7 +70,7 @@ export interface BuildEvaluationDatapointsQueryOptions {
   projectId: string;
   evaluationId: string;
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit: number;
   offset: number;
 }
@@ -79,14 +79,14 @@ export interface BuildEvaluationStatisticsQueryOptions {
   projectId: string;
   evaluationId: string;
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }
 
 export interface BuildTracesForEvaluationQueryOptions {
   projectId: string;
   evaluationId: string;
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }
 
 export const buildEvaluationDatapointsQueryWithParams = (

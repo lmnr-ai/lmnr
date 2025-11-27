@@ -61,6 +61,11 @@ const datasetsTableFilters: ColumnFilter[] = [
     key: "name",
     dataType: "string",
   },
+  {
+    name: 'Datapoints',
+    key: "count",
+    dataType: "number",
+  }
 ];
 
 const FETCH_SIZE = 50;
@@ -210,8 +215,8 @@ function DatasetsContent() {
                 }))}
               />
               <DataTableSearch searchColumns={["name"]} placeholder="Search by dataset name..." />
-              <DataTableFilterList />
             </div>
+            <DataTableFilterList />
           </InfiniteDataTable>
         </div>
       </div>

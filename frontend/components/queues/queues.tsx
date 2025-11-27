@@ -46,7 +46,7 @@ const columns: ColumnDef<LabelingQueue>[] = [
   {
     id: "count",
     accessorKey: "count",
-    header: "Count",
+    header: "Items count",
     size: 300,
   },
   {
@@ -70,6 +70,11 @@ const queuesTableFilters: ColumnFilter[] = [
     key: "name",
     dataType: "string",
   },
+  {
+    name: "Items",
+    key: "count",
+    dataType: "number",
+  }
 ];
 
 const FETCH_SIZE = 50;
@@ -233,8 +238,8 @@ const QueuesContent = () => {
               lockedColumns={["__row_selection"]}
             />
             <DataTableSearch searchColumns={["name"]} placeholder="Search by queue name..." />
-            <DataTableFilterList />
           </div>
+          <DataTableFilterList />
         </InfiniteDataTable>
       </div>
     </>

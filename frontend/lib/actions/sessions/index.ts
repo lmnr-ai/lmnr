@@ -1,6 +1,7 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -8,7 +9,6 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
-import { FilterDef } from "@/lib/db/modifiers";
 import { SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
@@ -38,7 +38,7 @@ export async function getSessions(
     filter: inputFilters,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);

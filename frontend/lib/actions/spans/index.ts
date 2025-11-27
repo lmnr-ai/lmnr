@@ -2,7 +2,8 @@ import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
@@ -10,7 +11,6 @@ import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { FilterDef } from "@/lib/db/modifiers";
 import { Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
@@ -90,7 +90,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     filter: inputFilters,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
@@ -231,7 +231,7 @@ const fetchTraceSpans = async ({
   projectId: string;
   traceId: string;
   spanIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }) => {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: [
@@ -261,7 +261,7 @@ const fetchTraceSpans = async ({
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {
   const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({

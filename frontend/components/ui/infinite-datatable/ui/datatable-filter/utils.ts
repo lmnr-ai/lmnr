@@ -1,11 +1,9 @@
 import { ReactNode } from "react";
 
-import { JSON_OPERATORS, NUMBER_OPERATORS, Operator, STRING_OPERATORS } from "@/lib/actions/common/operators";
-
-export { Operator };
+import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, Operator, STRING_OPERATORS } from "@/lib/actions/common/operators";
 
 export type ColumnFilter = ColumnFilterPrimitives | ColumnFilterEnum;
-type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" };
+type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" | "boolean" };
 type ColumnFilterEnum = {
   name: string;
   key: string;
@@ -37,15 +35,15 @@ export const JSON_OPERATIONS = JSON_OPERATORS.map((op) => ({
   label: OperatorLabelMap[op],
 }));
 
+export const BOOLEAN_OPERATIONS = BOOLEAN_OPERATORS.map((op) => ({
+  key: op,
+  label: OperatorLabelMap[op],
+}));
+
 export const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: Operator; label: string }[]> = {
   string: STRING_OPERATIONS,
   number: NUMBER_OPERATIONS,
   json: JSON_OPERATIONS,
+  boolean: BOOLEAN_OPERATIONS,
   enum: STRING_OPERATIONS,
-};
-
-export type DatatableFilter = {
-  column: string;
-  operator: Operator;
-  value: string | number;
 };

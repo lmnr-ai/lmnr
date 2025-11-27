@@ -1,4 +1,6 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -9,7 +11,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -143,7 +144,7 @@ export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit: number;
   offset: number;
   startTime?: string;
@@ -203,7 +204,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
 export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }): { conditions: [string, ...string[]]; params: Record<string, any> } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };

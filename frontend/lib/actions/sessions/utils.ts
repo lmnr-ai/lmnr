@@ -1,6 +1,8 @@
 import { isNil } from "lodash";
 
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -10,7 +12,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 
 const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -143,7 +144,7 @@ const sessionsSelectColumns = [
 export interface BuildSessionsQueryOptions {
   columns?: string[];
   traceIds?: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit?: number;
   offset?: number;
   startTime?: string;
@@ -154,8 +155,8 @@ export interface BuildSessionsQueryOptions {
 export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
   const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
 
-  const whereFilters: FilterDef[] = [];
-  const havingFilters: FilterDef[] = [];
+  const whereFilters: Filter[] = [];
+  const havingFilters: Filter[] = [];
 
   const aggregateColumns = new Set([
     "trace_count",
@@ -233,8 +234,8 @@ export const buildSessionsCountQueryWithParams = (
 ): QueryResult => {
   const { traceIds = [], filters, startTime, endTime, pastHours } = options;
 
-  const whereFilters: FilterDef[] = [];
-  const havingFilters: FilterDef[] = [];
+  const whereFilters: Filter[] = [];
+  const havingFilters: Filter[] = [];
 
   const aggregateColumns = new Set([
     "trace_count",

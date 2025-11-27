@@ -1,6 +1,6 @@
 import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL, sql } from "drizzle-orm";
 
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { Filter } from "@/lib/actions/common/filters";
 
 const filterOperators: Record<string, BinaryOperator> = {
   eq: eq,
@@ -17,19 +17,15 @@ const validateSqlColumnName = (column: string, allowPatterns?: RegExp[]): boolea
   return patterns.some((pattern) => pattern.test(column));
 };
 
-export interface FilterDef extends DatatableFilter {
-  castType?: string;
-}
-
 export const filtersToSql = (
-  filters: FilterDef[],
+  filters: Filter[],
   allowPatterns?: RegExp[],
   additionalColumnDefinitions?: Record<string, SQL<any>>
 ): SQL[] => {
   let result = [];
   for (const filter of filters) {
     if (filter.column && filter.operator && filter.value != null) {
-      const value = filter.castType ? sql.raw(`${filter.value}::${filter.castType}`) : filter.value;
+      const value = filter.value;
       const operator = filterOperators[filter.operator] ?? eq;
       if (additionalColumnDefinitions && filter.column in additionalColumnDefinitions) {
         result.push(operator(additionalColumnDefinitions[filter.column], value));

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
@@ -11,7 +12,6 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { clusters } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export const GetTraceStatsSchema = GetTracesSchema.omit({
   pageNumber: true,
@@ -43,7 +43,7 @@ export async function getTraceStats(
     intervalUnit,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -85,7 +85,7 @@ export async function getTraceStats(
         }
         return filter;
       })
-      .filter((f): f is FilterDef => f !== null);
+      .filter((f): f is Filter => f !== null);
   }
 
   const { conditions: whereConditions, params: whereParams } = buildTracesStatsWhereConditions({

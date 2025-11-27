@@ -1,7 +1,9 @@
 import { isNil } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -12,7 +14,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
@@ -91,7 +92,7 @@ export interface BuildSpansQueryOptions {
   columns?: string[];
   projectId: string;
   spanIds?: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit?: number;
   offset?: number;
   startTime?: string;

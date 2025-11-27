@@ -90,6 +90,7 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
   const filterConditions = parseFilters(filter, {
     name: { type: "string", column: eventDefinitions.name },
     id: { type: "string", column: eventDefinitions.id },
+    semantic: { type: 'boolean', column: eventDefinitions.isSemantic },
   } as const);
 
   whereConditions.push(...filterConditions);

@@ -62,4 +62,9 @@ export const eventsDefinitionsTableFilters: ColumnFilter[] = [
     key: "name",
     dataType: "string",
   },
+  {
+    name: "Semantic",
+    key: "semantic",
+    dataType: "boolean",
+  }
 ];

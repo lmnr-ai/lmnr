@@ -4,11 +4,12 @@ import { memo, PropsWithChildren, useCallback, useMemo } from "react";
 
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
-import { ColumnFilter, DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
 
 interface FilterProps {
   columns: ColumnFilter[];
-  presetFilters?: DatatableFilter[];
+  presetFilters?: Filter[];
   className?: string;
 }
 
@@ -21,7 +22,7 @@ const DataTableFilter = ({ columns, presetFilters, className }: FilterProps) => 
     () =>
       searchParams.getAll("filter").flatMap((f) => {
         try {
-          return [JSON.parse(f) as DatatableFilter];
+          return [JSON.parse(f) as Filter];
         } catch {
           return [];
         }
@@ -30,7 +31,7 @@ const DataTableFilter = ({ columns, presetFilters, className }: FilterProps) => 
   );
 
   const handleAddFilter = useCallback(
-    (filter: DatatableFilter) => {
+    (filter: Filter) => {
       const params = new URLSearchParams(searchParams);
       params.append("filter", JSON.stringify(filter));
       params.delete("pageNumber");
@@ -60,7 +61,7 @@ const PureDataTableFilterList = () => {
     () =>
       searchParams.getAll("filter").flatMap((f) => {
         try {
-          return [JSON.parse(f) as DatatableFilter];
+          return [JSON.parse(f) as Filter];
         } catch {
           return [];
         }
@@ -69,7 +70,7 @@ const PureDataTableFilterList = () => {
   );
 
   const handleRemoveFilter = useCallback(
-    (filter: DatatableFilter) => {
+    (filter: Filter) => {
       const params = new URLSearchParams(searchParams);
       const newFilters = filters.filter((f) => !isEqual(f, filter));
       params.delete("filter");
@@ -93,7 +94,7 @@ export const PureStatefulFilter = ({
   const { value: filters, onChange } = useFiltersContextProvider();
 
   const handleAddFilter = useCallback(
-    (filter: DatatableFilter) => {
+    (filter: Filter) => {
       onChange((prev) => [...prev, filter]);
     },
     [onChange]
@@ -116,7 +117,7 @@ const PureStatefulFilterList = ({ className }: { className?: string }) => {
   const { value: filters, onChange } = useFiltersContextProvider();
 
   const handleRemoveFilter = useCallback(
-    (filter: DatatableFilter) => {
+    (filter: Filter) => {
       onChange((prev) => prev.filter((f) => !isEqual(f, filter)));
     },
     [onChange]

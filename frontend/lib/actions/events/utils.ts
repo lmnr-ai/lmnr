@@ -1,3 +1,4 @@
+import { Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -7,7 +8,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -52,7 +52,7 @@ const eventsSelectColumns = [
 
 export interface BuildEventsQueryOptions {
   eventName: string;
-  filters: FilterDef[];
+  filters: Filter[];
   limit: number;
   offset: number;
   startTime?: string;

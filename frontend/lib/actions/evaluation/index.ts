@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
 import {
   buildEvaluationDatapointsQueryWithParams,
@@ -18,7 +19,6 @@ import { SpanSearchType } from "@/lib/clickhouse/types";
 import { TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import {
   Evaluation,
   EvaluationDatapointPreview,
@@ -238,7 +238,7 @@ export const getEvaluationStatistics = async (
     throw new Error("Evaluation not found");
   }
 
-  const allFilters: FilterDef[] = compact(inputFilters);
+  const allFilters: Filter[] = compact(inputFilters);
 
   // Separate filters into trace and datapoint filters
   const { traceFilters, datapointFilters } = separateFilters(allFilters);

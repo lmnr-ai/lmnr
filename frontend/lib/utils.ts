@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { Filter } from "@/lib/actions/common/filters";
 
 import { GroupByInterval } from "./clickhouse/modifiers";
 import { ChatMessageContentPart } from "./types";
@@ -210,10 +210,10 @@ function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
 
-export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
+export const getFilterFromUrlParams = (filter: string): Filter[] | undefined => {
   const filters = JSON.parse(filter);
   if (Array.isArray(filters)) {
-    return filters.filter((f: any) => typeof f === "object" && f.column && f.operator && f.value) as DatatableFilter[];
+    return filters.filter((f: any) => typeof f === "object" && f.column && f.operator && f.value) as Filter[];
   }
   return undefined;
 };
