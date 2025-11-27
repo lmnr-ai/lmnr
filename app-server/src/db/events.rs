@@ -50,7 +50,7 @@ impl Event {
     }
 
     pub fn is_exception(&self) -> bool {
-        self.name.to_lowercase().trim() == "exception"
+        self.name.trim().eq_ignore_ascii_case("exception")
             && (self.attributes.get("exception.message").is_some()
                 || self.attributes.get("exception.type").is_some())
     }

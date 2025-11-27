@@ -16,7 +16,7 @@ pub async fn publish_spans_for_indexing(
     events: &[QuickwitIndexedEvent],
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
-    if spans.is_empty() {
+    if spans.is_empty() && events.is_empty() {
         return Ok(());
     }
 
