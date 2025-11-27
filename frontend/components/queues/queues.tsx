@@ -71,7 +71,7 @@ const queuesTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: "Items",
+    name: "Items count",
     key: "count",
     dataType: "number",
   }
@@ -175,7 +175,7 @@ const QueuesContent = () => {
   return (
     <>
       <Header path="labeling queues" />
-      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-scroll">
+      <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-y-scroll">
         <CreateQueueDialog onSuccess={(queue) => router.push(`/project/${projectId}/labeling-queues/${queue.id}`)}>
           <Button icon="plus" className="w-fit">
             Queue
@@ -237,7 +237,7 @@ const QueuesContent = () => {
               }))}
               lockedColumns={["__row_selection"]}
             />
-            <DataTableSearch searchColumns={["name"]} placeholder="Search by queue name..." />
+            <DataTableSearch placeholder="Search by queue name..." />
           </div>
           <DataTableFilterList />
         </InfiniteDataTable>

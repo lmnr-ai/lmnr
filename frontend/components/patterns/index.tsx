@@ -158,7 +158,7 @@ function PatternsTableContent() {
             lockedColumns={["expand"]}
           />
           <RefreshButton onClick={refetch} variant="outline" />
-          <DataTableSearch searchColumns={["name"]} placeholder="Search by pattern name..." />
+          <DataTableSearch placeholder="Search by pattern name..." />
         </div>
         <DataTableFilterList />
       </InfiniteDataTable>

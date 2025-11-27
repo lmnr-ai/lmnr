@@ -222,7 +222,7 @@ const PlaygroundsContent = () => {
               }))}
               lockedColumns={["__row_selection"]}
             />
-            <DataTableSearch searchColumns={["name"]} placeholder="Search by playground name..." />
+            <DataTableSearch placeholder="Search by playground name..." />
             <DataTableFilterList />
           </div>
         </InfiniteDataTable>

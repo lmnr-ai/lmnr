@@ -191,7 +191,7 @@ function EventDefinitionsContent() {
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
             />
-            <DataTableSearch searchColumns={["name"]} placeholder="Search by name..." />
+            <DataTableSearch placeholder="Search by name..." />
           </div>
           <DataTableFilterList />
         </InfiniteDataTable>

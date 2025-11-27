@@ -62,7 +62,7 @@ const datasetsTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: 'Datapoints',
+    name: 'Datapoints count',
     key: "count",
     dataType: "number",
   }
@@ -214,7 +214,7 @@ function DatasetsContent() {
                   label: typeof column.header === "string" ? column.header : column.id!,
                 }))}
               />
-              <DataTableSearch searchColumns={["name"]} placeholder="Search by dataset name..." />
+              <DataTableSearch placeholder="Search by dataset name..." />
             </div>
             <DataTableFilterList />
           </InfiniteDataTable>

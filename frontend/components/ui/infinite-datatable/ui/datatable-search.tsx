@@ -13,13 +13,11 @@ import { cn } from "@/lib/utils";
 
 interface DataTableSearchProps {
   className?: string;
-  searchColumns?: string[];
   placeholder?: string;
 }
 
 export const DataTableSearch = ({
   className,
-  searchColumns = [],
   placeholder = "Search in table...",
 }: DataTableSearchProps) => {
   const router = useRouter();
@@ -45,11 +43,6 @@ export const DataTableSearch = ({
           params.set("search", searchValue);
         }
 
-        params.delete("searchIn");
-        searchColumns.forEach((column) => {
-          params.append("searchIn", column);
-        });
-
         router.push(`${pathName}?${params.toString()}`);
 
         if (isFeatureEnabled(Feature.POSTHOG)) {
@@ -59,7 +52,7 @@ export const DataTableSearch = ({
         }
       }
     },
-    [searchParams, pathName, router, posthog, getStorageKey, searchColumns]
+    [searchParams, pathName, router, posthog, getStorageKey]
   );
 
   const debouncedSubmit = useMemo(() => debounce(submit, 300), [submit]);

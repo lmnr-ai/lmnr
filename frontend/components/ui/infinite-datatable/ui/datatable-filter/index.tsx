@@ -34,8 +34,6 @@ const DataTableFilter = ({ columns, presetFilters, className }: FilterProps) => 
     (filter: Filter) => {
       const params = new URLSearchParams(searchParams);
       params.append("filter", JSON.stringify(filter));
-      params.delete("pageNumber");
-      params.append("pageNumber", "0");
       router.push(`${pathName}?${params.toString()}`);
     },
     [pathName, router, searchParams]
