@@ -748,8 +748,6 @@ export const tagClasses = pgTable("tag_classes", {
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
   description: text(),
-  evaluatorRunnableGraph: jsonb("evaluator_runnable_graph"),
-  pipelineVersionId: uuid("pipeline_version_id"),
   color: text().default('rgb(190, 194, 200)').notNull(),
 }, (table) => [
   foreignKey({
