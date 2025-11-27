@@ -37,7 +37,7 @@ export async function getClusters(input: z.infer<typeof GetClustersSchema>): Pro
 
   const filterConditions = parseFilters(filter, {
     name: { type: "string", column: clusters.name },
-    numChildrenClusters: { type: "number", column: clusters.numChildrenClusters },
+    numChildrenPatterns: { type: "number", column: clusters.numChildrenClusters },
     numTraces: { type: "number", column: clusters.numTraces },
   } as const);
   whereConditions.push(...filterConditions);
