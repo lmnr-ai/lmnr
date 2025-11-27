@@ -11,6 +11,8 @@ use crate::{
     db::{self, DB, events::Event},
 };
 
+const EVENT_DEFINITION_NAME_CACHE_TTL: u64 = 60 * 60 * 24 * 7; // 7 days
+
 #[instrument(skip(cache, db, project_id, clickhouse, event_payloads))]
 pub async fn record_events(
     cache: Arc<Cache>,
@@ -42,35 +44,55 @@ async fn insert_event_definition_names(
     names: Vec<String>,
 ) -> Result<()> {
     let cache_key = format!("{PROJECT_EVENT_NAMES_CACHE_KEY}:{}", project_id);
-
     let unique_names = names.into_iter().collect::<HashSet<String>>();
+
+    // Spawn parallel tasks for cache lookups
+    let mut tasks = Vec::new();
+    for name in unique_names {
+        let cache_clone = cache.clone();
+        let cache_key_clone = cache_key.clone();
+        let task = tokio::spawn(async move {
+            let result = cache_clone
+                .get::<bool>(&format!("{cache_key_clone}:{}", name))
+                .await;
+            (name, result)
+        });
+        tasks.push(task);
+    }
+
+    // Join all tasks and collect new names
+    let mut new_names = Vec::new();
+    for task in tasks {
+        match task.await {
+            Ok((name, result)) => match result {
+                Ok(Some(false)) | Ok(None) => {
+                    new_names.push(name);
+                }
+                Ok(Some(true)) => {}
+                Err(_) => {
+                    log::error!("Failed to get event definition name from cache: {:?}", name);
+                    new_names.push(name);
+                }
+            },
+            Err(e) => {
+                log::error!("Task failed to complete: {:?}", e);
+            }
+        }
+    }
+
+    if new_names.is_empty() {
+        return Ok(());
+    }
+
+    db::event_definitions::insert_event_definition_names(&db.pool, project_id, &new_names).await?;
+    for name in new_names {
+        cache
+            .insert_with_ttl(
+                &format!("{cache_key}:{}", name),
+                true,
+                EVENT_DEFINITION_NAME_CACHE_TTL,
+            )
+            .await?;
+    }
     Ok(())
-    // let cached_names = cache.get::<Vec<String>>(&cache_key).await;
-    // match cached_names {
-    //     Ok(Some(cached_names)) => {
-    //         let cached_names_set = HashSet::<String>::from_iter(cached_names);
-    //         let names_set = HashSet::from_iter(names);
-    //         if cached_names_set.is_superset(&names_set) {
-    //             return Ok(());
-    //         }
-    //         let new_names = cached_names_set
-    //             .union(&names_set)
-    //             .cloned()
-    //             .collect::<Vec<String>>();
-    //         // Found in cache, but this event name is new, insert it into the database and cache
-    //         db::event_definitions::insert_event_definition_names(&db.pool, project_id, &new_names)
-    //             .await?;
-    //         cache.insert(&cache_key, new_names).await?;
-    //         Ok(())
-    //     }
-    //     Err(_) | Ok(None) => {
-    //         // Not found in cache, insert it into the database, update the cache
-    //         db::event_definitions::insert_event_definition_names(&db.pool, project_id, &names)
-    //             .await?;
-    //         let new_names =
-    //             db::event_definitions::get_event_definition_names(&db.pool, project_id).await?;
-    //         cache.insert(&cache_key, new_names).await?;
-    //         Ok(())
-    //     }
-    // }
 }
