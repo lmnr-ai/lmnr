@@ -23,12 +23,12 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { createCheckboxColumn, EMPTY_ARRAY } from "./lib/utils.tsx";
 import { useDataTableStore } from "./model/datatable-store.tsx";
 import { InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";
+import { createCheckboxColumn, EMPTY_ARRAY } from "./utils.tsx";
 
 export function InfiniteDataTable<TData extends RowData>({
   // Infinite scroll props
