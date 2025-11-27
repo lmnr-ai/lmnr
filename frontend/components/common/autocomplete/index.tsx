@@ -10,9 +10,10 @@ import useSWR from "swr";
 
 import { Badge } from "@/components/ui/badge";
 import { CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { DatatableFilter, Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { Filter} from "@/lib/actions/common/filters.ts";
+import { Operator } from "@/lib/actions/common/operators.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -200,7 +201,7 @@ const AutocompleteSearchInput = ({
 
       const params = new URLSearchParams(searchParams);
       params.delete("search");
-      const filter: DatatableFilter = { column: field, operator: Operator.Eq, value };
+      const filter: Filter = { column: field, operator: Operator.Eq, value };
       params.append("filter", JSON.stringify(filter));
       params.delete("pageNumber");
       params.append("pageNumber", "0");

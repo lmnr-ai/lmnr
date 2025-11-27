@@ -62,10 +62,10 @@ const datasetsTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: 'Datapoints count',
+    name: "Datapoints count",
     key: "count",
     dataType: "number",
-  }
+  },
 ];
 
 const FETCH_SIZE = 50;
@@ -205,7 +205,7 @@ function DatasetsContent() {
               </div>
             )}
           >
-            <div className="flex flex-1 w-full space-x-2">
+            <div className="flex flex-1 w-full space-x-2 pt-1">
               <DataTableFilter columns={datasetsTableFilters} />
               <ColumnsMenu
                 lockedColumns={["__row_selection"]}
@@ -214,7 +214,7 @@ function DatasetsContent() {
                   label: typeof column.header === "string" ? column.header : column.id!,
                 }))}
               />
-              <DataTableSearch placeholder="Search by dataset name..." />
+              <DataTableSearch className="mr-0.5" placeholder="Search by dataset name..." />
             </div>
             <DataTableFilterList />
           </InfiniteDataTable>

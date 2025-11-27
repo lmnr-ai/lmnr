@@ -213,7 +213,7 @@ const PlaygroundsContent = () => {
             </div>
           )}
         >
-          <div className="flex flex-1 w-full space-x-2">
+          <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={playgroundsTableFilters} />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
@@ -222,9 +222,9 @@ const PlaygroundsContent = () => {
               }))}
               lockedColumns={["__row_selection"]}
             />
-            <DataTableSearch placeholder="Search by playground name..." />
-            <DataTableFilterList />
+            <DataTableSearch className="mr-0.5" placeholder="Search by playground name..." />
           </div>
+          <DataTableFilterList />
         </InfiniteDataTable>
       </div>
     </>

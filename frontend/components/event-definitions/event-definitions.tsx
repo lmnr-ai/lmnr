@@ -182,7 +182,7 @@ function EventDefinitionsContent() {
             </div>
           )}
         >
-          <div className="flex flex-1 w-full space-x-2">
+          <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={eventsDefinitionsTableFilters} />
             <ColumnsMenu
               lockedColumns={["__row_selection"]}
@@ -191,7 +191,7 @@ function EventDefinitionsContent() {
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
             />
-            <DataTableSearch placeholder="Search by name..." />
+            <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
           </div>
           <DataTableFilterList />
         </InfiniteDataTable>

@@ -16,10 +16,7 @@ interface DataTableSearchProps {
   placeholder?: string;
 }
 
-export const DataTableSearch = ({
-  className,
-  placeholder = "Search in table...",
-}: DataTableSearchProps) => {
+export const DataTableSearch = ({ className, placeholder = "Search in table..." }: DataTableSearchProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -72,8 +69,13 @@ export const DataTableSearch = ({
 
   return (
     <div className="flex flex-col flex-1 relative">
-      <div className={cn("flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary", className)}>
-        <Search size={16} className="text-secondary-foreground" />
+      <div
+        className={cn(
+          "flex items-center gap-x-1 border px-2 h-7 rounded-md bg-secondary focus-within:ring-border/50 focus-within:ring-[2px] box-border",
+          className
+        )}
+      >
+        <Search className="text-secondary-foreground size-3.5" />
         <Input
           value={inputValue}
           className="focus-visible:ring-0 border-none max-h-8 px-1 text-xs placeholder:text-xs bg-transparent"
@@ -84,7 +86,7 @@ export const DataTableSearch = ({
         />
         {inputValue && (
           <Button onClick={handleClearInput} variant="ghost" className="h-4 w-4" size="icon">
-            <X size={16} className="text-secondary-foreground cursor-pointer" />
+            <X className="text-secondary-foreground size-3.5" />
           </Button>
         )}
       </div>

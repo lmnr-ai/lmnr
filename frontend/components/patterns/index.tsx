@@ -5,7 +5,12 @@ import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
-import { defaultPatternsColumnOrder, getColumns, PatternRow, patternsTableFilters } from "@/components/patterns/columns";
+import {
+  defaultPatternsColumnOrder,
+  getColumns,
+  PatternRow,
+  patternsTableFilters,
+} from "@/components/patterns/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -148,7 +153,7 @@ function PatternsTableContent() {
         fetchNextPage={fetchNextPage}
         error={error}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 w-full space-x-2 pt-1">
           <DataTableFilter columns={patternsTableFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
@@ -158,7 +163,7 @@ function PatternsTableContent() {
             lockedColumns={["expand"]}
           />
           <RefreshButton onClick={refetch} variant="outline" />
-          <DataTableSearch placeholder="Search by pattern name..." />
+          <DataTableSearch className="mr-0.5" placeholder="Search by pattern name..." />
         </div>
         <DataTableFilterList />
       </InfiniteDataTable>
