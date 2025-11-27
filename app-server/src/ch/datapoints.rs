@@ -97,3 +97,53 @@ pub async fn insert_datapoints(
         )),
     }
 }
+
+/// Lightweight datapoint info for queue messages (no data payload)
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct CHDatapointInfo {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    pub created_at: i64,
+}
+
+/// Fetch only datapoint IDs and metadata from a dataset (no data payload)
+pub async fn get_datapoint_ids_for_dataset(
+    clickhouse: clickhouse::Client,
+    dataset_id: Uuid,
+    project_id: Uuid,
+) -> Result<Vec<CHDatapointInfo>> {
+    let datapoints = clickhouse
+        .query(
+            "SELECT id, created_at
+             FROM dataset_datapoints
+             WHERE dataset_id = ? AND project_id = ?
+             ORDER BY created_at ASC",
+        )
+        .bind(dataset_id)
+        .bind(project_id)
+        .fetch_all::<CHDatapointInfo>()
+        .await?;
+
+    Ok(datapoints)
+}
+
+/// Fetch a single datapoint by ID
+pub async fn get_datapoint_by_id(
+    clickhouse: clickhouse::Client,
+    datapoint_id: Uuid,
+    project_id: Uuid,
+) -> Result<Option<CHDatapoint>> {
+    let datapoint = clickhouse
+        .query(
+            "SELECT id, dataset_id, project_id, created_at, data, target, metadata
+             FROM dataset_datapoints
+             WHERE id = ? AND project_id = ?
+             LIMIT 1",
+        )
+        .bind(datapoint_id)
+        .bind(project_id)
+        .fetch_optional::<CHDatapoint>()
+        .await?;
+
+    Ok(datapoint)
+}

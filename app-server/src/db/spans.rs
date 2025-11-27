@@ -78,6 +78,39 @@ pub struct Span {
 }
 
 impl Span {
+    /// Create a new span with minimal required fields
+    pub fn new(
+        project_id: Uuid,
+        trace_id: Uuid,
+        span_id: Uuid,
+        parent_span_id: Option<Uuid>,
+        name: String,
+        span_type: SpanType,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        input: Option<Value>,
+        output: Option<Value>,
+    ) -> Self {
+        Self {
+            span_id,
+            project_id,
+            trace_id,
+            parent_span_id,
+            name,
+            attributes: SpanAttributes::default(),
+            input,
+            output,
+            span_type,
+            start_time,
+            end_time,
+            events: None,
+            status: Some("OK".to_string()),
+            tags: None,
+            input_url: None,
+            output_url: None,
+        }
+    }
+
     pub fn should_record_to_clickhouse(&self) -> bool {
         // This function is intended to filter out "signal" spans from record to clickhouse
         // One of the signal spans is the span that carries the attribute to indicate whether

@@ -24,6 +24,7 @@ dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
 futures-util = "0.3"
+mustache = "0.9"
 indexmap = {version = "2.11.4", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.0.0"

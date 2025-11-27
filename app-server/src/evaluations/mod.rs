@@ -14,6 +14,7 @@ use crate::{
 use utils::{EvaluationDatapointResult, get_columns_from_points};
 
 pub mod utils;
+pub mod worker;
 
 pub async fn save_evaluation_scores(
     db: Arc<DB>,

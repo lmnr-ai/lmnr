@@ -39,6 +39,8 @@ use traces::{
     summary::process_trace_summaries,
 };
 
+use evaluations::worker::{EVALUATIONS_EXCHANGE, EVALUATIONS_QUEUE, process_evaluations};
+
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
 use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
@@ -60,6 +62,7 @@ use std::{
 use crate::features::{enable_consumer, enable_producer};
 use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
 
+mod ai_gateway;
 mod api;
 mod auth;
 mod browser_events;
@@ -459,6 +462,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.8 Evaluations message queue ====
+            channel
+                .exchange_declare(
+                    EVALUATIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    EVALUATIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -492,6 +521,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Clustering message queue ====
         queue.register_queue(CLUSTERING_EXCHANGE, CLUSTERING_QUEUE);
+        // ==== 3.8 Evaluations message queue ====
+        queue.register_queue(EVALUATIONS_EXCHANGE, EVALUATIONS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -669,6 +700,11 @@ fn main() -> anyhow::Result<()> {
         } else {
             String::new()
         };
+
+        // AI Gateway client
+        let ai_gateway_url = env::var("AI_GATEWAY_URL")
+            .unwrap_or_else(|_| "http://localhost:8899/api/generate".to_string());
+        let ai_gateway = Arc::new(ai_gateway::AIGateway::new(ai_gateway_url, db.pool.clone()));
 
         let num_spans_workers = env::var("NUM_SPANS_WORKERS")
             .unwrap_or(String::from("4"))
@@ -873,6 +909,32 @@ fn main() -> anyhow::Result<()> {
                         });
                     }
 
+                    // Evaluations workers (not tracked for health checks)
+                    let num_evaluations_workers = env::var("NUM_EVALUATIONS_WORKERS")
+                        .unwrap_or(String::from("2"))
+                        .parse::<u8>()
+                        .unwrap_or(2);
+
+                    for _ in 0..num_evaluations_workers {
+                        let db_clone = db_for_consumer.clone();
+                        let ch_clone = clickhouse_for_consumer.clone();
+                        let mq_clone = mq_for_consumer.clone();
+                        let ai_gateway_clone = ai_gateway.clone();
+                        let evaluator_client_clone = evaluator_client.clone();
+                        let python_url_clone = python_online_evaluator_url.clone();
+                        tokio::spawn(async move {
+                            process_evaluations(
+                                db_clone,
+                                ch_clone,
+                                mq_clone,
+                                ai_gateway_clone,
+                                evaluator_client_clone,
+                                python_url_clone,
+                            )
+                            .await;
+                        });
+                    }
+
                     HttpServer::new(move || {
                         App::new()
                             .wrap(NormalizePath::trim())
@@ -979,6 +1041,7 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/api/v1/projects/{project_id}")
                                     .service(routes::evaluations::get_evaluation_score_stats)
                                     .service(routes::evaluations::get_evaluation_score_distribution)
+                                    .service(routes::evaluations::start_evaluation)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)

@@ -1,12 +1,22 @@
-use actix_web::{HttpResponse, get, web};
+use std::sync::Arc;
+
+use actix_web::{HttpResponse, get, post, web};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
+use crate::ch::datapoints::get_datapoint_ids_for_dataset;
 use crate::ch::evaluation_scores::{
     EvaluationScoreBucket, get_average_evaluation_score,
     get_evaluation_score_buckets_based_on_bounds, get_evaluation_score_single_bucket,
     get_global_evaluation_scores_bounds,
 };
+use crate::db::{self, DB};
+use crate::evaluations::worker::{
+    EvaluationDatapointMessage, EvaluatorRef, Executor, push_to_evaluations_queue,
+};
+use crate::mq::MessageQueue;
+use crate::names::NameGenerator;
 
 use super::ResponseResult;
 
@@ -27,7 +37,7 @@ pub struct GetEvaluationScoreStatsResponse {
 }
 
 #[get("evaluation-score-stats")]
-async fn get_evaluation_score_stats(
+pub async fn get_evaluation_score_stats(
     path: web::Path<Uuid>,
     clickhouse: web::Data<clickhouse::Client>,
     query: web::Query<GetEvaluationScoreStatsQuery>,
@@ -65,7 +75,7 @@ pub struct GetEvaluationScoreDistributionResponseBucket {
 ///
 /// Currently, distributes into 10 buckets
 #[get("evaluation-score-distribution")]
-async fn get_evaluation_score_distribution(
+pub async fn get_evaluation_score_distribution(
     path: web::Path<Uuid>,
     clickhouse: web::Data<clickhouse::Client>,
     query: web::Query<GetEvaluationScoreDistributionQuery>,
@@ -150,4 +160,144 @@ async fn get_evaluation_score_distribution(
     }
 
     Ok(HttpResponse::Ok().json(res_buckets))
+}
+
+/// Request to start an evaluation
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StartEvaluationRequest {
+    /// Dataset ID to evaluate
+    pub dataset_id: Uuid,
+    /// Executor configuration - what runs the core logic
+    pub executor: Executor,
+    /// Evaluator reference - what evaluates the output
+    pub evaluator: EvaluatorRef,
+    /// Optional evaluation name (auto-generated if not provided)
+    pub name: Option<String>,
+    /// Optional group name (defaults to "default")
+    pub group_name: Option<String>,
+    /// Optional evaluation metadata
+    #[serde(default)]
+    pub metadata: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartEvaluationResponse {
+    pub evaluation_id: Uuid,
+    pub datapoints_queued: usize,
+}
+
+/// Start an evaluation on a dataset
+#[post("evaluations")]
+pub async fn start_evaluation(
+    path: web::Path<Uuid>,
+    request: web::Json<StartEvaluationRequest>,
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+    queue: web::Data<Arc<MessageQueue>>,
+    name_generator: web::Data<Arc<NameGenerator>>,
+) -> ResponseResult {
+    let project_id = path.into_inner();
+    let request = request.into_inner();
+    let db = db.into_inner();
+    let clickhouse = clickhouse.into_inner().as_ref().clone();
+    let queue = queue.as_ref().clone();
+
+    // Verify dataset exists and belongs to the project
+    if !db::datasets::dataset_exists(&db.pool, request.dataset_id, project_id).await? {
+        return Err(anyhow::anyhow!("Dataset not found or does not belong to this project").into());
+    }
+
+    // Verify executor (playground) exists
+    match &request.executor {
+        Executor::Playground(executor) => {
+            if !db::playgrounds::playground_exists(&db.pool, executor.playground_id, project_id)
+                .await?
+            {
+                return Err(anyhow::anyhow!(
+                    "Playground not found or does not belong to this project"
+                )
+                .into());
+            }
+        }
+    }
+
+    // Verify evaluator exists
+    match &request.evaluator {
+        EvaluatorRef::Evaluator(config) => {
+            // Try to get the evaluator to verify it exists
+            if db::evaluators::get_evaluator(&db, config.evaluator_id, project_id)
+                .await
+                .is_err()
+            {
+                return Err(anyhow::anyhow!(
+                    "Evaluator not found or does not belong to this project"
+                )
+                .into());
+            }
+        }
+    }
+
+    // Fetch only datapoint IDs from the dataset (lightweight query - no data payload)
+    let datapoint_infos =
+        get_datapoint_ids_for_dataset(clickhouse, request.dataset_id, project_id).await?;
+
+    if datapoint_infos.is_empty() {
+        return Err(anyhow::anyhow!("Dataset has no datapoints").into());
+    }
+
+    // Create the evaluation record
+    let group_name = request.group_name.unwrap_or_else(|| "default".to_string());
+    let eval_name = match request.name {
+        Some(name) => name,
+        None => name_generator.next().await,
+    };
+
+    let evaluation = db::evaluations::create_evaluation(
+        &db.pool,
+        &eval_name,
+        project_id,
+        &group_name,
+        &request.metadata,
+    )
+    .await?;
+
+    // Push a message to the queue for each datapoint (only IDs, data fetched in worker)
+    let mut queued_count = 0;
+    for (index, datapoint_info) in datapoint_infos.into_iter().enumerate() {
+        let message = EvaluationDatapointMessage {
+            project_id,
+            evaluation_id: evaluation.id,
+            group_id: group_name.clone(),
+            dataset_id: request.dataset_id,
+            datapoint_id: datapoint_info.id,
+            datapoint_index: index as i32,
+            executor: request.executor.clone(),
+            evaluator: request.evaluator.clone(),
+        };
+
+        if let Err(e) = push_to_evaluations_queue(message, queue.clone()).await {
+            log::error!(
+                "Failed to push datapoint {} to evaluations queue: {:?}",
+                datapoint_info.id,
+                e
+            );
+            continue;
+        }
+        queued_count += 1;
+    }
+
+    log::info!(
+        "Started evaluation {} with {} datapoints queued",
+        evaluation.id,
+        queued_count
+    );
+
+    let response = StartEvaluationResponse {
+        evaluation_id: evaluation.id,
+        datapoints_queued: queued_count,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
