@@ -119,8 +119,9 @@ export async function initializeQuickwitIndexes(): Promise<void> {
       const exists = await indexExists(indexId);
 
       if (exists) {
+        // It's not possible to change most of the index configuration after
+        // it's created.
         console.log(`✓ Index "${indexId}" already exists, skipping`);
-        // Optionally: check if update is needed (compare configs)
       } else {
         console.log(`Creating index "${indexId}"...`);
         await createIndex(indexConfig);

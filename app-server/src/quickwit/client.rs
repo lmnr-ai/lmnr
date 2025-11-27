@@ -6,7 +6,6 @@ use tonic::transport::{Channel, Endpoint};
 use tracing::instrument;
 
 use super::{
-    QuickwitIndexedSpan,
     doc_batch::build_json_doc_batch,
     proto::ingest_service::{
         CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
@@ -66,13 +65,13 @@ impl QuickwitClient {
         &self.inner.ingest_endpoint
     }
 
-    #[instrument(skip(self, spans))]
-    pub async fn ingest(
+    #[instrument(skip(self, docs))]
+    pub async fn ingest<T: serde::Serialize>(
         &self,
         index_id: &str,
-        spans: &[QuickwitIndexedSpan],
+        docs: &[T],
     ) -> anyhow::Result<()> {
-        let doc_batch = build_doc_batch(index_id, spans)?;
+        let doc_batch = build_doc_batch(index_id, docs)?;
         let request = IngestRequest {
             doc_batches: vec![doc_batch],
             commit: CommitType::Auto as i32,
@@ -118,12 +117,15 @@ impl QuickwitClient {
     }
 }
 
-#[instrument(skip(spans))]
-pub fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow::Result<DocBatch> {
-    build_json_doc_batch(index_id, spans).map_err(|err| {
+#[instrument(skip(docs))]
+pub fn build_doc_batch<T: serde::Serialize>(
+    index_id: &str,
+    docs: &[T],
+) -> anyhow::Result<DocBatch> {
+    build_json_doc_batch(index_id, docs).map_err(|err| {
         anyhow!(
-            "Failed to encode spans for Quickwit ingestion ({} docs): {}",
-            spans.len(),
+            "Failed to encode documents for Quickwit ingestion ({} docs): {}",
+            docs.len(),
             err
         )
     })

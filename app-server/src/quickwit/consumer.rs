@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use serde_json::{self, Value};
 
 use crate::{
-    quickwit::{QuickwitIndexedSpan, client::QuickwitClient},
+    quickwit::{IndexerQueuePayload, client::QuickwitClient},
     worker::MessageHandler,
 };
 
 const QUICKWIT_SPANS_DEFAULT_INDEX_ID: &str = "spans";
+const QUICKWIT_EVENTS_DEFAULT_INDEX_ID: &str = "events";
 
 /// Extract text content from a JSON value for searchability.
 /// Recursively extracts all string values and keys, avoiding double-encoding.
@@ -39,43 +40,86 @@ pub struct QuickwitIndexerHandler {
 
 #[async_trait]
 impl MessageHandler for QuickwitIndexerHandler {
-    type Message = Vec<QuickwitIndexedSpan>;
+    type Message = IndexerQueuePayload;
 
-    async fn handle(
-        &self,
-        mut indexed_spans: Self::Message,
-    ) -> Result<(), crate::worker::HandlerError> {
-        if indexed_spans.is_empty() {
+    async fn handle(&self, payload: Self::Message) -> Result<(), crate::worker::HandlerError> {
+        let (mut indexed_spans, mut indexed_events) = match payload {
+            IndexerQueuePayload::IndexerQueueMessage(message) => (message.spans, message.events),
+            IndexerQueuePayload::SpansOnly(spans) => (spans, vec![]),
+        };
+
+        if indexed_spans.is_empty() && indexed_events.is_empty() {
             return Ok(());
         }
 
-        for span in &mut indexed_spans {
+        indexed_spans.iter_mut().for_each(|span| {
             // Extract text content from JSON value for searchability
             // This avoids double-encoding: we want plain text, not a JSON-encoded string
             let attributes_text = extract_text_from_json_value(&span.attributes);
             let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
             span.attributes = serde_json::Value::String(attributes_text);
-        }
+        });
+        indexed_events.iter_mut().for_each(|event| {
+            // Extract text content from JSON value for searchability
+            // This avoids double-encoding: we want plain text, not a JSON-encoded string
+            let attributes_text = extract_text_from_json_value(&event.attributes);
+            let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
+            event.attributes = serde_json::Value::String(attributes_text);
+        });
 
-        let index_id = std::env::var("QUICKWIT_SPANS_INDEX_ID")
+        let spans_index_id = std::env::var("QUICKWIT_SPANS_INDEX_ID")
             .unwrap_or(QUICKWIT_SPANS_DEFAULT_INDEX_ID.to_string());
+        let events_index_id = std::env::var("QUICKWIT_EVENTS_INDEX_ID")
+            .unwrap_or(QUICKWIT_EVENTS_DEFAULT_INDEX_ID.to_string());
 
-        self.quickwit_client
-            .ingest(&index_id, &indexed_spans)
-            .await
-            .map_err(|e| {
-                // Try to reconnect for next message
-                let client = self.quickwit_client.clone();
-                tokio::spawn(async move {
-                    if let Err(err) = client.reconnect().await {
-                        log::warn!("Failed to reconnect to Quickwit: {:?}", err);
-                    }
-                });
+        // Ingest spans if present
+        let spans_result = if !indexed_spans.is_empty() {
+            self.quickwit_client
+                .ingest(&spans_index_id, &indexed_spans)
+                .await
+        } else {
+            Ok(())
+        };
 
-                // Requeue - Quickwit might be temporarily down
-                crate::worker::HandlerError::transient(e)
-            })?;
+        // Ingest events if present
+        let events_result = if !indexed_events.is_empty() {
+            self.quickwit_client
+                .ingest(&events_index_id, &indexed_events)
+                .await
+        } else {
+            Ok(())
+        };
 
-        Ok(())
+        // Only ack if both ingests succeeded
+        // TODO: instead of requeueing with HanlerError::transient, we may want to
+        // actually ack and rebuild the message with only the failed ingest.
+        // E.g. if spans ingest worked, but events ingest failed, we should ack
+        // the message and rebuild the message with only the events.
+        match (spans_result, events_result) {
+            (Ok(_), Ok(_)) => Ok(()),
+            (Err(e), _) => {
+                // Log specific failures
+                log::error!(
+                    "Failed to ingest {} spans into Quickwit: {:?}",
+                    indexed_spans.len(),
+                    e
+                );
+                Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
+                    "Failed to ingest spans into Quickwit: {:?}",
+                    e
+                )))
+            }
+            (_, Err(e)) => {
+                log::error!(
+                    "Failed to ingest {} events into Quickwit: {:?}",
+                    indexed_events.len(),
+                    e
+                );
+                Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
+                    "Failed to ingest events into Quickwit: {:?}",
+                    e
+                )))
+            }
+        }
     }
 }

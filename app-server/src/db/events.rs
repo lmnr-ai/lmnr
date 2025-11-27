@@ -48,6 +48,12 @@ impl Event {
         // 8 bytes for timestamp,
         return 16 + 16 + 16 + 8 + self.name.len() + estimate_json_size(&self.attributes);
     }
+
+    pub fn is_exception(&self) -> bool {
+        self.name.to_lowercase().trim() == "exception"
+            && (self.attributes.get("exception.message").is_some()
+                || self.attributes.get("exception.type").is_some())
+    }
 }
 
 impl Event {
