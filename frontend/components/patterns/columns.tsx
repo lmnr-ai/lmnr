@@ -102,7 +102,8 @@ export const patternsTableFilters: ColumnFilter[] = [
   },
   {
     name: "Children Clusters",
-    key: "numChildrenClusters",dataType: "number",
+    key: "numChildrenClusters",
+    dataType: "number",
   },
   {
     name: "Traces",

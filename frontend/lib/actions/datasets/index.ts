@@ -2,7 +2,7 @@ import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import {partition} from "lodash";
 import { z } from "zod/v4";
 
-import {OperatorLabelMap} from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { parseFilters } from "@/lib/actions/common/filters";
 import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";

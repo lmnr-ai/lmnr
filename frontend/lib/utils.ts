@@ -2,10 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
-import { Filter } from "@/lib/actions/common/filters";
-
 import { GroupByInterval } from "./clickhouse/modifiers";
-import { ChatMessageContentPart } from "./types";
 
 export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
 export const TIME_SECONDS_FORMAT = "timeSeconds";
@@ -184,9 +181,6 @@ function innerFormatTimestamp(date: Date, format?: string): string {
   return `${dateStr}, ${timeStr}`;
 }
 
-export const isStringType = (content: string | ChatMessageContentPart[]): content is string =>
-  typeof content === "string" || content instanceof String;
-
 export function deep<T>(value: T): T {
   if (typeof value !== "object" || value === null) {
     return value;
@@ -209,14 +203,6 @@ function deepObject<T extends {}>(source: T) {
 function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
-
-export const getFilterFromUrlParams = (filter: string): Filter[] | undefined => {
-  const filters = JSON.parse(filter);
-  if (Array.isArray(filters)) {
-    return filters.filter((f: any) => typeof f === "object" && f.column && f.operator && f.value) as Filter[];
-  }
-  return undefined;
-};
 
 export const getGroupByInterval = (
   pastHours: string | undefined,
