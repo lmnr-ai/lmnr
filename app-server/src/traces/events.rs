@@ -44,38 +44,34 @@ async fn insert_event_definition_names(
     names: Vec<String>,
 ) -> Result<()> {
     let cache_key = format!("{PROJECT_EVENT_NAMES_CACHE_KEY}:{}", project_id);
-    let unique_names = names.into_iter().collect::<HashSet<String>>();
+    let unique_names = names
+        .into_iter()
+        .collect::<HashSet<String>>()
+        .into_iter()
+        .collect::<Vec<String>>();
 
     // Spawn parallel tasks for cache lookups
-    let mut tasks = Vec::new();
-    for name in unique_names {
-        let cache_clone = cache.clone();
-        let cache_key_clone = cache_key.clone();
-        let task = tokio::spawn(async move {
-            let result = cache_clone
-                .get::<bool>(&format!("{cache_key_clone}:{}", name))
-                .await;
-            (name, result)
-        });
-        tasks.push(task);
-    }
+    let event_name_cache_keys = unique_names
+        .iter()
+        .map(|name| format!("{cache_key}:{}", name))
+        .collect::<Vec<String>>();
+    let tasks = event_name_cache_keys
+        .iter()
+        .map(|key| cache.get::<bool>(key))
+        .collect::<Vec<_>>();
 
     // Join all tasks and collect new names
     let mut new_names = Vec::new();
-    for task in tasks {
-        match task.await {
-            Ok((name, result)) => match result {
-                Ok(Some(false)) | Ok(None) => {
-                    new_names.push(name);
-                }
-                Ok(Some(true)) => {}
-                Err(_) => {
-                    log::error!("Failed to get event definition name from cache: {:?}", name);
-                    new_names.push(name);
-                }
-            },
-            Err(e) => {
-                log::error!("Task failed to complete: {:?}", e);
+    let results = futures_util::future::join_all(tasks).await;
+    for (name, result) in unique_names.into_iter().zip(results) {
+        match result {
+            Ok(Some(false)) | Ok(None) => {
+                new_names.push(name);
+            }
+            Ok(Some(true)) => {}
+            Err(_) => {
+                log::error!("Failed to get event definition name from cache: {:?}", name);
+                new_names.push(name);
             }
         }
     }
