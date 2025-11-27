@@ -4,8 +4,8 @@ import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
-import SearchInput from "@/components/common/search-input";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
+import SearchSpansInput from "@/components/traces/spans-table/search.tsx";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -137,7 +137,7 @@ function SpansTableContent() {
   );
 
   return (
-    <div className="flex overflow-hidden px-4 pb-6">
+    <div className="flex flex-1 overflow-hidden px-4 pb-6">
       <InfiniteDataTable<SpanRow>
         className="w-full"
         columns={columns}
@@ -151,7 +151,7 @@ function SpansTableContent() {
         fetchNextPage={fetchNextPage}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
             lockedColumns={["status"]}
@@ -162,7 +162,7 @@ function SpansTableContent() {
           />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
-          <SearchInput placeholder="Search in spans..." />
+          <SearchSpansInput />
         </div>
         <DataTableFilterList />
       </InfiniteDataTable>

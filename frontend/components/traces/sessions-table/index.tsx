@@ -221,7 +221,7 @@ function SessionsTableContent() {
         fetchNextPage={fetchNextPage}
         error={error}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({

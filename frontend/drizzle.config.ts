@@ -1,8 +1,8 @@
-import { config } from 'dotenv';
-import { defineConfig, type Config } from 'drizzle-kit';
-import { getDatabaseConfig } from './lib/db/drizzle';
+import { config } from "dotenv";
+import { defineConfig, type Config } from "drizzle-kit";
+import { getDatabaseConfig } from "./lib/db/drizzle";
 
-config({ path: '.env.local' });
+config({ path: ".env.local" });
 
 const dbConfig = getDatabaseConfig();
 const dbCredentials: Record<string, string | number | Record<string, any>> = {
@@ -18,7 +18,6 @@ if (process.env.DATABASE_SSL_ROOT_CERT) {
     ca: process.env.DATABASE_SSL_ROOT_CERT,
   };
 }
-
 
 export default defineConfig({
   dialect: "postgresql",

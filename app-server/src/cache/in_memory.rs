@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::result::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,6 +11,7 @@ const DEFAULT_CACHE_SIZE: u64 = 100;
 pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
+    sorted_sets: Arc<RwLock<HashMap<String, HashSet<String>>>>,
 }
 
 impl InMemoryCache {
@@ -18,6 +19,7 @@ impl InMemoryCache {
         Self {
             cache: moka::future::Cache::new(capacity.unwrap_or(DEFAULT_CACHE_SIZE)),
             locks: Arc::new(RwLock::new(HashMap::new())),
+            sorted_sets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -94,10 +96,10 @@ impl CacheTrait for InMemoryCache {
 
         // Try to acquire lock
         if locks.contains_key(key) {
-            Ok(false) // Lock already held
+            Ok(false)
         } else {
             locks.insert(key.to_string(), expiry);
-            Ok(true) // Lock acquired
+            Ok(true)
         }
     }
 
@@ -105,5 +107,27 @@ impl CacheTrait for InMemoryCache {
         let mut locks = self.locks.write().await;
         locks.remove(key);
         Ok(())
+    }
+
+    async fn zadd(&self, key: &str, _score: f64, member: &str) -> Result<(), CacheError> {
+        let mut sets = self.sorted_sets.write().await;
+        sets.entry(key.to_string())
+            .or_insert_with(HashSet::new)
+            .insert(member.to_string());
+        Ok(())
+    }
+
+    async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError> {
+        for member in members {
+            self.zadd(key, 0.0, member).await?;
+        }
+        Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> Result<bool, CacheError> {
+        // Check both regular cache and sorted sets
+        let in_cache = self.cache.get(key).await.is_some();
+        let in_sorted_sets = self.sorted_sets.read().await.contains_key(key);
+        Ok(in_cache || in_sorted_sets)
     }
 }

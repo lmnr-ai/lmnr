@@ -109,6 +109,50 @@ class CacheManager {
       this.memoryCache.delete(key);
     }
   }
+
+  async zrange(key: string, start: number, stop: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrange(key, start, stop);
+      } catch (e) {
+        console.error("Error getting zrange from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
+
+  async zrangebylex(key: string, min: string, max: string, limit: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrangebylex(key, min, max, "LIMIT", 0, limit);
+      } catch (e) {
+        console.error("Error getting zrangebylex from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
+
+  async exists(key: string): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.exists(key);
+        return result === 1;
+      } catch (e) {
+        console.error("Error checking if key exists in cache", e);
+        return false;
+      }
+    } else {
+      const entry = this.memoryCache.get(key);
+      return !!entry;
+    }
+  }
 }
 
 export const cache = new CacheManager();
@@ -126,3 +170,6 @@ export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) 
   `workspace_member:${workspaceId}:${userId}`;
 
 export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
+
+export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
+  `autocomplete:${resource}:${projectId}:${field}`;
