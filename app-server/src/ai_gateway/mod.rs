@@ -13,6 +13,24 @@ struct ProviderApiKeyPayload {
     value: String,
 }
 
+/// Response from an AI Gateway call
+#[derive(Debug, Clone)]
+pub struct AIGatewayCallResponse {
+    pub content: Value,
+    pub usage: Option<AIGatewayUsage>,
+    pub model: String,
+}
+
+/// Usage information from the AI Gateway
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AIGatewayUsage {
+    #[serde(default)]
+    pub input_tokens: i64,
+    #[serde(default)]
+    pub output_tokens: i64,
+}
+
 /// AI Gateway client for making LLM calls
 #[derive(Clone)]
 pub struct AIGateway {
@@ -32,8 +50,14 @@ impl AIGateway {
 
     /// Call the AI Gateway with the given request
     /// Automatically fetches provider API key based on model and project
-    /// Returns the parsed response content as a Value
-    pub async fn call(&self, request: AIGatewayRequest, project_id: Uuid) -> anyhow::Result<Value> {
+    /// Returns the parsed response content, usage info, and model
+    pub async fn call(
+        &self,
+        request: AIGatewayRequest,
+        project_id: Uuid,
+    ) -> anyhow::Result<AIGatewayCallResponse> {
+        let request_model = request.model.clone();
+
         // Fetch provider API key based on model
         let provider_api_key = self
             .fetch_provider_api_key(&request.model, project_id)
@@ -73,7 +97,13 @@ impl AIGateway {
         let gateway_response: AIGatewayResponse = response.json().await?;
 
         // Extract content from response (handles multiple formats)
-        extract_content(&gateway_response)
+        let content = extract_content(&gateway_response)?;
+
+        Ok(AIGatewayCallResponse {
+            content,
+            usage: gateway_response.usage,
+            model: request_model,
+        })
     }
 
     /// Extract provider name from model ID and fetch API key
@@ -168,6 +198,9 @@ pub struct AIGatewayResponse {
     /// Nested response format
     #[serde(default)]
     pub response: Option<AIGatewayResponseBody>,
+    /// Usage information
+    #[serde(default)]
+    pub usage: Option<AIGatewayUsage>,
 }
 
 #[derive(Deserialize, Debug)]

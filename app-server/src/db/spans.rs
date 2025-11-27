@@ -117,6 +117,11 @@ impl Span {
         // the trace has a browser session or not and is named "cdp_use.session".
         !(self.attributes.has_browser_session().unwrap_or(false) && self.name == "cdp_use.session")
     }
+
+    /// Set an attribute on the span
+    pub fn set_attribute(&mut self, key: String, value: Value) {
+        self.attributes.raw_attributes.insert(key, value);
+    }
 }
 
 #[cfg(test)]

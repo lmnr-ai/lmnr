@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::ai_gateway::{AIGateway, AIGatewayRequest};
+use crate::ai_gateway::{AIGateway, AIGatewayCallResponse, AIGatewayRequest};
 use crate::api::v1::traces::RabbitMqSpanMessage;
 use crate::ch::datapoints::get_datapoint_by_id;
 use crate::datasets::datapoints::Datapoint;
@@ -22,6 +22,10 @@ use crate::evaluators::{EvaluatorRequest, EvaluatorResponse};
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
     MessageQueueTrait,
+};
+use crate::traces::span_attributes::{
+    GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
+    GEN_AI_SYSTEM,
 };
 use crate::traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
 
@@ -57,6 +61,26 @@ pub enum Executor {
 pub enum EvaluatorRef {
     /// Use an existing evaluator by ID
     Evaluator(EvaluatorConfig),
+}
+
+/// LLM Evaluator definition - strongly typed configuration for LLM-as-a-judge evaluators
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LLMEvaluatorDefinition {
+    /// Array of chat messages with mustache templates
+    pub prompt_messages: Value,
+    /// Model ID in format "provider:model" (e.g., "anthropic:claude-sonnet-4-5")
+    pub model_id: String,
+    /// Mapping from output string values to scores (e.g., {"good": 1.0, "bad": 0.0})
+    pub output_mapping: HashMap<String, f64>,
+    /// Maximum tokens for the response
+    #[serde(default)]
+    pub structured_output: Option<String>,
+    #[serde(default)]
+    pub max_tokens: Option<i32>,
+    /// Temperature for sampling
+    #[serde(default)]
+    pub temperature: Option<f32>,
 }
 
 /// Message pushed to the evaluations queue for processing a single datapoint
@@ -265,40 +289,32 @@ async fn process_single_evaluation(
         }
     };
 
-    // 4. Render the prompt template with datapoint data
-    let rendered_messages = match render_prompt_messages(&playground, &datapoint) {
-        Ok(messages) => messages,
-        Err(e) => {
-            log::error!(
-                "Failed to render prompt messages for datapoint {}: {:?}",
-                message.datapoint_id,
-                e
-            );
-            reject_message(&acker).await;
-            return Ok(());
-        }
-    };
+    // 4. Generate trace and span IDs upfront for the nested structure:
+    // - evaluation (root)
+    //   - executor (child of evaluation)
+    //     - llm (child of executor) - playground call
+    //   - evaluator (child of evaluation)
+    //     - llm (child of evaluator) - LLM as a judge call
+    let trace_id = Uuid::new_v4();
+    let evaluation_span_id = Uuid::new_v4();
 
-    // 5. Call AI Gateway with playground configuration
+    // 5. Run executor (playground LLM call) - LLM span pushed immediately inside
     let executor_start_time = Utc::now();
-    let executor_request = AIGatewayRequest {
-        model: playground.model_id.clone(),
-        messages: rendered_messages.clone(),
-        max_tokens: playground.max_tokens,
-        temperature: playground.temperature,
-        structured_output: playground.output_schema.clone(),
-        tools: playground
-            .tools
-            .as_ref()
-            .and_then(|t| serde_json::to_string(t).ok()),
-        tool_choice: playground.tool_choice.clone(),
-        provider_options: playground.provider_options.clone(),
-    };
-    let executor_output = match ai_gateway.call(executor_request, message.project_id).await {
-        Ok(response) => response,
+    let executor_output = match run_executor(
+        &ai_gateway,
+        &queue,
+        message.project_id,
+        &playground,
+        &datapoint,
+        trace_id,
+        evaluation_span_id,
+    )
+    .await
+    {
+        Ok(output) => output,
         Err(e) => {
             log::error!(
-                "Failed to call AI Gateway for datapoint {}: {:?}",
+                "Failed to run executor for datapoint {}: {:?}",
                 message.datapoint_id,
                 e
             );
@@ -306,35 +322,23 @@ async fn process_single_evaluation(
             return Ok(());
         }
     };
-    let executor_end_time = Utc::now();
 
-    // 6. Run evaluator on the executor output
-    let evaluator_start_time = Utc::now();
-    let evaluator_result = run_evaluator(
+    // 6. Run evaluator on the executor output - LLM span pushed immediately inside
+    let score = match run_evaluator(
         &ai_gateway,
+        &queue,
         message.project_id,
         &evaluator_client,
         python_evaluator_url,
         &evaluator,
         &datapoint,
         &executor_output,
+        trace_id,
+        evaluation_span_id,
     )
-    .await;
-    let evaluator_end_time = Utc::now();
-
-    let score = match evaluator_result {
-        Ok(Some(s)) => s,
-        Ok(None) => {
-            log::info!(
-                "Evaluator returned null score for datapoint {}",
-                message.datapoint_id
-            );
-            // Still acknowledge the message, but don't save scores
-            if let Err(e) = acker.ack().await {
-                log::error!("Failed to ack evaluation message: {:?}", e);
-            }
-            return Ok(());
-        }
+    .await
+    {
+        Ok(s) => s,
         Err(e) => {
             log::error!(
                 "Failed to run evaluator for datapoint {}: {:?}",
@@ -346,12 +350,7 @@ async fn process_single_evaluation(
         }
     };
 
-    // 7. Create spans (evaluation span, executor/LLM span, evaluator span)
-    let trace_id = Uuid::new_v4();
-    let evaluation_span_id = Uuid::new_v4();
-    let executor_span_id = Uuid::new_v4();
-    let evaluator_span_id = Uuid::new_v4();
-
+    // Push evaluation (root) span - must be last since it needs final timing
     let evaluation_span = Span::new(
         message.project_id,
         trace_id,
@@ -360,64 +359,13 @@ async fn process_single_evaluation(
         "evaluation".to_string(),
         SpanType::EVALUATION,
         executor_start_time,
-        evaluator_end_time,
+        Utc::now(),
         Some(datapoint.data.clone()),
         Some(json!({ &evaluator.name: score })),
     );
+    push_span(&queue, evaluation_span).await;
 
-    let executor_span = Span::new(
-        message.project_id,
-        trace_id,
-        executor_span_id,
-        Some(evaluation_span_id),
-        format!("{}.chat", playground.model_id),
-        SpanType::LLM,
-        executor_start_time,
-        executor_end_time,
-        Some(rendered_messages.clone()),
-        Some(executor_output.clone()),
-    );
-
-    let evaluator_span_obj = Span::new(
-        message.project_id,
-        trace_id,
-        evaluator_span_id,
-        Some(evaluation_span_id),
-        evaluator.name.clone(),
-        SpanType::EVALUATOR,
-        evaluator_start_time,
-        evaluator_end_time,
-        Some(executor_output.clone()),
-        Some(json!({ "score": score })),
-    );
-
-    // 8. Push spans to the observations queue
-    let spans_message = vec![
-        RabbitMqSpanMessage {
-            span: evaluation_span,
-            events: vec![],
-        },
-        RabbitMqSpanMessage {
-            span: executor_span,
-            events: vec![],
-        },
-        RabbitMqSpanMessage {
-            span: evaluator_span_obj,
-            events: vec![],
-        },
-    ];
-
-    let mq_message = serde_json::to_vec(&spans_message)?;
-    if let Err(e) = queue
-        .publish(&mq_message, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
-        .await
-    {
-        log::error!("Failed to publish spans to observations queue: {:?}", e);
-        reject_message(&acker).await;
-        return Ok(());
-    }
-
-    // 9. Save evaluation scores
+    // 7. Save evaluation scores
     let mut scores = HashMap::new();
     scores.insert(evaluator.name.clone(), Some(score));
 
@@ -614,27 +562,108 @@ fn render_prompt_messages(playground: &Playground, datapoint: &Datapoint) -> any
     render_messages_with_context(&playground.prompt_messages, &context)
 }
 
+/// Run the executor (playground LLM call) and push the LLM span immediately
+async fn run_executor(
+    ai_gateway: &Arc<AIGateway>,
+    queue: &Arc<MessageQueue>,
+    project_id: Uuid,
+    playground: &Playground,
+    datapoint: &Datapoint,
+    trace_id: Uuid,
+    parent_span_id: Uuid,
+) -> anyhow::Result<Value> {
+    // Render the prompt template with datapoint data
+    let rendered_messages = render_prompt_messages(playground, datapoint)?;
+
+    let start_time = Utc::now();
+
+    // Call AI Gateway with playground configuration
+    let request = AIGatewayRequest {
+        model: playground.model_id.clone(),
+        messages: rendered_messages.clone(),
+        max_tokens: playground.max_tokens,
+        temperature: playground.temperature,
+        structured_output: playground.output_schema.clone(),
+        tools: playground
+            .tools
+            .as_ref()
+            .and_then(|t| serde_json::to_string(t).ok()),
+        tool_choice: playground.tool_choice.clone(),
+        provider_options: playground.provider_options.clone(),
+    };
+
+    let response = ai_gateway.call(request, project_id).await?;
+    let end_time = Utc::now();
+
+    let executor_span_id = Uuid::new_v4();
+    let executor_span = Span::new(
+        project_id,
+        trace_id,
+        executor_span_id,
+        Some(parent_span_id),
+        "executor".to_string(),
+        SpanType::EXECUTOR,
+        start_time,
+        end_time,
+        Some(datapoint.data.clone()),
+        None,
+    );
+
+    push_span(queue, executor_span).await;
+
+    // Create LLM span with attributes
+    let mut llm_span = Span::new(
+        project_id,
+        trace_id,
+        Uuid::new_v4(),
+        Some(executor_span_id),
+        playground.model_id.clone(),
+        SpanType::LLM,
+        start_time,
+        end_time,
+        Some(rendered_messages),
+        Some(response.content.clone()),
+    );
+
+    // Set LLM-specific attributes
+    set_llm_span_attributes(&mut llm_span, &response);
+
+    push_span(queue, llm_span).await;
+
+    Ok(response.content)
+}
+
 /// Run the evaluator on the executor output
 /// Supports both LLM evaluators and Python evaluators
+/// LLM spans are pushed immediately when created
 async fn run_evaluator(
     ai_gateway: &Arc<AIGateway>,
+    queue: &Arc<MessageQueue>,
     project_id: Uuid,
     python_client: &Arc<reqwest::Client>,
     python_evaluator_url: &str,
     evaluator: &db::evaluators::Evaluator,
     datapoint: &Datapoint,
     executor_output: &Value,
-) -> anyhow::Result<Option<f64>> {
-    match evaluator.evaluator_type.as_str() {
+    trace_id: Uuid,
+    parent_span_id: Uuid,
+) -> anyhow::Result<f64> {
+    let evaluator_start_time = Utc::now();
+    let evaluator_span_id = Uuid::new_v4();
+
+    let score = match evaluator.evaluator_type.as_str() {
         "llm" => {
             run_llm_evaluator(
                 ai_gateway,
+                queue,
                 project_id,
                 evaluator,
                 datapoint,
                 executor_output,
+                trace_id,
+                evaluator_span_id,
             )
-            .await
+            .await?
         }
         _ => {
             // Default to Python evaluator for backward compatibility
@@ -644,83 +673,64 @@ async fn run_evaluator(
                 &evaluator.definition,
                 executor_output,
             )
-            .await
+            .await?
         }
-    }
+    };
+
+    // Push evaluator wrapper span immediately
+    let evaluator_span = Span::new(
+        project_id,
+        trace_id,
+        evaluator_span_id,
+        Some(parent_span_id),
+        evaluator.name.clone(),
+        SpanType::EVALUATOR,
+        evaluator_start_time,
+        Utc::now(),
+        Some(executor_output.clone()),
+        Some(json!({ "score": score })),
+    );
+    push_span(&queue, evaluator_span).await;
+
+    Ok(score)
 }
 
-/// Run an LLM-as-a-judge evaluator
-/// The evaluator definition should contain:
-/// - prompt_messages: Array of messages with mustache templates
-/// - model_id: The model to use (format: provider:model, e.g., "anthropic:claude-sonnet-4-5")
-/// - structuredOutput: Optional JSON schema string for structured output
-/// - maxTokens, temperature: Optional parameters
+/// Run an LLM-as-a-judge evaluator and push the LLM span immediately
 ///
-/// Available mustache template variables:
+/// Available mustache template variables in prompt_messages:
 /// - {{output}} - The executor output (result from the playground/executor)
 /// - {{data}} - The entire data object from the datapoint
 /// - {{target}} - The target from the datapoint (if present)
 /// - Any top-level field from data is also available directly (e.g., {{question}}, {{answer}})
 async fn run_llm_evaluator(
     ai_gateway: &Arc<AIGateway>,
+    queue: &Arc<MessageQueue>,
     project_id: Uuid,
     evaluator: &db::evaluators::Evaluator,
     datapoint: &Datapoint,
     executor_output: &Value,
-) -> anyhow::Result<Option<f64>> {
-    // Get prompt messages from evaluator definition
-    let prompt_messages = evaluator
-        .definition
-        .get("prompt_messages")
-        .ok_or_else(|| anyhow::anyhow!("LLM evaluator missing prompt_messages in definition"))?;
+    trace_id: Uuid,
+    parent_span_id: Uuid,
+) -> anyhow::Result<f64> {
+    // Parse the definition into strongly typed struct
+    let definition: LLMEvaluatorDefinition = serde_json::from_value(json!(evaluator.definition))
+        .map_err(|e| anyhow::anyhow!("Failed to parse LLM evaluator definition: {}", e))?;
 
-    // Get model from evaluator definition
-    let model_id = evaluator
-        .definition
-        .get("model_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("LLM evaluator missing model_id in definition"))?;
-
-    // Build context for template rendering with:
-    // - output: executor output
-    // - data: datapoint data
-    // - target: datapoint target (if present)
-    // - all top-level fields from data flattened
+    // Build context for template rendering
     let context = build_evaluator_context(datapoint, executor_output);
 
     // Render prompt messages with context
-    let rendered_messages = render_messages_with_context(prompt_messages, &context)?;
+    let rendered_messages = render_messages_with_context(&definition.prompt_messages, &context)?;
 
-    // Get structured output - can be string or object
-    let structured_output = evaluator.definition.get("structuredOutput").and_then(|v| {
-        if let Some(s) = v.as_str() {
-            if !s.is_empty() {
-                Some(s.to_string())
-            } else {
-                None
-            }
-        } else if v.is_object() {
-            serde_json::to_string(v).ok()
-        } else {
-            None
-        }
-    });
+    let start_time = Utc::now();
 
     // Build request using AIGatewayRequest
     let request = AIGatewayRequest {
-        model: model_id.to_string(),
-        messages: rendered_messages,
-        max_tokens: evaluator
-            .definition
-            .get("maxTokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32),
-        temperature: evaluator
-            .definition
-            .get("temperature")
-            .and_then(|v| v.as_f64())
-            .map(|v| v as f32),
-        structured_output,
+        model: definition.model_id.clone(),
+        messages: rendered_messages.clone(),
+        max_tokens: definition.max_tokens,
+        temperature: definition.temperature,
+        structured_output: definition.structured_output.clone(),
         tools: None,
         tool_choice: None,
         provider_options: None,
@@ -728,18 +738,40 @@ async fn run_llm_evaluator(
 
     // Call AI Gateway
     let response = ai_gateway.call(request, project_id).await?;
+    let end_time = Utc::now();
 
-    // Extract content from response and parse score
-    let content = match &response {
-        Value::String(s) => s.clone(),
-        _ => serde_json::to_string(&response)?,
-    };
+    // Create LLM span with attributes
+    let mut llm_span = Span::new(
+        project_id,
+        trace_id,
+        Uuid::new_v4(),
+        Some(parent_span_id),
+        definition.model_id.clone(),
+        SpanType::LLM,
+        start_time,
+        end_time,
+        Some(rendered_messages),
+        Some(response.content.clone()),
+    );
 
-    dbg!(&content);
+    // Set LLM-specific attributes
+    set_llm_span_attributes(&mut llm_span, &response);
 
-    // Parse the score from the response
-    // Try to parse as JSON and extract score field, otherwise try to parse as number
-    let score = parse_evaluator_score(&content)?;
+    push_span(queue, llm_span).await;
+
+    // Parse the output field and map to score
+    let output_value = response
+        .content
+        .get("output")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("LLM evaluator response missing 'output' field"))?;
+
+    // Map output to score using output_mapping
+    let score = definition
+        .output_mapping
+        .get(output_value)
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("Output '{}' not found in output_mapping", output_value))?;
 
     Ok(score)
 }
@@ -760,58 +792,13 @@ fn render_messages_with_context(messages: &Value, context: &Value) -> anyhow::Re
     Ok(rendered_messages)
 }
 
-/// Parse evaluator score from LLM response content
-/// Supports:
-/// - JSON with "score" field: {"score": 0.85}
-/// - Plain number: "0.85" or "85"
-fn parse_evaluator_score(content: &str) -> anyhow::Result<Option<f64>> {
-    // First, try to parse as JSON
-    if let Ok(json_value) = serde_json::from_str::<Value>(content) {
-        // Try to extract "score" field
-        if let Some(score) = json_value.get("score") {
-            if let Some(s) = score.as_f64() {
-                return Ok(Some(s));
-            }
-            if let Some(s) = score.as_i64() {
-                return Ok(Some(s as f64));
-            }
-            if let Some(s) = score.as_str() {
-                if let Ok(parsed) = s.parse::<f64>() {
-                    return Ok(Some(parsed));
-                }
-            }
-        }
-        // Try to extract "value" field as fallback
-        if let Some(value) = json_value.get("value") {
-            if let Some(s) = value.as_f64() {
-                return Ok(Some(s));
-            }
-            if let Some(s) = value.as_i64() {
-                return Ok(Some(s as f64));
-            }
-        }
-        // If JSON but no score field, return None
-        return Ok(None);
-    }
-
-    // Try to parse as plain number
-    let trimmed = content.trim();
-    if let Ok(score) = trimmed.parse::<f64>() {
-        return Ok(Some(score));
-    }
-
-    // Could not parse score
-    log::warn!("Could not parse evaluator score from response: {}", content);
-    Ok(None)
-}
-
 /// Run a Python evaluator
 async fn run_python_evaluator(
     client: &Arc<reqwest::Client>,
     evaluator_url: &str,
     definition: &HashMap<String, Value>,
     input: &Value,
-) -> anyhow::Result<Option<f64>> {
+) -> anyhow::Result<f64> {
     let body = EvaluatorRequest {
         definition: definition.clone(),
         input: input.clone(),
@@ -835,12 +822,63 @@ async fn run_python_evaluator(
         return Err(anyhow::anyhow!("Python evaluator error: {}", error));
     }
 
-    Ok(evaluator_response.score)
+    evaluator_response
+        .score
+        .ok_or_else(|| anyhow::anyhow!("Python evaluator returned no score"))
 }
 
 /// Helper function to reject a message
 async fn reject_message(acker: &MessageQueueAcker) {
     if let Err(e) = acker.reject(false).await {
         log::error!("Failed to reject message: {:?}", e);
+    }
+}
+
+/// Set LLM-specific attributes on a span from the AI Gateway response
+fn set_llm_span_attributes(span: &mut Span, response: &AIGatewayCallResponse) {
+    // Extract provider from model (e.g., "anthropic:claude-sonnet-4-5" -> "anthropic")
+    let provider = response
+        .model
+        .split(':')
+        .next()
+        .unwrap_or("unknown")
+        .to_string();
+
+    let model = response
+        .model
+        .split(':')
+        .nth(1)
+        .unwrap_or("unknown")
+        .to_string();
+
+    span.set_attribute(GEN_AI_SYSTEM.to_string(), json!(provider));
+    span.set_attribute(GEN_AI_REQUEST_MODEL.to_string(), json!(model));
+    span.set_attribute(GEN_AI_RESPONSE_MODEL.to_string(), json!(model));
+
+    if let Some(ref usage) = response.usage {
+        span.set_attribute(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
+        span.set_attribute(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
+    }
+}
+
+/// Push a single span to the observations queue
+async fn push_span(queue: &Arc<MessageQueue>, span: Span) {
+    let message = vec![RabbitMqSpanMessage {
+        span,
+        events: vec![],
+    }];
+
+    match serde_json::to_vec(&message) {
+        Ok(serialized) => {
+            if let Err(e) = queue
+                .publish(&serialized, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+                .await
+            {
+                log::error!("Failed to push span to observations queue: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to serialize span: {:?}", e);
+        }
     }
 }
