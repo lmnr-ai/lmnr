@@ -3,7 +3,7 @@ import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
+import {getLLMMetrics, getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -26,6 +26,7 @@ const TimelineElement = ({
   const textRef = useRef<HTMLSpanElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
   const [textPosition, setTextPosition] = useState<"inside" | "outside">("inside");
+  const [isHovered, setIsHovered] = useState(false);
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
@@ -35,17 +36,7 @@ const TimelineElement = ({
     }
   };
 
-  const llmMetrics = useMemo(() => {
-    if (span.span.spanType !== "LLM") return null;
-
-    const cost = span.span.attributes["gen_ai.usage.cost"];
-    const totalTokens =
-      span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"];
-
-    if (!cost || !totalTokens) return null;
-
-    return { cost, totalTokens };
-  }, [span]);
+  const llmMetrics = getLLMMetrics(span.span);
 
   useLayoutEffect(() => {
     if (!blockRef.current || !textRef.current) return;
@@ -70,9 +61,11 @@ const TimelineElement = ({
   }, [span.span.name, span.events.length, span.width]);
 
   const spanTextElement = useMemo(() => {
+    const displayName = isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span);
+
     const textContent = (
       <>
-        {getSpanDisplayName(span.span)}{" "}
+        {displayName}{" "}
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
       </>
     );
@@ -117,13 +110,15 @@ const TimelineElement = ({
         {textContent}
       </span>
     );
-  }, [span.span.name, span.span.startTime, span.span.endTime, span.left, span.events.length, textPosition]);
+  }, [span.span.name, span.span.startTime, span.span.endTime, span.span.spanType, span.left, span.events.length, textPosition, isHovered]);
 
   return (
     <div
       key={virtualRow.index}
       data-index={virtualRow.index}
       onClick={handleSpanSelect}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
         "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
       )}
@@ -143,7 +138,7 @@ const TimelineElement = ({
             maxWidth: "250px",
           }}
         >
-          {getSpanDisplayName(span.span)}{" "}
+          {isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span)}{" "}
           <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         </span>
       )}

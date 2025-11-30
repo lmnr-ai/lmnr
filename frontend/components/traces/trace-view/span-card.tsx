@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import {getLLMMetrics, getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ interface SpanCardProps {
 
 export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse } = useTraceViewStoreContext((state) => ({
@@ -31,7 +33,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
   }));
-
+  const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
@@ -84,7 +86,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               span.pending && "text-muted-foreground"
             )}
           >
-            {span.spanType === "LLM" ? span.model : span.name}
+            {isHovered && span.spanType === "LLM" ? span.name : getSpanDisplayName(span)}
           </div>
           {span.pending ? (
             isStringDateOld(span.startTime) ? (
@@ -113,7 +115,17 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
                 onSpanSelect?.(span);
               }
             }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
           />
+          {llmMetrics && (
+            <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
+              <span>${llmMetrics.cost}</span>
+              <span>
+                {llmMetrics.totalTokens} tokens
+              </span>
+            </div>
+          )}
           {isSelected && (
             <div
               className="absolute top-0 w-full bg-primary/25 border-l-2 border-l-primary"

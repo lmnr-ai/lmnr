@@ -239,5 +239,20 @@ export const findSpanToSelect = (
 
 
 
-export const getSpanDisplayName = (span) =>
-  span.spanType === "LLM" ? span.model : span.name;
+export const getSpanDisplayName = (span:TraceViewSpan) => {
+  const modelName = span.model ?? span.attributes["gen_ai.request.model"];
+  return span.spanType === "LLM" ? modelName : span.name;
+};
+
+
+export const getLLMMetrics = (span:TraceViewSpan)=>{
+  if (span.spanType !== "LLM") return null;
+
+  const cost = span.attributes["gen_ai.usage.cost"].toFixed(3);
+  const totalTokens =
+        span.attributes["gen_ai.usage.input_tokens"] + span.attributes["gen_ai.usage.output_tokens"];
+
+  if (!cost || !totalTokens) return null;
+
+  return { cost, totalTokens };
+};
