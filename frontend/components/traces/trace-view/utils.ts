@@ -248,11 +248,14 @@ export const getSpanDisplayName = (span:TraceViewSpan) => {
 export const getLLMMetrics = (span:TraceViewSpan)=>{
   if (span.spanType !== "LLM") return null;
 
-  const cost = span.attributes["gen_ai.usage.cost"].toFixed(3);
-  const totalTokens =
-        span.attributes["gen_ai.usage.input_tokens"] + span.attributes["gen_ai.usage.output_tokens"];
+  const costValue = span.attributes["gen_ai.usage.cost"];
+  const inputTokens = span.attributes["gen_ai.usage.input_tokens"];
+  const outputTokens = span.attributes["gen_ai.usage.output_tokens"];
 
-  if (!cost || !totalTokens) return null;
+  if (costValue == null || inputTokens == null || outputTokens == null) return null;
+
+  const cost = costValue.toFixed(3);
+  const totalTokens = inputTokens + outputTokens;
 
   return { cost, totalTokens };
 };
