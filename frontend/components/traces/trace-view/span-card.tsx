@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, X } from "lucide-react";
+import {ChevronDown, ChevronRight, CircleDollarSign, Coins, X} from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -99,9 +99,22 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
-              {getDurationString(span.startTime, span.endTime)}
-            </div>
+            <>
+              <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
+                {getDurationString(span.startTime, span.endTime)}
+              </div>
+              {llmMetrics && (
+                <>
+                  <div className={'text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1 ml-2'}>
+                    <Coins className="min-w-3" size={12} />
+                    {llmMetrics.totalTokens}
+                  </div>
+                  <div className={'text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1'} style={{marginLeft: 4}}>
+                    <CircleDollarSign className="min-w-3" size={12} />
+                    {llmMetrics.cost}</div>
+                </>
+              )}
+            </>
           )}
           <div
             className="z-30 hover:bg-red-100/10 absolute transition-all"
@@ -118,14 +131,6 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           />
-          {llmMetrics && (
-            <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
-              <span>${llmMetrics.cost}</span>
-              <span>
-                {llmMetrics.totalTokens} tokens
-              </span>
-            </div>
-          )}
           {isSelected && (
             <div
               className="absolute top-0 w-full bg-primary/25 border-l-2 border-l-primary"

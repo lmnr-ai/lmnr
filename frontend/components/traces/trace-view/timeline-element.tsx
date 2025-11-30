@@ -1,4 +1,5 @@
 import { VirtualItem } from "@tanstack/react-virtual";
+import {CircleDollarSign, Coins} from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -67,6 +68,17 @@ const TimelineElement = ({
       <>
         {displayName}{" "}
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
+        {llmMetrics && (
+          <>
+            <div className={'text-white/70 inline-flex items-center gap-1 ml-2'}>
+              <Coins className="min-w-3" size={12} />
+              {llmMetrics.totalTokens}
+            </div>
+            <div className={'text-white/70 inline-flex items-center gap-1 ml-4'} style={{marginLeft: 4}}>
+              <CircleDollarSign className="min-w-3" size={12} />
+              {llmMetrics.cost}</div>
+          </>
+        )}
       </>
     );
 
@@ -165,14 +177,6 @@ const TimelineElement = ({
           />
         ))}
         {textPosition === "inside" && spanTextElement}
-        {llmMetrics && (
-          <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
-            <span>${llmMetrics.cost}</span>
-            <span>
-              {llmMetrics.totalTokens} tokens
-            </span>
-          </div>
-        )}
       </div>
       {textPosition === "outside" && spanTextElement}
     </div>
