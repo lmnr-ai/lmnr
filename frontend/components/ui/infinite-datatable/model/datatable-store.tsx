@@ -33,6 +33,8 @@ export interface SelectionState {
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   draggingColumnId: string | null;
+  views: Array<string>;
+  selectedViewId: string | null;
 }
 
 export interface SelectionActions {
@@ -45,6 +47,8 @@ export interface SelectionActions {
   setColumnOrder: (order: string[]) => void;
   setDraggingColumnId: (columnId: string | null) => void;
   resetColumns: () => void;
+  selectView: (viewId: string) => void;
+  resetView: () => void;
 }
 
 type DataTableStore<TData> = InfiniteScrollState<TData> &
@@ -73,6 +77,10 @@ function createDataTableStore<TData>(
     columnVisibility: {},
     columnOrder: defaultColumnOrder,
     draggingColumnId: null,
+    selectedViewId: null,
+    views: [],
+    resetView: () => set({ selectedViewId: null }),
+    selectView: (viewId: string) => set({ selectedViewId: viewId }),
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
