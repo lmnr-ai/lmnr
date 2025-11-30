@@ -84,7 +84,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               span.pending && "text-muted-foreground"
             )}
           >
-            {span.name}
+            {span.spanType === "LLM" ? span.model : span.name}
           </div>
           {span.pending ? (
             isStringDateOld(span.startTime) ? (

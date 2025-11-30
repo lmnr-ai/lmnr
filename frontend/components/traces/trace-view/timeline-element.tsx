@@ -59,7 +59,7 @@ const TimelineElement = ({
   const SpanText = useMemo(() => {
     const textContent = (
       <>
-        {span.span.name}{" "}
+        {span.span.spanType === "LLM" ? span.span.model : span.span.name}{" "}
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
       </>
     );
@@ -130,7 +130,7 @@ const TimelineElement = ({
             maxWidth: "250px",
           }}
         >
-          {span.span.name}{" "}
+          {span.span.spanType === "LLM" ? span.span.model : span.span.name}{" "}
           <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         </span>
       )}
@@ -157,6 +157,18 @@ const TimelineElement = ({
           />
         ))}
         {textPosition === "inside" && SpanText}
+        {span.span.spanType === "LLM" &&
+          span.span.attributes["gen_ai.usage.cost"] > 0 &&
+          span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"] >
+            0 && (
+            <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
+              <span>${span.span.attributes["gen_ai.usage.cost"]}</span>
+              <span>
+                {span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"]}{" "}
+                tokens
+              </span>
+            </div>
+          )}
       </div>
       {textPosition === "outside" && SpanText}
     </div>
