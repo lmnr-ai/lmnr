@@ -3,6 +3,7 @@ import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -34,6 +35,18 @@ const TimelineElement = ({
     }
   };
 
+  const llmMetrics = useMemo(() => {
+    if (span.span.spanType !== "LLM") return null;
+
+    const cost = span.span.attributes["gen_ai.usage.cost"];
+    const totalTokens =
+      span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"];
+
+    if (!cost || !totalTokens) return null;
+
+    return { cost, totalTokens };
+  }, [span]);
+
   useLayoutEffect(() => {
     if (!blockRef.current || !textRef.current) return;
 
@@ -56,10 +69,10 @@ const TimelineElement = ({
     };
   }, [span.span.name, span.events.length, span.width]);
 
-  const SpanText = useMemo(() => {
+  const spanTextElement = useMemo(() => {
     const textContent = (
       <>
-        {span.span.spanType === "LLM" ? span.span.model : span.span.name}{" "}
+        {getSpanDisplayName(span.span)}{" "}
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
       </>
     );
@@ -123,14 +136,14 @@ const TimelineElement = ({
         <span
           title={span.span.name}
           ref={textRef}
-          className="text-xs font-medium text-black truncate absolute"
+          className={"text-xs font-medium text-black truncate absolute"}
           style={{
             right: `calc(100% - ${span.left}% + 16px)`,
             textAlign: "right",
             maxWidth: "250px",
           }}
         >
-          {span.span.spanType === "LLM" ? span.span.model : span.span.name}{" "}
+          {getSpanDisplayName(span.span)}{" "}
           <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         </span>
       )}
@@ -156,21 +169,17 @@ const TimelineElement = ({
             }}
           />
         ))}
-        {textPosition === "inside" && SpanText}
-        {span.span.spanType === "LLM" &&
-          span.span.attributes["gen_ai.usage.cost"] > 0 &&
-          span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"] >
-            0 && (
-            <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
-              <span>${span.span.attributes["gen_ai.usage.cost"]}</span>
-              <span>
-                {span.span.attributes["gen_ai.usage.input_tokens"] + span.span.attributes["gen_ai.usage.output_tokens"]}{" "}
-                tokens
-              </span>
-            </div>
-          )}
+        {textPosition === "inside" && spanTextElement}
+        {llmMetrics && (
+          <div className="absolute right-4 flex items-center gap-2 text-xs font-medium text-secondary-foreground z-30">
+            <span>${llmMetrics.cost}</span>
+            <span>
+              {llmMetrics.totalTokens} tokens
+            </span>
+          </div>
+        )}
       </div>
-      {textPosition === "outside" && SpanText}
+      {textPosition === "outside" && spanTextElement}
     </div>
   );
 };

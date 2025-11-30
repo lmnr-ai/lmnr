@@ -236,3 +236,8 @@ export const findSpanToSelect = (
   // Priority 3: First span as fallback
   return spans?.[0];
 };
+
+
+
+export const getSpanDisplayName = (span) =>
+  span.spanType === "LLM" ? span.model : span.name;
