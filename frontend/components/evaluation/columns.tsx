@@ -197,19 +197,19 @@ const createDurationCell = (row: EvaluationDatapointPreviewWithCompared) => {
 const createCostCell = (row: EvaluationDatapointPreviewWithCompared) => {
   const comparison =
     row.comparedInputCost && row.comparedOutputCost
-      ? formatCost(calculateTotalCost(row.comparedInputCost, row.comparedOutputCost))
+      ? formatCost(calculateTotalCost(row.comparedInputCost, row.comparedOutputCost, row.comparedTotalCost ?? 0))
       : "-";
 
   const comparisonValue =
     row.comparedInputCost && row.comparedOutputCost
-      ? calculateTotalCost(row.comparedInputCost, row.comparedOutputCost)
+      ? calculateTotalCost(row.comparedInputCost, row.comparedOutputCost, row.comparedTotalCost ?? 0)
       : undefined;
 
   return (
     <ComparisonCell
-      original={formatCost(calculateTotalCost(row.inputCost, row.outputCost))}
+      original={formatCost(calculateTotalCost(row.inputCost, row.outputCost, row.totalCost))}
       comparison={comparison}
-      originalValue={calculateTotalCost(row.inputCost, row.outputCost)}
+      originalValue={calculateTotalCost(row.inputCost, row.outputCost, row.totalCost)}
       comparisonValue={comparisonValue}
     />
   );
@@ -354,7 +354,7 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
   {
     id: "cost",
     accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => calculateTotalCost(row.inputCost, row.outputCost),
+      (row: EvaluationDatapointPreviewWithCompared) => calculateTotalCost(row.inputCost, row.outputCost, row.totalCost),
       formatCostIntl
     ),
     header: "Cost",
