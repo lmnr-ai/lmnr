@@ -209,6 +209,7 @@ function EvaluationContent({
           comparedEndTime: compared?.endTime,
           comparedInputCost: compared?.inputCost,
           comparedOutputCost: compared?.outputCost,
+          comparedTotalCost: compared.totalCost,
           comparedId: compared?.id,
           comparedEvaluationId: compared?.evaluationId,
           comparedScores: compared?.scores,
