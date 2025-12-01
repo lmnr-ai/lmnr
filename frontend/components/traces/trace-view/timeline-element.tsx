@@ -65,21 +65,21 @@ const TimelineElement = ({
     const displayName = isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span);
 
     const textContent = (
-      <>
+      <div className={'flex items-center gap-1.5'}>
         {displayName}{" "}
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         {llmMetrics && (
           <>
-            <div className={'text-white/70 inline-flex items-center gap-1 ml-2'}>
-              <Coins className="min-w-3" size={12} />
+            <span className={'text-white/70 inline-flex items-center gap-1'}>
+              <Coins className="min-w-1" size={12} />
               {llmMetrics.totalTokens}
-            </div>
-            <div className={'text-white/70 inline-flex items-center gap-1 ml-4'} style={{marginLeft: 4}}>
-              <CircleDollarSign className="min-w-3" size={12} />
-              {llmMetrics.cost}</div>
+            </span>
+            <span className={'text-white/70 inline-flex items-center gap-1'} style={{marginLeft: 4}}>
+              <CircleDollarSign className="min-w-1" size={12} />
+              {llmMetrics.cost}</span>
           </>
         )}
-      </>
+      </div>
     );
 
     const commonProps = {
