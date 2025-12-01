@@ -1,10 +1,10 @@
 import { VirtualItem } from "@tanstack/react-virtual";
-import {CircleDollarSign, Coins} from "lucide-react";
+import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import {getLLMMetrics, getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
+import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -65,18 +65,18 @@ const TimelineElement = ({
     const displayName = isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span);
 
     const textContent = (
-      <div className={'flex items-center gap-1.5'}>
-        {displayName}{" "}
-        <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
+      <div className={"flex items-center gap-1.5"}>
+        {displayName} <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         {llmMetrics && (
           <>
-            <span className={'text-white/70 inline-flex items-center gap-1'}>
+            <span className={"text-white/70 inline-flex items-center gap-1"}>
               <Coins className="min-w-1" size={12} />
               {llmMetrics.totalTokens}
             </span>
-            <span className={'text-white/70 inline-flex items-center gap-1'} style={{marginLeft: 4}}>
+            <span className={"text-white/70 inline-flex items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
-              {llmMetrics.cost}</span>
+              {llmMetrics.cost}
+            </span>
           </>
         )}
       </div>
@@ -122,7 +122,16 @@ const TimelineElement = ({
         {textContent}
       </span>
     );
-  }, [span.span.name, span.span.startTime, span.span.endTime, span.span.spanType, span.left, span.events.length, textPosition, isHovered]);
+  }, [
+    span.span.name,
+    span.span.startTime,
+    span.span.endTime,
+    span.span.spanType,
+    span.left,
+    span.events.length,
+    textPosition,
+    isHovered,
+  ]);
 
   return (
     <div

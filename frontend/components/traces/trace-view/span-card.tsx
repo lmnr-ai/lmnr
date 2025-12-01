@@ -1,8 +1,8 @@
-import {ChevronDown, ChevronRight, CircleDollarSign, Coins, X} from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import {getLLMMetrics, getSpanDisplayName} from "@/components/traces/trace-view/utils.ts";
+import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -105,13 +105,22 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
               </div>
               {llmMetrics && (
                 <>
-                  <div className={'text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1 ml-2'}>
+                  <div
+                    className={
+                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
+                    }
+                  >
                     <Coins className="min-w-3" size={12} />
                     {llmMetrics.totalTokens}
                   </div>
-                  <div className={'text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1'} style={{marginLeft: 4}}>
+                  <div
+                    className={
+                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
+                    }
+                  >
                     <CircleDollarSign className="min-w-3" size={12} />
-                    {llmMetrics.cost}</div>
+                    {llmMetrics.cost}
+                  </div>
                 </>
               )}
             </>
