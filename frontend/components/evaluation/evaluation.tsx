@@ -37,12 +37,7 @@ interface EvaluationProps {
   initialTraceViewWidth?: number;
 }
 
-function EvaluationContent({
-  evaluations,
-  evaluationId,
-  evaluationName,
-  initialTraceViewWidth,
-}: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, evaluationName, initialTraceViewWidth }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -191,17 +186,14 @@ function EvaluationContent({
     return `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
   }, [targetId, allDatapoints.length, search, searchIn, filter, params?.projectId]);
 
-  const { data: targetDatapointsData } = useSWR<EvaluationResultsInfo>(
-    targetDatapointsUrl,
-    swrFetcher
-  );
+  const { data: targetDatapointsData } = useSWR<EvaluationResultsInfo>(targetDatapointsUrl, swrFetcher);
 
   const targetDatapoints = targetDatapointsData?.results || [];
 
   const tableData = useMemo(() => {
     if (targetId) {
       return allDatapoints.map((original) => {
-        const compared = targetDatapoints[original.index];
+        const compared = targetDatapoints.find((dp) => dp.index === original.index);
 
         return {
           ...original,
@@ -312,7 +304,9 @@ function EvaluationContent({
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
                     statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null}
+                    comparedStatistics={
+                      selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null
+                    }
                     isLoading={isStatsLoading}
                   />
                 </div>
