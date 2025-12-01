@@ -241,7 +241,7 @@ export const findSpanToSelect = (
 
 export const getSpanDisplayName = (span:TraceViewSpan) => {
   const modelName = span.model ?? span.attributes["gen_ai.request.model"];
-  return span.spanType === "LLM" ? modelName : span.name;
+  return span.spanType === "LLM" && modelName ? modelName : span.name;
 };
 
 
