@@ -13,9 +13,8 @@ import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { Event } from "@/lib/events/types";
-import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
 import { ErrorEventAttributes } from "@/lib/types";
 
@@ -30,19 +29,6 @@ interface SpanControlsProps {
 export function SpanControls({ children, span, events }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
 
-  const { toast } = useToast();
-
-  const copySpanId = () => {
-    if (span) {
-      navigator.clipboard.writeText(span.spanId);
-      toast({
-        title: "Copied span ID",
-        description: "Span ID has been copied to clipboard",
-        variant: "default",
-      });
-    }
-  };
-
   const errorEventAttributes = useMemo(
     () => events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
     [events]
@@ -53,18 +39,9 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
       <div className="flex flex-col px-2 pt-2 gap-2">
         <div className="flex flex-none items-center space-x-2">
           <SpanTypeIcon spanType={span.spanType} />
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="text-xl items-center font-medium truncate cursor-pointer" onClick={copySpanId}>
-                  {span.name}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Click to copy span ID</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <CopyTooltip value={span?.spanId} text="Copy span ID" className="text-xl items-center font-medium truncate">
+            {span.name}
+          </CopyTooltip>
           {span.spanType === SpanType.LLM && (
             <Link
               href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}

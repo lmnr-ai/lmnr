@@ -132,8 +132,10 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   );
 
   useEffect(() => {
-    setHasBrowserSession(trace.hasBrowserSession);
-    setBrowserSession(true);
+    if (trace.hasBrowserSession) {
+      setHasBrowserSession(true);
+      setBrowserSession(true);
+    }
   }, []);
 
   useEffect(() => {

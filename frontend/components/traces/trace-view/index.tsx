@@ -524,7 +524,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                       <Minimap onSpanSelect={handleSpanSelect} />
                     </div>
                   ))}
-                {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
               </ResizablePanel>
               {browserSession && (
                 <>
@@ -541,6 +540,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   </ResizablePanel>
                 </>
               )}
+              {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
             </ResizablePanelGroup>
           )}
           <div
