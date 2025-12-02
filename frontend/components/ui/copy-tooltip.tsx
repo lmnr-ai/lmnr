@@ -1,6 +1,6 @@
 "use client";
 
-import { PropsWithChildren, useCallback, useRef, useState } from "react";
+import { PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,15 @@ export default function CopyTooltip({
     }
     setOpen(newOpen);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    },
+    []
+  );
 
   return (
     <TooltipProvider delayDuration={0}>
