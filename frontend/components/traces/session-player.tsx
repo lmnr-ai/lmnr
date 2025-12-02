@@ -145,6 +145,15 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     loadEvents();
   }, [hasBrowserSession, traceId, projectId]);
 
+  const lastPlayerTime = useRef<number>(0);
+
+  useEffect(() => {
+    if (playerRef.current && sessionTime !== undefined) {
+      playerRef.current.goto(sessionTime * 1000);
+      lastPlayerTime.current = sessionTime;
+    }
+  }, [sessionTime]);
+
   useEffect(() => {
     if (!events?.length || !playerContainerRef.current) return;
 
@@ -237,9 +246,10 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         {hasBrowserSession && (
           <button
             onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
-              ? "border-secondary-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
+              activeTab === "browser-session"
+                ? "border-secondary-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             Session
@@ -248,9 +258,10 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
         <button
           onClick={() => setActiveTab("images")}
-          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "images"
-            ? "border-secondary-foreground text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
+            activeTab === "images"
+              ? "border-secondary-foreground text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
         >
           Images

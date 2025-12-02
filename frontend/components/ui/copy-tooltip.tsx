@@ -30,6 +30,10 @@ export default function CopyTooltip({
       setCopied(true);
       setOpen(true);
 
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
       timeoutRef.current = setTimeout(() => {
         setOpen(false);
       }, 2000);
