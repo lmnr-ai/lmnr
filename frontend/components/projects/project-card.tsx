@@ -13,6 +13,10 @@ interface ProjectCardProps {
   project: Project;
 }
 
+export const numberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "standard",
+});
+
 export default function ProjectCard({ project }: ProjectCardProps) {
   const { data, isLoading } = useSWR<ProjectStats>(`/api/projects/${project.id}/stats`, swrFetcher);
 
@@ -40,15 +44,15 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               <>
                 <div className="flex flex-col">
                   <p className="text-xs text-muted-foreground">Spans</p>
-                  <p className="font-mono">{data?.spansCount}</p>
+                  <p className="font-mono">{numberFormatter.format(data?.spansCount ?? 0)}</p>
                 </div>
                 <div className="flex flex-col">
                   <p className="text-xs text-muted-foreground">Evaluations</p>
-                  <p className="font-mono">{data?.evaluationsCount}</p>
+                  <p className="font-mono">{numberFormatter.format(data?.evaluationsCount ?? 0)}</p>
                 </div>
                 <div className="flex flex-col">
                   <p className="text-xs text-muted-foreground">Datasets</p>
-                  <p className="font-mono">{data?.datasetsCount}</p>
+                  <p className="font-mono">{numberFormatter.format(data?.datasetsCount ?? 0)}</p>
                 </div>
               </>
             )}

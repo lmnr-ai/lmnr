@@ -243,7 +243,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         total_cost as totalCost,
         metadata,
         status,
-        trace_type as traceType
+        trace_type as traceType,
+        has_browser_session as hasBrowserSession
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1
