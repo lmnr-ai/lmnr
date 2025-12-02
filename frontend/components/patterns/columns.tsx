@@ -1,9 +1,8 @@
-import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { ColumnDef } from "@tanstack/react-table";
-import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { Button } from "@/components/ui/button.tsx";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
@@ -25,15 +24,14 @@ export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
     header: "",
     cell: ({ row }) =>
       row.original.numChildrenClusters > 0 ? (
-        <div className="flex items-center gap-2">
-          {row.getIsExpanded() ? (
-            <ChevronDownIcon className="min-w-4 min-h-4 text-secondary-foreground" />
-          ) : (
-            <ChevronRightIcon className="min-w-4 min-h-4 text-secondary-foreground" />
-          )}
-        </div>
+        <Button
+          icon={row.getIsExpanded() ? "chevronDown" : "chevronRight"}
+          variant="ghost"
+          className="p-0 h-5 text-secondary-foreground focus-visible:outline-0"
+          onClick={() => row.toggleExpanded()}
+        />
       ) : (
-        <div className="w-4" />
+        <div className="min-w-5 min-h-5" />
       ),
     id: "expand",
     size: 44,
