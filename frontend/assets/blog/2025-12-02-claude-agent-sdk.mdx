@@ -1,0 +1,173 @@
+TL;DR: We’ve released instrumentation packages for the claude-agent-sdk in both Python and TypeScript for developers to monitor and debug their custom Claude agents. Both SDKs use a tiny, transparent Rust proxy to capture every prompt, tool call, and latency metric from the Claude Code process locally and efficiently.
+
+With the release of the Claude Agent SDK, you aren't limited to using Claude as a terminal helper. You can now build custom coding agents, like automated PR reviewers, self-healing CI/CD pipelines, or bespoke coding assistants integrated directly into your product.
+
+However, the SDK has a serious Observability problem. When you embed Claude Code into your Python or Node application, it becomes a black box of subprocesses. You need to know:
+
+Did my agent fail because of my application logic or the LLM response?
+
+What exact prompt did the SDK send to the underlying Claude process?
+
+Which tools (file edits, bash commands) were actually executed?
+
+Out of the box, this isn't possible.
+
+At Laminar, we obsess over developer experience. We wanted to ensure that if you are building an agent on top of Claude, you can trace the entire execution flow, from your outer function to the inner workings of the Claude Node process, with zero friction.
+
+The industry standard for this depth of analysis usually demands complex, multi-step workflows that drag researchers away from their actual work. We aggressively engineered our solution to maintain the simple initialisation and minimal footprint that we strive for.
+
+The Challenge
+
+Last week, agent developers asked us to instrument the SDK so that they could go through their Laminar workflows while building up custom agents. They wanted to see:
+
+What was sent to the LLM.
+
+How much time every call took.
+
+What tools were called.
+
+How this linked to their outer flows calling the SDK.
+
+The difficult part is that the SDK spins up a Node process with the actual Claude Code, which is effectively a separate environment. We needed a way to bridge the gap between your application code and that isolated process.
+
+Our requirements were:
+
+✅ Instrument Claude agent SDK functions for the outside trace structure.
+
+🤔 Catch and instrument the LLM calls from the Claude Code Node process.
+
+❌ Most importantly: Make sure that data traced in step 1 and step 2 is under the same trace.
+
+Attempt 1: The LiteLLM Proxy
+
+The Claude Agent SDK allows changing ANTHROPIC_BASE_URL. Since Laminar has a great integration with LiteLLM already, we thought we could point the SDK to a central LiteLLM proxy.
+
+The architecture for launching claude-agent-sdk many times looked like this:
+
+The Setup: Multiple Claude Code processes; one central proxy (because running a full FastAPI/Flask server for every process is impractical).
+
+The Flow: Python or Node processes send structure spans (like connect()) to our backend. The LiteLLM proxy sends LLM data (prompts, tool results) to the same backend.
+
+The Problem: Correlation
+
+While the structure spans contain trace IDs, the LLM spans contain different trace IDs. How do we associate the two?
+
+We considered spinning up a side endpoint on the proxy to say "Request ABC belongs to Trace 123," but this created too much overhead:
+
+Users would have to change their LiteLLM proxy code.
+
+We would need to pass metadata down to the actual LLM requests.
+
+Our backend would have to parse this extra metadata.
+
+Attempt 2: Native Claude Code Logs
+
+Claude Code already sends logs that are OTEL compatible!
+
+We reasoned that if we set OTEL_EXPORTER_OTLP_LOGS_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS, we could relay metadata to our backend to associate logs with spans.
+
+We spun up an endpoint to ingest these logs and convert them to our span format.
+
+The Problem: Missing Data & Immutable Environment
+
+Missing Data: Claude Code only sends metadata (duration, token counts, errors). No prompt data is logged (unless it's the user prompt, which is opt-in).
+
+Process Control: claude-agent-sdk reconnects to existing processes. If the Node process is already running, we cannot modify the environment variables (like trace headers) of that running process from the outside.
+
+The Solution: A Lightweight Rust Proxy
+
+We needed something controllable, non-intrusive, and invokable from Python & Node. Since Python and "lightweight" are rarely synonymous and Node event loops are easily blocked, we turned to Rust.
+
+We designed a small Rust server invoked from Python & Node using PyO3 & NAPI-RS bindings.
+
+Why this works:
+
+No Central Proxy: Unlike the LiteLLM solution, you don't need a centralized server.
+
+Local & Fast: The proxy is lightweight and lives close to the actual Claude Code project.
+
+Performance: It re-streams response tokens back and processes observed data via tokio::spawn in Rust, making latency impact negligible.
+
+Portable: The binary (packaged Python wheel or Node native add-on for TypeScript) is under 1.5MB and runs on almost any platform.
+
+Zero-Friction Setup: The solution works out of the box with just installation and initialization—no configuration of environment variables or base URLs is required.
+
+The Result
+
+By solving the process-boundary problem with our Rust proxy, Laminar now provides the only drop-in solution for tracing claude-agent-sdk.
+
+Traces now collect all LLM prompts, tool call inputs, and tool outputs. Crucially, the actual LLM calls are properly nested under your application's query span.
+
+True to our obsession with developer experience, we refused to make this complicated. The setup is just an install command and 1-2 lines of code. We respect the time of the researchers and engineers who rely on Laminar. We want you analyzing your agents, not wrestling with your instrumentation.
+
+You can view a sample trace here
+
+Option A: Python
+
+Installation
+
+Bash
+
+pip install lmnr[claude-agent-sdk]
+# or
+uv add lmnr[claude-agent-sdk]
+export LMNR_PROJECT_API_KEY=YOUR_PROJECT_KEY
+
+Usage
+
+Python
+
+import asyncio
+
+from claude_agent_sdk import ClaudeSDKClient
+from lmnr import Laminar, observe
+
+Laminar.initialize()
+
+@observe()
+async def main():
+    async with ClaudeSDKClient() as client:
+        await client.query(
+            "Explain to me with examples, how memoization speeds up recursive "
+            "function calls. Use the Fibonacci sequence as an example."
+        )
+        async for msg in client.receive_response():
+            print(msg)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+Option B: TypeScript / JavaScript
+
+Installation Ensure you are using @lmnr-ai/lmnr version 0.7.10 or higher.
+
+Bash
+
+npm install @lmnr-ai/lmnr @anthropic-ai/claude-agent-sdk
+# or
+pnpm add @lmnr-ai/lmnr @anthropic-ai/claude-agent-sdk
+export LMNR_PROJECT_API_KEY=YOUR_PROJECT_KEY
+
+Usage In the JS SDK, you simply wrap the query function.
+
+TypeScript
+
+import { query as origQuery } from "@anthropic-ai/claude-agent-sdk";
+import { Laminar } from "@lmnr-ai/lmnr";
+// 1. Initialize Laminar
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY
+});
+// 2. Wrap the original query function
+const query = Laminar.wrapClaudeAgentQuery(origQuery);
+async function run() {
+  // 3. Use the wrapped query function
+  const result = await query({
+    prompt: "Scan the current directory for TODOs and create a summary markdown file."
+  });
+  
+  console.log(result);
+}
+run();
+
+For more details, check the Documentation.
