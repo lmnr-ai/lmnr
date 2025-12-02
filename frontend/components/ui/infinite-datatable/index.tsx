@@ -14,11 +14,12 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
-import { flexRender, getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
+import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
+import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -61,6 +62,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowSelectionChange,
   getRowId,
   error,
+  getRowHref,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -171,6 +173,14 @@ export function InfiniteDataTable<TData extends RowData>({
     table.toggleAllRowsSelected(false);
   };
 
+  const draggingHeader = useMemo(() => {
+    if (!draggingColumnId) return null;
+
+    const header = table.getHeaderGroups()[0]?.headers.find((h) => h.column.id === draggingColumnId);
+
+    return header ?? null;
+  }, [draggingColumnId, table]);
+
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current;
     const scrollContainer = tableContainerRef.current;
@@ -197,6 +207,7 @@ export function InfiniteDataTable<TData extends RowData>({
       observer.disconnect();
     };
   }, [fetchNextPage, hasMore, isFetching, isLoading]);
+
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
       <SelectionPanel
@@ -244,8 +255,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 loadMoreRef={loadMoreRef}
                 emptyRow={emptyRow}
                 loadingRow={loadingRow}
-                error={error}
-                columnOrder={columnOrder}
+                getRowHref={getRowHref}
               />
             </Table>
             <DragOverlay
@@ -257,30 +267,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 pointerEvents: "none",
               }}
             >
-              {draggingColumnId
-                ? (() => {
-                  const column = table.getColumn(draggingColumnId);
-                  if (!column) return null;
-                  const headerGroups = table.getHeaderGroups();
-                  const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
-                  if (!header) return null;
-                  return (
-                    <div
-                      className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
-                      style={{
-                        width: column.getSize(),
-                        height: 32,
-                      }}
-                    >
-                      <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
-                        <div className="truncate">
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-                : null}
+              <DraggingTableHeadOverlay header={draggingHeader} />
             </DragOverlay>
           </DndContext>
 

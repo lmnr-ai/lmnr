@@ -155,17 +155,22 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
   const handleDatapointSelect = useCallback(
     (datapoint: Row<Datapoint> | null) => {
-      const params = new URLSearchParams(searchParams);
       if (datapoint) {
         setSelectedDatapoint(datapoint.original);
-        params.set("datapointId", datapoint.id);
       } else {
         setSelectedDatapoint(null);
-        params.delete("datapointId");
       }
-      router.push(`${pathName}?${params.toString()}`);
     },
-    [pathName, router, searchParams]
+    []
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<Datapoint>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("datapointId", row.id);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
   );
 
   const handleDatapointUpdate = useCallback(
@@ -180,8 +185,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
   const handlePanelClose = useCallback(() => {
     setIsEditingDatapoint(false);
-    handleDatapointSelect(null);
-  }, [handleDatapointSelect]);
+    setSelectedDatapoint(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("datapointId");
+    router.push(`${pathName}?${params.toString()}`);
+  }, [pathName, router, searchParams]);
 
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
@@ -209,7 +217,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         });
 
         if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
-          handleDatapointSelect(null);
+          setSelectedDatapoint(null);
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("datapointId");
+          router.push(`${pathName}?${params.toString()}`);
         }
       } catch (error) {
         toast({
@@ -218,7 +229,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         });
       }
     },
-    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData]
+    [dataset.id, pathName, projectId, router, searchParams, selectedDatapoint, toast, updateData]
   );
 
   const revalidateDatapoints = useCallback(() => {
@@ -289,6 +300,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             fetchNextPage={fetchNextPage}
             getRowId={(datapoint) => datapoint.id}
             onRowClick={handleDatapointSelect}
+            getRowHref={getRowHref}
             focusedRowId={datapointId}
             enableRowSelection
             state={{

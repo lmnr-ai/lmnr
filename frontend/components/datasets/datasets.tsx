@@ -180,9 +180,7 @@ function DatasetsContent() {
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
             enableRowSelection={true}
-            onRowClick={(row) => {
-              router.push(`/project/${projectId}/datasets/${row.original.id}`);
-            }}
+            getRowHref={(row) => `/project/${projectId}/datasets/${row.original.id}`}
             getRowId={(row: DatasetInfo) => row.id}
             columns={columns}
             data={datasets}
