@@ -1,4 +1,6 @@
 import { RowData } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
+import { MouseEvent, useCallback } from "react";
 
 import { TableRow } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -12,23 +14,51 @@ export function InfiniteDatatableRow<TData extends RowData>({
   rowVirtualizer,
   onRowClick,
   focusedRowId,
-  columnOrder,
+  href,
 }: InfiniteDataTableRowProps<TData>) {
+  const router = useRouter();
+
+  const handleOnClick = useCallback(
+    (event: MouseEvent<HTMLTableRowElement>) => {
+      // handle meta key - opening link in new tab.
+      if (href && (event.metaKey || event.ctrlKey)) {
+        window.open(href, "_blank");
+        return;
+      }
+
+      onRowClick?.(row);
+
+      if (href) {
+        router.push(href);
+      }
+    },
+    [href, onRowClick, row, router]
+  );
+
+  const handleAuxClick = useCallback(
+    (event: MouseEvent<HTMLTableRowElement>) => {
+      if (href && event.button === 1) {
+        event.preventDefault();
+        window.open(href, "_blank");
+      }
+    },
+    [href]
+  );
+
   return (
     <TableRow
       data-index={virtualRow.index}
       ref={(node) => rowVirtualizer.measureElement(node)}
       className={cn(
         "flex min-w-full border-b last:border-b-0 group/row relative",
-        !!onRowClick && "cursor-pointer",
+        (!!onRowClick || !!href) && "cursor-pointer",
         row.depth > 0 && "bg-secondary/40",
         focusedRowId === row.id && "bg-muted"
       )}
       key={row.id}
       data-state={row.getIsSelected() && "selected"}
-      onClick={() => {
-        onRowClick?.(row);
-      }}
+      onClick={handleOnClick}
+      onAuxClick={handleAuxClick}
       style={{
         position: "absolute",
         top: 0,

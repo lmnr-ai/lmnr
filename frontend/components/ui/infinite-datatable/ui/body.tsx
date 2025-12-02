@@ -18,8 +18,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   loadMoreRef,
   emptyRow,
   loadingRow,
-  error,
-  columnOrder,
+  getRowHref,
 }: InfiniteDataTableBodyProps<TData>) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -68,7 +67,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 rowVirtualizer={rowVirtualizer}
                 onRowClick={onRowClick}
                 focusedRowId={focusedRowId}
-                columnOrder={columnOrder}
+                href={getRowHref?.(row)}
               />
             );
           })}

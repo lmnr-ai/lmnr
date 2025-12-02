@@ -292,12 +292,18 @@ function TracesTableContent() {
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
       onRowClick?.(row.id);
-      const params = new URLSearchParams(searchParams);
+    },
+    [onRowClick]
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<TraceRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.id);
       params.delete("spanId");
-      router.push(`${pathName}?${params.toString()}`);
+      return `${pathName}?${params.toString()}`;
     },
-    [onRowClick, pathName, router, searchParams]
+    [pathName, searchParams]
   );
 
   return (
@@ -313,6 +319,7 @@ function TracesTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
+        getRowHref={getRowHref}
         lockedColumns={["status"]}
       >
         <div className="flex flex-1 pt-1 w-full h-full gap-2">

@@ -217,15 +217,23 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     [searchParams, tableData]
   );
 
-  const handleRowClick = (row: Row<EvaluationDatapointPreviewWithCompared>) => {
-    const original = row.original;
-    setTraceId(original.traceId);
-    setDatapointId(original.id);
-    const params = new URLSearchParams(searchParams);
-    params.set("traceId", original.traceId);
-    params.set("datapointId", original.id);
-    push(`${pathName}?${params.toString()}`);
-  };
+  const handleRowClick = useCallback(
+    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+      setTraceId(row.original.traceId);
+      setDatapointId(row.original.id);
+    },
+    []
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("datapointId", row.original.id);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
+  );
 
   const handleTraceChange = (id: string) => {
     const params = new URLSearchParams(searchParams);
@@ -336,6 +344,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             data={tableData}
             scores={scores}
             handleRowClick={handleRowClick}
+            getRowHref={getRowHref}
             hasMore={hasMorePages}
             isFetching={isFetchingPage}
             fetchNextPage={fetchNextPage}
