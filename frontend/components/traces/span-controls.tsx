@@ -12,6 +12,7 @@ import TagsTrigger from "@/components/tags/tags-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
+import { OpenInSqlEditor } from "@/components/traces/ui/open-in-sql-editor.tsx";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Event } from "@/lib/events/types";
@@ -97,6 +98,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </div>
             <TagsList />
             <EvaluatorScoresList spanId={span.spanId} />
+            <OpenInSqlEditor spanId={span.spanId} />
           </TagsContextProvider>
         </div>
 
