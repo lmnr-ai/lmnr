@@ -11,52 +11,24 @@ import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import ClustersTable from "@/components/events/clusters-table";
-import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
+import EventsTable from "@/components/events/events-table";
+import { EventNavigationItem, getEventsConfig } from "@/components/events/utils";
 import TraceView from "@/components/traces/trace-view";
-import TraceViewNavigationProvider, { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
+import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { EventRow } from "@/lib/events/types";
-import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils.ts";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
+import { cn } from "@/lib/utils";
 
 import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
 import Header from "../ui/header";
 
-type EventNavigationItem = {
-  traceId: string;
-  spanId: string;
-};
-
-const getEventsConfig = (): NavigationConfig<EventNavigationItem> => ({
-  getItemId: (item) => `${item.traceId}-${item.spanId}`,
-  updateSearchParams: (item, params) => {
-    params.set("traceId", item.traceId);
-    params.set("spanId", item.spanId);
-  },
-  getCurrentItem: (list, searchParams) => {
-    const traceId = searchParams.get("traceId");
-    const spanId = searchParams.get("spanId");
-    if (!traceId || !spanId) return null;
-
-    return list.find((item) => item.traceId === traceId && item.spanId === spanId) || null;
-  },
-});
-
-const FETCH_SIZE = 50;
-
-function EventsContentInner({
+function PureEvents({
   lastEvent,
   initialTraceViewWidth,
 }: {
@@ -70,7 +42,6 @@ function EventsContentInner({
   const ref = useRef<Resizable>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { workspace } = useProjectContext();
-  const { toast } = useToast();
 
   const {
     eventDefinition,
@@ -97,6 +68,7 @@ function EventsContentInner({
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+  const [events, setEvents] = useState<EventRow[]>([]);
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
@@ -139,63 +111,9 @@ function EventsContentInner({
     defaultTargetBars: 24,
   });
 
-  const fetchEvents = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (pastHours) {
-          urlParams.set("pastHours", pastHours);
-        }
-
-        if (startDate) {
-          urlParams.set("startDate", startDate);
-        }
-
-        if (endDate) {
-          urlParams.set("endDate", endDate);
-        }
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (eventDefinition.id) {
-          urlParams.set("eventDefinitionId", eventDefinition.id);
-        }
-
-        const response = await fetch(
-          `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}?${urlParams.toString()}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch events");
-        }
-
-        const data: { items: EventRow[]; count: number } = await response.json();
-        return { items: data.items, count: data.count };
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load events. Please try again.",
-          variant: "destructive",
-        });
-      }
-      return { items: [], count: 0 };
-    },
-    [eventDefinition.projectId, eventDefinition.name, eventDefinition.id, pastHours, startDate, endDate, filter]
-  );
-
-  const {
-    data: events,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-  } = useInfiniteScroll<EventRow>({
-    fetchFn: fetchEvents,
-    enabled: !!(pastHours || (startDate && endDate)),
-    deps: [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter],
-  });
+  const handleDataChange = useCallback((newEvents: EventRow[]) => {
+    setEvents(newEvents);
+  }, []);
 
   useEffect(() => {
     if (events) {
@@ -303,42 +221,32 @@ function EventsContentInner({
               </span>
             </div>
           </div>
-          {eventDefinition.id && (
-            <div className="min-h-[300px]">
+          <span className="text-lg font-semibold px-4">Clusters</span>
+          <div className="flex px-4 pb-4 max-h-96 h-full">
+            {eventDefinition.id && (
               <ClustersTable
                 projectId={eventDefinition.projectId}
                 eventDefinitionId={eventDefinition.id}
                 eventDefinitionName={eventDefinition.name}
               />
-            </div>
-          )}
+            )}
+          </div>
+          <span className="text-lg font-semibold px-4 mb-1">Events</span>
           <div className="flex flex-1 px-4 pb-4">
-            <InfiniteDataTable<EventRow>
-              className="w-full"
-              columns={eventsTableColumns}
-              data={events}
+            <EventsTable
+              projectId={eventDefinition.projectId}
+              eventName={eventDefinition.name}
+              eventDefinitionId={eventDefinition.id}
+              pastHours={pastHours}
+              startDate={startDate}
+              endDate={endDate}
+              filter={filter}
               onRowClick={handleRowClick}
-              getRowId={(row: EventRow) => row.id}
               focusedRowId={focusedRowId}
-              hasMore={hasMore}
-              isFetching={isFetching}
-              isLoading={isLoading}
-              // fetchNextPage={fetchNextPage}
-              fetchNextPage={() => { }}
+              onDataChange={handleDataChange}
             >
-              <div className="flex flex-1 w-full space-x-2">
-                <DateRangeFilter />
-                <DataTableFilter columns={eventsTableFilters} />
-                <ColumnsMenu
-                  columnLabels={eventsTableColumns.map((column) => ({
-                    id: column.id!,
-                    label: typeof column.header === "string" ? column.header : column.id!,
-                  }))}
-                />
-              </div>
-              <DataTableFilterList />
               <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
-            </InfiniteDataTable>
+            </EventsTable>
           </div>
         </div>
       </div>
@@ -376,20 +284,6 @@ function EventsContentInner({
   );
 }
 
-function EventsContent({
-  lastEvent,
-  initialTraceViewWidth,
-}: {
-  lastEvent?: { id: string; name: string; timestamp: string };
-  initialTraceViewWidth?: number;
-}) {
-  return (
-    <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
-      <EventsContentInner lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
-    </DataTableStateProvider>
-  );
-}
-
 export default function Events({
   lastEvent,
   initialTraceViewWidth,
@@ -414,7 +308,7 @@ export default function Events({
 
   return (
     <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <EventsContent lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+      <PureEvents lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </TraceViewNavigationProvider>
   );
 }

@@ -3,9 +3,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export type ClusterRow = {
   id: string;
@@ -20,7 +20,11 @@ export type ClusterRow = {
   subRows?: ClusterRow[];
 };
 
-export const getClusterColumns = (projectId: string, eventDefinitionId: string, eventDefinitionName: string): ColumnDef<ClusterRow, any>[] => [
+export const getClusterColumns = (
+  projectId: string,
+  eventDefinitionId: string,
+  eventDefinitionName: string
+): ColumnDef<ClusterRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
@@ -48,7 +52,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string, 
 
       // Create filter URL for events page with the cluster name
       // Preserve existing URL parameters
-      const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
+      const currentUrl = typeof window !== "undefined" ? new URL(window.location.href) : null;
       const params = currentUrl ? new URLSearchParams(currentUrl.search) : new URLSearchParams();
 
       // Add the cluster filter to existing filters
@@ -118,4 +122,3 @@ export const clustersTableFilters: ColumnFilter[] = [
     dataType: "number",
   },
 ];
-

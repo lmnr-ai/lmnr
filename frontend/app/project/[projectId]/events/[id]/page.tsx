@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import Events from "@/components/events/events";
+import Events from "@/components/events";
 import { EventsStoreProvider } from "@/components/events/events-store";
 import { EventDefinition, getEventDefinition } from "@/lib/actions/event-definitions";
 import { getLastEvent } from "@/lib/actions/events";

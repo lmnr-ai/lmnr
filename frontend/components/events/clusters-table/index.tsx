@@ -1,19 +1,23 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { get } from "lodash";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import {
   ClusterRow,
+  clustersTableFilters,
   defaultClustersColumnOrder,
   getClusterColumns,
-} from "@/components/events/clusters-columns";
+} from "@/components/events/clusters-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { useToast } from "@/lib/hooks/use-toast";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search.tsx";
+import { useToast } from "@/lib/hooks/use-toast.ts";
+
+import DataTableFilter, { DataTableFilterList } from "../../ui/infinite-datatable/ui/datatable-filter";
 
 interface ClustersTableProps {
   projectId: string;
@@ -21,27 +25,14 @@ interface ClustersTableProps {
   eventDefinitionName: string;
 }
 
-export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
-  return (
-    <DataTableStateProvider
-      storageKey={`clusters-table-${eventDefinitionId}`}
-      uniqueKey="clusterId"
-      defaultColumnOrder={defaultClustersColumnOrder}
-    >
-      <ClustersTableContent
-        projectId={projectId}
-        eventDefinitionId={eventDefinitionId}
-        eventDefinitionName={eventDefinitionName}
-      />
-    </DataTableStateProvider>
-  );
-}
-
-function ClustersTableContent({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
+function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
-  const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId, eventDefinitionName), [projectId, eventDefinitionId, eventDefinitionName]);
+  const columns = useMemo(
+    () => getClusterColumns(projectId, eventDefinitionId, eventDefinitionName),
+    [projectId, eventDefinitionId, eventDefinitionName]
+  );
 
   const filter = searchParams.getAll("clusterFilter");
   const search = searchParams.get("clusterSearch");
@@ -85,7 +76,7 @@ function ClustersTableContent({ projectId, eventDefinitionId, eventDefinitionNam
         throw error;
       }
     },
-    [projectId, eventDefinitionId, eventDefinitionName, toast, filter, search]
+    [projectId, eventDefinitionName, toast, filter, search]
   );
 
   const {
@@ -94,7 +85,6 @@ function ClustersTableContent({ projectId, eventDefinitionId, eventDefinitionNam
     isFetching,
     isLoading,
     fetchNextPage,
-    refetch,
     error,
   } = useInfiniteScroll<ClusterRow>({
     fetchFn: fetchClusters,
@@ -144,34 +134,46 @@ function ClustersTableContent({ projectId, eventDefinitionId, eventDefinitionNam
   }, []);
 
   return (
-    <div className="flex overflow-hidden">
-      <InfiniteDataTable<ClusterRow>
-        className="w-full"
-        columns={columns}
-        data={clusters}
-        getRowId={(cluster) => get(cluster, ["clusterId"], cluster.clusterId)}
-        onRowClick={handleRowClick}
-        hasMore={hasMore}
-        isFetching={isFetching}
-        isLoading={isLoading}
-        fetchNextPage={fetchNextPage}
-        error={error}
-      >
-        {/* <div className="flex flex-1 w-full space-x-2 pt-1">
-          <DataTableFilter columns={clustersTableFilters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-            lockedColumns={["expand"]}
-          />
-          <RefreshButton onClick={refetch} variant="outline" />
-          <DataTableSearch className="mr-0.5" placeholder="Search by cluster name..." />
-        </div> */}
-        {/* <DataTableFilterList /> */}
-      </InfiniteDataTable>
-    </div>
+    <InfiniteDataTable<ClusterRow>
+      className="w-full"
+      columns={columns}
+      data={clusters}
+      getRowId={(cluster) => cluster.clusterId}
+      onRowClick={handleRowClick}
+      hasMore={hasMore}
+      isFetching={isFetching}
+      isLoading={isLoading}
+      fetchNextPage={fetchNextPage}
+      error={error}
+    >
+      <div className="flex flex-1 w-full space-x-2 pt-1">
+        <DataTableFilter columns={clustersTableFilters} />
+        <ColumnsMenu
+          columnLabels={columns.map((column) => ({
+            id: column.id!,
+            label: typeof column.header === "string" ? column.header : column.id!,
+          }))}
+          lockedColumns={["expand"]}
+        />
+        <DataTableSearch className="mr-0.5" placeholder="Search by cluster name..." />
+      </div>
+      <DataTableFilterList />
+    </InfiniteDataTable>
   );
 }
 
+export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
+  return (
+    <DataTableStateProvider
+      storageKey={`clusters-table-${eventDefinitionId}`}
+      uniqueKey="clusterId"
+      defaultColumnOrder={defaultClustersColumnOrder}
+    >
+      <PureClustersTable
+        projectId={projectId}
+        eventDefinitionId={eventDefinitionId}
+        eventDefinitionName={eventDefinitionName}
+      />
+    </DataTableStateProvider>
+  );
+}
