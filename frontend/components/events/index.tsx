@@ -150,14 +150,10 @@ function PureEvents({
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
-      push(`${pathName}?${params.toString()}`);
       setTraceId(row.original.traceId);
       setSpanId(row.original.spanId);
     },
-    [pathName, push, searchParams, setTraceId, setSpanId]
+    [setTraceId, setSpanId]
   );
 
   const focusedRowId = useMemo(() => {
@@ -193,61 +189,59 @@ function PureEvents({
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
-      <div className="flex flex-col max-h-max overflow-auto">
-        <div className="flex flex-col h-[1000px]">
-          <div className="flex items-center gap-2 px-4 pb-4">
-            {!isFreeTier && (
-              <ManageEventDefinitionDialog
-                open={isDialogOpen}
-                setOpen={setIsDialogOpen}
-                defaultValues={eventDefinition}
-                key={eventDefinition.id}
-                onSuccess={handleSuccess}
-              >
-                <Button icon="edit" onClick={handleEditEvent}>
-                  Event Definition
-                </Button>
-              </ManageEventDefinitionDialog>
-            )}
-            <div>
-              <span className="text-xs text-muted-foreground font-medium">Last event: </span>
-              <span
-                title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-                className={cn("text-xs", {
-                  "text-muted-foreground": !lastEvent,
-                })}
-              >
-                {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-              </span>
-            </div>
-          </div>
-          <span className="text-lg font-semibold px-4">Clusters</span>
-          <div className="flex px-4 pb-4 max-h-96 h-full">
-            {eventDefinition.id && (
-              <ClustersTable
-                projectId={eventDefinition.projectId}
-                eventDefinitionId={eventDefinition.id}
-                eventDefinitionName={eventDefinition.name}
-              />
-            )}
-          </div>
-          <span className="text-lg font-semibold px-4 mb-1">Events</span>
-          <div className="flex flex-1 px-4 pb-4">
-            <EventsTable
-              projectId={eventDefinition.projectId}
-              eventName={eventDefinition.name}
-              eventDefinitionId={eventDefinition.id}
-              pastHours={pastHours}
-              startDate={startDate}
-              endDate={endDate}
-              filter={filter}
-              onRowClick={handleRowClick}
-              focusedRowId={focusedRowId}
-              onDataChange={handleDataChange}
+      <div className="flex flex-col overflow-auto">
+        <div className="flex items-center gap-2 px-4 pb-4">
+          {!isFreeTier && (
+            <ManageEventDefinitionDialog
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={eventDefinition}
+              key={eventDefinition.id}
+              onSuccess={handleSuccess}
             >
-              <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
-            </EventsTable>
+              <Button icon="edit" onClick={handleEditEvent}>
+                Event Definition
+              </Button>
+            </ManageEventDefinitionDialog>
+          )}
+          <div>
+            <span className="text-xs text-muted-foreground font-medium">Last event: </span>
+            <span
+              title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+              className={cn("text-xs", {
+                "text-muted-foreground": !lastEvent,
+              })}
+            >
+              {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+            </span>
           </div>
+        </div>
+        <span className="text-lg font-semibold px-4">Clusters</span>
+        <div className="flex px-4 pb-4 max-h-96 h-full">
+          {eventDefinition.id && (
+            <ClustersTable
+              projectId={eventDefinition.projectId}
+              eventDefinitionId={eventDefinition.id}
+              eventDefinitionName={eventDefinition.name}
+            />
+          )}
+        </div>
+        <span className="text-lg font-semibold px-4 mb-1">Events</span>
+        <div className="flex flex-1 px-4 pb-4">
+          <EventsTable
+            projectId={eventDefinition.projectId}
+            eventName={eventDefinition.name}
+            eventDefinitionId={eventDefinition.id}
+            pastHours={pastHours}
+            startDate={startDate}
+            endDate={endDate}
+            filter={filter}
+            onRowClick={handleRowClick}
+            focusedRowId={focusedRowId}
+            onDataChange={handleDataChange}
+          >
+            <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+          </EventsTable>
         </div>
       </div>
       {traceId && (

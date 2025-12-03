@@ -1,6 +1,7 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ReactNode, useCallback, useEffect } from "react";
 
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -44,6 +45,8 @@ function PureEventsTable({
   children,
 }: EventsTableProps) {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const pathName = usePathname();
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -89,6 +92,16 @@ function PureEventsTable({
     [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, toast]
   );
 
+  const getRowHref = useCallback(
+    (row: Row<EventRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("spanId", row.original.spanId);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
+  );
+
   const {
     data: events,
     hasMore,
@@ -118,6 +131,7 @@ function PureEventsTable({
       hasMore={hasMore}
       isFetching={isFetching}
       isLoading={isLoading}
+      getRowHref={getRowHref}
       fetchNextPage={fetchNextPage}
     >
       <div className="flex flex-1 w-full space-x-2">

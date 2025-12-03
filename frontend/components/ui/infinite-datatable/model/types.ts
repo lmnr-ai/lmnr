@@ -30,6 +30,7 @@ export interface InfiniteDataTableProps<TData extends RowData>
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   error?: Error | null;
+  getRowHref?: (row: Row<TData>) => string;
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
@@ -51,8 +52,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   loadMoreRef: RefObject<HTMLTableRowElement | null>;
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
-  error?: Error | null;
-  columnOrder: string[];
+  getRowHref?: (row: Row<TData>) => string;
 }
 
 export interface InfiniteDataTableRowProps<TData extends RowData> {
@@ -60,8 +60,8 @@ export interface InfiniteDataTableRowProps<TData extends RowData> {
   row: Row<TData>;
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick?: (row: Row<TData>) => void;
+  href?: string;
   focusedRowId?: string | null;
-  columnOrder: string[];
 }
 
 export interface SelectionPanelProps {

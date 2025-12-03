@@ -126,14 +126,20 @@ function SpansTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<SpanRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
-      router.push(`${pathName}?${params.toString()}`);
       setTraceId(row.original.traceId);
       setSpanId(row.original.spanId);
     },
-    [pathName, router, searchParams, setSpanId, setTraceId]
+    [setSpanId, setTraceId]
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<SpanRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("spanId", row.original.spanId);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
   );
 
   return (
@@ -144,6 +150,7 @@ function SpansTableContent() {
         data={spans}
         getRowId={(span) => span.spanId}
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
         focusedRowId={spanId || searchParams.get("spanId")}
         hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}

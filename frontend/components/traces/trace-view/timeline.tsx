@@ -10,15 +10,15 @@ function Timeline() {
   const ref = useRef<HTMLDivElement>(null);
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
 
-  const { getTimelineData, zoom, selectedSpan, setSelectedSpan, isSpansLoading } = useTraceViewStoreContext(
-    (state) => ({
+  const { getTimelineData, zoom, selectedSpan, setSelectedSpan, isSpansLoading, browserSession } =
+    useTraceViewStoreContext((state) => ({
       getTimelineData: state.getTimelineData,
       zoom: state.zoom,
       selectedSpan: state.selectedSpan,
       setSelectedSpan: state.setSelectedSpan,
       isSpansLoading: state.isSpansLoading,
-    })
-  );
+      browserSession: state.browserSession,
+    }));
 
   const store = useTraceViewStore();
 
@@ -32,19 +32,26 @@ function Timeline() {
   });
 
   useEffect(() => {
+    const currentSessionTime = store.getState().sessionTime || 0;
+    if (sessionTimeNeedleRef.current && timelineWidthInMilliseconds > 0) {
+      const leftPosition = ((currentSessionTime * 1000) / timelineWidthInMilliseconds) * 100;
+      sessionTimeNeedleRef.current.style.left = `${Math.max(0, Math.min(100, leftPosition))}%`;
+      sessionTimeNeedleRef.current.style.display = browserSession && currentSessionTime ? "block" : "none";
+    }
+
     const unsubscribe = store.subscribe((state, prevState) => {
-      if (state.sessionTime !== prevState.sessionTime) {
+      if (state.sessionTime !== prevState.sessionTime || state.browserSession !== prevState.browserSession) {
         const sessionTime = state.sessionTime || 0;
         if (sessionTimeNeedleRef.current && timelineWidthInMilliseconds > 0) {
           const leftPosition = ((sessionTime * 1000) / timelineWidthInMilliseconds) * 100;
           sessionTimeNeedleRef.current.style.left = `${Math.max(0, Math.min(100, leftPosition))}%`;
-          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
+          sessionTimeNeedleRef.current.style.display = state.browserSession && sessionTime ? "block" : "none";
         }
       }
     });
 
     return unsubscribe;
-  }, [store, timelineWidthInMilliseconds]);
+  }, [store, timelineWidthInMilliseconds, browserSession]);
 
   const items = virtualizer.getVirtualItems();
 

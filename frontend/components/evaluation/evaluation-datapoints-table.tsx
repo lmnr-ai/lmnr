@@ -34,6 +34,7 @@ interface EvaluationDatapointsTableProps {
   data: EvaluationDatapointPreview[] | undefined;
   scores: string[];
   handleRowClick: (row: Row<EvaluationDatapointPreviewWithCompared>) => void;
+  getRowHref?: (row: Row<EvaluationDatapointPreviewWithCompared>) => string;
   hasMore: boolean;
   isFetching: boolean;
   fetchNextPage: () => void;
@@ -55,6 +56,7 @@ const EvaluationDatapointsTableContent = ({
   data,
   scores,
   handleRowClick,
+  getRowHref,
   datapointId,
   isLoading,
   hasMore,
@@ -141,6 +143,7 @@ const EvaluationDatapointsTableContent = ({
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
         className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">

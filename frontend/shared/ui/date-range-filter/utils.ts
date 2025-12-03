@@ -1,6 +1,6 @@
 import { differenceInHours, differenceInMinutes, subHours } from "date-fns";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { DateRange as ReactDateRange } from "react-day-picker";
 
 export type DateRange = {
@@ -39,11 +39,11 @@ export const useDateRangeState = () => {
   const [startTime, setStartTime] = useState<string>("00:00");
   const [endTime, setEndTime] = useState<string>("00:00");
 
-  const displayRange = useMemo(() => {
+  const getDisplayRange = () => {
     if (startDate && endDate) {
       return { from: new Date(startDate), to: new Date(endDate) };
     }
-    if (pastHours && pastHours !== "all") {
+    if (pastHours) {
       const parsedHours = parseInt(pastHours);
       if (!isNaN(parsedHours)) {
         const to = new Date();
@@ -51,13 +51,10 @@ export const useDateRangeState = () => {
         return { from, to };
       }
     }
-    if (pastHours === "all") {
-      return null;
-    }
     const to = new Date();
     const from = subHours(to, 24);
     return { from, to };
-  }, [startDate, endDate, pastHours]);
+  };
 
   useEffect(() => {
     if (startDate && endDate) {
@@ -79,7 +76,7 @@ export const useDateRangeState = () => {
 
   return {
     pastHours,
-    displayRange,
+    getDisplayRange,
     calendarDate,
     setCalendarDate,
     startTime,

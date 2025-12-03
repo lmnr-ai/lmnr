@@ -1,6 +1,6 @@
-import { ColumnDef, Row } from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import useSWR from "swr";
 
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -59,13 +59,6 @@ function EvaluationsGroupsBarContent() {
     },
   ];
 
-  const handleRowClick = useCallback(
-    (row: Row<EvaluationGroup>) => {
-      router.push(`/project/${projectId}/evaluations?groupId=${row.original.groupId}`);
-    },
-    [projectId, router]
-  );
-
   return (
     <div className="max-w-80 flex flex-1 flex-col gap-2">
       <div className="flex overflow-hidden">
@@ -75,7 +68,7 @@ function EvaluationsGroupsBarContent() {
           data={groups || []}
           getRowId={(row) => row.groupId}
           focusedRowId={groupId}
-          onRowClick={handleRowClick}
+          getRowHref={(row) => `/project/${projectId}/evaluations?groupId=${row.original.groupId}`}
           hasMore={false}
           isFetching={false}
           isLoading={isLoading}

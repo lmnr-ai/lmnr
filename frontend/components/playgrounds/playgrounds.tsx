@@ -168,9 +168,7 @@ const PlaygroundsContent = () => {
         <CreatePlaygroundDialog />
         <InfiniteDataTable
           enableRowSelection={true}
-          onRowClick={(row) => {
-            router.push(`/project/${projectId}/playgrounds/${row.original.id}`);
-          }}
+          getRowHref={(row) => `/project/${projectId}/playgrounds/${row.original.id}`}
           getRowId={(row) => row.id}
           columns={columns}
           data={playgrounds ?? []}

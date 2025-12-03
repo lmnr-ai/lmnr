@@ -36,6 +36,7 @@ export type EvaluationDatapointPreview = {
   endTime: string;
   inputCost: number;
   outputCost: number;
+  totalCost: number;
   datasetId?: string;
   datasetDatapointId?: string;
   datasetDatapointCreatedAt?: string;
@@ -49,6 +50,7 @@ export type EvaluationDatapointPreviewWithCompared = {
   comparedEndTime?: string;
   comparedInputCost?: number;
   comparedOutputCost?: number;
+  comparedTotalCost?: number;
   comparedTraceId?: string;
 } & EvaluationDatapointPreview;
 
