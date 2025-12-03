@@ -46,9 +46,7 @@ export async function getSharedSpanImages(input: z.infer<typeof GetSharedSpanIma
   }>;
 
   return chData.flatMap((spanData) => {
-    const input = tryParseJson(spanData.input);
-
-    const inputImages = input ? extractImagesFromMessages(transformMessages(input, spanData.project_id, "public").messages) : [];
+    const inputImages = extractImagesFromMessages(transformMessages(spanData.input, spanData.project_id, "public").messages);
 
     return inputImages.map(
       (imageUrl): SharedSpanImage => ({
@@ -80,19 +78,3 @@ function extractImagesFromMessages(messages: any): string[] {
     .slice(0, 1);
 }
 
-const tryParseJson = (value: string) => {
-  if (value === "" || value === undefined) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch (e) {
-    // Parse with brackets because we used to stringify array using comma separator on server.
-    // This is no longer the case, but we'll keep this for backwards compatibility.
-    try {
-      return JSON.parse(`[${value}]`);
-    } catch (e2) {
-      console.log("Failed to parse JSON with brackets:", e2);
-      return value;
-    }
-  }
-};
