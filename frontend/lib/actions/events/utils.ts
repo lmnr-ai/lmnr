@@ -1,4 +1,5 @@
 import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -14,6 +15,19 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
     ["id", createStringFilter],
     ["user_id", createStringFilter],
     ["session_id", createStringFilter],
+    [
+      "cluster",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(clusters, {${paramKey}:UUID})`;
+          } else {
+            return `NOT has(clusters, {${paramKey}:UUID})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
     [
       "attributes",
       createCustomFilter(

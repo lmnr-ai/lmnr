@@ -5,6 +5,10 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { Event, EventRow } from "@/lib/events/types";
+import { db } from "@/lib/db/drizzle";
+import { eventClusters } from "@/lib/db/migrations/schema";
+import { and, eq } from "drizzle-orm";
+import { Filter } from "@/lib/actions/common/filters";
 
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
@@ -67,9 +71,38 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
+  // Resolve cluster names to cluster IDs (lazy - only if cluster filters exist)
+  let processedFilters = filters;
+
+  const hasClusterFilter = filters.some((f) => f.column === "cluster");
+  if (hasClusterFilter) {
+    const clustersList = await db
+      .select()
+      .from(eventClusters)
+      .where(and(eq(eventClusters.projectId, projectId), eq(eventClusters.eventName, eventName)));
+
+    // Replace cluster names with cluster IDs, remove filters for non-existent clusters
+    processedFilters = filters
+      .map((filter) => {
+        if (filter.column === "cluster") {
+          const cluster = clustersList.find((c) => c.name === filter.value);
+          if (cluster) {
+            return { ...filter, value: cluster.id };
+          } else {
+            // Cluster doesn't exist - log warning and filter it out
+            console.warn(`Cluster "${filter.value}" not found in event clusters`);
+            return null;
+          }
+        }
+        return filter;
+      })
+      .filter((f): f is Filter => f !== null);
+
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
     eventName,
-    filters,
+    filters: processedFilters,
     limit,
     offset,
     startTime: startDate,
@@ -79,7 +112,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
     eventName,
-    filters,
+    filters: processedFilters,
     startTime: startDate,
     endTime: endDate,
     pastHours,

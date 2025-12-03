@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, clusters, dashboardCharts, datasetDatapoints, datasetExportJobs, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans, sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces,tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, clusters, dashboardCharts, datasetDatapoints, datasetExportJobs, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventClusters, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans, sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces,tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
   dataset: one(datasets, {
@@ -51,6 +51,7 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
   projectSettings: many(projectSettings),
+  eventClusters: many(eventClusters),
   tagClasses: many(tagClasses),
   clusters: many(clusters),
   spans: many(spans),
@@ -340,6 +341,13 @@ export const sharedPayloadsRelations = relations(sharedPayloads, ({one}) => ({
 export const projectSettingsRelations = relations(projectSettings, ({one}) => ({
   project: one(projects, {
     fields: [projectSettings.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const eventClustersRelations = relations(eventClusters, ({one}) => ({
+  project: one(projects, {
+    fields: [eventClusters.projectId],
     references: [projects.id]
   }),
 }));

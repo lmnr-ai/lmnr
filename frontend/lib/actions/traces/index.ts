@@ -1,5 +1,4 @@
 
-import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -11,8 +10,6 @@ import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { clusters } from "@/lib/db/migrations/schema";
 import { TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -82,39 +79,11 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)
-  let processedFilters = filters;
-
-  const hasPatternFilter = filters.some((f) => f.column === "pattern");
-  if (hasPatternFilter) {
-    const clustersList = await db
-      .select()
-      .from(clusters)
-      .where(eq(clusters.projectId, projectId));
-
-    // Replace pattern names with cluster IDs, remove filters for non-existent patterns
-    processedFilters = filters
-      .map((filter) => {
-        if (filter.column === "pattern") {
-          const cluster = clustersList.find((c) => c.name === filter.value);
-          if (cluster) {
-            return { ...filter, value: cluster.id };
-          } else {
-            // Pattern doesn't exist - log warning and filter it out
-            console.warn(`Pattern "${filter.value}" not found in clusters for project ${projectId}`);
-            return null;
-          }
-        }
-        return filter;
-      })
-      .filter((f): f is Filter => f !== null);
-  }
-
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
     traceIds,
-    filters: processedFilters,
+    filters,
     limit,
     offset,
     startTime,

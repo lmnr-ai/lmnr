@@ -78,6 +78,11 @@ export const eventsTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
+    name: "Cluster",
+    key: "cluster",
+    dataType: "string",
+  },
+  {
     name: "Attributes",
     key: "attributes",
     dataType: "json",

@@ -1,10 +1,10 @@
-import { and, desc, eq, ilike } from "drizzle-orm";
+import { and, desc, eq, ilike, ne } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { clusters, projects } from "@/lib/db/migrations/schema";
+import { eventClusters, eventDefinitions, projects } from "@/lib/db/migrations/schema";
 
 export type Cluster = {
   id: string;
@@ -18,46 +18,70 @@ export type Cluster = {
   updatedAt: string;
 };
 
+export type EventCluster = {
+  id: string;
+  projectId: string;
+  eventName: string;
+  name: string;
+  parentId: string | null;
+  level: number;
+  numChildrenClusters: number;
+  numEvents: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const GetClustersSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
   search: z.string().nullable().optional(),
 });
 
-export async function getClusters(input: z.infer<typeof GetClustersSchema>): Promise<{ items: Cluster[] }> {
-  const { projectId, pageNumber, pageSize, search, filter } = input;
+export const GetEventClustersSchema = PaginationFiltersSchema.extend({
+  projectId: z.string(),
+  eventName: z.string(),
+  search: z.string().nullable().optional(),
+});
+
+
+export async function getEventClusters(input: z.infer<typeof GetEventClustersSchema>): Promise<{ items: EventCluster[] }> {
+  const { projectId, eventName, pageNumber, pageSize, search, filter } = input;
 
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const whereConditions = [eq(clusters.projectId, projectId)];
+  const whereConditions = [
+    eq(eventClusters.projectId, projectId),
+    eq(eventClusters.eventName, eventName),
+    ne(eventClusters.level, 0),
+  ];
 
   if (search) {
-    whereConditions.push(ilike(clusters.name, `%${search}%`));
+    whereConditions.push(ilike(eventClusters.name, `%${search}%`));
   }
 
   const filterConditions = parseFilters(filter, {
-    name: { type: "string", column: clusters.name },
-    numChildrenPatterns: { type: "number", column: clusters.numChildrenClusters },
-    numTraces: { type: "number", column: clusters.numTraces },
+    name: { type: "string", column: eventClusters.name },
+    numChildrenClusters: { type: "number", column: eventClusters.numChildrenClusters },
+    numEvents: { type: "number", column: eventClusters.numEvents },
   } as const);
   whereConditions.push(...filterConditions);
 
   const result = await db
     .select({
-      id: clusters.id,
-      projectId: clusters.projectId,
-      name: clusters.name,
-      parentId: clusters.parentId,
-      level: clusters.level,
-      numChildrenClusters: clusters.numChildrenClusters,
-      numTraces: clusters.numTraces,
-      createdAt: clusters.createdAt,
-      updatedAt: clusters.updatedAt,
+      id: eventClusters.id,
+      projectId: eventClusters.projectId,
+      eventName: eventClusters.eventName,
+      name: eventClusters.name,
+      parentId: eventClusters.parentId,
+      level: eventClusters.level,
+      numChildrenClusters: eventClusters.numChildrenClusters,
+      numEvents: eventClusters.numEvents,
+      createdAt: eventClusters.createdAt,
+      updatedAt: eventClusters.updatedAt,
     })
-    .from(clusters)
-    .innerJoin(projects, eq(clusters.projectId, projects.id))
+    .from(eventClusters)
     .where(and(...whereConditions))
-    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt)
+    .orderBy(desc(eventClusters.numEvents), eventClusters.level, eventClusters.createdAt)
     .limit(limit)
     .offset(offset);
 

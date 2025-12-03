@@ -59,20 +59,11 @@ const UsageDisplay = ({
 
 const ProjectSidebarContent = ({
   details: { id, workspaceId, isFreeTier, gbUsedThisMonth, gbLimit },
-  shouldShowPatterns = false,
 }: {
   details: ProjectDetails;
-  shouldShowPatterns?: boolean;
 }) => {
   const pathname = usePathname();
-  const options = useMemo(() => {
-    const allMenus = getSidebarMenus(id);
-    // Filter out patterns if feature flag is disabled
-    if (!shouldShowPatterns) {
-      return allMenus.filter((menu) => menu.name !== "patterns");
-    }
-    return allMenus;
-  }, [id, shouldShowPatterns]);
+  const options = useMemo(() => getSidebarMenus(id), [id]);
   const { open, openMobile } = useSidebar();
 
   return (

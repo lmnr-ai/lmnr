@@ -10,6 +10,7 @@ import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
+import ClustersTable from "@/components/events/clusters-table";
 import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "@/components/events/columns.tsx";
 import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
@@ -134,6 +135,7 @@ function EventsContentInner({
     startDate,
     endDate,
     filters: filter,
+    additionalParams: eventDefinition.id ? { eventDefinitionId: eventDefinition.id } : {},
     defaultTargetBars: 24,
   });
 
@@ -158,6 +160,10 @@ function EventsContentInner({
 
         filter.forEach((f) => urlParams.append("filter", f));
 
+        if (eventDefinition.id) {
+          urlParams.set("eventDefinitionId", eventDefinition.id);
+        }
+
         const response = await fetch(
           `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}?${urlParams.toString()}`
         );
@@ -176,7 +182,7 @@ function EventsContentInner({
       }
       return { items: [], count: 0 };
     },
-    [eventDefinition.projectId, eventDefinition.name, pastHours, startDate, endDate, filter]
+    [eventDefinition.projectId, eventDefinition.name, eventDefinition.id, pastHours, startDate, endDate, filter]
   );
 
   const {
@@ -269,59 +275,71 @@ function EventsContentInner({
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
-      <div className="flex flex-col overflow-hidden">
-        <div className="flex items-center gap-2 px-4 pb-4">
-          {!isFreeTier && (
-            <ManageEventDefinitionDialog
-              open={isDialogOpen}
-              setOpen={setIsDialogOpen}
-              defaultValues={eventDefinition}
-              key={eventDefinition.id}
-              onSuccess={handleSuccess}
-            >
-              <Button icon="edit" onClick={handleEditEvent}>
-                Event Definition
-              </Button>
-            </ManageEventDefinitionDialog>
-          )}
-          <div>
-            <span className="text-xs text-muted-foreground font-medium">Last event: </span>
-            <span
-              title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-              className={cn("text-xs", {
-                "text-muted-foreground": !lastEvent,
-              })}
-            >
-              {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-            </span>
+      <div className="flex flex-col max-h-max overflow-auto">
+        <div className="flex flex-col h-[1000px]">
+          <div className="flex items-center gap-2 px-4 pb-4">
+            {!isFreeTier && (
+              <ManageEventDefinitionDialog
+                open={isDialogOpen}
+                setOpen={setIsDialogOpen}
+                defaultValues={eventDefinition}
+                key={eventDefinition.id}
+                onSuccess={handleSuccess}
+              >
+                <Button icon="edit" onClick={handleEditEvent}>
+                  Event Definition
+                </Button>
+              </ManageEventDefinitionDialog>
+            )}
+            <div>
+              <span className="text-xs text-muted-foreground font-medium">Last event: </span>
+              <span
+                title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+                className={cn("text-xs", {
+                  "text-muted-foreground": !lastEvent,
+                })}
+              >
+                {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex flex-1 overflow-hidden px-4 pb-4">
-          <InfiniteDataTable<EventRow>
-            className="w-full"
-            columns={eventsTableColumns}
-            data={events}
-            onRowClick={handleRowClick}
-            getRowId={(row: EventRow) => row.id}
-            focusedRowId={focusedRowId}
-            hasMore={hasMore}
-            isFetching={isFetching}
-            isLoading={isLoading}
-            fetchNextPage={fetchNextPage}
-          >
-            <div className="flex flex-1 w-full space-x-2">
-              <DateRangeFilter />
-              <DataTableFilter columns={eventsTableFilters} />
-              <ColumnsMenu
-                columnLabels={eventsTableColumns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
+          {eventDefinition.id && (
+            <div className="min-h-[300px]">
+              <ClustersTable
+                projectId={eventDefinition.projectId}
+                eventDefinitionId={eventDefinition.id}
+                eventDefinitionName={eventDefinition.name}
               />
             </div>
-            <DataTableFilterList />
-            <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
-          </InfiniteDataTable>
+          )}
+          <div className="flex flex-1 px-4 pb-4">
+            <InfiniteDataTable<EventRow>
+              className="w-full"
+              columns={eventsTableColumns}
+              data={events}
+              onRowClick={handleRowClick}
+              getRowId={(row: EventRow) => row.id}
+              focusedRowId={focusedRowId}
+              hasMore={hasMore}
+              isFetching={isFetching}
+              isLoading={isLoading}
+              // fetchNextPage={fetchNextPage}
+              fetchNextPage={() => { }}
+            >
+              <div className="flex flex-1 w-full space-x-2">
+                <DateRangeFilter />
+                <DataTableFilter columns={eventsTableFilters} />
+                <ColumnsMenu
+                  columnLabels={eventsTableColumns.map((column) => ({
+                    id: column.id!,
+                    label: typeof column.header === "string" ? column.header : column.id!,
+                  }))}
+                />
+              </div>
+              <DataTableFilterList />
+              <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+            </InfiniteDataTable>
+          </div>
         </div>
       </div>
       {traceId && (
