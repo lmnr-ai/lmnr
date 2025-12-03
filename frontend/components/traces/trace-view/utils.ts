@@ -246,6 +246,17 @@ export const getSpanDisplayName = (span:TraceViewSpan) => {
 
 
 export const getLLMMetrics = (span:TraceViewSpan)=>{
+  if (span.aggregatedMetrics?.hasLLMDescendants) {
+    const cost = span.aggregatedMetrics.totalCost.toFixed(3);
+    const totalTokens = span.aggregatedMetrics.totalTokens;
+
+    return {
+      cost,
+      totalTokens,
+      isAggregated: true,
+    };
+  }
+
   if (span.spanType !== "LLM") return null;
 
   const costValue = span.attributes["gen_ai.usage.cost"];
@@ -257,5 +268,5 @@ export const getLLMMetrics = (span:TraceViewSpan)=>{
   const cost = costValue.toFixed(3);
   const totalTokens = inputTokens + outputTokens;
 
-  return { cost, totalTokens };
+  return { cost, totalTokens, isAggregated: false };
 };

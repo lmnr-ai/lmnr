@@ -35,6 +35,15 @@ export type TraceViewSpan = {
   model?: string;
   pending?: boolean;
   collapsed: boolean;
+  aggregatedMetrics?: {
+    totalCost: number;
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    inputCost: number;
+    outputCost: number;
+    hasLLMDescendants: boolean;
+  };
 };
 
 export type TraceViewTrace = {
