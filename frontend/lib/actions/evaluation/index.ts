@@ -192,6 +192,7 @@ export const getEvaluationDatapoints = async (
       endTime: trace?.endTime ?? "",
       inputCost: trace?.inputCost ?? 0,
       outputCost: trace?.outputCost ?? 0,
+      totalCost: trace?.totalCost ?? 0,
       status: trace?.status ?? null,
       metadata,
       datasetId: row.datasetId,

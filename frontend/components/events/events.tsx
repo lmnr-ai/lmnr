@@ -226,14 +226,20 @@ function EventsContentInner({
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
-      push(`${pathName}?${params.toString()}`);
       setTraceId(row.original.traceId);
       setSpanId(row.original.spanId);
     },
-    [pathName, push, searchParams, setTraceId, setSpanId]
+    [setTraceId, setSpanId]
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<EventRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("spanId", row.original.spanId);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
   );
 
   const focusedRowId = useMemo(() => {
@@ -302,6 +308,7 @@ function EventsContentInner({
             columns={eventsTableColumns}
             data={events}
             onRowClick={handleRowClick}
+            getRowHref={getRowHref}
             getRowId={(row: EventRow) => row.id}
             focusedRowId={focusedRowId}
             hasMore={hasMore}

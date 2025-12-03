@@ -372,7 +372,7 @@ export const buildTracesForEvaluationQueryWithParams = (options: BuildTracesForE
         createCustomFilter(
           (filter, paramKey) => {
             const opSymbol = OperatorLabelMap[filter.operator as Operator];
-            return `(input_cost + output_cost) ${opSymbol} {${paramKey}:Float64}`;
+            return `total_cost ${opSymbol} {${paramKey}:Float64}`;
           },
           (filter, paramKey) => ({ [paramKey]: parseFloat(String(filter.value)) })
         ),

@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { flexRender, Header, RowData } from "@tanstack/react-table";
 import { ChevronDown, EyeOff } from "lucide-react";
-import { CSSProperties } from "react";
+import React, { CSSProperties } from "react";
 import { useStore } from "zustand";
 
 import { TableHead } from "@/components/ui/table.tsx";
@@ -123,3 +123,21 @@ export function InfiniteTableHead<TData extends RowData>({
     </TableHead>
   );
 }
+
+export const DraggingTableHeadOverlay = <TData,>({ header }: { header: Header<TData, unknown> | null }) => {
+  if (!header) return null;
+
+  return (
+    <div
+      className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+      style={{
+        width: header.getSize(),
+        height: 32,
+      }}
+    >
+      <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+        <div className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</div>
+      </div>
+    </div>
+  );
+};

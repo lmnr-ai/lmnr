@@ -1,6 +1,5 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -133,12 +132,6 @@ function PatternsTableContent() {
     return rootPatterns;
   }, [rawPatterns, filter, search]);
 
-  const handleRowClick = useCallback((row: Row<PatternRow>) => {
-    if (row.original.numChildrenClusters > 0) {
-      row.toggleExpanded();
-    }
-  }, []);
-
   return (
     <div className="flex overflow-hidden px-4 pb-6">
       <InfiniteDataTable<PatternRow>
@@ -146,7 +139,6 @@ function PatternsTableContent() {
         columns={columns}
         data={patterns}
         getRowId={(pattern) => get(pattern, ["clusterId"], pattern.clusterId)}
-        onRowClick={handleRowClick}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading}

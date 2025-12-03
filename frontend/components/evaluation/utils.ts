@@ -9,14 +9,16 @@ export type DisplayValue = string | number;
 export const calculateDuration = (startTime: string, endTime: string): number =>
   (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000;
 
-export const calculateTotalCost = (inputCost: number, outputCost: number): number => round(inputCost + outputCost, 5);
-
-export const formatCost = (cost: number): string => `${cost.toFixed(5)}$`;
+export const calculateTotalCost = (inputCost: number, outputCost: number, totalCost: number): number => {
+  const value = totalCost > 0 ? Math.max(inputCost + outputCost, totalCost) : inputCost + outputCost;
+  return round(value, 5);
+};
 
 export const formatCostIntl = (cost: number): string =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    minimumFractionDigits: 0,
     maximumSignificantDigits: 5,
   }).format(cost);
 

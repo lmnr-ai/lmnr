@@ -160,7 +160,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
           </Link>
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
-          <ResizablePanelGroup direction="vertical">
+          <ResizablePanelGroup id="shared-trace-panels" direction="vertical">
             <ResizablePanel className="flex size-full">
               <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
                 <div className="h-10 flex py-3 items-center border-b gap-x-2 px-2">

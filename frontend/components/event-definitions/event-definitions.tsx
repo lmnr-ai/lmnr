@@ -1,7 +1,6 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import {
@@ -37,7 +36,6 @@ export default function EventDefinitions() {
 }
 
 function EventDefinitionsContent() {
-  const router = useRouter();
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { workspace } = useProjectContext();
@@ -102,13 +100,6 @@ function EventDefinitionsContent() {
     deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
 
-  const handleRowClick = useCallback(
-    (row: Row<EventDefinitionRow>) => {
-      router.push(`/project/${projectId}/events/${row.original.id}`);
-    },
-    [projectId, router]
-  );
-
   const handleSuccess = useCallback(async () => {
     await refetch();
   }, [refetch]);
@@ -161,7 +152,7 @@ function EventDefinitionsContent() {
           columns={columns}
           data={eventDefinitions}
           getRowId={(row) => row.id}
-          onRowClick={handleRowClick}
+          getRowHref={(row) => `/project/${projectId}/events/${row.original.id}`}
           hasMore={hasMore}
           isFetching={isFetching}
           isLoading={isLoading}
