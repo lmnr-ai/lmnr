@@ -60,7 +60,7 @@ interface ClickHouseSpan {
 export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVisibilitySchema>) {
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
-  const [llmResult, defaultResult] = await Promise.all([
+  const [llmResult, nonLlmResult] = await Promise.all([
     clickhouseClient.query({
       query: `
         SELECT *
@@ -90,12 +90,12 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
   ]);
 
   const llmSpans = (await llmResult.json()) as ClickHouseSpan[];
-  const defaultSpans = (await defaultResult.json()) as ClickHouseSpan[];
+  const nonLlmSpans = (await nonLlmResult.json()) as ClickHouseSpan[];
 
   /**
    * 1. Parse span image url's, and extract payload id's
    */
-  const parseResult = [...llmSpans, ...defaultSpans]
+  const parseResult = [...llmSpans, ...nonLlmSpans]
     .map((span) => {
       const input = transformMessages(span.input, projectId, visibility);
       const output = transformMessages(span.output, projectId, visibility);
