@@ -78,14 +78,14 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
         FROM spans
         WHERE trace_id = {traceId: UUID} 
           AND project_id = {projectId: UUID}
-          AND span_type = {defaultSpanType: UInt8}
+          AND span_type != {llmSpanType: UInt8}
           AND (
             startsWith(input, {payloadUrlOpen: String}) 
             OR startsWith(output, {payloadUrlOpen: String})
           )
       `,
       format: "JSONEachRow",
-      query_params: { traceId, projectId, defaultSpanType: 0, payloadUrlOpen: `<${PAYLOAD_URL_TAG}>` },
+      query_params: { traceId, projectId, llmSpanType: 1, payloadUrlOpen: `<${PAYLOAD_URL_TAG}>` },
     }),
   ]);
 
