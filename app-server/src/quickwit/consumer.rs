@@ -41,7 +41,10 @@ pub struct QuickwitIndexerHandler {
 impl MessageHandler for QuickwitIndexerHandler {
     type Message = Vec<QuickwitIndexedSpan>;
 
-    async fn handle(&self, mut indexed_spans: Self::Message) -> Result<(), crate::worker::HandlerError> {
+    async fn handle(
+        &self,
+        mut indexed_spans: Self::Message,
+    ) -> Result<(), crate::worker::HandlerError> {
         if indexed_spans.is_empty() {
             return Ok(());
         }
@@ -68,7 +71,7 @@ impl MessageHandler for QuickwitIndexerHandler {
                         log::warn!("Failed to reconnect to Quickwit: {:?}", err);
                     }
                 });
-                
+
                 // Requeue - Quickwit might be temporarily down
                 crate::worker::HandlerError::transient(e)
             })?;

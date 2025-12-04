@@ -124,7 +124,9 @@ impl MessageHandler for EvaluatorHandler {
                 score,
             )
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to insert evaluator score to ClickHouse: {}", e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to insert evaluator score to ClickHouse: {}", e)
+            })?;
         } else {
             log::info!(
                 "Evaluator returned null score (skipped) for span_id: {}",

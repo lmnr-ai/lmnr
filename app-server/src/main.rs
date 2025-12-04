@@ -515,9 +515,6 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    // ==== Slack client ====
-    let slack_client = Arc::new(reqwest::Client::new());
-
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
@@ -874,14 +871,10 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
-                        let slack_client = slack_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
                             num_notification_workers as usize,
-                            move || NotificationHandler {
-                                db: db.clone(),
-                                slack_client: slack_client.clone(),
-                            },
+                            move || NotificationHandler::new(db.clone(), reqwest::Client::new()),
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,
                                 exchange_name: NOTIFICATIONS_EXCHANGE,

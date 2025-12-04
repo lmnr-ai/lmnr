@@ -60,7 +60,13 @@ pub async fn push_to_notification_queue(
 /// Handler for notifications
 pub struct NotificationHandler {
     pub db: Arc<DB>,
-    pub slack_client: Arc<Client>,
+    pub slack_client: reqwest::Client,
+}
+
+impl NotificationHandler {
+    pub fn new(db: Arc<DB>, slack_client: reqwest::Client) -> Self {
+        Self { db, slack_client }
+    }
 }
 
 #[async_trait]
@@ -69,7 +75,7 @@ impl MessageHandler for NotificationHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
         let NotificationType::Slack = message.notification_type;
-        
+
         let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
             .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
 
@@ -78,12 +84,10 @@ impl MessageHandler for NotificationHandler {
             SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
         };
 
-        let integration = crate::db::slack_integrations::get_integration_by_id(
-            &self.db.pool,
-            &integration_id,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+        let integration =
+            crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
 
         if let Some(integration) = integration {
             let decrypted_token = slack::decode_slack_token(
@@ -105,21 +109,19 @@ impl MessageHandler for NotificationHandler {
             let channel_id = slack::get_channel_id(&slack_payload);
 
             // Send the message with blocks and channel_id
-            slack::send_message(
-                self.slack_client.as_ref(),
-                &decrypted_token,
-                channel_id,
-                blocks,
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+            slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
             log::debug!(
                 "Successfully sent Slack notification for trace_id={}",
                 message.trace_id
             );
         } else {
-            log::warn!("Slack integration not found for integration_id: {}", integration_id);
+            log::warn!(
+                "Slack integration not found for integration_id: {}",
+                integration_id
+            );
         }
 
         Ok(())

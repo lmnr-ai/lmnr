@@ -265,12 +265,16 @@ async fn process_batch(
         }
     }
 
-    // Record spans to clickhouse
+    // Filter out spans that should not be recorded to clickhouse
+    let spans: Vec<Span> = spans
+        .into_iter()
+        .filter(|span| span.should_record_to_clickhouse())
+        .collect();
+
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
         .zip(spans_ingested_bytes.iter())
-        .filter(|((span, _), _)| span.should_record_to_clickhouse())
         .map(|((span, span_usage), ingested_bytes)| {
             CHSpan::from_db_span(
                 &span,
@@ -281,6 +285,7 @@ async fn process_batch(
         })
         .collect();
 
+    // Record spans to clickhouse
     if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
