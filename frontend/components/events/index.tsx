@@ -96,7 +96,7 @@ function PureEvents({
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
-      <div className="flex flex-col gap-4 flex-1 px-4 pb-4">
+      <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
         <div className="flex items-center gap-2">
           {!isFreeTier && (
             <ManageEventDefinitionDialog
