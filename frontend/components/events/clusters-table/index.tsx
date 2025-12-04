@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useMemo, useState} from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   ClusterRow,
@@ -25,7 +25,7 @@ const FETCH_SIZE = 50;
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
-  const [tableMeta, setTableMeta] = useState<ClusterTableMeta>({totalCount: 0});
+  const [tableMeta, setTableMeta] = useState<ClusterTableMeta>({ totalCount: 0 });
 
   const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
@@ -52,7 +52,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
 
         const data = (await res.json()) as { items: EventCluster[]; totalCount: number };
 
-        setTableMeta({ totalCount: data.totalCount});
+        setTableMeta({ totalCount: data.totalCount });
 
         return data;
       } catch (error) {
@@ -76,7 +76,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
   } = useInfiniteScroll<EventCluster>({
     fetchFn: fetchClusters,
     enabled: true,
-    deps: [projectId, eventDefinitionId],
+    deps: [projectId, eventDefinitionName],
   });
 
   const clusters = useMemo(() => {
