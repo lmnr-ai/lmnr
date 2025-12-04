@@ -17,20 +17,14 @@ import { cn } from "@/lib/utils.ts";
 
 import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils.ts";
 
-const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } | null }) => (
+const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => (
   <div className="flex items-center space-x-2">
-    {displayRange ? (
-      <>
-        <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
-          {getTimeDifference(displayRange.from, displayRange.to)}
-        </Badge>
-        <span className="text-muted-foreground">
-          {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
-        </span>
-      </>
-    ) : (
-      <span>All time</span>
-    )}
+    <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
+      {getTimeDifference(displayRange.from, displayRange.to)}
+    </Badge>
+    <span className="text-muted-foreground">
+      {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
+    </span>
   </div>
 );
 
@@ -69,7 +63,7 @@ const QuickRangesList = ({
           className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
           onClick={onAbsoluteClick}
         >
-          <span>Absolute date</span>
+          <span className="font-medium">Absolute date</span>
           <ChevronRight className="size-4" />
         </div>
       </div>
@@ -88,7 +82,7 @@ const TimeSelector = ({
   onChange: (time: string) => void;
   disabled: boolean;
 }) => (
-  <div className="flex flex-col gap-1">
+  <div className="flex items-center gap-2">
     <Label className="text-xs">{label}</Label>
     <Input
       type="time"
@@ -128,7 +122,7 @@ const AbsoluteDatePicker = ({
     exit={{ x: 20, opacity: 0 }}
     transition={{ duration: 0.1 }}
   >
-    <div className="p-2 border-b flex items-center">
+    <div className="px-4 py-3 border-b flex items-center">
       <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
         <ArrowLeft className="size-3.5 mr-1" />
         <span>Back</span>
@@ -143,12 +137,11 @@ const AbsoluteDatePicker = ({
       disabled={disabled}
       pagedNavigation
     />
-    <div className="grid grid-cols-2 px-4 py-2">
-      <TimeSelector label="Start Time" time={startTime} onChange={onStartTimeChange} disabled={!calendarDate?.from} />
-      <TimeSelector label="End Time" time={endTime} onChange={onEndTimeChange} disabled={!calendarDate?.to} />
-    </div>
-    <div className="flex justify-end p-4 pt-2">
-      <Button disabled={!calendarDate?.from || !calendarDate?.to} onClick={onApply} handleEnter>
+    <div className="border-t" />
+    <div className="flex items-center gap-8 py-3 px-4">
+      <TimeSelector label="From" time={startTime} onChange={onStartTimeChange} disabled={!calendarDate?.from} />
+      <TimeSelector label="To" time={endTime} onChange={onEndTimeChange} disabled={!calendarDate?.to} />
+      <Button disabled={!calendarDate?.from || !calendarDate?.to} onClick={onApply} handleEnter className="ml-auto">
         Apply
       </Button>
     </div>
@@ -171,7 +164,7 @@ export default function DateRangeFilter({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
-  const { pastHours, displayRange, calendarDate, setCalendarDate, startTime, setStartTime, endTime, setEndTime } =
+  const { pastHours, getDisplayRange, calendarDate, setCalendarDate, startTime, setStartTime, endTime, setEndTime } =
     useDateRangeState();
 
   useEffect(() => {
@@ -219,13 +212,9 @@ export default function DateRangeFilter({
         <Button
           disabled={buttonDisabled}
           variant="outline"
-          className={cn(
-            "justify-between text-left font-normal text-xs",
-            !displayRange && "text-muted-foreground",
-            className
-          )}
+          className={cn("justify-between text-left font-normal text-xs", className)}
         >
-          <DateRangeButton displayRange={displayRange} />
+          <DateRangeButton displayRange={getDisplayRange()} />
           <CalendarIcon className="ml-2 size-3.5 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -233,7 +222,7 @@ export default function DateRangeFilter({
         <AnimatePresence mode="wait" initial={false}>
           {!showCalendar ? (
             <QuickRangesList
-              pastHours={pastHours ?? "24"}
+              pastHours={pastHours}
               onSelect={handleQuickRangeSelect}
               onAbsoluteClick={() => setShowCalendar(true)}
             />
