@@ -28,20 +28,21 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string, params:
   const { toast } = useToast();
   const { query, name } = buildQuery(params);
 
-  const optimisticData: SQLTemplate = {
-    id: v4(),
-    name,
-    query,
-    createdAt: new Date().toISOString(),
-    projectId,
-  };
 
 
   const openInSql = useCallback(async () => {
     try {
+      const optimisticData: SQLTemplate = {
+        id: v4(),
+        name,
+        query,
+        createdAt: new Date().toISOString(),
+        projectId,
+      };
+
       setIsLoading(true);
 
-      await fetch(`/api/projects/${projectId}/sql/templates`, {
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
         method: "POST",
         body: JSON.stringify({
           id: optimisticData.id,
@@ -49,6 +50,16 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string, params:
           query: optimisticData.query,
         }),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorData.error || "Failed to open in sql.",
+        });
+        return;
+      }
 
       window.open(`/project/${projectId}/sql/${optimisticData.id}`, "_blank");
     } catch (e) {
@@ -58,7 +69,7 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string, params:
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, optimisticData]);
+  }, [projectId]);
 
   return { isLoading, openInSql };
 };
