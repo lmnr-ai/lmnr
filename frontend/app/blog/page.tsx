@@ -35,9 +35,6 @@ export default async function BlogsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex grow">
-              <p className="text-secondary-foreground text-sm">
-                {post.data.excerpt}
-              </p>
             </CardContent>
             <CardFooter className="flex align-bottom">
               <Label className="text-secondary-foreground">
