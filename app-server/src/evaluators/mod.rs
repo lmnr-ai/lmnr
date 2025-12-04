@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use backoff::ExponentialBackoffBuilder;
+use async_trait::async_trait;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::PROJECT_EVALUATORS_BY_PATH_CACHE_KEY},
@@ -12,10 +12,8 @@ use crate::{
             get_evaluators_by_path_from_db, insert_evaluator_score,
         },
     },
-    mq::{
-        MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
-        utils::mq_max_payload,
-    },
+    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+    worker::MessageHandler,
 };
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -47,200 +45,85 @@ pub struct EvaluatorResponse {
     pub error: Option<String>,
 }
 
-pub async fn process_evaluators(
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    evaluators_message_queue: Arc<MessageQueue>,
-    client: Arc<reqwest::Client>,
-    python_online_evaluator_url: String,
-) -> () {
-    loop {
-        inner_process_evaluators(
-            db.clone(),
-            clickhouse.clone(),
-            evaluators_message_queue.clone(),
-            client.clone(),
-            &python_online_evaluator_url,
-        )
-        .await;
-    }
+/// Handler for evaluators
+pub struct EvaluatorHandler {
+    pub db: Arc<DB>,
+    pub clickhouse: clickhouse::Client,
+    pub client: Arc<reqwest::Client>,
+    pub python_online_evaluator_url: String,
 }
 
-pub async fn inner_process_evaluators(
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    client: Arc<reqwest::Client>,
-    python_online_evaluator_url: &str,
-) {
-    // Add retry logic with exponential backoff for connection failures
-    let get_receiver = || async {
-        queue
-            .get_receiver(
-                EVALUATORS_QUEUE,
-                EVALUATORS_EXCHANGE,
-                EVALUATORS_ROUTING_KEY,
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Failed to get receiver from evaluators queue: {:?}", e);
-                backoff::Error::transient(e)
-            })
-    };
+#[async_trait]
+impl MessageHandler for EvaluatorHandler {
+    type Message = EvaluatorsQueueMessage;
 
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_secs(1))
-        .with_max_interval(std::time::Duration::from_secs(60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
-        .build();
-
-    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
-        Ok(receiver) => {
-            log::info!("Successfully connected to evaluators queue");
-            receiver
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to connect to evaluators queue after retries: {:?}",
-                e
-            );
-            return;
-        }
-    };
-
-    while let Some(delivery) = receiver.receive().await {
-        if let Err(e) = delivery {
-            log::error!("Failed to receive message from queue: {:?}", e);
-            continue;
-        }
-        let delivery = delivery.unwrap();
-        let acker = delivery.acker();
-        let message = match serde_json::from_slice::<EvaluatorsQueueMessage>(&delivery.data()) {
-            Ok(message) => message,
-            Err(e) => {
-                log::error!("Failed to deserialize message from queue: {:?}", e);
-                let _ = acker.reject(false).await;
-                continue;
-            }
-        };
-
-        let evaluator = match get_evaluator(&db, message.id, message.project_id).await {
-            Ok(evaluator) => evaluator,
-            Err(e) => {
-                log::error!("Failed to get evaluator {}: {:?}", message.id, e);
-                let _ = acker.reject(false).await;
-                continue;
-            }
-        };
+    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
+        let evaluator = get_evaluator(&self.db, message.id, message.project_id).await?;
 
         let body = EvaluatorRequest {
             definition: evaluator.definition,
             input: message.span_output,
         };
 
-        // For now we call only python, later check for evaluator_type and call corresponing url
-        let response = client
-            .post(python_online_evaluator_url)
+        let resp = self
+            .client
+            .post(&self.python_online_evaluator_url)
             .json(&body)
             .send()
-            .await;
+            .await?;
 
-        match response {
-            Ok(resp) => {
-                let status = resp.status();
-                if status.is_success() {
-                    match resp.json::<EvaluatorResponse>().await {
-                        Ok(evaluator_response) => {
-                            if let Some(error) = evaluator_response.error {
-                                log::error!("Evaluator execution error: {}", error);
-                                let _ = acker.reject(false).await;
-                                continue;
-                            }
+        let status = resp.status();
 
-                            match evaluator_response.score {
-                                Some(score) => {
-                                    let score_id = Uuid::new_v4();
-
-                                    if let Err(e) = insert_evaluator_score(
-                                        &db.pool,
-                                        score_id,
-                                        message.project_id,
-                                        &evaluator.name,
-                                        EvaluatorScoreSource::Evaluator,
-                                        message.span_id,
-                                        Some(message.id),
-                                        score,
-                                        None,
-                                    )
-                                    .await
-                                    {
-                                        log::error!(
-                                            "Failed to save evaluator score to database: {:?}",
-                                            e
-                                        );
-                                        let _ = acker.reject(false).await;
-                                        continue;
-                                    }
-
-                                    if let Err(e) = insert_evaluator_score_ch(
-                                        clickhouse.clone(),
-                                        score_id,
-                                        message.project_id,
-                                        &evaluator.name,
-                                        EvaluatorScoreSource::Evaluator,
-                                        message.span_id,
-                                        Some(message.id),
-                                        score,
-                                    )
-                                    .await
-                                    {
-                                        log::error!(
-                                            "Failed to save evaluator score to ClickHouse: {:?}",
-                                            e
-                                        );
-                                        let _ = acker.reject(false).await;
-                                        continue;
-                                    }
-
-                                    let _ = acker.ack().await;
-                                }
-                                None => {
-                                    log::info!(
-                                        "Evaluator returned null score (skipped) for span_id: {}",
-                                        message.span_id
-                                    );
-                                    let _ = acker.ack().await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("Failed to parse evaluator response JSON: {:?}", e);
-                            let _ = acker.reject(false).await;
-                        }
-                    }
-                } else if status.is_server_error() {
-                    log::error!("Evaluator service returned server error {}", status);
-                    let _ = acker.reject(false).await;
-                } else if status.is_client_error() {
-                    log::error!(
-                        "Evaluator service returned client error {}: not retrying",
-                        status
-                    );
-                    match resp.text().await {
-                        Ok(error_body) => log::error!("Error response body: {}", error_body),
-                        Err(_) => log::error!("Could not read error response body"),
-                    }
-                    let _ = acker.reject(false).await;
-                } else {
-                    log::error!("Evaluator service returned unexpected status {}", status);
-                    let _ = acker.reject(false).await;
-                }
-            }
-            Err(e) => {
-                log::error!("Failed to send request to evaluator service: {:?}", e);
-                let _ = acker.reject(false).await;
-            }
+        if !status.is_success() {
+            let error_body = resp.text().await.unwrap_or_default();
+            return Err(anyhow::anyhow!(
+                "Evaluator service returned error {}: {}",
+                status,
+                error_body
+            ));
         }
+
+        let evaluator_response = resp.json::<EvaluatorResponse>().await?;
+
+        if let Some(error) = evaluator_response.error {
+            return Err(anyhow::anyhow!("Evaluator execution error: {}", error));
+        }
+
+        if let Some(score) = evaluator_response.score {
+            let score_id = Uuid::new_v4();
+
+            insert_evaluator_score(
+                &self.db.pool,
+                score_id,
+                message.project_id,
+                &evaluator.name,
+                EvaluatorScoreSource::Evaluator,
+                message.span_id,
+                Some(message.id),
+                score,
+                None,
+            )
+            .await?;
+
+            insert_evaluator_score_ch(
+                self.clickhouse.clone(),
+                score_id,
+                message.project_id,
+                &evaluator.name,
+                EvaluatorScoreSource::Evaluator,
+                message.span_id,
+                Some(message.id),
+                score,
+            )
+            .await?;
+        } else {
+            log::info!(
+                "Evaluator returned null score (skipped) for span_id: {}",
+                message.span_id
+            );
+        }
+
+        Ok(())
     }
 }
 
