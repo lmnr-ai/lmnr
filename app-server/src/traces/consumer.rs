@@ -2,7 +2,7 @@
 //! and clickhouse, and quickwit
 use std::sync::Arc;
 
-use backoff::ExponentialBackoffBuilder;
+use async_trait::async_trait;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
@@ -12,7 +12,6 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
     summary::push_to_trace_summary_queue,
     trigger::{check_span_trigger, get_summary_trigger_spans_cached},
 };
@@ -34,10 +33,7 @@ use crate::{
     },
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
-    mq::{
-        MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-        MessageQueueTrait,
-    },
+    mq::MessageQueue,
     pubsub::PubSub,
     quickwit::{QuickwitIndexedSpan, producer::publish_spans_for_indexing},
     storage::Storage,
@@ -49,117 +45,48 @@ use crate::{
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
+    worker::MessageHandler,
 };
 
-pub async fn process_queue_spans(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    clickhouse: clickhouse::Client,
-    storage: Arc<Storage>,
-    pubsub: Arc<PubSub>,
-) {
-    loop {
-        inner_process_queue_spans(
-            db.clone(),
-            cache.clone(),
-            queue.clone(),
-            clickhouse.clone(),
-            storage.clone(),
-            pubsub.clone(),
-        )
-        .await;
-        log::warn!("Span listener exited. Rebinding queue conneciton...");
-    }
+/// Handler for span processing
+pub struct SpanHandler {
+    pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
+    pub queue: Arc<MessageQueue>,
+    pub clickhouse: clickhouse::Client,
+    pub storage: Arc<Storage>,
+    pub pubsub: Arc<PubSub>,
 }
 
-async fn inner_process_queue_spans(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    clickhouse: clickhouse::Client,
-    storage: Arc<Storage>,
-    pubsub: Arc<PubSub>,
-) {
-    // Add retry logic with exponential backoff for connection failures
-    let get_receiver = || async {
-        queue
-            .get_receiver(
-                OBSERVATIONS_QUEUE,
-                OBSERVATIONS_EXCHANGE,
-                OBSERVATIONS_ROUTING_KEY,
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Failed to get receiver from queue: {:?}", e);
-                backoff::Error::transient(e)
-            })
-    };
+#[async_trait]
+impl MessageHandler for SpanHandler {
+    type Message = Vec<RabbitMqSpanMessage>;
 
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_secs(1))
-        .with_max_interval(std::time::Duration::from_secs(60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
-        .build();
-
-    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
-        Ok(receiver) => {
-            log::info!("Successfully connected to spans queue");
-            receiver
-        }
-        Err(e) => {
-            log::error!("Failed to connect to spans queue after retries: {:?}", e);
-            return;
-        }
-    };
-
-    log::info!("Started processing spans from queue");
-
-    while let Some(delivery) = receiver.receive().await {
-        if let Err(e) = delivery {
-            log::error!("Failed to receive message from queue: {:?}", e);
-            continue;
-        }
-        let delivery = delivery.unwrap();
-        let acker = delivery.acker();
-        let rabbitmq_span_messages =
-            match serde_json::from_slice::<Vec<RabbitMqSpanMessage>>(&delivery.data()) {
-                Ok(messages) => messages,
-                Err(e) => {
-                    log::error!("Failed to deserialize span message: {:?}", e);
-                    let _ = acker.reject(false).await;
-                    continue;
-                }
-            };
-
-        // Process all spans in the batch
+    async fn handle(&self, messages: Self::Message) -> Result<(), crate::worker::HandlerError> {
         process_spans_and_events_batch(
-            rabbitmq_span_messages,
-            db.clone(),
-            clickhouse.clone(),
-            cache.clone(),
-            storage.clone(),
-            acker,
-            queue.clone(),
-            pubsub.clone(),
+            messages,
+            self.db.clone(),
+            self.clickhouse.clone(),
+            self.cache.clone(),
+            self.storage.clone(),
+            self.queue.clone(),
+            self.pubsub.clone(),
         )
-        .await;
+        .await
+        .map_err(Into::into)
     }
-
-    log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     storage: Arc<Storage>,
-    acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-) {
+) -> anyhow::Result<()> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
@@ -220,12 +147,11 @@ async fn process_spans_and_events_batch(
         db,
         clickhouse,
         cache,
-        acker,
         queue,
         pubsub,
     )
     .with_current_context()
-    .await;
+    .await
 }
 
 struct StrippedSpan {
@@ -243,9 +169,8 @@ struct StrippedSpan {
     db,
     clickhouse,
     cache,
-    acker,
     queue,
-    pubsub,
+    pubsub
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -254,10 +179,9 @@ async fn process_batch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-) {
+) -> anyhow::Result<()> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
@@ -341,7 +265,7 @@ async fn process_batch(
         }
     }
 
-    // Record spans to clickhouse
+    // Filter out spans that should not be recorded to clickhouse
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
@@ -357,20 +281,24 @@ async fn process_batch(
         })
         .collect();
 
+    // Record spans to clickhouse
     if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
             e
         );
-        let _ = acker.reject(false).await.map_err(|e| {
-            log::error!(
-                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
-                e
-            );
-        });
-        return;
+        return Err(anyhow::anyhow!(
+            "Failed to insert spans to Clickhouse: {:?}",
+            e
+        ));
     }
+
+    // Temporary solution to filter out spans before sending realtime span updates
+    let spans: Vec<Span> = spans
+        .into_iter()
+        .filter(|span| span.should_record_to_clickhouse())
+        .collect();
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &pubsub).await;
@@ -388,10 +316,6 @@ async fn process_batch(
             e
         );
     }
-
-    let _ = acker.ack().await.map_err(|e| {
-        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
-    });
 
     // Populate autocomplete cache
     populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
@@ -506,6 +430,8 @@ async fn process_batch(
             }
         }
     }
+
+    Ok(())
 }
 
 /// Check spans against trigger conditions and push matching traces to summary queue

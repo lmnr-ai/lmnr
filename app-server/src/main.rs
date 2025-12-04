@@ -12,9 +12,12 @@ use actix_web::{
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use api::v1::browser_sessions::{BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE};
+use api::v1::browser_sessions::{
+    BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
+};
 use aws_config::BehaviorVersion;
-use browser_events::process_browser_events;
+use browser_events::BrowserEventHandler;
+use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, EVALUATORS_ROUTING_KEY, EvaluatorHandler};
 use features::{Feature, is_feature_enabled};
 use lapin::{
     Connection, ConnectionProperties, ExchangeKind,
@@ -23,29 +26,29 @@ use lapin::{
 };
 use mq::MessageQueue;
 use names::NameGenerator;
-use notifications::{NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, process_notifications};
+use notifications::{
+    NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
+};
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
 use query_engine::{
     QueryEngine, query_engine::query_engine_service_client::QueryEngineServiceClient,
     query_engine_impl::QueryEngineImpl,
 };
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use storage::{PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, Storage, mock::MockStorage, process_payloads};
 use tonic::transport::Server;
 use traces::{
-    CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE,
-    TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, clustering::process_clustering,
-    consumer::process_queue_spans, grpc_service::ProcessTracesService,
-    summary::process_trace_summaries,
+    CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, CLUSTERING_ROUTING_KEY, OBSERVATIONS_EXCHANGE,
+    OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
+    TRACE_SUMMARY_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
+    grpc_service::ProcessTracesService, summary::TraceSummaryHandler,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
-use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, process_evaluators};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
-    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE,
+    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
     client::{QuickwitClient, QuickwitConfig},
-    consumer::process_indexer_queue_spans,
+    consumer::QuickwitIndexerHandler,
 };
 use realtime::SseConnectionMap;
 use sodiumoxide;
@@ -56,9 +59,13 @@ use std::{
     sync::Arc,
     thread::{self, JoinHandle},
 };
+use storage::{
+    PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler, Storage,
+    mock::MockStorage,
+};
 
 use crate::features::{enable_consumer, enable_producer};
-use crate::worker_tracking::{ExpectedWorkerCounts, WorkerTracker, WorkerType};
+use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 
 mod api;
 mod auth;
@@ -87,7 +94,7 @@ mod sql;
 mod storage;
 mod traces;
 mod utils;
-mod worker_tracking;
+mod worker;
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -508,17 +515,10 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    // ==== Slack client ====
-    let slack_client = Arc::new(reqwest::Client::new());
-
-    // ==== 3.7 Worker tracker ====
-    let worker_tracker = Arc::new(WorkerTracker::new());
-
     let runtime_handle_for_http = runtime_handle.clone();
     let db_for_http = db.clone();
     let cache_for_http = cache.clone();
     let mq_for_http = queue.clone();
-    let worker_tracker_for_http = worker_tracker.clone();
 
     // == AWS config for S3 ==
     let aws_sdk_config = runtime_handle.block_on(async {
@@ -627,6 +627,9 @@ fn main() -> anyhow::Result<()> {
 
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
+
+        let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
+
         // == Evaluator client ==
         let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
             let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")
@@ -723,7 +726,6 @@ fn main() -> anyhow::Result<()> {
         );
 
         let connection_for_health_clone = connection_for_health.clone();
-        let worker_tracker_clone = worker_tracker_for_http.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
@@ -732,156 +734,181 @@ fn main() -> anyhow::Result<()> {
         let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
+        let worker_pool_clone = worker_pool.clone();
+
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
-                    // On the consumer side, we only need to serve health and ready probes
-                    // Adjust expected counts based on Quickwit availability
-                    let expected_spans_indexer_workers = if quickwit_client_for_consumer.is_some() {
-                        num_spans_indexer_workers as usize
-                    } else {
-                        0
-                    };
-                    let expected_counts = ExpectedWorkerCounts::new(
-                        num_spans_workers as usize,
-                        expected_spans_indexer_workers,
-                        num_browser_events_workers as usize,
-                        num_evaluators_workers as usize,
-                        num_payload_workers as usize,
-                        num_trace_summary_workers as usize,
-                        num_notification_workers as usize,
-                        num_clustering_workers as usize,
-                    );
-                    for _ in 0..num_spans_workers {
-                        let worker_handle = worker_tracker_clone.register_worker(WorkerType::Spans);
-                        let db_clone = db_for_consumer.clone();
-                        let cache_clone = cache_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        let ch_clone = clickhouse_for_consumer.clone();
-                        let storage_clone = storage_for_consumer.clone();
-                        let pubsub_clone = pubsub_for_consumer.clone();
+                    // Spawn spans workers using new worker pool
+                    {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let storage = storage_for_consumer.clone();
+                        let pubsub = pubsub_for_consumer.clone();
 
-                        tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_queue_spans(
-                                db_clone,
-                                cache_clone,
-                                mq_clone,
-                                ch_clone,
-                                storage_clone,
-                                pubsub_clone,
-                            )
-                            .await;
-                        });
+                        worker_pool_clone.spawn(
+                            WorkerType::Spans,
+                            num_spans_workers as usize,
+                            move || SpanHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
+                                storage: storage.clone(),
+                                pubsub: pubsub.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: OBSERVATIONS_QUEUE,
+                                exchange_name: OBSERVATIONS_EXCHANGE,
+                                routing_key: OBSERVATIONS_ROUTING_KEY,
+                            },
+                        );
                     }
 
+                    // Spawn spans indexer workers if Quickwit is available
                     if let Some(quickwit_client_for_indexer) = quickwit_client_for_consumer.as_ref()
                     {
-                        for _ in 0..num_spans_indexer_workers {
-                            log::info!("Spawning spans indexer worker");
-                            let worker_handle =
-                                worker_tracker_clone.register_worker(WorkerType::SpansIndexer);
-                            let mq_clone = mq_for_consumer.clone();
-                            let quickwit_client_clone = quickwit_client_for_indexer.clone();
-                            tokio::spawn(async move {
-                                let _handle = worker_handle;
-                                process_indexer_queue_spans(mq_clone, quickwit_client_clone).await;
-                            });
-                        }
+                        let quickwit = quickwit_client_for_indexer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::SpansIndexer,
+                            num_spans_indexer_workers as usize,
+                            move || QuickwitIndexerHandler {
+                                quickwit_client: quickwit.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: SPANS_INDEXER_QUEUE,
+                                exchange_name: SPANS_INDEXER_EXCHANGE,
+                                routing_key: SPANS_INDEXER_ROUTING_KEY,
+                            },
+                        );
                     } else {
                         log::warn!("Quickwit not available - skipping spans indexer workers");
                     }
 
-                    for _ in 0..num_browser_events_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::BrowserEvents);
-                        let ch_clone = clickhouse_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        let cache_clone = cache_for_consumer.clone();
-                        let db_clone = db_for_consumer.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_browser_events(db_clone, ch_clone, cache_clone, mq_clone).await;
-                        });
+                    // Spawn browser events workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::BrowserEvents,
+                            num_browser_events_workers as usize,
+                            move || BrowserEventHandler {
+                                db: db.clone(),
+                                clickhouse: clickhouse.clone(),
+                                cache: cache.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: BROWSER_SESSIONS_QUEUE,
+                                exchange_name: BROWSER_SESSIONS_EXCHANGE,
+                                routing_key: BROWSER_SESSIONS_ROUTING_KEY,
+                            },
+                        );
                     }
 
-                    for _ in 0..num_evaluators_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::Evaluators);
-                        let db_clone = db_for_consumer.clone();
-                        let ch_clone = clickhouse_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        let evaluator_client_clone = evaluator_client.clone();
-                        let python_url_clone = python_online_evaluator_url.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_evaluators(
-                                db_clone,
-                                ch_clone,
-                                mq_clone,
-                                evaluator_client_clone,
-                                python_url_clone,
-                            )
-                            .await;
-                        });
+                    // Spawn evaluators workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let client = evaluator_client.clone();
+                        let python_url = python_online_evaluator_url.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::Evaluators,
+                            num_evaluators_workers as usize,
+                            move || EvaluatorHandler {
+                                db: db.clone(),
+                                clickhouse: clickhouse.clone(),
+                                client: client.clone(),
+                                python_online_evaluator_url: python_url.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: EVALUATORS_QUEUE,
+                                exchange_name: EVALUATORS_EXCHANGE,
+                                routing_key: EVALUATORS_ROUTING_KEY,
+                            },
+                        );
                     }
 
-                    for _ in 0..num_payload_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::Payloads);
-                        let storage_clone = storage.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_payloads(storage_clone, mq_clone).await;
-                        });
+                    // Spawn payload workers
+                    {
+                        let storage = storage.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::Payloads,
+                            num_payload_workers as usize,
+                            move || PayloadHandler {
+                                storage: storage.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: PAYLOADS_QUEUE,
+                                exchange_name: PAYLOADS_EXCHANGE,
+                                routing_key: PAYLOADS_ROUTING_KEY,
+                            },
+                        );
                     }
 
-                    for _ in 0..num_trace_summary_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::TraceSummaries);
-                        let db_clone = db_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle; // Keep handle alive for the worker's lifetime
-                            process_trace_summaries(db_clone, mq_clone).await;
-                        });
+                    // Spawn trace summary workers using new worker pool
+                    {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let client = reqwest::Client::new();
+                        worker_pool_clone.spawn(
+                            WorkerType::TraceSummaries,
+                            num_trace_summary_workers as usize,
+                            move || {
+                                TraceSummaryHandler::new(db.clone(), queue.clone(), client.clone())
+                            },
+                            QueueConfig {
+                                queue_name: TRACE_SUMMARY_QUEUE,
+                                exchange_name: TRACE_SUMMARY_EXCHANGE,
+                                routing_key: TRACE_SUMMARY_ROUTING_KEY,
+                            },
+                        );
                     }
 
-                    for _ in 0..num_notification_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::Notifications);
-                        let db_clone = db_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        let slack_client_clone = slack_client.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle;
-                            process_notifications(db_clone, slack_client_clone, mq_clone).await;
-                        });
+                    // Spawn notification workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let client = reqwest::Client::new();
+
+                        worker_pool_clone.spawn(
+                            WorkerType::Notifications,
+                            num_notification_workers as usize,
+                            move || NotificationHandler::new(db.clone(), client.clone()),
+                            QueueConfig {
+                                queue_name: NOTIFICATIONS_QUEUE,
+                                exchange_name: NOTIFICATIONS_EXCHANGE,
+                                routing_key: NOTIFICATIONS_ROUTING_KEY,
+                            },
+                        );
                     }
 
-                    for _ in 0..num_clustering_workers {
-                        let worker_handle =
-                            worker_tracker_clone.register_worker(WorkerType::Clustering);
-                        let db_clone = db_for_consumer.clone();
-                        let cache_clone = cache_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        tokio::spawn(async move {
-                            let _handle = worker_handle;
-                            process_clustering(db_clone, cache_clone, mq_clone).await;
-                        });
+                    // Spawn clustering workers using new worker pool
+                    {
+                        let cache = cache_for_consumer.clone();
+                        let client = reqwest::Client::new();
+                        worker_pool_clone.spawn(
+                            WorkerType::Clustering,
+                            num_clustering_workers as usize,
+                            move || ClusteringHandler::new(cache.clone(), client.clone()),
+                            QueueConfig {
+                                queue_name: CLUSTERING_QUEUE,
+                                exchange_name: CLUSTERING_EXCHANGE,
+                                routing_key: CLUSTERING_ROUTING_KEY,
+                            },
+                        );
                     }
 
                     HttpServer::new(move || {
                         App::new()
                             .wrap(NormalizePath::trim())
                             .app_data(web::Data::new(connection_for_health_clone.clone()))
-                            .app_data(web::Data::new(worker_tracker_clone.clone()))
-                            .app_data(web::Data::new(expected_counts.clone()))
+                            .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)
-                            .service(routes::probes::check_health_consumer)
+                            .service(routes::probes::check_health)
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
                                 web::scope("/api/v1/projects/{project_id}")
