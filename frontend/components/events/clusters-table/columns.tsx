@@ -1,10 +1,8 @@
-import {TooltipPortal} from "@radix-ui/react-tooltip";
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EventCluster } from "@/lib/actions/clusters";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
@@ -15,10 +13,6 @@ export interface ClusterRow extends EventCluster {
 export interface ClusterTableMeta {
   totalCount: number;
 }
-
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "standard",
-});
 
 export const getClusterColumns = (projectId: string, eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
   {
@@ -58,7 +52,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
       });
       params.append("filter", clusterFilter);
 
-      const eventsUrl = `/project/${projectId}/events/${eventDefinitionId}?${params.toString()}`;
+      const eventsUrl = `/project/${projectId}/events/${eventDefinitionId}?${params.toString()}#events-table`;
 
       return (
         <div style={{ paddingLeft: `${paddingLeft}px` }} className="truncate text-primary">
@@ -94,27 +88,12 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
       const percentage = totalEvents > 0 ? (row.original.numEvents / totalEvents) * 100 : 0;
 
       return (
-        <TooltipProvider delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2 w-full min-w-0">
-                <span className={cn(
-                  "text-xs shrink-0",
-                  percentage > 0 ? "text-secondary-foreground" : "text-muted-foreground"
-                )}>
-                  {percentage.toFixed(1)}%
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipPortal>
-              <TooltipContent side="top" className="text-xs">
-                <div className="flex flex-col gap-0.5">
-                  <span>{numberFormatter.format(row.original.numEvents)} events</span>
-                </div>
-              </TooltipContent>
-            </TooltipPortal>
-          </Tooltip>
-        </TooltipProvider>
+        <span className={cn(
+          "text-xs shrink-0",
+          percentage > 0 ? "text-secondary-foreground" : "text-muted-foreground"
+        )}>
+          {percentage.toFixed(1)}%
+        </span>
       );
     },
     size: 200,
