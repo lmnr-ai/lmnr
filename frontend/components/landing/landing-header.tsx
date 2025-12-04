@@ -40,13 +40,11 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
           )}
         >
           <div className="flex items-center gap-6 font-title flex-col md:flex-row">
-            <Link href="/blog">
-                    Blog
-            </Link>
             <Link href="https://docs.lmnr.ai" target="_blank">Docs</Link>
+            <Link href="/blog">Blog</Link>
             <Link href="/pricing">Pricing</Link>
             <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
-                Discord
+              Discord
             </Link>
             <GitHubButton
               href="https://github.com/lmnr-ai/lmnr"
@@ -55,7 +53,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
               data-show-count="true"
               aria-label="Star lmnr-ai/lmnr on GitHub"
             >
-                Star
+              Star
             </GitHubButton>
           </div>
           {hasSession ? (
