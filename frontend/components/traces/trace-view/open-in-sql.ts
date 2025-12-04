@@ -4,8 +4,8 @@ import { v4 } from "uuid";
 import { SQLTemplate } from "@/components/sql/sql-editor-store.ts";
 
 type Params =
-    | { type: "span"; spanId: string }
-    | { type: "trace"; traceId: string };
+  | { type: "span"; spanId: string }
+  | { type: "trace"; traceId: string };
 
 function buildQuery(params: Params): { query: string; name: string } {
   switch (params.type) {
@@ -33,6 +33,8 @@ export async function openInSqlEditor(projectId: string, params: Params) {
     projectId,
   };
 
+  window.open(`/project/${projectId}/sql/${optimisticData.id}`, "_blank");
+
   await mutate<SQLTemplate[]>(
     `/api/projects/${projectId}/sql/templates`,
     (currentData = []) => [optimisticData, ...currentData],
@@ -47,6 +49,4 @@ export async function openInSqlEditor(projectId: string, params: Params) {
       query: optimisticData.query,
     }),
   });
-
-  window.open(`/project/${projectId}/sql/${optimisticData.id}`, "_blank");
 }

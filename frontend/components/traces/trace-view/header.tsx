@@ -7,7 +7,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import {openInSqlEditor } from "@/components/traces/trace-view/open-in-sql.ts";
+import { openInSqlEditor } from "@/components/traces/trace-view/open-in-sql.ts";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
