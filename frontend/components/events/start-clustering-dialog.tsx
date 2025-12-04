@@ -1,12 +1,15 @@
 "use client";
 
+import {EditorView} from "@codemirror/view";
+import CodeMirror from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import {PropsWithChildren, useCallback, useState} from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { useEventsStoreContext } from "@/components/events/events-store";
 import { Button } from "@/components/ui/button";
+import {theme} from "@/components/ui/content-renderer/utils.ts";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +18,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EventClusterConfig } from "@/lib/actions/cluster-configs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Textarea } from "../ui/textarea";
 
 interface StartClusteringForm {
   valueTemplate: string;
@@ -46,7 +48,7 @@ export default function StartClusteringDialog({
     control,
     handleSubmit,
     reset,
-    formState: { errors, isValid },
+    formState: { isValid },
   } = useForm<StartClusteringForm>({
     defaultValues: { valueTemplate: "" },
   });
@@ -71,8 +73,11 @@ export default function StartClusteringDialog({
           return;
         }
 
-        const result = await res.json();
-        setClusterConfig({ id: result.id, valueTemplate: result.valueTemplate });
+        const result = await res.json() as (EventClusterConfig | undefined);
+
+        if (result) {
+          setClusterConfig(result);
+        }
 
         toast({ title: "Clustering started successfully" });
         setOpen(false);
@@ -108,12 +113,20 @@ export default function StartClusteringDialog({
               name="valueTemplate"
               control={control}
               render={({ field }) => (
-                <Textarea rows={3} id="valueTemplate" placeholder="{{input}}" autoFocus {...field} />
+                <CodeMirror
+                  value={field.value}
+                  onChange={field.onChange}
+                  theme={theme}
+                  basicSetup={{
+                    lineNumbers: false,
+                    foldGutter: false,
+                  }}
+                  extensions={[EditorView.lineWrapping]}
+                  placeholder="{{input}}"
+                  className="rounded-md border text-sm"
+                />
               )}
             />
-            {errors.valueTemplate && (
-              <p className="text-xs text-destructive">{errors.valueTemplate.message}</p>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => setOpen(false)}>

@@ -695,6 +695,11 @@ export const eventClusterConfigs = pgTable("event_cluster_configs", {
   projectId: uuid("project_id").notNull(),
 }, (table) => [
   foreignKey({
+    columns: [table.eventName, table.projectId],
+    foreignColumns: [eventDefinitions.name, eventDefinitions.projectId],
+    name: "event_cluster_configs_event_name_project_id_fkey"
+  }).onDelete("cascade"),
+  foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],
     name: "event_cluster_configs_project_id_fkey"

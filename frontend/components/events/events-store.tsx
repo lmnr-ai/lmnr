@@ -3,9 +3,9 @@ import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
 import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog";
+import {EventClusterConfig} from "@/lib/actions/cluster-configs";
 import { EventDefinition } from "@/lib/actions/event-definitions";
 import { EventRow } from "@/lib/events/types";
-import {EventClusterConfig} from "@/lib/actions/cluster-configs";
 
 export type EventsStatsDataPoint = {
   timestamp: string;

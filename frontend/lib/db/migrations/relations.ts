@@ -319,13 +319,18 @@ export const playgroundsRelations = relations(playgrounds, ({one}) => ({
 }));
 
 export const eventClusterConfigsRelations = relations(eventClusterConfigs, ({one}) => ({
+  eventDefinition: one(eventDefinitions, {
+    fields: [eventClusterConfigs.eventName],
+    references: [eventDefinitions.name]
+  }),
   project: one(projects, {
     fields: [eventClusterConfigs.projectId],
     references: [projects.id]
   }),
 }));
 
-export const eventDefinitionsRelations = relations(eventDefinitions, ({one}) => ({
+export const eventDefinitionsRelations = relations(eventDefinitions, ({one, many}) => ({
+  eventClusterConfigs: many(eventClusterConfigs),
   project: one(projects, {
     fields: [eventDefinitions.projectId],
     references: [projects.id]
