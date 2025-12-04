@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand } from "lucide-react";
+import {ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader} from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo } from "react";
@@ -7,8 +7,8 @@ import React, { memo, useCallback, useMemo } from "react";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { openInSqlEditor } from "@/components/traces/trace-view/open-in-sql.ts";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -37,6 +37,7 @@ const Header = ({ handleClose }: HeaderProps) => {
     }));
 
   const { toast } = useToast();
+  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'trace', traceId: String(trace?.id) } });
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -82,8 +83,8 @@ const Header = ({ handleClose }: HeaderProps) => {
                   <Copy size={14} />
                   Copy trace ID
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openInSqlEditor(projectId, { type: 'trace', traceId: trace.id })}>
-                  <Database size={14} />
+                <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+                  {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
                   Open in SQL editor
                 </DropdownMenuItem>
               </DropdownMenuContent>
