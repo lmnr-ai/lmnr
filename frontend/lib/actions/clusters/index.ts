@@ -4,24 +4,10 @@ import { z } from "zod/v4";
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
-import { eventClusters, eventDefinitions, projects } from "@/lib/db/migrations/schema";
-
-export type Cluster = {
-  id: string;
-  projectId: string;
-  name: string;
-  parentId: string | null;
-  level: number;
-  numChildrenClusters: number;
-  numTraces: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import { eventClusters } from "@/lib/db/migrations/schema";
 
 export type EventCluster = {
   id: string;
-  projectId: string;
-  eventName: string;
   name: string;
   parentId: string | null;
   level: number;
@@ -31,19 +17,15 @@ export type EventCluster = {
   updatedAt: string;
 };
 
-export const GetClustersSchema = PaginationFiltersSchema.extend({
-  projectId: z.string(),
-  search: z.string().nullable().optional(),
-});
-
 export const GetEventClustersSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
   eventName: z.string(),
   search: z.string().nullable().optional(),
 });
 
-
-export async function getEventClusters(input: z.infer<typeof GetEventClustersSchema>): Promise<{ items: EventCluster[] }> {
+export async function getEventClusters(
+  input: z.infer<typeof GetEventClustersSchema>
+): Promise<{ items: EventCluster[] }> {
   const { projectId, eventName, pageNumber, pageSize, search, filter } = input;
 
   const limit = pageSize;
@@ -69,8 +51,6 @@ export async function getEventClusters(input: z.infer<typeof GetEventClustersSch
   const result = await db
     .select({
       id: eventClusters.id,
-      projectId: eventClusters.projectId,
-      eventName: eventClusters.eventName,
       name: eventClusters.name,
       parentId: eventClusters.parentId,
       level: eventClusters.level,

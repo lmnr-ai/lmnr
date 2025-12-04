@@ -1,43 +1,28 @@
-import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { ColumnDef } from "@tanstack/react-table";
-import { ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Button } from "@/components/ui/button";
+import { EventCluster } from "@/lib/actions/clusters";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
-export type ClusterRow = {
-  id: string;
-  clusterId: string;
-  name: string;
-  level: number;
-  parentId: string | null;
-  numChildrenClusters: number;
-  numEvents: number;
-  createdAt: string;
-  updatedAt: string;
+export interface ClusterRow extends EventCluster {
   subRows?: ClusterRow[];
-};
+}
 
-export const getClusterColumns = (
-  projectId: string,
-  eventDefinitionId: string,
-  eventDefinitionName: string
-): ColumnDef<ClusterRow, any>[] => [
+export const getClusterColumns = (projectId: string, eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
       row.original.numChildrenClusters > 0 ? (
-        <div className="flex items-center gap-2">
-          {row.getIsExpanded() ? (
-            <ChevronDownIcon className="min-w-4 min-h-4 text-secondary-foreground" />
-          ) : (
-            <ChevronRightIcon className="min-w-4 min-h-4 text-secondary-foreground" />
-          )}
-        </div>
+        <Button
+          icon={row.getIsExpanded() ? "chevronDown" : "chevronRight"}
+          variant="ghost"
+          className="p-0 h-5 text-secondary-foreground focus-visible:outline-0"
+          onClick={() => row.toggleExpanded()}
+        />
       ) : (
-        <div className="w-4" />
+        <div className="min-w-5 min-h-5" />
       ),
     id: "expand",
     size: 44,
@@ -105,20 +90,20 @@ export const getClusterColumns = (
 
 export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "events", "created_at", "updated_at"];
 
-export const clustersTableFilters: ColumnFilter[] = [
-  {
-    name: "Cluster",
-    key: "name",
-    dataType: "string",
-  },
-  {
-    name: "Children clusters",
-    key: "numChildrenClusters",
-    dataType: "number",
-  },
-  {
-    name: "Events",
-    key: "numEvents",
-    dataType: "number",
-  },
-];
+// export const clustersTableFilters: ColumnFilter[] = [
+//   {
+//     name: "Cluster",
+//     key: "name",
+//     dataType: "string",
+//   },
+//   {
+//     name: "Children clusters",
+//     key: "numChildrenClusters",
+//     dataType: "number",
+//   },
+//   {
+//     name: "Events",
+//     key: "numEvents",
+//     dataType: "number",
+//   },
+// ];

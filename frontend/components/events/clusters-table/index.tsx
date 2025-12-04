@@ -1,12 +1,9 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
-import { useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import {
   ClusterRow,
-  clustersTableFilters,
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/events/clusters-table/columns.tsx";
@@ -14,10 +11,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-
-import DataTableFilter, { DataTableFilterList } from "../../ui/infinite-datatable/ui/datatable-filter";
 
 interface ClustersTableProps {
   projectId: string;
@@ -25,19 +19,12 @@ interface ClustersTableProps {
   eventDefinitionName: string;
 }
 
-function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
+const FETCH_SIZE = 50;
+
+const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
-  const searchParams = useSearchParams();
 
-  const columns = useMemo(
-    () => getClusterColumns(projectId, eventDefinitionId, eventDefinitionName),
-    [projectId, eventDefinitionId, eventDefinitionName]
-  );
-
-  const filter = searchParams.getAll("clusterFilter");
-  const search = searchParams.get("clusterSearch");
-
-  const FETCH_SIZE = 50;
+  const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
   const fetchClusters = useCallback(
     async (pageNumber: number) => {
@@ -45,12 +32,6 @@ function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
         urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        filter.forEach((f) => urlParams.append("filter", f));
-
-        if (typeof search === "string" && search.length > 0) {
-          urlParams.set("search", search);
-        }
 
         const url = `/api/projects/${projectId}/events/${eventDefinitionName}/clusters?${urlParams.toString()}`;
 
@@ -76,7 +57,7 @@ function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }
         throw error;
       }
     },
-    [projectId, eventDefinitionName, toast, filter, search]
+    [projectId, eventDefinitionName, toast]
   );
 
   const {
@@ -89,28 +70,21 @@ function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }
   } = useInfiniteScroll<ClusterRow>({
     fetchFn: fetchClusters,
     enabled: true,
-    deps: [projectId, eventDefinitionId, filter, search],
+    deps: [projectId, eventDefinitionId],
   });
 
   const clusters = useMemo(() => {
     if (!rawClusters) return [];
 
-    if (filter.length > 0 || (search && search.length > 0)) {
-      return rawClusters.map((cluster) => ({
-        ...cluster,
-        subRows: [],
-      }));
-    }
-
     const clusterMap = new Map<string, ClusterRow>();
     const rootClusters: ClusterRow[] = [];
 
     rawClusters.forEach((cluster) => {
-      clusterMap.set(cluster.clusterId, { ...cluster, subRows: [] });
+      clusterMap.set(cluster.id, { ...cluster, subRows: [] });
     });
 
     rawClusters.forEach((cluster) => {
-      const node = clusterMap.get(cluster.clusterId);
+      const node = clusterMap.get(cluster.id);
       if (!node) return;
 
       if (cluster.parentId === null) {
@@ -125,50 +99,37 @@ function PureClustersTable({ projectId, eventDefinitionId, eventDefinitionName }
     });
 
     return rootClusters;
-  }, [rawClusters, filter, search]);
-
-  const handleRowClick = useCallback((row: Row<ClusterRow>) => {
-    if (row.original.numChildrenClusters > 0) {
-      row.toggleExpanded();
-    }
-  }, []);
+  }, [rawClusters]);
 
   return (
     <InfiniteDataTable<ClusterRow>
       className="w-full"
       columns={columns}
       data={clusters}
-      getRowId={(cluster) => cluster.clusterId}
-      onRowClick={handleRowClick}
+      getRowId={(cluster) => cluster.id}
+      lockedColumns={["expand", "name"]}
       hasMore={hasMore}
       isFetching={isFetching}
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
       error={error}
     >
-      <div className="flex flex-1 w-full space-x-2 pt-1">
-        <DataTableFilter columns={clustersTableFilters} />
+      <div className="flex flex-1 w-full space-x-2">
         <ColumnsMenu
           columnLabels={columns.map((column) => ({
             id: column.id!,
             label: typeof column.header === "string" ? column.header : column.id!,
           }))}
-          lockedColumns={["expand"]}
+          lockedColumns={["expand", "name"]}
         />
-        <DataTableSearch className="mr-0.5" placeholder="Search by cluster name..." />
       </div>
-      <DataTableFilterList />
     </InfiniteDataTable>
   );
-}
+};
 
 export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
   return (
-    <DataTableStateProvider
-      storageKey={`clusters-table-${eventDefinitionId}`}
-      uniqueKey="clusterId"
-      defaultColumnOrder={defaultClustersColumnOrder}
-    >
+    <DataTableStateProvider storageKey="clusters-table" uniqueKey="id" defaultColumnOrder={defaultClustersColumnOrder}>
       <PureClustersTable
         projectId={projectId}
         eventDefinitionId={eventDefinitionId}

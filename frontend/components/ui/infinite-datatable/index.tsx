@@ -63,6 +63,7 @@ export function InfiniteDataTable<TData extends RowData>({
   getRowId,
   error,
   getRowHref,
+  loadMoreButton,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -182,6 +183,8 @@ export function InfiniteDataTable<TData extends RowData>({
   }, [draggingColumnId, table]);
 
   useEffect(() => {
+    if (loadMoreButton) return;
+
     const loadMoreElement = loadMoreRef.current;
     const scrollContainer = tableContainerRef.current;
 
@@ -206,7 +209,7 @@ export function InfiniteDataTable<TData extends RowData>({
     return () => {
       observer.disconnect();
     };
-  }, [fetchNextPage, hasMore, isFetching, isLoading]);
+  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton]);
 
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
@@ -249,6 +252,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 rowVirtualizer={rowVirtualizer}
                 virtualItems={virtualItems}
                 isLoading={isLoading}
+                isFetching={isFetching}
                 hasMore={hasMore}
                 onRowClick={onRowClick}
                 focusedRowId={focusedRowId}
@@ -256,6 +260,8 @@ export function InfiniteDataTable<TData extends RowData>({
                 emptyRow={emptyRow}
                 loadingRow={loadingRow}
                 getRowHref={getRowHref}
+                loadMoreButton={loadMoreButton}
+                fetchNextPage={fetchNextPage}
               />
             </Table>
             <DragOverlay
@@ -271,7 +277,7 @@ export function InfiniteDataTable<TData extends RowData>({
             </DragOverlay>
           </DndContext>
 
-          {isFetching && !isLoading && (
+          {isFetching && !isLoading && !loadMoreButton && (
             <div className="flex justify-center p-2 bg-secondary">
               <Skeleton className="w-full h-8" />
             </div>

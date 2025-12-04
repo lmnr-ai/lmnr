@@ -11,7 +11,10 @@ export async function GET(
   try {
     const { projectId, name: eventName } = await params;
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetEventClustersSchema.omit({ projectId: true, eventName: true }));
+    const parseResult = parseUrlParams(
+      req.nextUrl.searchParams,
+      GetEventClustersSchema.omit({ projectId: true, eventName: true })
+    );
 
     if (!parseResult.success) {
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -23,19 +26,7 @@ export async function GET(
       eventName,
     });
 
-    const allClusters = clusters.map((cluster) => ({
-      id: cluster.id,
-      clusterId: cluster.id,
-      name: cluster.name,
-      level: cluster.level,
-      parentId: cluster.parentId,
-      numChildrenClusters: cluster.numChildrenClusters,
-      numEvents: cluster.numEvents,
-      createdAt: cluster.createdAt,
-      updatedAt: cluster.updatedAt,
-    }));
-
-    return NextResponse.json({ items: allClusters });
+    return NextResponse.json({ items: clusters });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ success: false, error: prettifyError(error) }, { status: 400 });
@@ -47,4 +38,3 @@ export async function GET(
     );
   }
 }
-

@@ -1,17 +1,15 @@
 "use client";
 
-import { Row } from "@tanstack/react-table";
 import { format, formatRelative } from "date-fns";
+import { Network } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import ManageEventDefinitionDialog, {
   ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-dialog";
 import ClustersTable from "@/components/events/clusters-table";
-import EventsChart from "@/components/events/events-chart";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import EventsTable from "@/components/events/events-table";
 import { EventNavigationItem, getEventsConfig } from "@/components/events/utils";
@@ -20,12 +18,11 @@ import TraceViewNavigationProvider from "@/components/traces/trace-view/navigati
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { EventRow } from "@/lib/events/types";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
-import { useTraceViewNavigation } from "../traces/trace-view/navigation-context";
 import Header from "../ui/header";
 
 function PureEvents({
@@ -40,36 +37,20 @@ function PureEvents({
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const ref = useRef<Resizable>(null);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
   const { workspace } = useProjectContext();
 
-  const {
-    eventDefinition,
-    setEventDefinition,
-    traceId,
-    spanId,
-    setTraceId,
-    setSpanId,
-    fetchStats,
-    setChartContainerWidth,
-    chartContainerWidth,
-  } = useEventsStoreContext((state) => ({
-    eventDefinition: state.eventDefinition,
-    setEventDefinition: state.setEventDefinition,
-    traceId: state.traceId,
-    spanId: state.spanId,
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-    fetchStats: state.fetchStats,
-    setChartContainerWidth: state.setChartContainerWidth,
-    chartContainerWidth: state.chartContainerWidth,
-  }));
-
-  const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
+  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId } = useEventsStoreContext(
+    (state) => ({
+      eventDefinition: state.eventDefinition,
+      setEventDefinition: state.setEventDefinition,
+      traceId: state.traceId,
+      spanId: state.spanId,
+      setTraceId: state.setTraceId,
+      setSpanId: state.setSpanId,
+    })
+  );
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
-  const [events, setEvents] = useState<EventRow[]>([]);
-
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   useEffect(() => {
@@ -77,60 +58,6 @@ function PureEvents({
       setDefaultTraceViewWidth(getDefaultTraceViewWidth());
     }
   }, [initialTraceViewWidth]);
-
-  const pastHours = searchParams.get("pastHours");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const filter = searchParams.getAll("filter");
-
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        setChartContainerWidth(width);
-      }
-    });
-
-    resizeObserver.observe(chartContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [setChartContainerWidth]);
-
-  const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats`,
-    chartContainerWidth,
-    pastHours,
-    startDate,
-    endDate,
-    filters: filter,
-    additionalParams: eventDefinition.id ? { eventDefinitionId: eventDefinition.id } : {},
-    defaultTargetBars: 24,
-  });
-
-  const handleDataChange = useCallback((newEvents: EventRow[]) => {
-    setEvents(newEvents);
-  }, []);
-
-  useEffect(() => {
-    if (events) {
-      setNavigationRefList(
-        events.map((event) => ({
-          traceId: event.traceId,
-          spanId: event.spanId,
-        }))
-      );
-    }
-  }, [events, setNavigationRefList]);
-
-  useEffect(() => {
-    if (statsUrl) {
-      fetchStats(statsUrl);
-    }
-  }, [statsUrl, fetchStats]);
 
   const handleEditEvent = useCallback(() => {
     setIsDialogOpen(true);
@@ -147,19 +74,6 @@ function PureEvents({
     },
     [eventDefinition, setEventDefinition]
   );
-
-  const handleRowClick = useCallback(
-    (row: Row<EventRow>) => {
-      setTraceId(row.original.traceId);
-      setSpanId(row.original.spanId);
-    },
-    [setTraceId, setSpanId]
-  );
-
-  const focusedRowId = useMemo(() => {
-    if (!traceId || !spanId) return undefined;
-    return events?.find((event) => event.traceId === traceId && event.spanId === spanId)?.id;
-  }, [events, traceId, spanId]);
 
   const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
     const newWidth = defaultTraceViewWidth + delta.width;
@@ -178,72 +92,66 @@ function PureEvents({
     }
   }, [defaultTraceViewWidth]);
 
-  useEffect(() => {
-    if (!pastHours && !startDate && !endDate) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pastHours", "24");
-      push(`${pathName}?${params.toString()}`);
-    }
-  }, [pastHours, startDate, endDate, searchParams, pathName, push]);
-
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
-      <div className="flex flex-col overflow-auto">
-        <div className="flex items-center gap-2 px-4 pb-4">
-          {!isFreeTier && (
-            <ManageEventDefinitionDialog
-              open={isDialogOpen}
-              setOpen={setIsDialogOpen}
-              defaultValues={eventDefinition}
-              key={eventDefinition.id}
-              onSuccess={handleSuccess}
-            >
-              <Button icon="edit" onClick={handleEditEvent}>
-                Event Definition
-              </Button>
-            </ManageEventDefinitionDialog>
-          )}
-          <div>
-            <span className="text-xs text-muted-foreground font-medium">Last event: </span>
-            <span
-              title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-              className={cn("text-xs", {
-                "text-muted-foreground": !lastEvent,
-              })}
-            >
-              {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-            </span>
+      <ScrollArea>
+        <div className="flex flex-col gap-4 flex-1 px-4 pb-4">
+          <div className="flex items-center gap-4">
+            {!isFreeTier && (
+              <ManageEventDefinitionDialog
+                open={isDialogOpen}
+                setOpen={setIsDialogOpen}
+                defaultValues={eventDefinition}
+                key={eventDefinition.id}
+                onSuccess={handleSuccess}
+              >
+                <Button icon="edit" onClick={handleEditEvent}>
+                  Event Definition
+                </Button>
+              </ManageEventDefinitionDialog>
+            )}
+
+            <Button variant="outlinePrimary">
+              <Network className="mr-2 size-3.5" />
+              Start Clustering
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 flex-1">
+            <span className="text-lg font-semibold">Clusters</span>
+            {eventDefinition.id && (
+              <ClustersTable
+                projectId={eventDefinition.projectId}
+                eventDefinitionId={eventDefinition.id}
+                eventDefinitionName={eventDefinition.name}
+              />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold">Events</span>
+              <span className="text-xs text-muted-foreground font-medium">
+                Last event:{" "}
+                <span
+                  title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+                  className={cn("text-xs", {
+                    "text-foreground": lastEvent,
+                  })}
+                >
+                  {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+                </span>
+              </span>
+            </div>
+            <EventsTable
+              projectId={eventDefinition.projectId}
+              eventName={eventDefinition.name}
+              eventDefinitionId={eventDefinition.id}
+            />
           </div>
         </div>
-        <span className="text-lg font-semibold px-4">Clusters</span>
-        <div className="flex px-4 pb-4 max-h-96 h-full">
-          {eventDefinition.id && (
-            <ClustersTable
-              projectId={eventDefinition.projectId}
-              eventDefinitionId={eventDefinition.id}
-              eventDefinitionName={eventDefinition.name}
-            />
-          )}
-        </div>
-        <span className="text-lg font-semibold px-4 mb-1">Events</span>
-        <div className="flex flex-1 px-4 pb-4">
-          <EventsTable
-            projectId={eventDefinition.projectId}
-            eventName={eventDefinition.name}
-            eventDefinitionId={eventDefinition.id}
-            pastHours={pastHours}
-            startDate={startDate}
-            endDate={endDate}
-            filter={filter}
-            onRowClick={handleRowClick}
-            focusedRowId={focusedRowId}
-            onDataChange={handleDataChange}
-          >
-            <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
-          </EventsTable>
-        </div>
-      </div>
+      </ScrollArea>
+
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable

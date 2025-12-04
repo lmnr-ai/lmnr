@@ -1,9 +1,14 @@
 "use client";
 
 import { Row } from "@tanstack/react-table";
-import { usePathname, useSearchParams } from "next/navigation";
-import { ReactNode, useCallback, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
+import EventsChart from "@/components/events/events-chart";
+import { useEventsStoreContext } from "@/components/events/events-store.tsx";
+import { EventNavigationItem } from "@/components/events/utils.ts";
+import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -21,32 +26,19 @@ interface EventsTableProps {
   projectId: string;
   eventName: string;
   eventDefinitionId?: string;
-  pastHours: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  filter: string[];
-  onRowClick: (row: Row<EventRow>) => void;
-  focusedRowId?: string;
-  onDataChange?: (events: EventRow[]) => void;
-  children?: ReactNode;
 }
 
-function PureEventsTable({
-  projectId,
-  eventName,
-  eventDefinitionId,
-  pastHours,
-  startDate,
-  endDate,
-  filter,
-  onRowClick,
-  focusedRowId,
-  onDataChange,
-  children,
-}: EventsTableProps) {
+function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTableProps) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const router = useRouter();
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const filter = searchParams.getAll("filter");
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -103,6 +95,47 @@ function PureEventsTable({
   );
 
   const {
+    eventDefinition,
+    traceId,
+    spanId,
+    setTraceId,
+    setSpanId,
+    fetchStats,
+    setChartContainerWidth,
+    chartContainerWidth,
+  } = useEventsStoreContext((state) => ({
+    eventDefinition: state.eventDefinition,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+    fetchStats: state.fetchStats,
+    setChartContainerWidth: state.setChartContainerWidth,
+    chartContainerWidth: state.chartContainerWidth,
+  }));
+
+  const handleRowClick = useCallback(
+    (row: Row<EventRow>) => {
+      setTraceId(row.original.traceId);
+      setSpanId(row.original.spanId);
+    },
+    [setTraceId, setSpanId]
+  );
+
+  const statsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats`,
+    chartContainerWidth,
+    pastHours,
+    startDate,
+    endDate,
+    filters: filter,
+    additionalParams: eventDefinition.id ? { eventDefinitionId: eventDefinition.id } : {},
+    defaultTargetBars: 24,
+  });
+
+  const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
+
+  const {
     data: events,
     hasMore,
     isFetching,
@@ -114,18 +147,59 @@ function PureEventsTable({
     deps: [projectId, eventName, pastHours, startDate, endDate, filter],
   });
 
+  const focusedRowId = useMemo(() => {
+    if (!traceId || !spanId) return undefined;
+    return events?.find((event) => event.traceId === traceId && event.spanId === spanId)?.id;
+  }, [events, traceId, spanId]);
+
   useEffect(() => {
-    if (events && onDataChange) {
-      onDataChange(events);
+    if (events) {
+      setNavigationRefList(
+        events.map((event) => ({
+          traceId: event.traceId,
+          spanId: event.spanId,
+        }))
+      );
     }
-  }, [events, onDataChange]);
+  }, [events, setNavigationRefList]);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setChartContainerWidth(width);
+      }
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [setChartContainerWidth]);
+
+  useEffect(() => {
+    if (!pastHours && !startDate && !endDate) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("pastHours", "24");
+      router.push(`${pathName}?${params.toString()}`);
+    }
+  }, [pastHours, startDate, endDate, searchParams, pathName, router]);
+
+  useEffect(() => {
+    if (statsUrl) {
+      fetchStats(statsUrl);
+    }
+  }, [statsUrl, fetchStats]);
 
   return (
     <InfiniteDataTable<EventRow>
       className="w-full"
       columns={eventsTableColumns}
       data={events}
-      onRowClick={onRowClick}
+      onRowClick={handleRowClick}
       getRowId={(row: EventRow) => row.id}
       focusedRowId={focusedRowId}
       hasMore={hasMore}
@@ -133,6 +207,7 @@ function PureEventsTable({
       isLoading={isLoading}
       getRowHref={getRowHref}
       fetchNextPage={fetchNextPage}
+      loadMoreButton
     >
       <div className="flex flex-1 w-full space-x-2">
         <DataTableFilter columns={eventsTableFilters} />
@@ -145,7 +220,7 @@ function PureEventsTable({
         <DateRangeFilter />
       </div>
       <DataTableFilterList />
-      {children}
+      <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
     </InfiniteDataTable>
   );
 }
