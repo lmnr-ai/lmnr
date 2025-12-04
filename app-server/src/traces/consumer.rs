@@ -266,15 +266,11 @@ async fn process_batch(
     }
 
     // Filter out spans that should not be recorded to clickhouse
-    let spans: Vec<Span> = spans
-        .into_iter()
-        .filter(|span| span.should_record_to_clickhouse())
-        .collect();
-
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
         .zip(spans_ingested_bytes.iter())
+        .filter(|((span, _), _)| span.should_record_to_clickhouse())
         .map(|((span, span_usage), ingested_bytes)| {
             CHSpan::from_db_span(
                 &span,
@@ -297,6 +293,12 @@ async fn process_batch(
             e
         ));
     }
+
+    // Temporary solution to filter out spans before sending realtime span updates
+    let spans: Vec<Span> = spans
+        .into_iter()
+        .filter(|span| span.should_record_to_clickhouse())
+        .collect();
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &pubsub).await;

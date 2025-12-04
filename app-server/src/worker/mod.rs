@@ -201,8 +201,8 @@ impl<H: MessageHandler> QueueWorker<H> {
         let message = serde_json::from_slice::<H::Message>(data).map_err(|e| {
             log::error!(
                 "Queue message deserialization failed. Worker type: {:?}. Worker id: {}. Error: {:?}",
-                self.id,
                 self.worker_type,
+                self.id,
                 e
             );
             // Malformed message - reject without requeue (it won't deserialize on retry)

@@ -153,38 +153,35 @@ async fn process_trace_summary(
         )
         .await?;
 
-        if !channels.is_empty() {
-            // Push a notification for each configured channel
-            for channel in channels {
-                let payload = notifications::TraceAnalysisPayload {
-                    summary: response.summary.clone(),
-                    analysis: response.analysis.clone(),
-                    analysis_preview: response.analysis_preview.clone(),
-                    status: response.status.clone(),
-                    span_ids_map: response.span_ids_map.clone(),
-                    channel_id: channel.channel_id.clone(),
-                    integration_id: channel.integration_id,
-                };
+        // Push a notification for each configured channel
+        for channel in channels {
+            let payload = notifications::TraceAnalysisPayload {
+                summary: response.summary.clone(),
+                analysis: response.analysis.clone(),
+                analysis_preview: response.analysis_preview.clone(),
+                status: response.status.clone(),
+                span_ids_map: response.span_ids_map.clone(),
+                channel_id: channel.channel_id.clone(),
+                integration_id: channel.integration_id,
+            };
 
-                let notification_message = notifications::NotificationMessage {
-                    project_id: message.project_id,
-                    trace_id: message.trace_id,
-                    span_id: message.trigger_span_id,
-                    notification_type: NotificationType::Slack,
-                    event_name: event_name.to_string(),
-                    payload: serde_json::to_value(SlackMessagePayload::TraceAnalysis(payload))?,
-                };
+            let notification_message = notifications::NotificationMessage {
+                project_id: message.project_id,
+                trace_id: message.trace_id,
+                span_id: message.trigger_span_id,
+                notification_type: NotificationType::Slack,
+                event_name: event_name.to_string(),
+                payload: serde_json::to_value(SlackMessagePayload::TraceAnalysis(payload))?,
+            };
 
-                if let Err(e) =
-                    notifications::push_to_notification_queue(notification_message, queue.clone())
-                        .await
-                {
-                    log::error!(
-                        "Failed to push to notification queue for channel {}: {:?}",
-                        channel.channel_id,
-                        e
-                    );
-                }
+            if let Err(e) =
+                notifications::push_to_notification_queue(notification_message, queue.clone()).await
+            {
+                log::error!(
+                    "Failed to push to notification queue for channel {}: {:?}",
+                    channel.channel_id,
+                    e
+                );
             }
         }
     }

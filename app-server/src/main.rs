@@ -871,10 +871,12 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
+                        let client = reqwest::Client::new();
+
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
                             num_notification_workers as usize,
-                            move || NotificationHandler::new(db.clone(), reqwest::Client::new()),
+                            move || NotificationHandler::new(db.clone(), client.clone()),
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,
                                 exchange_name: NOTIFICATIONS_EXCHANGE,
@@ -886,10 +888,11 @@ fn main() -> anyhow::Result<()> {
                     // Spawn clustering workers using new worker pool
                     {
                         let cache = cache_for_consumer.clone();
+                        let client = reqwest::Client::new();
                         worker_pool_clone.spawn(
                             WorkerType::Clustering,
                             num_clustering_workers as usize,
-                            move || ClusteringHandler::new(cache.clone(), reqwest::Client::new()),
+                            move || ClusteringHandler::new(cache.clone(), client.clone()),
                             QueueConfig {
                                 queue_name: CLUSTERING_QUEUE,
                                 exchange_name: CLUSTERING_EXCHANGE,
