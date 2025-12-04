@@ -20,7 +20,6 @@ import TraceViewNavigationProvider from "@/components/traces/trace-view/navigati
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { cn } from "@/lib/utils.ts";
@@ -97,73 +96,71 @@ function PureEvents({
   return (
     <>
       <Header path={`events/${eventDefinition.name}`} />
-      <ScrollArea>
-        <div className="flex flex-col gap-4 flex-1 px-4 pb-4">
-          <div className="flex items-center gap-2">
-            {!isFreeTier && (
-              <ManageEventDefinitionDialog
-                open={isDialogOpen}
-                setOpen={setIsDialogOpen}
-                defaultValues={eventDefinition}
-                key={eventDefinition.id}
-                onSuccess={handleSuccess}
-              >
-                <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
+      <div className="flex flex-col gap-4 flex-1 px-4 pb-4">
+        <div className="flex items-center gap-2">
+          {!isFreeTier && (
+            <ManageEventDefinitionDialog
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={eventDefinition}
+              key={eventDefinition.id}
+              onSuccess={handleSuccess}
+            >
+              <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
                   Event Definition
-                </Button>
-              </ManageEventDefinitionDialog>
-            )}
+              </Button>
+            </ManageEventDefinitionDialog>
+          )}
 
-            {clusterConfig ? (
-              <DisableClusteringDialog eventName={eventDefinition.name}>
-                <Button variant="secondary">
-                  <Network className="mr-2 size-3.5" />
+          {clusterConfig ? (
+            <DisableClusteringDialog eventName={eventDefinition.name}>
+              <Button variant="secondary">
+                <Network className="mr-2 size-3.5" />
                   Disable Clustering
-                </Button>
-              </DisableClusteringDialog>
-            ) : (
-              <StartClusteringDialog eventName={eventDefinition.name}>
-                <Button variant="secondary">
-                  <Network className="mr-2 size-3.5" />
+              </Button>
+            </DisableClusteringDialog>
+          ) : (
+            <StartClusteringDialog eventName={eventDefinition.name}>
+              <Button variant="secondary">
+                <Network className="mr-2 size-3.5" />
                   Start Clustering
-                </Button>
-              </StartClusteringDialog>
-            )}
-          </div>
-          <div className="flex flex-col gap-2 flex-1">
-            <span className="text-lg font-semibold">Clusters</span>
-            {eventDefinition.id && (
-              <ClustersTable
-                projectId={eventDefinition.projectId}
-                eventDefinitionId={eventDefinition.id}
-                eventDefinitionName={eventDefinition.name}
-              />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold">Events</span>
-              <span className="text-xs text-muted-foreground font-medium">
-                Last event:{" "}
-                <span
-                  title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-                  className={cn("text-xs", {
-                    "text-foreground": lastEvent,
-                  })}
-                >
-                  {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-                </span>
-              </span>
-            </div>
-            <EventsTable
-              projectId={eventDefinition.projectId}
-              eventName={eventDefinition.name}
-              eventDefinitionId={eventDefinition.id}
-            />
-          </div>
+              </Button>
+            </StartClusteringDialog>
+          )}
         </div>
-      </ScrollArea>
+        <div className="flex flex-col gap-2 flex-1">
+          <span className="text-lg font-semibold">Clusters</span>
+          {eventDefinition.id && (
+            <ClustersTable
+              projectId={eventDefinition.projectId}
+              eventDefinitionId={eventDefinition.id}
+              eventDefinitionName={eventDefinition.name}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-semibold">Events</span>
+            <span className="text-xs text-muted-foreground font-medium">
+                Last event:{" "}
+              <span
+                title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+                className={cn("text-xs", {
+                  "text-foreground": lastEvent,
+                })}
+              >
+                {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+              </span>
+            </span>
+          </div>
+          <EventsTable
+            projectId={eventDefinition.projectId}
+            eventName={eventDefinition.name}
+            eventDefinitionId={eventDefinition.id}
+          />
+        </div>
+      </div>
 
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">

@@ -78,6 +78,12 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   },
   {
     accessorFn: (row) => row.numEvents,
+    header: "Events",
+    id: "events",
+    size: 100,
+  },
+  {
+    accessorFn: (row) => row.numEvents,
     header: "Distribution",
     id: "distribution",
     cell: ({ row, table }) => {
@@ -129,7 +135,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   },
 ];
 
-export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "distribution", "created_at", "updated_at"];
+export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "events", "distribution", "created_at", "updated_at"];
 
 // export const clustersTableFilters: ColumnFilter[] = [
 //   {
