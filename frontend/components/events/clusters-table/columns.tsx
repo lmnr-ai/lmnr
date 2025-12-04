@@ -84,14 +84,10 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
       const meta = table.options.meta as ClusterTableMeta | undefined;
       const totalEvents = meta?.totalCount ?? 0;
 
-
       const percentage = totalEvents > 0 ? (row.original.numEvents / totalEvents) * 100 : 0;
 
       return (
-        <span className={cn(
-          "text-xs shrink-0",
-          percentage > 0 ? "text-secondary-foreground" : "text-muted-foreground"
-        )}>
+        <span className={cn("shrink-0", percentage > 0 ? "text-secondary-foreground" : "text-muted-foreground")}>
           {percentage.toFixed(1)}%
         </span>
       );
@@ -114,7 +110,15 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   },
 ];
 
-export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "events", "distribution", "created_at", "updated_at"];
+export const defaultClustersColumnOrder = [
+  "expand",
+  "name",
+  "children_clusters",
+  "events",
+  "distribution",
+  "created_at",
+  "updated_at",
+];
 
 // export const clustersTableFilters: ColumnFilter[] = [
 //   {

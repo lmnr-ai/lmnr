@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   ClusterRow,
@@ -8,7 +8,6 @@ import {
   getClusterColumns,
 } from "@/components/events/clusters-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { EventCluster } from "@/lib/actions/clusters";
@@ -20,62 +19,42 @@ interface ClustersTableProps {
   eventDefinitionName: string;
 }
 
-const FETCH_SIZE = 50;
-
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
   const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
-  const fetchClusters = useCallback(
-    async (pageNumber: number) => {
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", pageNumber.toString());
-        urlParams.set("pageSize", FETCH_SIZE.toString());
+  const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-        const url = `/api/projects/${projectId}/events/${eventDefinitionName}/clusters?${urlParams.toString()}`;
+  const fetchClusters = useCallback(async () => {
+    setIsLoading(true);
 
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+    try {
+      const res = await fetch(`/api/projects/${projectId}/events/${eventDefinitionName}/clusters`);
 
-        if (!res.ok) {
-          const text = (await res.json()) as { error: string };
-          throw new Error(text.error);
-        }
-
-        const data = (await res.json()) as { items: EventCluster[] };
-
-        return data;
-      } catch (error) {
-        toast({
-          title: error instanceof Error ? error.message : "Failed to load clusters. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
+      if (!res.ok) {
+        const text = (await res.json()) as { error: string };
+        throw new Error(text.error);
       }
-    },
-    [projectId, eventDefinitionName, toast]
-  );
 
-  const {
-    data: rawClusters,
-    hasMore,
-    isFetching,
-    isLoading,
-    fetchNextPage,
-    error,
-  } = useInfiniteScroll<EventCluster>({
-    fetchFn: fetchClusters,
-    enabled: true,
-    deps: [projectId, eventDefinitionName],
-  });
+      const data = (await res.json()) as { items: EventCluster[] };
+      setRawClusters(data.items);
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : "Failed to load clusters. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId, eventDefinitionName, toast]);
+
+  useEffect(() => {
+    fetchClusters();
+  }, [fetchClusters]);
 
   const { clusters, totalCount } = useMemo(() => {
-    if (!rawClusters) return { clusters: [], totalCount: 0 };
+    if (!rawClusters.length) return { clusters: [], totalCount: 0 };
 
     const clusterMap = new Map<string, ClusterRow>();
     const rootClusters: ClusterRow[] = [];
@@ -111,12 +90,10 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
       data={clusters}
       getRowId={(cluster) => cluster.id}
       lockedColumns={["expand", "name"]}
-      hasMore={hasMore}
-      isFetching={isFetching}
+      hasMore={false}
+      isFetching={false}
       isLoading={isLoading}
-      fetchNextPage={fetchNextPage}
-      error={error}
-      loadMoreButton
+      fetchNextPage={() => {}}
       meta={{ totalCount }}
     >
       <div className="flex flex-1 w-full space-x-2">

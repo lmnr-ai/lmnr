@@ -1,23 +1,16 @@
 "use client";
 
-import {EditorView} from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import {PropsWithChildren, useCallback, useState} from "react";
+import { PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { useEventsStoreContext } from "@/components/events/events-store";
 import { Button } from "@/components/ui/button";
-import {theme} from "@/components/ui/content-renderer/utils.ts";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { theme } from "@/components/ui/content-renderer/utils.ts";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { EventClusterConfig } from "@/lib/actions/cluster-configs";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -31,10 +24,7 @@ interface StartClusteringDialogProps {
   eventName: string;
 }
 
-export default function StartClusteringDialog({
-  children,
-  eventName,
-}: PropsWithChildren<StartClusteringDialogProps>) {
+export default function StartClusteringDialog({ children, eventName }: PropsWithChildren<StartClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
@@ -51,6 +41,7 @@ export default function StartClusteringDialog({
     formState: { isValid },
   } = useForm<StartClusteringForm>({
     defaultValues: { valueTemplate: "" },
+    mode: "onChange",
   });
 
   const submit = useCallback(
@@ -73,7 +64,7 @@ export default function StartClusteringDialog({
           return;
         }
 
-        const result = await res.json() as (EventClusterConfig | undefined);
+        const result = (await res.json()) as EventClusterConfig | undefined;
 
         if (result) {
           setClusterConfig(result);
@@ -142,4 +133,3 @@ export default function StartClusteringDialog({
     </Dialog>
   );
 }
-
