@@ -57,8 +57,10 @@ pub struct EvaluatorHandler {
 impl MessageHandler for EvaluatorHandler {
     type Message = EvaluatorsQueueMessage;
 
-    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
-        let evaluator = get_evaluator(&self.db, message.id, message.project_id).await?;
+    async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
+        let evaluator = get_evaluator(&self.db, message.id, message.project_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get evaluator: {}", e))?;
 
         let body = EvaluatorRequest {
             definition: evaluator.definition,
@@ -70,7 +72,8 @@ impl MessageHandler for EvaluatorHandler {
             .post(&self.python_online_evaluator_url)
             .json(&body)
             .send()
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to send request to evaluator: {}", e))?;
 
         let status = resp.status();
 
@@ -80,13 +83,17 @@ impl MessageHandler for EvaluatorHandler {
                 "Evaluator service returned error {}: {}",
                 status,
                 error_body
-            ));
+            )
+            .into());
         }
 
-        let evaluator_response = resp.json::<EvaluatorResponse>().await?;
+        let evaluator_response = resp
+            .json::<EvaluatorResponse>()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to parse evaluator response: {}", e))?;
 
         if let Some(error) = evaluator_response.error {
-            return Err(anyhow::anyhow!("Evaluator execution error: {}", error));
+            return Err(anyhow::anyhow!("Evaluator execution error: {}", error).into());
         }
 
         if let Some(score) = evaluator_response.score {
@@ -103,7 +110,8 @@ impl MessageHandler for EvaluatorHandler {
                 score,
                 None,
             )
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert evaluator score to DB: {}", e))?;
 
             insert_evaluator_score_ch(
                 self.clickhouse.clone(),
@@ -115,7 +123,8 @@ impl MessageHandler for EvaluatorHandler {
                 Some(message.id),
                 score,
             )
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert evaluator score to ClickHouse: {}", e))?;
         } else {
             log::info!(
                 "Evaluator returned null score (skipped) for span_id: {}",

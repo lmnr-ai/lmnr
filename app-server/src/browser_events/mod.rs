@@ -32,7 +32,7 @@ pub struct BrowserEventHandler {
 impl MessageHandler for BrowserEventHandler {
     type Message = QueueBrowserEventMessage;
 
-    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
+    async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
         let project_id = message.project_id;
         let batch = message.batch;
 
@@ -60,8 +60,9 @@ impl MessageHandler for BrowserEventHandler {
             .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
             .build();
 
-        let bytes_written =
-            backoff::future::retry(exponential_backoff, insert_browser_events_fn).await?;
+        let bytes_written = backoff::future::retry(exponential_backoff, insert_browser_events_fn)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert browser events: {:?}", e))?;
 
         // Update workspace limits cache
         if is_feature_enabled(Feature::UsageLimit) {

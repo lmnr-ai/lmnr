@@ -62,7 +62,7 @@ pub struct SpanHandler {
 impl MessageHandler for SpanHandler {
     type Message = Vec<RabbitMqSpanMessage>;
 
-    async fn handle(&self, messages: Self::Message) -> anyhow::Result<()> {
+    async fn handle(&self, messages: Self::Message) -> Result<(), crate::worker::HandlerError> {
         process_spans_and_events_batch(
             messages,
             self.db.clone(),
@@ -73,6 +73,7 @@ impl MessageHandler for SpanHandler {
             self.pubsub.clone(),
         )
         .await
+        .map_err(Into::into)
     }
 }
 

@@ -15,7 +15,7 @@ use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
 use crate::traces::clustering;
-use crate::worker::MessageHandler;
+use crate::worker::{HandlerError, MessageHandler};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TraceSummaryMessage {
@@ -101,14 +101,16 @@ impl TraceSummaryHandler {
 impl MessageHandler for TraceSummaryHandler {
     type Message = TraceSummaryMessage;
 
-    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
+    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         // Route to appropriate service based on whether event_definition is present
-        if message.event_definition.is_some() {
+        let result = if message.event_definition.is_some() {
             process_event_identification(&self.client, message, self.db.clone(), self.queue.clone())
                 .await
         } else {
             process_trace_summary(&self.client, self.db.clone(), self.queue.clone(), message).await
-        }
+        };
+
+        result.map_err(Into::into)
     }
 }
 

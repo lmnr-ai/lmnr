@@ -896,9 +896,7 @@ fn main() -> anyhow::Result<()> {
                         worker_pool_clone.spawn(
                             WorkerType::Clustering,
                             num_clustering_workers as usize,
-                            move || ClusteringHandler {
-                                cache: cache.clone(),
-                            },
+                            move || ClusteringHandler::new(cache.clone(), reqwest::Client::new()),
                             QueueConfig {
                                 queue_name: CLUSTERING_QUEUE,
                                 exchange_name: CLUSTERING_EXCHANGE,

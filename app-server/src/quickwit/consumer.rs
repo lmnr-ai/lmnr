@@ -41,7 +41,7 @@ pub struct QuickwitIndexerHandler {
 impl MessageHandler for QuickwitIndexerHandler {
     type Message = Vec<QuickwitIndexedSpan>;
 
-    async fn handle(&self, mut indexed_spans: Self::Message) -> anyhow::Result<()> {
+    async fn handle(&self, mut indexed_spans: Self::Message) -> Result<(), crate::worker::HandlerError> {
         if indexed_spans.is_empty() {
             return Ok(());
         }
@@ -57,23 +57,22 @@ impl MessageHandler for QuickwitIndexerHandler {
         let index_id = std::env::var("QUICKWIT_SPANS_INDEX_ID")
             .unwrap_or(QUICKWIT_SPANS_DEFAULT_INDEX_ID.to_string());
 
-        self.quickwit_client.ingest(&index_id, &indexed_spans).await?;
-        
+        self.quickwit_client
+            .ingest(&index_id, &indexed_spans)
+            .await
+            .map_err(|e| {
+                // Try to reconnect for next message
+                let client = self.quickwit_client.clone();
+                tokio::spawn(async move {
+                    if let Err(err) = client.reconnect().await {
+                        log::warn!("Failed to reconnect to Quickwit: {:?}", err);
+                    }
+                });
+                
+                // Requeue - Quickwit might be temporarily down
+                crate::worker::HandlerError::transient(e)
+            })?;
+
         Ok(())
-    }
-    
-    fn on_error(&self, error: &anyhow::Error) -> crate::worker::ErrorAction {
-        log::error!("Failed to ingest spans into Quickwit: {:?}", error);
-        
-        // Try to reconnect for next message
-        let client = self.quickwit_client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.reconnect().await {
-                log::warn!("Failed to reconnect to Quickwit: {:?}", e);
-            }
-        });
-        
-        // Requeue - Quickwit might be temporarily down
-        crate::worker::ErrorAction::Reject { requeue: true }
     }
 }

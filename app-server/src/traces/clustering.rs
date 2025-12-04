@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::{CLUSTERING_EXCHANGE, CLUSTERING_ROUTING_KEY};
 use crate::cache::{Cache, CacheTrait, keys};
 use crate::mq::{MessageQueue, MessageQueueTrait};
-use crate::worker::MessageHandler;
+use crate::worker::{HandlerError, MessageHandler};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusteringMessage {
@@ -60,35 +60,30 @@ pub async fn push_to_clustering_queue(
 
 /// Handler for clustering messages
 pub struct ClusteringHandler {
-    pub cache: Arc<Cache>,
+    cache: Arc<Cache>,
+    client: reqwest::Client,
+}
+
+impl ClusteringHandler {
+    pub fn new(cache: Arc<Cache>, client: reqwest::Client) -> Self {
+        Self { cache, client }
+    }
 }
 
 #[async_trait]
 impl MessageHandler for ClusteringHandler {
     type Message = ClusteringMessage;
 
-    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
-        process_clustering_logic(&self.cache, message).await
-    }
-
-    fn on_error(&self, error: &anyhow::Error) -> crate::worker::ErrorAction {
-        let error_msg = error.to_string();
-
-        // Requeue on lock timeout - another worker might get the lock next time
-        if error_msg.contains("Lock timeout") {
-            log::warn!("Clustering lock timeout, requeuing message for retry");
-            crate::worker::ErrorAction::Reject { requeue: true }
-        } else {
-            // Other errors: don't requeue (likely permanent failures)
-            crate::worker::ErrorAction::Reject { requeue: false }
-        }
+    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        process_clustering_logic(message, self.cache.clone(), self.client.clone()).await
     }
 }
 
 async fn process_clustering_logic(
-    cache: &Arc<Cache>,
     message: ClusteringMessage,
-) -> anyhow::Result<()> {
+    cache: Arc<Cache>,
+    client: reqwest::Client,
+) -> Result<(), HandlerError> {
     let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, message.project_id);
     let lock_ttl = 300; // 5 minutes
     let max_wait_duration = Duration::from_secs(300); // 5 minutes max wait
@@ -99,10 +94,10 @@ async fn process_clustering_logic(
         // Check if we've exceeded the max wait time
         if start_time.elapsed() >= max_wait_duration {
             log::warn!(
-                "Timeout waiting for clustering lock for project_id={}, will retry",
+                "Timeout waiting for clustering lock for project_id={}, requeuing",
                 message.project_id
             );
-            return Err(anyhow::anyhow!("Lock timeout")); // Will cause message to be requeued
+            return Err(HandlerError::transient(anyhow::anyhow!("Lock timeout")));
         }
 
         match cache.try_acquire_lock(&lock_key, lock_ttl).await {
@@ -121,12 +116,10 @@ async fn process_clustering_logic(
             }
             Err(e) => {
                 log::error!("Failed to acquire clustering lock: {:?}", e);
-                return Err(e.into());
+                return Err(HandlerError::permanent(e));
             }
         }
     }
-
-    let client = reqwest::Client::new();
 
     // Call clustering endpoint
     let result = call_clustering_endpoint(&client, &message).await;
@@ -165,7 +158,7 @@ async fn process_clustering_logic(
                 message.project_id,
                 e
             );
-            Err(e)
+            Err(e.into())
         }
     }
 }

@@ -68,7 +68,7 @@ pub struct PayloadHandler {
 impl MessageHandler for PayloadHandler {
     type Message = QueuePayloadMessage;
 
-    async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
+    async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
         let store_payload = || async {
             self.storage
                 .store_direct(&message.bucket, &message.key, message.data.clone())
@@ -86,7 +86,10 @@ impl MessageHandler for PayloadHandler {
             .with_max_elapsed_time(Some(std::time::Duration::from_secs(10)))
             .build();
 
-        let url = backoff::future::retry(exponential_backoff, store_payload).await?;
+        let url = backoff::future::retry(exponential_backoff, store_payload)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to store payload: {:?}", e))?;
+
         log::debug!("Successfully stored payload to: {}", url);
 
         Ok(())
