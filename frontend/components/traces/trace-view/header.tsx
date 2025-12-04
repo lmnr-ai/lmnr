@@ -1,16 +1,18 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Expand } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import {openInSqlEditor } from "@/components/traces/trace-view/open-in-sql.ts";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
-import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../stats-shields";
@@ -33,6 +35,15 @@ const Header = ({ handleClose }: HeaderProps) => {
       setLangGraph: state.setLangGraph,
       getHasLangGraph: state.getHasLangGraph,
     }));
+
+  const { toast } = useToast();
+
+  const handleCopyTraceId = useCallback(async () => {
+    if (trace?.id) {
+      await navigator.clipboard.writeText(trace.id);
+      toast({ title: "Copied trace ID", duration: 1000 });
+    }
+  }, [trace?.id, toast]);
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
@@ -59,9 +70,24 @@ const Header = ({ handleClose }: HeaderProps) => {
             </Link>
           )}
           {trace && (
-            <CopyTooltip value={trace?.id} text="Copy trace ID">
-              Trace
-            </CopyTooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
+                  Trace
+                  <ChevronDown className="ml-1 size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleCopyTraceId}>
+                  <Copy size={14} />
+                  Copy trace ID
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openInSqlEditor(projectId, { type: 'trace', traceId: trace.id })}>
+                  <Database size={14} />
+                  Open in SQL editor
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </>
       )}
