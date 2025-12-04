@@ -1,8 +1,8 @@
 import { get } from "lodash";
-import { PlayCircle } from "lucide-react";
+import {ChevronDown, Copy, Database, Loader, PlayCircle} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useMemo } from "react";
+import React, { PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
@@ -12,9 +12,11 @@ import TagsTrigger from "@/components/tags/tags-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
+import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Event } from "@/lib/events/types";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
 import { ErrorEventAttributes } from "@/lib/types";
 
@@ -34,14 +36,39 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
     [events]
   );
 
+  const { toast } = useToast();
+  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'span', spanId: span.spanId } });
+
+  const handleCopySpanId = useCallback(async () => {
+    if (span?.spanId) {
+      await navigator.clipboard.writeText(span.spanId);
+      toast({ title: "Copied span ID", duration: 1000 });
+    }
+  }, [span?.spanId, toast]);
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-2">
         <div className="flex flex-none items-center space-x-2">
           <SpanTypeIcon spanType={span.spanType} />
-          <CopyTooltip value={span?.spanId} text="Copy span ID" className="text-xl items-center font-medium truncate">
-            {span.name}
-          </CopyTooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-6 px-1 text-xl font-medium focus-visible:outline-0">
+                {span.name}
+                <ChevronDown className="ml-1 size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={handleCopySpanId}>
+                <Copy size={14} />
+                Copy span ID
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+                {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
+                Open in SQL editor
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {span.spanType === SpanType.LLM && (
             <Link
               href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
@@ -74,6 +101,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </div>
             <TagsList />
             <EvaluatorScoresList spanId={span.spanId} />
+
           </TagsContextProvider>
         </div>
 
