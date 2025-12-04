@@ -15,9 +15,9 @@ interface BlogMetaProps {
 export default function BlogMeta({ data }: BlogMetaProps) {
   return (
     <div className="flex flex-col gap-8 items-center">
-      <div className="flex flex-col w-full md:w-[700px] gap-4">
-        <h1 className="text-5xl font-bold">{data.title}</h1>
-        <p className="text-secondary-foreground"> {formatUTCDate(data.date)} </p>
+      <div className="flex flex-col w-full md:w-[700px] lg:w-[900px] gap-4 mb-16">
+        <h1 className="text-5xl font-bold font-title">{data.title}</h1>
+        <p className="text-secondary-foreground text-sm"> {formatUTCDate(data.date)} </p>
         {data.author.url
           ? <Label className="text-secondary-foreground hover:text-primary"><Link href={data.author.url}>{data.author.name}</Link></Label>
           : <Label className="text-secondary-foreground">{data.author.name}</Label>

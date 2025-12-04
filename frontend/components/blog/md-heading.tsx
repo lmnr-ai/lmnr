@@ -33,10 +33,10 @@ function HeadingContent({ props, level }: { props: any, level: number }) {
 
 function levelToClassName(level: number) {
   switch (level) {
-    case 0: return "text-3xl font-bold";
-    case 1: return "text-2xl pt-4 font-bold";
-    case 2: return "text-xl pt-4 font-bold";
-    case 3: return "text-lg pt-4 font-bold";
-    default: return "text-3xl font-bold";
+    case 0: return "text-3xl font-bold font-title";
+    case 1: return "text-2xl pt-4 font-bold font-title mt-8";
+    case 2: return "text-xl pt-4 font-bold font-title mt-8";
+    case 3: return "text-lg pt-4 font-bold font-title mt-8";
+    default: return "text-3xl font-bold font-title";
   }
 }
