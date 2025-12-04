@@ -1,14 +1,24 @@
+import {TooltipPortal} from "@radix-ui/react-tooltip";
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EventCluster } from "@/lib/actions/clusters";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
+import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export interface ClusterRow extends EventCluster {
   subRows?: ClusterRow[];
 }
+
+export interface ClusterTableMeta {
+  totalCount: number;
+}
+
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "standard",
+});
 
 export const getClusterColumns = (projectId: string, eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
   {
@@ -68,9 +78,40 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   },
   {
     accessorFn: (row) => row.numEvents,
-    header: "Events",
-    id: "events",
-    size: 100,
+    header: "Distribution",
+    id: "distribution",
+    cell: ({ row, table }) => {
+      const meta = table.options.meta as ClusterTableMeta | undefined;
+      const totalEvents = meta?.totalCount ?? 0;
+
+
+      const percentage = totalEvents > 0 ? (row.original.numEvents / totalEvents) * 100 : 0;
+
+      return (
+        <TooltipProvider delayDuration={100}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 w-full min-w-0">
+                <span className={cn(
+                  "text-xs shrink-0",
+                  percentage > 0 ? "text-secondary-foreground" : "text-muted-foreground"
+                )}>
+                  {percentage.toFixed(1)}%
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent side="top" className="text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span>{numberFormatter.format(row.original.numEvents)} events</span>
+                </div>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    size: 200,
   },
   {
     accessorFn: (row) => row.createdAt,
@@ -88,7 +129,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   },
 ];
 
-export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "events", "created_at", "updated_at"];
+export const defaultClustersColumnOrder = ["expand", "name", "children_clusters", "distribution", "created_at", "updated_at"];
 
 // export const clustersTableFilters: ColumnFilter[] = [
 //   {

@@ -20,13 +20,13 @@ export async function GET(
       return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
     }
 
-    const { items: clusters } = await getEventClusters({
+    const result = await getEventClusters({
       ...parseResult.data,
       projectId,
       eventName,
     });
 
-    return NextResponse.json({ items: clusters });
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ success: false, error: prettifyError(error) }, { status: 400 });

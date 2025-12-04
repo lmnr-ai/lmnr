@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import {useCallback, useMemo, useState} from "react";
 
 import {
   ClusterRow,
+  ClusterTableMeta,
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/events/clusters-table/columns.tsx";
@@ -11,6 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { EventCluster } from "@/lib/actions/clusters";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
 interface ClustersTableProps {
@@ -23,6 +25,7 @@ const FETCH_SIZE = 50;
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
+  const [tableMeta, setTableMeta] = useState<ClusterTableMeta>({totalCount: 0});
 
   const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
@@ -47,8 +50,11 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: ClusterRow[] };
-        return { items: data.items };
+        const data = (await res.json()) as { items: EventCluster[]; totalCount: number };
+
+        setTableMeta({ totalCount: data.totalCount});
+
+        return data;
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load clusters. Please try again.",
@@ -67,7 +73,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
     isLoading,
     fetchNextPage,
     error,
-  } = useInfiniteScroll<ClusterRow>({
+  } = useInfiniteScroll<EventCluster>({
     fetchFn: fetchClusters,
     enabled: true,
     deps: [projectId, eventDefinitionId],
@@ -113,6 +119,8 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
       isLoading={isLoading}
       fetchNextPage={fetchNextPage}
       error={error}
+      loadMoreButton
+      meta={tableMeta}
     >
       <div className="flex flex-1 w-full space-x-2">
         <ColumnsMenu

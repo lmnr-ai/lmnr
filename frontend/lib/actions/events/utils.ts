@@ -86,11 +86,11 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: "name = {eventName:String}",
-        params: { eventName },
-      },
-    ];
+    {
+      condition: "name = {eventName:String}",
+      params: { eventName },
+    },
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -130,11 +130,11 @@ export const buildEventsCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: "name = {eventName:String}",
-        params: { eventName },
-      },
-    ];
+    {
+      condition: "name = {eventName:String}",
+      params: { eventName },
+    },
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {

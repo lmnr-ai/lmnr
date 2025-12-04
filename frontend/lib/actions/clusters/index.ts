@@ -1,10 +1,11 @@
-import { and, desc, eq, ilike, ne } from "drizzle-orm";
+import {and, desc, eq, ilike, ne, sql} from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { db } from "@/lib/db/drizzle";
 import { eventClusters } from "@/lib/db/migrations/schema";
+import { PaginatedResponse } from "@/lib/types.ts";
 
 export type EventCluster = {
   id: string;
@@ -25,7 +26,7 @@ export const GetEventClustersSchema = PaginationFiltersSchema.extend({
 
 export async function getEventClusters(
   input: z.infer<typeof GetEventClustersSchema>
-): Promise<{ items: EventCluster[] }> {
+): Promise<PaginatedResponse<EventCluster>> {
   const { projectId, eventName, pageNumber, pageSize, search, filter } = input;
 
   const limit = pageSize;
@@ -48,6 +49,17 @@ export async function getEventClusters(
   } as const);
   whereConditions.push(...filterConditions);
 
+  const [total] = await db
+    .select({
+      count: sql<number>`COALESCE(SUM(${eventClusters.numEvents}), 0)`,
+    })
+    .from(eventClusters)
+    .where(and(
+      eq(eventClusters.projectId, projectId),
+      eq(eventClusters.eventName, eventName),
+      eq(eventClusters.level, 1),
+    ));
+
   const result = await db
     .select({
       id: eventClusters.id,
@@ -67,5 +79,6 @@ export async function getEventClusters(
 
   return {
     items: result,
+    totalCount: total.count
   };
 }
