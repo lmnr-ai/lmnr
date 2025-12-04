@@ -1,11 +1,15 @@
 import { isArray } from "lodash";
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { ChatMessage, ChatMessageContentPart } from "@/lib/types";
 
-type TraceVisibility = "private" | "public";
+export type TraceVisibility = "private" | "public";
+
+export const PAYLOAD_URL_TAG = "lmnr_payload_url";
+export const PAYLOAD_URL_REGEX = new RegExp(`<${PAYLOAD_URL_TAG}>(.*?)</${PAYLOAD_URL_TAG}>`);
 
 export const getTransformPatterns = (projectId: string): Record<TraceVisibility, { from: RegExp; to: string }> => ({
   public: {
@@ -39,7 +43,7 @@ const transformUrl = (url: string, projectId: string, direction: TraceVisibility
 };
 
 export const transformMessages = (
-  content: any,
+  content: string,
   projectId: string,
   direction: TraceVisibility
 ): { messages: any; payloads: Set<string> } => {
@@ -47,8 +51,24 @@ export const transformMessages = (
 
   if (!content) return { messages: content, payloads };
 
-  if (isArray(content)) {
-    const openAIParsed = OpenAIMessagesSchema.safeParse(content);
+  if (content.includes(`<${PAYLOAD_URL_TAG}>`)) {
+    const { from, to } = getTransformPatterns(projectId)[direction];
+    const match = content.match(PAYLOAD_URL_REGEX);
+    if (match) {
+      const originalUrl = match[1];
+      const extractMatch = originalUrl.match(new RegExp(from.source));
+      if (extractMatch?.[1]) payloads.add(extractMatch[1]);
+      const transformed = content.replace(
+        `<${PAYLOAD_URL_TAG}>${originalUrl}</${PAYLOAD_URL_TAG}>`,
+        `<${PAYLOAD_URL_TAG}>${originalUrl.replace(from, to)}</${PAYLOAD_URL_TAG}>`
+      );
+      return { messages: transformed, payloads };
+    }
+  }
+
+  const parsed = tryParseJson(content);
+  if (isArray(parsed)) {
+    const openAIParsed = OpenAIMessagesSchema.safeParse(parsed);
     if (openAIParsed.success) {
       return {
         messages: transformOpenAIMessages(openAIParsed.data, projectId, direction, payloads),
@@ -56,7 +76,7 @@ export const transformMessages = (
       };
     }
 
-    const langChainParsed = LangChainMessagesSchema.safeParse(content);
+    const langChainParsed = LangChainMessagesSchema.safeParse(parsed);
     if (langChainParsed.success) {
       return {
         messages: transformLangChainMessages(langChainParsed.data, projectId, direction, payloads),
@@ -66,21 +86,15 @@ export const transformMessages = (
 
     try {
       return {
-        messages: transformChatMessages(content as ChatMessage[], projectId, direction, payloads),
+        messages: transformChatMessages(parsed as ChatMessage[], projectId, direction, payloads),
         payloads,
       };
     } catch {
-      return {
-        messages: content,
-        payloads,
-      };
+      return { messages: content, payloads };
     }
   }
 
-  return {
-    messages: content,
-    payloads,
-  };
+  return { messages: content, payloads };
 };
 
 const transformChatMessages = (

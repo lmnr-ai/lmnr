@@ -17,11 +17,12 @@ interface Props {
 }
 function Minimap({ onSpanSelect }: Props) {
   const { state, scrollTo, createScrollHandler } = useScrollContext();
-  const { getMinimapSpans, trace, spans, setSessionTime } = useTraceViewStoreContext((state) => ({
+  const { getMinimapSpans, trace, spans, setSessionTime, browserSession } = useTraceViewStoreContext((state) => ({
     getMinimapSpans: state.getMinimapSpans,
     trace: state.trace,
     spans: state.spans,
     setSessionTime: state.setSessionTime,
+    browserSession: state.browserSession,
   }));
 
   const store = useTraceViewStore();
@@ -82,19 +83,26 @@ function Minimap({ onSpanSelect }: Props) {
   }, [traceDuration, timeMarkerInterval]);
 
   useEffect(() => {
+    const currentSessionTime = store.getState().sessionTime || 0;
+    if (sessionTimeNeedleRef.current) {
+      const topPosition = Math.max(0, (currentSessionTime * 1000 * pixelsPerSecond) / 1000);
+      sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
+      sessionTimeNeedleRef.current.style.display = browserSession && currentSessionTime ? "block" : "none";
+    }
+
     const unsubscribe = store.subscribe((state, prevState) => {
-      if (state.sessionTime !== prevState.sessionTime) {
+      if (state.sessionTime !== prevState.sessionTime || state.browserSession !== prevState.browserSession) {
         const sessionTime = state.sessionTime || 0;
         if (sessionTimeNeedleRef.current) {
           const topPosition = Math.max(0, (sessionTime * 1000 * pixelsPerSecond) / 1000);
           sessionTimeNeedleRef.current.style.top = `${topPosition}px`;
-          sessionTimeNeedleRef.current.style.display = sessionTime ? "block" : "none";
+          sessionTimeNeedleRef.current.style.display = state.browserSession && sessionTime ? "block" : "none";
         }
       }
     });
 
     return unsubscribe;
-  }, [store, pixelsPerSecond, trace?.startTime]);
+  }, [store, pixelsPerSecond, trace?.startTime, browserSession]);
 
   const minimapRef = useRef<HTMLDivElement>(null);
 
@@ -256,11 +264,7 @@ function Minimap({ onSpanSelect }: Props) {
           className="bg-primary absolute left-0 w-full h-px z-20 opacity-50 pointer-events-none"
           style={{ display: "none" }}
         />
-        <div
-          ref={spansContainerRef}
-          className="relative w-2 flex-none cursor-pointer"
-          onClick={handleMinimapClick}
-        >
+        <div ref={spansContainerRef} className="relative w-2 flex-none cursor-pointer" onClick={handleMinimapClick}>
           {minimapSpans.map((span, index) => (
             <div
               style={{

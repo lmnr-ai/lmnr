@@ -1,7 +1,7 @@
 "use client";
 
-import { ColumnDef, Row } from "@tanstack/react-table";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ColumnDef } from "@tanstack/react-table";
+import { useParams, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useState } from "react";
 
@@ -106,7 +106,6 @@ export default function Evaluations() {
 
 function EvaluationsContent() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
@@ -207,13 +206,6 @@ function EvaluationsContent() {
     }
   };
 
-  const handleRowClick = useCallback(
-    (row: Row<Evaluation>) => {
-      router.push(`/project/${params?.projectId}/evaluations/${row.original.id}`);
-    },
-    [params?.projectId, router]
-  );
-
   if (isFeatureEnabled(Feature.POSTHOG)) {
     posthog.identify(email);
   }
@@ -242,7 +234,7 @@ function EvaluationsContent() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup className="overflow-hidden" direction="vertical">
+          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" direction="vertical">
             <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
@@ -258,7 +250,7 @@ function EvaluationsContent() {
                 columns={columns}
                 data={evaluations}
                 getRowId={(evaluation) => evaluation.id}
-                onRowClick={handleRowClick}
+                getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
                 hasMore={hasMore}
                 isFetching={isFetching}
                 isLoading={isLoading}

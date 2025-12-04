@@ -122,6 +122,7 @@ export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       input_cost as inputCost,
       output_cost as outputCost,
+      total_cost as totalCost,
       status
     FROM traces
     WHERE id IN ({traceIds:Array(UUID)})

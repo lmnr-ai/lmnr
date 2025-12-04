@@ -183,9 +183,7 @@ const QueuesContent = () => {
         </CreateQueueDialog>
         <InfiniteDataTable
           enableRowSelection={true}
-          onRowClick={(row) => {
-            router.push(`/project/${projectId}/labeling-queues/${row.original.id}`);
-          }}
+          getRowHref={(row) => `/project/${projectId}/labeling-queues/${row.original.id}`}
           getRowId={(row: LabelingQueue) => row.id}
           columns={columns}
           data={queues ?? []}

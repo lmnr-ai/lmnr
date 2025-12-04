@@ -1,6 +1,5 @@
 import { z } from "zod/v4";
 
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
@@ -47,9 +46,7 @@ export async function getSpanImages(input: z.infer<typeof GetSpanImagesSchema>):
   }>;
 
   return chData.flatMap((spanData) => {
-    const input = tryParseJson(spanData.input);
-
-    const inputImages = input ? extractImagesFromMessages(transformMessages(input, projectId, "private").messages) : [];
+    const inputImages = extractImagesFromMessages(transformMessages(spanData.input, projectId, "private").messages);
 
     return inputImages.map(
       (imageUrl): SpanImage => ({

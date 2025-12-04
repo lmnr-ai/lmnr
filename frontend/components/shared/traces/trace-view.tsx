@@ -1,7 +1,6 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { get } from "lodash";
 import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -133,7 +132,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   );
 
   useEffect(() => {
-    if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session")))) {
+    if (trace.hasBrowserSession) {
       setHasBrowserSession(true);
       setBrowserSession(true);
     }
@@ -161,7 +160,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
           </Link>
         </div>
         <div className="flex flex-col h-full w-full overflow-hidden">
-          <ResizablePanelGroup direction="vertical">
+          <ResizablePanelGroup id="shared-trace-panels" direction="vertical">
             <ResizablePanel className="flex size-full">
               <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
                 <div className="h-10 flex py-3 items-center border-b gap-x-2 px-2">
@@ -220,13 +219,31 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                     </>
                   )}
                 </div>
-                {tab === "timeline" && <Timeline />}
-                {tab === "tree" && (
-                  <div className="flex flex-1 overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
+                <ResizablePanelGroup direction="vertical">
+                  <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+                    {tab === "timeline" && <Timeline />}
+                    {tab === "tree" && (
+                      <div className="flex flex-1 overflow-hidden relative">
+                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Minimap onSpanSelect={handleSpanSelect} />
+                      </div>
+                    )}
+                  </ResizablePanel>
+                  {browserSession && (
+                    <>
+                      <ResizableHandle className="z-50" withHandle />
+                      <ResizablePanel>
+                        <SessionPlayer
+                          onClose={() => setBrowserSession(false)}
+                          hasBrowserSession={hasBrowserSession}
+                          traceId={trace.id}
+                          llmSpanIds={llmSpanIds}
+                        />
+                      </ResizablePanel>
+                    </>
+                  )}
+                  {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+                </ResizablePanelGroup>
                 <div
                   className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
                   onMouseDown={handleResizeTreeView}
@@ -240,24 +257,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 </div>
               )}
             </ResizablePanel>
-            {browserSession && (
-              <>
-                <ResizableHandle className="z-50" withHandle />
-                <ResizablePanel
-                  style={{
-                    display: browserSession ? "block" : "none",
-                  }}
-                >
-                  <SessionPlayer
-                    onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={hasBrowserSession}
-                    traceId={trace.id}
-                    llmSpanIds={llmSpanIds}
-                  />
-                </ResizablePanel>
-              </>
-            )}
-            {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
           </ResizablePanelGroup>
         </div>
       </div>
