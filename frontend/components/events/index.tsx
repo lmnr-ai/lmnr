@@ -12,15 +12,18 @@ import ManageEventDefinitionDialog, {
 import ClustersTable from "@/components/events/clusters-table";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import EventsTable from "@/components/events/events-table";
+import StartClusteringDialog from "@/components/events/start-clustering-dialog";
 import { EventNavigationItem, getEventsConfig } from "@/components/events/utils";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils.ts";
 
 import Header from "../ui/header";
@@ -36,19 +39,22 @@ function PureEvents({
   const { push } = useRouter();
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDisableClusteringDialogOpen, setIsDisableClusteringDialogOpen] = useState(false);
   const ref = useRef<Resizable>(null);
-  const { workspace } = useProjectContext();
+  const { workspace, project } = useProjectContext();
+  const { toast } = useToast();
 
-  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId } = useEventsStoreContext(
-    (state) => ({
+  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId, clusterConfig, setClusterConfig } =
+    useEventsStoreContext((state) => ({
       eventDefinition: state.eventDefinition,
       setEventDefinition: state.setEventDefinition,
       traceId: state.traceId,
       spanId: state.spanId,
       setTraceId: state.setTraceId,
       setSpanId: state.setSpanId,
-    })
-  );
+      clusterConfig: state.clusterConfig,
+      setClusterConfig: state.setClusterConfig,
+    }));
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
@@ -81,6 +87,35 @@ function PureEvents({
     setEventsTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
   };
 
+  const handleDisableClustering = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${project?.id}/events/${eventDefinition.name}/cluster-config`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.error || "Failed to disable clustering",
+        });
+        return;
+      }
+
+      setClusterConfig(undefined);
+      toast({ title: "Clustering disabled successfully" });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to disable clustering",
+      });
+    } finally {
+      setIsDisableClusteringDialogOpen(false);
+    }
+  }, [project?.id, eventDefinition.name, setClusterConfig, toast]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (defaultTraceViewWidth > window.innerWidth - 180) {
@@ -112,10 +147,30 @@ function PureEvents({
               </ManageEventDefinitionDialog>
             )}
 
-            <Button variant="outlinePrimary">
-              <Network className="mr-2 size-3.5" />
-              Start Clustering
-            </Button>
+            {clusterConfig ? (
+              <>
+                <Button variant="outlinePrimary" onClick={() => setIsDisableClusteringDialogOpen(true)}>
+                  <Network className="mr-2 size-3.5" />
+                  Disable Clustering
+                </Button>
+                <ConfirmDialog
+                  open={isDisableClusteringDialogOpen}
+                  onOpenChange={setIsDisableClusteringDialogOpen}
+                  title="Disable Clustering"
+                  description="Are you sure you want to disable clustering for this event?"
+                  confirmText="Disable"
+                  cancelText="Cancel"
+                  onConfirm={handleDisableClustering}
+                />
+              </>
+            ) : (
+              <StartClusteringDialog eventName={eventDefinition.name}>
+                <Button variant="outlinePrimary">
+                  <Network className="mr-2 size-3.5" />
+                  Start Clustering
+                </Button>
+              </StartClusteringDialog>
+            )}
           </div>
           <div className="flex flex-col gap-2 flex-1">
             <span className="text-lg font-semibold">Clusters</span>

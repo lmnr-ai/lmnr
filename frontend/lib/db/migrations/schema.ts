@@ -666,13 +666,6 @@ export const sqlTemplates = pgTable("sql_templates", {
   }).onDelete("cascade"),
 ]);
 
-export const eventClusterConfigs = pgTable("event_cluster_configs", {
-  id: uuid().defaultRandom().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  eventName: text("event_name").notNull(),
-  valueTemplate: text("value_template").notNull(),
-});
-
 export const playgrounds = pgTable("playgrounds", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -692,6 +685,20 @@ export const playgrounds = pgTable("playgrounds", {
     foreignColumns: [projects.id],
     name: "playgrounds_project_id_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const eventClusterConfigs = pgTable("event_cluster_configs", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  eventName: text("event_name").notNull(),
+  valueTemplate: text("value_template").notNull(),
+  projectId: uuid("project_id").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "event_cluster_configs_project_id_fkey"
+  }).onDelete("cascade"),
 ]);
 
 export const eventDefinitions = pgTable("event_definitions", {
