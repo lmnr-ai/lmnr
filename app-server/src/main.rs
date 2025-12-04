@@ -34,8 +34,8 @@ use storage::{PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, Storage, mock::MockStorage, pro
 use tonic::transport::Server;
 use traces::{
     CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, CLUSTERING_ROUTING_KEY, OBSERVATIONS_EXCHANGE,
-    OBSERVATIONS_QUEUE, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE, TRACE_SUMMARY_ROUTING_KEY,
-    clustering::ClusteringHandler, consumer::process_queue_spans,
+    OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
+    TRACE_SUMMARY_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
     grpc_service::ProcessTracesService, summary::TraceSummaryHandler,
 };
 
@@ -736,26 +736,32 @@ fn main() -> anyhow::Result<()> {
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
-                    // Spawn spans workers
-                    for _ in 0..num_spans_workers {
-                        let db_clone = db_for_consumer.clone();
-                        let cache_clone = cache_for_consumer.clone();
-                        let mq_clone = mq_for_consumer.clone();
-                        let ch_clone = clickhouse_for_consumer.clone();
-                        let storage_clone = storage_for_consumer.clone();
-                        let pubsub_clone = pubsub_for_consumer.clone();
+                    // Spawn spans workers using new worker pool
+                    {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let storage = storage_for_consumer.clone();
+                        let pubsub = pubsub_for_consumer.clone();
 
-                        tokio::spawn(async move {
-                            process_queue_spans(
-                                db_clone,
-                                cache_clone,
-                                mq_clone,
-                                ch_clone,
-                                storage_clone,
-                                pubsub_clone,
-                            )
-                            .await;
-                        });
+                        worker_pool_clone.spawn(
+                            WorkerType::Spans,
+                            num_spans_workers as usize,
+                            move || SpanHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
+                                storage: storage.clone(),
+                                pubsub: pubsub.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: OBSERVATIONS_QUEUE,
+                                exchange_name: OBSERVATIONS_EXCHANGE,
+                                routing_key: OBSERVATIONS_ROUTING_KEY,
+                            },
+                        );
                     }
 
                     // Spawn spans indexer workers if Quickwit is available
