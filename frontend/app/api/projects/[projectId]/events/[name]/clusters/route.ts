@@ -1,27 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getEventClusters, GetEventClustersSchema } from "@/lib/actions/clusters";
-import { parseUrlParams } from "@/lib/actions/common/utils";
+import { getEventClusters } from "@/lib/actions/clusters";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ projectId: string; name: string }> }
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
 
-    const parseResult = parseUrlParams(
-      req.nextUrl.searchParams,
-      GetEventClustersSchema.omit({ projectId: true, eventName: true })
-    );
-
-    if (!parseResult.success) {
-      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-    }
-
     const result = await getEventClusters({
-      ...parseResult.data,
       projectId,
       eventName,
     });

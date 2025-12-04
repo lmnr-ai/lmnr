@@ -10,7 +10,7 @@ export interface ClusterRow extends EventCluster {
   subRows?: ClusterRow[];
 }
 
-export interface ClusterTableMeta {
+interface ClusterTableMeta {
   totalCount: number;
 }
 

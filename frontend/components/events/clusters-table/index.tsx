@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import {
   ClusterRow,
-  ClusterTableMeta,
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/events/clusters-table/columns.tsx";
@@ -25,8 +24,6 @@ const FETCH_SIZE = 50;
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
-  const [tableMeta, setTableMeta] = useState<ClusterTableMeta>({ totalCount: 0 });
-
   const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
   const fetchClusters = useCallback(
@@ -50,9 +47,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: EventCluster[]; totalCount: number };
-
-        setTableMeta({ totalCount: data.totalCount });
+        const data = (await res.json()) as { items: EventCluster[] };
 
         return data;
       } catch (error) {
@@ -79,8 +74,8 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
     deps: [projectId, eventDefinitionName],
   });
 
-  const clusters = useMemo(() => {
-    if (!rawClusters) return [];
+  const { clusters, totalCount } = useMemo(() => {
+    if (!rawClusters) return { clusters: [], totalCount: 0 };
 
     const clusterMap = new Map<string, ClusterRow>();
     const rootClusters: ClusterRow[] = [];
@@ -104,7 +99,9 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
       }
     });
 
-    return rootClusters;
+    const total = rootClusters.reduce((sum, cluster) => sum + cluster.numEvents, 0);
+
+    return { clusters: rootClusters, totalCount: total };
   }, [rawClusters]);
 
   return (
@@ -120,7 +117,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
       fetchNextPage={fetchNextPage}
       error={error}
       loadMoreButton
-      meta={tableMeta}
+      meta={{ totalCount }}
     >
       <div className="flex flex-1 w-full space-x-2">
         <ColumnsMenu
