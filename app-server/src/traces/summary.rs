@@ -86,8 +86,15 @@ pub async fn push_to_trace_summary_queue(
 
 /// Handler for trace summary messages
 pub struct TraceSummaryHandler {
-    pub db: Arc<db::DB>,
-    pub queue: Arc<MessageQueue>,
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
+    client: reqwest::Client,
+}
+
+impl TraceSummaryHandler {
+    pub fn new(db: Arc<db::DB>, queue: Arc<MessageQueue>, client: reqwest::Client) -> Self {
+        Self { db, queue, client }
+    }
 }
 
 #[async_trait]
@@ -95,14 +102,12 @@ impl MessageHandler for TraceSummaryHandler {
     type Message = TraceSummaryMessage;
 
     async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
-        let client = reqwest::Client::new();
-
         // Route to appropriate service based on whether event_definition is present
         if message.event_definition.is_some() {
-            process_event_identification(&client, message, self.db.clone(), self.queue.clone())
+            process_event_identification(&self.client, message, self.db.clone(), self.queue.clone())
                 .await
         } else {
-            process_trace_summary(&client, self.db.clone(), self.queue.clone(), message).await
+            process_trace_summary(&self.client, self.db.clone(), self.queue.clone(), message).await
         }
     }
 }

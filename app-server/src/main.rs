@@ -856,12 +856,12 @@ fn main() -> anyhow::Result<()> {
                     {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
+                        let client = reqwest::Client::new();
                         worker_pool_clone.spawn(
                             WorkerType::TraceSummaries,
                             num_trace_summary_workers as usize,
-                            move || TraceSummaryHandler {
-                                db: db.clone(),
-                                queue: queue.clone(),
+                            move || {
+                                TraceSummaryHandler::new(db.clone(), queue.clone(), client.clone())
                             },
                             QueueConfig {
                                 queue_name: TRACE_SUMMARY_QUEUE,
