@@ -70,6 +70,19 @@ impl MessageHandler for ClusteringHandler {
     async fn handle(&self, message: Self::Message) -> anyhow::Result<()> {
         process_clustering_logic(&self.cache, message).await
     }
+
+    fn on_error(&self, error: &anyhow::Error) -> crate::worker::ErrorAction {
+        let error_msg = error.to_string();
+
+        // Requeue on lock timeout - another worker might get the lock next time
+        if error_msg.contains("Lock timeout") {
+            log::warn!("Clustering lock timeout, requeuing message for retry");
+            crate::worker::ErrorAction::Reject { requeue: true }
+        } else {
+            // Other errors: don't requeue (likely permanent failures)
+            crate::worker::ErrorAction::Reject { requeue: false }
+        }
+    }
 }
 
 async fn process_clustering_logic(

@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
-use dashmap::DashMap;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::mq::{
@@ -17,12 +16,28 @@ pub trait MessageHandler: Send + Sync + 'static {
     type Message: DeserializeOwned + Send;
 
     async fn handle(&self, message: Self::Message) -> anyhow::Result<()>;
+
+    /// Called when handler fails - decide what to do with the message
+    /// Default: reject without requeue (message is dropped)
+    fn on_error(&self, _error: &anyhow::Error) -> ErrorAction {
+        log::error!("Error in message handler: {:?}.\nDropping message.", _error);
+        ErrorAction::Reject { requeue: false }
+    }
 }
 
-/// Error action to take after handler fails
+/// Action to take when message processing fails
+///
+/// Note: When handler succeeds (returns `Ok(())`), the message is automatically acked.
+/// These actions only apply when the handler returns an error.
+#[derive(Debug, Clone, Copy)]
 pub enum ErrorAction {
-    Ack,
-    Reject { requeue: bool },
+    /// Reject message
+    Reject {
+        /// Whether to requeue for retry
+        /// - `true`: Transient error, retry later
+        /// - `false`: Permanent error, send to dead letter queue
+        requeue: bool,
+    },
 }
 
 /// Queue configuration for a worker
@@ -65,9 +80,9 @@ impl std::fmt::Display for WorkerType {
 #[derive(Clone, Debug)]
 pub enum WorkerState {
     Starting,
-    Idle { since: Instant },
-    Processing { started_at: Instant },
-    Reconnecting { attempt: u32, started_at: Instant },
+    Idle,
+    Processing,
+    Connecting,
 }
 
 /// Queue worker that processes messages indefinitely
@@ -101,14 +116,6 @@ impl<H: MessageHandler> QueueWorker<H> {
         self.id
     }
 
-    pub fn worker_type(&self) -> WorkerType {
-        self.worker_type
-    }
-
-    pub fn state(&self) -> WorkerState {
-        self.state.read().unwrap().clone()
-    }
-
     /// Main processing loop - runs forever with internal retry
     pub async fn process(self: Arc<Self>) {
         loop {
@@ -127,9 +134,7 @@ impl<H: MessageHandler> QueueWorker<H> {
     async fn process_inner(&self) -> anyhow::Result<()> {
         let mut receiver: MessageQueueReceiver = self.connect().await?;
 
-        *self.state.write().unwrap() = WorkerState::Idle {
-            since: Instant::now(),
-        };
+        *self.state.write().unwrap() = WorkerState::Idle;
 
         log::info!(
             "Worker {} ({:?}) connected and ready to process messages",
@@ -140,9 +145,7 @@ impl<H: MessageHandler> QueueWorker<H> {
         while let Some(delivery) = receiver.receive().await {
             let delivery = delivery?;
 
-            *self.state.write().unwrap() = WorkerState::Processing {
-                started_at: Instant::now(),
-            };
+            *self.state.write().unwrap() = WorkerState::Processing;
 
             let acker = delivery.acker();
             let data = delivery.data();
@@ -150,23 +153,17 @@ impl<H: MessageHandler> QueueWorker<H> {
 
             match result {
                 Ok(()) => acker.ack().await?,
-                Err(ErrorAction::Ack) => acker.ack().await?,
                 Err(ErrorAction::Reject { requeue }) => acker.reject(requeue).await?,
             }
 
-            *self.state.write().unwrap() = WorkerState::Idle {
-                since: Instant::now(),
-            };
+            *self.state.write().unwrap() = WorkerState::Idle;
         }
 
         Ok(())
     }
 
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
-        *self.state.write().unwrap() = WorkerState::Reconnecting {
-            attempt: 0,
-            started_at: Instant::now(),
-        };
+        *self.state.write().unwrap() = WorkerState::Connecting;
 
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
@@ -210,9 +207,13 @@ impl<H: MessageHandler> QueueWorker<H> {
                 self.worker_type,
                 e
             );
+            // Malformed message - reject without requeue (it won't deserialize on retry)
             ErrorAction::Reject { requeue: false }
         })?;
 
+        // Handle the message
+        // On success: returns Ok(()) → caller will ack
+        // On error: handler decides action via on_error()
         self.handler.handle(message).await.map_err(|e| {
             log::error!(
                 "Worker {} ({:?}) handler failed: {:?}",
@@ -220,7 +221,7 @@ impl<H: MessageHandler> QueueWorker<H> {
                 self.worker_type,
                 e
             );
-            ErrorAction::Ack
+            self.handler.on_error(&e)
         })
     }
 }
@@ -228,12 +229,6 @@ impl<H: MessageHandler> QueueWorker<H> {
 /// Worker pool - simple spawning and tracking
 pub struct WorkerPool {
     queue: Arc<MessageQueue>,
-}
-
-#[derive(Clone, Serialize)]
-pub struct WorkerInfo {
-    pub id: Uuid,
-    pub worker_type: WorkerType,
 }
 
 impl WorkerPool {
