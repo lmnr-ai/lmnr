@@ -2,15 +2,15 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Expand } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/lib/hooks/use-toast";
+import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../stats-shields";
@@ -23,7 +23,6 @@ const Header = ({ handleClose }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { toast } = useToast();
   const { navigateDown, navigateUp } = useTraceViewNavigation();
   const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
     useTraceViewStoreContext((state) => ({
@@ -45,17 +44,6 @@ const Header = ({ handleClose }: HeaderProps) => {
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
 
-  const copyTraceId = useCallback(() => {
-    if (trace) {
-      navigator.clipboard.writeText(trace.id);
-      toast({
-        title: "Copied trace ID",
-        description: "Trace ID has been copied to clipboard",
-        variant: "default",
-      });
-    }
-  }, [toast, trace]);
-
   return (
     <div className="h-10 min-h-10 flex items-center gap-x-2 px-2">
       {!params?.traceId && (
@@ -70,18 +58,11 @@ const Header = ({ handleClose }: HeaderProps) => {
               </Button>
             </Link>
           )}
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="cursor-pointer" onClick={copyTraceId}>
-                  Trace
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Click to copy trace ID</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {trace && (
+            <CopyTooltip value={trace?.id} text="Copy trace ID">
+              Trace
+            </CopyTooltip>
+          )}
         </>
       )}
       {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}

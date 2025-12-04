@@ -3,6 +3,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
@@ -15,7 +16,7 @@ interface SpanContentProps {
 
 const extractPayloadUrl = (data: any): string | null => {
   if (typeof data === "string") {
-    const match = data.match(/<lmnr_payload_url>(.*?)<\/lmnr_payload_url>/);
+    const match = data.match(PAYLOAD_URL_REGEX);
     return match ? match[1] : null;
   }
   return null;

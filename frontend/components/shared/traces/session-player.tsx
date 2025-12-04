@@ -95,6 +95,15 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     [currentUrl, findUrlIndex, urlChanges]
   );
 
+  const lastPlayerTime = useRef<number>(0);
+
+  useEffect(() => {
+    if (playerRef.current && sessionTime !== undefined) {
+      playerRef.current.goto(sessionTime * 1000);
+      lastPlayerTime.current = sessionTime;
+    }
+  }, [sessionTime]);
+
   useEffect(() => {
     if (!hasBrowserSession && activeTab === "browser-session") {
       setActiveTab("images");
