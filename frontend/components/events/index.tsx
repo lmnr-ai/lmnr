@@ -128,7 +128,7 @@ function PureEvents({
             </StartClusteringDialog>
           )}
         </div>
-        <div className="flex flex-col gap-2 flex-1">
+        <div className="flex flex-col gap-2">
           <span className="text-lg font-semibold">Clusters</span>
           {eventDefinition.id && (
             <ClustersTable
