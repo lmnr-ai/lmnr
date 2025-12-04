@@ -99,7 +99,7 @@
     "libsodium-wrappers": "^0.7.15",
     "lodash": "^4.17.21",
     "lucide-react": "^0.468.0",
-    "next": "~15.5.2",
+    "next": "^15.5.7",
     "next-auth": "^4.24.11",
     "next-mdx-remote": "^5.0.0",
     "pako": "^2.1.0",
