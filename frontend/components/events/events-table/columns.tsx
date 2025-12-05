@@ -16,6 +16,13 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     id: "id",
   },
   {
+    id: "attributes",
+    accessorKey: "attributes",
+    header: "Attributes",
+    accessorFn: (row) => row.attributes,
+    cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
+  },
+  {
     accessorKey: "timestamp",
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
@@ -50,16 +57,9 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     header: "Session ID",
     size: 200,
   },
-  {
-    id: "attributes",
-    accessorKey: "attributes",
-    header: "Attributes",
-    accessorFn: (row) => row.attributes,
-    cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
-  },
 ];
 
-export const defaultEventsColumnOrder = ["id", "timestamp", "traceId", "spanId", "userId", "sessionId", "attributes"];
+export const defaultEventsColumnOrder = ["id", "attributes", "timestamp", "traceId", "spanId", "userId", "sessionId" ];
 
 export const eventsTableFilters: ColumnFilter[] = [
   {

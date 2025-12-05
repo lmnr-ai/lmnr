@@ -52,7 +52,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
       });
       params.append("filter", clusterFilter);
 
-      const eventsUrl = `/project/${projectId}/events/${eventDefinitionId}?${params.toString()}#events-table`;
+      const eventsUrl = `/project/${projectId}/events/${eventDefinitionId}?${params.toString()}`;
 
       return (
         <div style={{ paddingLeft: `${paddingLeft}px` }} className="truncate text-primary">

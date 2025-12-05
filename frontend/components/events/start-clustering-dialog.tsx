@@ -9,7 +9,8 @@ import { Controller, useForm } from "react-hook-form";
 
 import { useEventsStoreContext } from "@/components/events/events-store";
 import { Button } from "@/components/ui/button";
-import { theme } from "@/components/ui/content-renderer/utils.ts";
+import { mustache } from "@/components/ui/content-renderer/lang-mustache";
+import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { EventClusterConfig } from "@/lib/actions/cluster-configs";
@@ -108,11 +109,8 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
                   value={field.value}
                   onChange={field.onChange}
                   theme={theme}
-                  basicSetup={{
-                    lineNumbers: false,
-                    foldGutter: false,
-                  }}
-                  extensions={[EditorView.lineWrapping]}
+                  basicSetup={false}
+                  extensions={[mustache, ...baseExtensions.filter(ext => ext !== EditorView.lineWrapping)]}
                   placeholder="{{input}}"
                   className="rounded-md border text-sm"
                 />
