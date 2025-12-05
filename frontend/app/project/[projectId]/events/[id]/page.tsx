@@ -2,8 +2,9 @@ import { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import Events from "@/components/events/events";
+import Events from "@/components/events";
 import { EventsStoreProvider } from "@/components/events/events-store";
+import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { EventDefinition, getEventDefinition } from "@/lib/actions/event-definitions";
 import { getLastEvent } from "@/lib/actions/events";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
@@ -24,14 +25,17 @@ export default async function EventsPage(props: {
     return notFound();
   }
 
-  const lastEvent = await getLastEvent({ projectId, name: eventDefinition.name });
+  const [lastEvent, clusterConfig] = await Promise.all([
+    getLastEvent({ projectId, name: eventDefinition.name }),
+    getClusterConfig({ projectId, eventName: eventDefinition.name }),
+  ]);
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
   const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
 
   return (
-    <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId}>
+    <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
       <Events lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );

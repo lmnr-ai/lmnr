@@ -1,3 +1,6 @@
+import { and, eq } from "drizzle-orm";
+import { compact, keyBy } from "lodash";
+
 import { Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
@@ -9,6 +12,8 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { db } from "@/lib/db/drizzle";
+import { eventClusters } from "@/lib/db/migrations/schema";
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -101,10 +106,12 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: [{
-      column: "timestamp",
-      direction: "DESC",
-    }],
+    orderBy: [
+      {
+        column: "timestamp",
+        direction: "DESC",
+      },
+    ],
     pagination: {
       limit,
       offset,
@@ -147,3 +154,42 @@ export const buildEventsCountQueryWithParams = (
 
   return buildSelectQuery(queryOptions);
 };
+
+export interface ResolveClusterFiltersOptions {
+  filters: Filter[];
+  projectId: string;
+  eventName?: string;
+}
+
+export async function resolveClusterFilters({
+  filters,
+  projectId,
+  eventName,
+}: ResolveClusterFiltersOptions): Promise<Filter[]> {
+  const hasClusterFilter = filters.some((f) => f.column === "cluster");
+  if (!hasClusterFilter) {
+    return filters;
+  }
+
+  const conditions = [eq(eventClusters.projectId, projectId)];
+  if (eventName) {
+    conditions.push(eq(eventClusters.eventName, eventName));
+  }
+
+  const clustersList = await db
+    .select()
+    .from(eventClusters)
+    .where(and(...conditions));
+
+  const clustersByName = keyBy(clustersList, "name");
+
+  return compact(
+    filters.map((filter) => {
+      if (filter.column !== "cluster") {
+        return filter;
+      }
+      const cluster = clustersByName[String(filter.value)];
+      return cluster ? { ...filter, value: cluster.id } : null;
+    })
+  );
+}
