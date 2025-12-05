@@ -612,9 +612,13 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // == HTTP client ==
+    let http_client = Arc::new(reqwest::Client::new());
+
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
+    let http_client_for_http = http_client.clone();
 
     if !enable_producer() && !enable_consumer() {
         log::error!(
@@ -732,6 +736,7 @@ fn main() -> anyhow::Result<()> {
         let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
+        let http_client_for_consumer = http_client.clone();
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
             .spawn(move || {
@@ -761,6 +766,7 @@ fn main() -> anyhow::Result<()> {
                         let ch_clone = clickhouse_for_consumer.clone();
                         let storage_clone = storage_for_consumer.clone();
                         let pubsub_clone = pubsub_for_consumer.clone();
+                        let http_client_clone = http_client_for_consumer.clone();
 
                         tokio::spawn(async move {
                             let _handle = worker_handle; // Keep handle alive for the worker's lifetime
@@ -771,6 +777,7 @@ fn main() -> anyhow::Result<()> {
                                 ch_clone,
                                 storage_clone,
                                 pubsub_clone,
+                                http_client_clone,
                             )
                             .await;
                         });
@@ -936,6 +943,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(

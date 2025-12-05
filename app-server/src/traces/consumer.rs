@@ -7,6 +7,7 @@ use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
+use serde::Serialize;
 use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
@@ -28,6 +29,7 @@ use crate::{
     db::{
         DB,
         events::Event,
+        projects::{DeploymentMode, get_workspace_by_project_id},
         spans::Span,
         tags::{SpanTag, TagSource},
         trace::upsert_trace_statistics_batch,
@@ -51,6 +53,12 @@ use crate::{
     },
 };
 
+#[derive(Serialize)]
+struct DataPlaneWriteRequest<'a> {
+    table: &'static str,
+    data: &'a [CHSpan],
+}
+
 pub async fn process_queue_spans(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -58,6 +66,7 @@ pub async fn process_queue_spans(
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) {
     loop {
         inner_process_queue_spans(
@@ -67,6 +76,7 @@ pub async fn process_queue_spans(
             clickhouse.clone(),
             storage.clone(),
             pubsub.clone(),
+            http_client.clone(),
         )
         .await;
         log::warn!("Span listener exited. Rebinding queue conneciton...");
@@ -80,6 +90,7 @@ async fn inner_process_queue_spans(
     clickhouse: clickhouse::Client,
     storage: Arc<Storage>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) {
     // Add retry logic with exponential backoff for connection failures
     let get_receiver = || async {
@@ -142,6 +153,7 @@ async fn inner_process_queue_spans(
             acker,
             queue.clone(),
             pubsub.clone(),
+            http_client.clone(),
         )
         .await;
     }
@@ -149,7 +161,17 @@ async fn inner_process_queue_spans(
     log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, acker, queue, pubsub))]
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    storage,
+    acker,
+    queue,
+    pubsub,
+    http_client
+))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -159,6 +181,7 @@ async fn process_spans_and_events_batch(
     acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -223,6 +246,7 @@ async fn process_spans_and_events_batch(
         acker,
         queue,
         pubsub,
+        http_client,
     )
     .with_current_context()
     .await;
@@ -246,6 +270,7 @@ struct StrippedSpan {
     acker,
     queue,
     pubsub,
+    http_client,
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -257,6 +282,7 @@ async fn process_batch(
     acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
@@ -357,19 +383,98 @@ async fn process_batch(
         })
         .collect();
 
-    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
-        log::error!(
-            "Failed to record {} spans to clickhouse: {:?}",
-            ch_spans.len(),
-            e
-        );
-        let _ = acker.reject(false).await.map_err(|e| {
-            log::error!(
-                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
-                e
-            );
-        });
-        return;
+    // TODO: add project id -> deployment mode to cache [?]
+    let (workspace_id, deployment_mode, data_plane_url) =
+        match get_workspace_by_project_id(&db.pool, &project_id).await {
+            Ok(workspace) => (
+                workspace.id,
+                workspace.deployment_mode,
+                workspace.data_plane_url,
+            ),
+            Err(e) => {
+                log::error!("Failed to get workspace by project id: {:?}", e);
+                return;
+            }
+        };
+
+    match deployment_mode {
+        DeploymentMode::CLOUD | DeploymentMode::SELF_HOST => {
+            if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+                log::error!(
+                    "Failed to record {} spans to clickhouse: {:?}",
+                    ch_spans.len(),
+                    e
+                );
+                let _ = acker.reject(false).await.map_err(|e| {
+                    log::error!(
+                        "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
+                        e
+                    );
+                });
+                return;
+            }
+        }
+        DeploymentMode::HYBRID => {
+            // Route to data plane
+            let Some(data_plane_url) = data_plane_url else {
+                log::error!(
+                    "HYBRID deployment mode requires data_plane_url to be set for project {}",
+                    project_id
+                );
+                let _ = acker.reject(false).await.map_err(|e| {
+                    log::error!("[HYBRID] Failed to reject MQ delivery (batch): {:?}", e);
+                });
+                return;
+            };
+
+            let jwt_token = match crate::utils::generate_data_plane_jwt(workspace_id) {
+                Ok(token) => token,
+                Err(e) => {
+                    log::error!("Failed to generate data plane JWT: {}", e);
+                    let _ = acker.reject(false).await.map_err(|e| {
+                        log::error!("[HYBRID] Failed to reject MQ delivery (batch): {:?}", e);
+                    });
+                    return;
+                }
+            };
+
+            let request_body = DataPlaneWriteRequest {
+                table: "spans",
+                data: &ch_spans,
+            };
+
+            let response = http_client
+                .post(format!("{}/clickhouse/write", data_plane_url))
+                .header("Authorization", format!("Bearer {}", jwt_token))
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+                .await;
+
+            match response {
+                Ok(resp) if resp.status().is_success() => {
+                    // Success - continue with the rest of the processing
+                }
+                Ok(resp) => {
+                    log::error!(
+                        "Data plane returned non-success status {}: {:?}",
+                        resp.status(),
+                        resp.text().await.unwrap_or_default()
+                    );
+                    let _ = acker.reject(false).await.map_err(|e| {
+                        log::error!("[HYBRID] Failed to reject MQ delivery (batch): {:?}", e);
+                    });
+                    return;
+                }
+                Err(e) => {
+                    log::error!("Failed to send spans to data plane: {:?}", e);
+                    let _ = acker.reject(false).await.map_err(|e| {
+                        log::error!("[HYBRID] Failed to reject MQ delivery (batch): {:?}", e);
+                    });
+                    return;
+                }
+            }
+        }
     }
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes

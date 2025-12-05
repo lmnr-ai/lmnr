@@ -5,7 +5,7 @@ use opentelemetry::{
     trace::{Span, Tracer},
 };
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -14,7 +14,10 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult};
+use crate::{
+    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+    utils::generate_data_plane_jwt,
+};
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
@@ -93,32 +96,15 @@ pub async fn execute_sql_query(
 ) -> Result<Vec<Value>, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    let mut span = tracer.start("call_query_engine");
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
-    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
-    let validation_result = query_engine.validate_query(query, project_id).await;
-
-    let validated_query = match validation_result {
-        Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
-        Ok(QueryEngineValidationResult::Error { error }) => {
-            span.record_error(&std::io::Error::new(
-                std::io::ErrorKind::Other,
-                error.clone(),
-            ));
-            span.end();
-            return Err(SqlQueryError::ValidationError(error));
-        }
+    // Validate query first
+    let validated_query = match validate_query(query, project_id, query_engine).await {
+        Ok(validated_query) => validated_query,
         Err(e) => {
-            span.record_error(&std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ));
-            span.end();
-            return Err(SqlQueryError::ValidationError(e.to_string()));
+            return Err(e);
         }
     };
-    span.end();
 
+    // Execute query
     let mut span = tracer.start("execute_sql_query");
     span.set_attribute(KeyValue::new("sql.query", validated_query.clone()));
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
@@ -239,4 +225,145 @@ fn remove_query_from_error_message(error_message: &str) -> String {
     // also remove them manually
     let without_settings = SETTING_REGEX.replace_all(&error_message, "").to_string();
     VERSION_REGEX.replace_all(&without_settings, "").to_string()
+}
+
+#[derive(Serialize)]
+struct DataPlaneReadRequest {
+    query: String,
+}
+
+pub async fn execute_sql_query_on_data_plane(
+    query: String,
+    project_id: Uuid,
+    workspace_id: Uuid,
+    data_plane_url: String,
+    http_client: Arc<reqwest::Client>,
+    query_engine: Arc<QueryEngine>,
+) -> Result<Vec<Value>, SqlQueryError> {
+    let tracer = global::tracer("app-server");
+
+    // Validate query first
+    let validated_query = match validate_query(query, project_id, query_engine).await {
+        Ok(validated_query) => validated_query,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    // Execute on data plane
+    let mut span = tracer.start("execute_data_plane_sql_query");
+    span.set_attribute(KeyValue::new("sql.query", validated_query.clone()));
+    span.set_attribute(KeyValue::new("data_plane_url", data_plane_url.clone()));
+
+    // Generate JWT token
+    let jwt_token = generate_data_plane_jwt(workspace_id).map_err(|e| {
+        span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e.clone()));
+        span.end();
+        SqlQueryError::InternalError(format!("Failed to generate JWT: {}", e))
+    })?;
+
+    let request_body = DataPlaneReadRequest {
+        query: validated_query,
+    };
+
+    // Send http request to data plane
+    let response = http_client
+        .post(format!("{}/clickhouse/read", data_plane_url))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| {
+            span.record_error(&e);
+            span.end();
+            SqlQueryError::InternalError(format!("Failed to send request to data plane: {}", e))
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        span.record_error(&std::io::Error::new(
+            std::io::ErrorKind::Other,
+            error_text.clone(),
+        ));
+        span.end();
+        return Err(SqlQueryError::InternalError(format!(
+            "Data plane returned error {}: {}",
+            status, error_text
+        )));
+    }
+
+    let data = response.bytes().await.map_err(|e| {
+        span.record_error(&e);
+        span.end();
+        SqlQueryError::InternalError(format!("Failed to read response: {}", e))
+    })?;
+    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
+    span.end();
+
+    // Parse response
+    let mut processing_span = tracer.start("process_query_response");
+
+    let results: Value = serde_json::from_slice(&data).map_err(|e| {
+        log::error!("Failed to parse data plane response as JSON: {}", e);
+        processing_span.record_error(&e);
+        processing_span.end();
+        SqlQueryError::InternalError(e.to_string())
+    })?;
+
+    let data_array = results
+        .get("data")
+        .ok_or_else(|| {
+            let msg = "Response missing 'data' field".to_string();
+            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
+            processing_span.end();
+            SqlQueryError::InternalError(msg)
+        })?
+        .as_array()
+        .ok_or_else(|| {
+            let msg = "Response 'data' field is not an array".to_string();
+            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
+            processing_span.end();
+            SqlQueryError::InternalError(msg)
+        })?;
+
+    processing_span.end();
+    Ok(data_array.clone())
+}
+
+async fn validate_query(
+    query: String,
+    project_id: Uuid,
+    query_engine: Arc<QueryEngine>,
+) -> Result<String, SqlQueryError> {
+    let tracer = global::tracer("app-server");
+    let mut span = tracer.start("validate_sql_query");
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
+
+    let validation_result = query_engine.validate_query(query, project_id).await;
+
+    let validated_query = match validation_result {
+        Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
+        Ok(QueryEngineValidationResult::Error { error }) => {
+            span.record_error(&std::io::Error::new(
+                std::io::ErrorKind::Other,
+                error.clone(),
+            ));
+            span.end();
+            return Err(SqlQueryError::ValidationError(error));
+        }
+        Err(e) => {
+            span.record_error(&std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ));
+            span.end();
+            return Err(SqlQueryError::ValidationError(e.to_string()));
+        }
+    };
+    span.end();
+
+    Ok(validated_query)
 }

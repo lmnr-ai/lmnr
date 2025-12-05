@@ -26,6 +26,7 @@ enum_dispatch = "0.3.13"
 futures-util = "0.3"
 indexmap = {version = "2.11.4", features = ["serde"]}
 itertools = "0.14.0"
+jsonwebtoken = "9"
 lapin = "3.0.0"
 log = "0.4.28"
 moka = {version = "0.12.10", features = ["sync", "future"]}
