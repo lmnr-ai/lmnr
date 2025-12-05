@@ -66,7 +66,10 @@ const TimelineElement = ({
 
     const textContent = (
       <div className={"flex items-center gap-1.5"}>
-        {displayName} <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
+        <span className={'text-nowrap'}>
+          {displayName}
+        </span>
+        <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         {llmMetrics && (
           <>
             <span className={"text-white/70 inline-flex items-center gap-1"}>
@@ -86,7 +89,7 @@ const TimelineElement = ({
     const commonProps = {
       title: span.span.name,
       ref: textRef,
-      className: "text-xs font-medium text-white/90 truncate",
+      className: "text-xs font-medium text-white/90",
     };
 
     if (textPosition === "inside") {
@@ -109,7 +112,7 @@ const TimelineElement = ({
           {...commonProps}
           className={cn(commonProps.className, "absolute text-right")}
           style={{
-            right: `calc(100% - ${span.left}% + 16px)`,
+            right: `calc(100% - ${span.left}% + 60px)`,
             maxWidth: "250px",
           }}
         >
