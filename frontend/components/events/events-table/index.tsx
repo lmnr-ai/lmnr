@@ -130,7 +130,6 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
     endDate,
     filters: filter,
     additionalParams: eventDefinition.id ? { eventDefinitionId: eventDefinition.id } : {},
-    defaultTargetBars: 24,
   });
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -184,7 +183,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
     if (!pastHours && !startDate && !endDate) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("pastHours", "24");
-      router.push(`${pathName}?${params.toString()}`);
+      router.replace(`${pathName}?${params.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 

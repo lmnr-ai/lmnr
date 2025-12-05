@@ -107,7 +107,7 @@ function PureEvents({
               onSuccess={handleSuccess}
             >
               <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
-                  Event Definition
+                Event Definition
               </Button>
             </ManageEventDefinitionDialog>
           )}
@@ -116,14 +116,14 @@ function PureEvents({
             <DisableClusteringDialog eventName={eventDefinition.name}>
               <Button variant="secondary">
                 <Network className="mr-2 size-3.5" />
-                  Disable Clustering
+                Disable Clustering
               </Button>
             </DisableClusteringDialog>
           ) : (
             <StartClusteringDialog eventName={eventDefinition.name}>
               <Button variant="secondary">
                 <Network className="mr-2 size-3.5" />
-                  Start Clustering
+                Start Clustering
               </Button>
             </StartClusteringDialog>
           )}
@@ -143,7 +143,7 @@ function PureEvents({
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold">Events</span>
             <span className="text-xs text-muted-foreground font-medium">
-                Last event:{" "}
+              Last event:{" "}
               <span
                 title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
                 className={cn("text-xs", {

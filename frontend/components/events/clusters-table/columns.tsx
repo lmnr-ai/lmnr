@@ -92,7 +92,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
         </span>
       );
     },
-    size: 200,
+    size: 115,
   },
   {
     accessorFn: (row) => row.createdAt,

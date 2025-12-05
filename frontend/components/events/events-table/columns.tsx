@@ -19,7 +19,7 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     accessorKey: "timestamp",
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    size: 200,
+    size: 140,
     id: "timestamp",
   },
   {
