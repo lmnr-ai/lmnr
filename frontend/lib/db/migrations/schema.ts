@@ -774,7 +774,7 @@ export const eventClusters = pgTable("event_clusters", {
   numChildrenClusters: bigint("num_children_clusters", { mode: "number" }).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   numEvents: bigint("num_events", { mode: "number" }).notNull(),
-  centroid: vector().notNull(),
+  centroid: vector({ dimensions: 3072 }).notNull(),
   name: text().notNull(),
   eventName: text("event_name").notNull(),
 }, (table) => [
