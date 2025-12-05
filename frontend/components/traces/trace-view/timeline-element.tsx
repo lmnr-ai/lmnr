@@ -73,7 +73,8 @@ const TimelineElement = ({
               <Coins className="min-w-1" size={12} />
               {llmMetrics.totalTokens}
             </span>
-            <span className={"text-white/70 inline-flex items-center gap-1"}>
+
+            <span className={"text-white/70 flex w-fit items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
               {llmMetrics.cost}
             </span>
@@ -148,21 +149,6 @@ const TimelineElement = ({
       }}
     >
       {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
-      {span.left > 50 && textPosition === "outside" && (
-        <span
-          title={span.span.name}
-          ref={textRef}
-          className={"text-xs font-medium text-black truncate absolute"}
-          style={{
-            right: `calc(100% - ${span.left}% + 16px)`,
-            textAlign: "right",
-            maxWidth: "250px",
-          }}
-        >
-          {isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span)}{" "}
-          <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
-        </span>
-      )}
       <div
         ref={blockRef}
         className="rounded relative z-20 flex items-center"
