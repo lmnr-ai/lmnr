@@ -393,6 +393,12 @@ async fn process_batch(
             ),
             Err(e) => {
                 log::error!("Failed to get workspace by project id: {:?}", e);
+                let _ = acker.reject(false).await.map_err(|e| {
+                    log::error!(
+                        "[Get workspace] Failed to reject MQ delivery (batch): {:?}",
+                        e
+                    );
+                });
                 return;
             }
         };
