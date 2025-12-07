@@ -62,23 +62,24 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   }
 
   return (
-    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
+    <div ref={scrollRef} className="overflow-x-auto overflow-y-auto grow relative h-full w-full styled-scrollbar">
       <div className="flex flex-col pb-4 pt-1">
         <div
           className="relative"
           style={{
             height: virtualizer.getTotalSize(),
-            width: "100%",
+            width: "max-content",
+            minWidth: "100%",
             position: "relative",
           }}
         >
           <div
-            className="pl-4"
             style={{
               position: "absolute",
               top: 0,
               left: 0,
-              width: "100%",
+              width: "max-content",
+              minWidth: "100%",
               transform: `translateY(${items[0]?.start ?? 0}px)`,
             }}
           >
