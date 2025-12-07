@@ -16,9 +16,11 @@ const SQUARE_ICON_SIZE = 16;
 const DEPTH_INDENT = 24;
 const TREE_CONTAINER_PADDING_LEFT = 16;
 const BASE_PADDING_LEFT = 8;
-const TREE_LINE_HORIZONTAL_WIDTH = 14;
-const TREE_LINE_VERTICAL_OFFSET = 10;
-const TREE_LINE_TOP_ADJUSTMENT = 8;
+
+const TREE_LINE_WIDTH = 12;
+const TREE_LINE_HEIGHT_ADJUSTMENT = 12;
+const TREE_LINE_TOP_ANCHOR = 31;
+const TREE_LINE_LEFT_BASE = 10;
 
 interface SpanCardProps {
   span: TraceViewSpan;
@@ -78,10 +80,10 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
           <div
             className="border-l-2 border-b-2 rounded-bl-lg absolute"
             style={{
-              height: segmentHeight - ROW_HEIGHT / 2 + TREE_LINE_VERTICAL_OFFSET,
-              top: -(segmentHeight - ROW_HEIGHT + TREE_LINE_TOP_ADJUSTMENT),
-              left: TREE_CONTAINER_PADDING_LEFT + depth * DEPTH_INDENT + BASE_PADDING_LEFT - TREE_LINE_HORIZONTAL_WIDTH,
-              width: TREE_LINE_HORIZONTAL_WIDTH,
+              height: segmentHeight - TREE_LINE_HEIGHT_ADJUSTMENT,
+              top: -(segmentHeight - TREE_LINE_TOP_ANCHOR),
+              left: depth * DEPTH_INDENT + TREE_LINE_LEFT_BASE,
+              width: TREE_LINE_WIDTH,
             }}
           />
           <SpanTypeIcon
