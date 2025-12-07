@@ -23,13 +23,12 @@ const TREE_LINE_TOP_ADJUSTMENT = 8;
 interface SpanCardProps {
   span: TraceViewSpan;
   parentY: number;
-  containerWidth: number;
   depth: number;
   yOffset: number;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth, depth }: SpanCardProps) {
+export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 

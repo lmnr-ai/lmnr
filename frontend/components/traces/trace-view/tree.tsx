@@ -13,9 +13,8 @@ interface TreeProps {
 
 const Tree = ({ onSpanSelect }: TreeProps) => {
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, treeWidth, spans } = useTraceViewStoreContext((state) => ({
+  const { getTreeSpans, spans } = useTraceViewStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
-    treeWidth: state.treeWidth,
     spans: state.spans,
   }));
 
@@ -94,7 +93,6 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
                     parentY={spanItem.parentY}
                     yOffset={spanItem.yOffset}
                     depth={spanItem.depth}
-                    containerWidth={treeWidth}
                     onSpanSelect={onSpanSelect}
                   />
                 </div>
