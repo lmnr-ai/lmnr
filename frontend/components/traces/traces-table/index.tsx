@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef } from "react";
+import {useCallback, useEffect, useMemo, useRef} from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
@@ -218,20 +218,27 @@ function TracesTableContent() {
     [updateData, isTraceInTimeRange]
   );
 
-  useRealtime({
-    key: "traces",
-    projectId: projectId as string,
-    enabled: realtimeEnabled && filter.length === 0 && !textSearchFilter && isCurrentTimestampIncluded,
-    eventHandlers: {
-      trace_update: (event) => {
+  const eventHandlers = useMemo(() => ({
+    trace_update: (event: MessageEvent) => {
+      try {
         const payload = JSON.parse(event.data);
         if (payload.traces && Array.isArray(payload.traces)) {
           for (const trace of payload.traces) {
             updateRealtimeTrace(trace);
           }
         }
-      },
+      } catch (e) {
+        console.warn("Failed to parse realtime trace: ", e);
+      }
+
     },
+  }), [updateRealtimeTrace]);
+
+  useRealtime({
+    key: "traces",
+    projectId: projectId as string,
+    enabled: realtimeEnabled && filter.length === 0 && !textSearchFilter && isCurrentTimestampIncluded,
+    eventHandlers,
   });
 
   useEffect(() => {

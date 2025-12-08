@@ -26,11 +26,9 @@ const InitializationTabsSection = dynamic(
 export default function TracesPagePlaceholder() {
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
-  const [shouldListen, setShouldListen] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
 
   const handleTraceUpdate = useCallback(() => {
-    setShouldListen(false);
     localStorage.setItem('traces-table:realtime', JSON.stringify(true));
     router.refresh();
   }, [router]);
@@ -38,7 +36,7 @@ export default function TracesPagePlaceholder() {
   useRealtime({
     key: "traces",
     projectId: params.projectId,
-    enabled: shouldListen,
+    enabled: true,
     onConnect: () => setIsConnected(true),
     onError: () => setIsConnected(false),
     eventHandlers: {
