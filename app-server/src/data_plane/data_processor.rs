@@ -65,10 +65,26 @@ async fn get_workspace_config(pool: &PgPool, project_id: Uuid) -> Result<Workspa
     Ok(config)
 }
 
+/// Tables that can be written to via the data plane
+#[derive(Serialize, Clone, Copy, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Table {
+    Spans,
+    // Add more tables here as needed (e.g., Events, Traces)
+}
+
+/// Data payload for write requests
+#[derive(Serialize)]
+pub struct WriteData<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spans: Option<&'a [CHSpan]>,
+    // Add more fields here as needed (e.g., events, traces)
+}
+
 #[derive(Serialize)]
 struct DataPlaneWriteRequest<'a> {
-    table: &'static str,
-    data: &'a [CHSpan],
+    table: Table,
+    data: WriteData<'a>,
 }
 
 #[derive(Serialize)]
@@ -125,8 +141,8 @@ async fn write_spans_to_data_plane(
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
         .json(&DataPlaneWriteRequest {
-            table: "spans",
-            data: spans,
+            table: Table::Spans,
+            data: WriteData { spans: Some(spans) },
         })
         .send()
         .await?;

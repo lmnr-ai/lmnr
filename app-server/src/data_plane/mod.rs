@@ -1,4 +1,4 @@
 pub mod auth;
 pub mod data_processor;
 
-pub use data_processor::{read, write_spans};
+pub use data_processor::{Table, WriteData, read, write_spans};
