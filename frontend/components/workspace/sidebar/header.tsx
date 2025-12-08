@@ -37,7 +37,7 @@ interface WorkspaceSidebarHeaderProps {
 
 const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
   const { isMobile } = useSidebar();
-  const { username, imageUrl, email } = useUserContext();
+  const user = useUserContext();
   const { data, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
   const { toast } = useToast();
   const { broadcastLogout } = useSessionSync();
@@ -78,12 +78,12 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
             >
               <DropdownMenuLabel className="flex gap-2 p-1">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={imageUrl} alt="avatar" />
-                  <AvatarFallback className="rounded-lg">{username?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
+                  <AvatarImage src={user.image ?? ''} alt="avatar" />
+                  <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="text-muted-foreground">Logged in as</span>
-                  <span className="text-sidebar-foreground">{email}</span>
+                  <span className="text-sidebar-foreground">{user.email}</span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

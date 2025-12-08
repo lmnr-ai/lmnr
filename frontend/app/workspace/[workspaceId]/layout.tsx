@@ -14,13 +14,7 @@ export default async function WorkspaceLayout(props: PropsWithChildren<{ params:
   const session = await requireWorkspaceAccess(params.workspaceId);
 
   return (
-    <UserContextProvider
-      id={session.user.id}
-      email={session.user.email!}
-      supabaseAccessToken={session.supabaseAccessToken}
-      username={session.user.name!}
-      imageUrl={session.user.image!}
-    >
+    <UserContextProvider user={session.user}>
       <SessionSyncProvider>
         {props.children}
       </SessionSyncProvider>

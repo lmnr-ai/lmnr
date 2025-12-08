@@ -8,13 +8,6 @@ import { generateRandomKey } from "@/lib/utils";
 export async function getUserByEmail(email: string): Promise<UserSession | undefined> {
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
-    with: {
-      apiKeys: {
-        columns: {
-          apiKey: true,
-        },
-      },
-    },
   });
 
   if (!user) {
@@ -26,7 +19,6 @@ export async function getUserByEmail(email: string): Promise<UserSession | undef
     name: user.name,
     email: user.email,
     avatarUrl: user?.avatarUrl ?? undefined,
-    apiKey: user.apiKeys?.[0]?.apiKey,
   };
 }
 

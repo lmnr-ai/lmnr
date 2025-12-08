@@ -28,6 +28,7 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-dat
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Filter } from "@/lib/actions/common/filters";
+import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -306,6 +307,20 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   const isLoading = isTraceLoading && !trace;
 
+  const eventHandlers = useMemo(
+    () => ({
+      span_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+          }
+        }
+      },
+    }),
+    [setBrowserSession, setSpans, setTrace]
+  );
+
   useEffect(() => {
     if (!isSpansLoading) {
       const span = spans?.find((s) => s.spanId === spanId);
@@ -345,34 +360,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSpansError,
   ]);
 
-  useEffect(() => {
-    if (!traceId || !projectId) {
-      return;
-    }
-
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=trace_${traceId}`);
-
-    eventSource.addEventListener("span_update", (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.spans && Array.isArray(payload.spans)) {
-          for (const span of payload.spans) {
-            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
-          }
-        }
-      } catch (error) {
-        console.error("Error processing span update:", error);
-      }
-    });
-
-    eventSource.addEventListener("error", (error) => {
-      console.error("SSE connection error:", error);
-    });
-
-    return () => {
-      eventSource.close();
-    };
-  }, [setBrowserSession, setSpans, setTrace, traceId, projectId]);
+  useRealtime({
+    key: `trace_${traceId}`,
+    projectId: projectId as string,
+    enabled: !!traceId && !!projectId,
+    eventHandlers,
+  });
 
   if (isLoading) {
     return (
