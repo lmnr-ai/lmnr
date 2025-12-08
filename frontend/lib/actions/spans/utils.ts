@@ -266,3 +266,89 @@ export const transformSpanWithEvents = (
   })),
   collapsed: false,
 });
+
+interface AggregatedMetrics {
+  totalCost: number;
+  totalTokens: number;
+  hasLLMDescendants: boolean;
+}
+
+export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] => {
+  const spanMap = new Map<string, TraceViewSpan>();
+  const childrenMap = new Map<string, string[]>();
+  const metricsCache = new Map<string, AggregatedMetrics | null>();
+
+  for (const span of spans) {
+    spanMap.set(span.spanId, span);
+    if (span.parentSpanId) {
+      const siblings = childrenMap.get(span.parentSpanId) || [];
+      siblings.push(span.spanId);
+      childrenMap.set(span.parentSpanId, siblings);
+    }
+  }
+
+  const calculateMetrics = (spanId: string): AggregatedMetrics | null => {
+    if (metricsCache.has(spanId)) {
+      return metricsCache.get(spanId)!;
+    }
+
+    const span = spanMap.get(spanId)!;
+    const children = childrenMap.get(spanId) || [];
+
+    if (children.length === 0) {
+      if (span.spanType === 'LLM') {
+        let cost = span.attributes['gen_ai.usage.cost'];
+
+        if (cost == null) {
+          const inputCost = span.attributes['gen_ai.usage.input_cost'] ?? 0;
+          const outputCost = span.attributes['gen_ai.usage.output_cost'] ?? 0;
+          cost = inputCost + outputCost;
+        }
+
+        const inputTokens = span.attributes['gen_ai.usage.input_tokens'] ?? 0;
+        const outputTokens = span.attributes['gen_ai.usage.output_tokens'] ?? 0;
+
+        const metrics = {
+          totalCost: cost,
+          totalTokens: inputTokens + outputTokens,
+          hasLLMDescendants: true,
+        };
+        metricsCache.set(spanId, metrics);
+        return metrics;
+      }
+      metricsCache.set(spanId, null);
+      return null;
+    }
+
+    let totalCost = 0;
+    let totalTokens = 0;
+    let hasLLMDescendants = false;
+
+    for (const childId of children) {
+      const childMetrics = calculateMetrics(childId);
+      if (childMetrics) {
+        totalCost += childMetrics.totalCost;
+        totalTokens += childMetrics.totalTokens;
+        hasLLMDescendants = true;
+      }
+    }
+
+    if (hasLLMDescendants) {
+      const metrics = {
+        totalCost,
+        totalTokens,
+        hasLLMDescendants: true,
+      };
+      metricsCache.set(spanId, metrics);
+      return metrics;
+    }
+
+    metricsCache.set(spanId, null);
+    return null;
+  };
+
+  return spans.map(span => {
+    const metrics = calculateMetrics(span.spanId);
+    return metrics ? { ...span, aggregatedMetrics: metrics } : span;
+  });
+};

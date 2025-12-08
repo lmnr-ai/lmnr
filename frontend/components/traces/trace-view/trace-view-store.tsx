@@ -38,10 +38,6 @@ export type TraceViewSpan = {
   aggregatedMetrics?: {
     totalCost: number;
     totalTokens: number;
-    inputTokens: number;
-    outputTokens: number;
-    inputCost: number;
-    outputCost: number;
     hasLLMDescendants: boolean;
   };
 };

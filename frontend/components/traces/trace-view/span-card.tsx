@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-re
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { SpanDisplayTooltip } from "@/components/traces/trace-view/ui/span-display-tooltip.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -25,7 +26,6 @@ interface SpanCardProps {
 
 export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
-  const [isHovered, setIsHovered] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse } = useTraceViewStoreContext((state) => ({
@@ -48,16 +48,17 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   return (
-    <div
-      className="text-md flex w-full flex-col"
-      ref={ref}
-      style={{
-        paddingLeft: depth * 24,
-      }}
-    >
-      <div className="flex flex-col">
+    <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
+      <div
+        className="text-md flex w-full flex-col"
+        ref={ref}
+        style={{
+          paddingLeft: depth * 24,
+        }}
+      >
         <div
-          className="flex w-full items-center space-x-2 cursor-pointer group relative pl-2"
+          className="flex gap-x-1 w-full text-md items-center cursor-pointer group relative pl-2"
+          ref={ref}
           style={{
             height: ROW_HEIGHT,
           }}
@@ -80,14 +81,9 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
             status={span.status}
             className={cn("min-w-[22px]", { "text-muted-foreground bg-muted ": span.pending })}
           />
-          <div
-            className={cn(
-              "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
-              span.pending && "text-muted-foreground"
-            )}
-          >
-            {isHovered && span.spanType === "LLM" ? span.name : getSpanDisplayName(span)}
-          </div>
+
+          {getSpanDisplayName(span)}
+
           {span.pending ? (
             isStringDateOld(span.startTime) ? (
               <NoSpanTooltip>
@@ -137,8 +133,6 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
                 onSpanSelect?.(span);
               }
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
           />
           {isSelected && (
             <div
@@ -164,6 +158,6 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
           <div className="grow" />
         </div>
       </div>
-    </div>
+    </SpanDisplayTooltip>
   );
 }

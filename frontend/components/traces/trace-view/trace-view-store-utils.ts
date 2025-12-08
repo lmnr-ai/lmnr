@@ -4,16 +4,6 @@ import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.t
 import { SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
-interface AggregatedMetrics {
-  totalCost: number;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  inputCost: number;
-  outputCost: number;
-  hasLLMDescendants: boolean;
-}
-
 export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
@@ -50,69 +40,6 @@ export interface MinimapSpan extends TreeSpan {
   spanId: string;
 }
 
-const aggregateMetricsFromChildren = (
-  span: TraceViewSpan,
-  childSpansMap: { [key: string]: TraceViewSpan[] }
-): AggregatedMetrics | undefined => {
-  const children = childSpansMap[span.spanId];
-
-  if (!children || children.length === 0) {
-    if (span.spanType === "LLM") {
-      const inputTokens = span.attributes["gen_ai.usage.input_tokens"] ?? 0;
-      const outputTokens = span.attributes["gen_ai.usage.output_tokens"] ?? 0;
-      const inputCost = span.attributes["gen_ai.usage.input_cost"] ?? 0;
-      const outputCost = span.attributes["gen_ai.usage.output_cost"] ?? 0;
-      const cost = span.attributes["gen_ai.usage.cost"] ?? (inputCost + outputCost);
-
-      return {
-        totalCost: cost,
-        totalTokens: inputTokens + outputTokens,
-        inputTokens,
-        outputTokens,
-        inputCost,
-        outputCost,
-        hasLLMDescendants: true,
-      };
-    }
-    return undefined;
-  }
-
-  let totalCost = 0;
-  let totalTokens = 0;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let inputCost = 0;
-  let outputCost = 0;
-  let hasLLMDescendants = false;
-
-  for (const child of children) {
-    const childMetrics = aggregateMetricsFromChildren(child, childSpansMap);
-    if (childMetrics) {
-      totalCost += childMetrics.totalCost;
-      totalTokens += childMetrics.totalTokens;
-      inputTokens += childMetrics.inputTokens;
-      outputTokens += childMetrics.outputTokens;
-      inputCost += childMetrics.inputCost;
-      outputCost += childMetrics.outputCost;
-      hasLLMDescendants = true;
-    }
-  }
-
-  if (hasLLMDescendants) {
-    return {
-      totalCost,
-      totalTokens,
-      inputTokens,
-      outputTokens,
-      inputCost,
-      outputCost,
-      hasLLMDescendants: true,
-    };
-  }
-
-  return undefined;
-};
-
 export const getTopLevelSpans = <T extends TraceViewSpan>(spans: T[]): T[] =>
   spans
     .filter((span) => !span.parentSpanId)
@@ -141,14 +68,6 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
   const topLevelSpans = getTopLevelSpans(spans);
   const childSpans = getChildSpansMap(spans);
 
-  const spansWithMetrics = spans.map(span => {
-    const aggregatedMetrics = aggregateMetricsFromChildren(span, childSpans);
-    return aggregatedMetrics ? { ...span, aggregatedMetrics } : span;
-  });
-
-  const childSpansWithMetrics = getChildSpansMap(spansWithMetrics);
-  const topLevelSpansWithMetrics = getTopLevelSpans(spansWithMetrics);
-
   const spanItems: TreeSpan[] = [];
   const maxY = { current: 0 };
 
@@ -173,11 +92,11 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
 
     if (!span.collapsed) {
       const py = maxY.current;
-      childSpansWithMetrics[span.spanId]?.forEach((child) => buildTreeWithCollapse(items, child, depth + 1, maxY, py));
+      childSpans[span.spanId]?.forEach((child) => buildTreeWithCollapse(items, child, depth + 1, maxY, py));
     }
   };
 
-  topLevelSpansWithMetrics.forEach((span) => buildTreeWithCollapse(spanItems, span, 0, maxY, 0));
+  topLevelSpans.forEach((span) => buildTreeWithCollapse(spanItems, span, 0, maxY, 0));
   return spanItems;
 };
 
@@ -210,13 +129,6 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
 
   const childSpans = getChildSpansMap(spans);
 
-  const spansWithMetrics = spans.map(span => {
-    const aggregatedMetrics = aggregateMetricsFromChildren(span, childSpans);
-    return aggregatedMetrics ? { ...span, aggregatedMetrics } : span;
-  });
-
-  const childSpansWithMetrics = getChildSpansMap(spansWithMetrics);
-
   // Traverse function to get ordered spans respecting collapsed state
   const traverse = (
     span: TraceViewSpan,
@@ -236,12 +148,12 @@ export const transformSpansToTimeline = (spans: TraceViewSpan[]): TimelineData =
   };
 
   const orderedSpans: TraceViewSpan[] = [];
-  const topLevelSpans = spansWithMetrics
+  const topLevelSpans = spans
     .filter((span) => !span.parentSpanId)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   for (const span of topLevelSpans) {
-    traverse(span, childSpansWithMetrics, orderedSpans);
+    traverse(span, childSpans, orderedSpans);
   }
 
   orderedSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());

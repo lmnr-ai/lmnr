@@ -6,7 +6,7 @@ import { Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
+import { aggregateSpanMetrics, buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
@@ -304,7 +304,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
-  return spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+  const transformedSpans = spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+  const spansWithMetrics = aggregateSpanMetrics(transformedSpans);
+  return spansWithMetrics;
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

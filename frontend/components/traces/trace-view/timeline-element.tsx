@@ -4,6 +4,7 @@ import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { SpanDisplayTooltip } from "@/components/traces/trace-view/ui/span-display-tooltip.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -27,7 +28,6 @@ const TimelineElement = ({
   const textRef = useRef<HTMLSpanElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
   const [textPosition, setTextPosition] = useState<"inside" | "outside">("inside");
-  const [isHovered, setIsHovered] = useState(false);
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
@@ -62,13 +62,11 @@ const TimelineElement = ({
   }, [span.span.name, span.events.length, span.width]);
 
   const spanTextElement = useMemo(() => {
-    const displayName = isHovered && span.span.spanType === "LLM" ? span.span.name : getSpanDisplayName(span.span);
-
     const textContent = (
       <div className={"flex items-center gap-1.5"}>
-        <span className={'text-nowrap'}>
-          {displayName}
-        </span>
+        <div className={"overflow-hidden text-ellipsis whitespace-nowrap max-w-20 text-nowrap"}>
+          {getSpanDisplayName(span.span)}
+        </div>
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
         {llmMetrics && (
           <>
@@ -112,7 +110,7 @@ const TimelineElement = ({
           {...commonProps}
           className={cn(commonProps.className, "absolute text-right")}
           style={{
-            right: `calc(100% - ${span.left}% + 60px)`,
+            right: `calc(100% - ${span.left}% + 20px)`,
             maxWidth: "250px",
           }}
         >
@@ -134,50 +132,49 @@ const TimelineElement = ({
     span.left,
     span.events.length,
     textPosition,
-    isHovered,
   ]);
 
   return (
-    <div
-      key={virtualRow.index}
-      data-index={virtualRow.index}
-      onClick={handleSpanSelect}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={cn(
-        "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
-      )}
-      style={{
-        transform: `translateY(${virtualRow.start}px)`,
-      }}
-    >
-      {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
+    <SpanDisplayTooltip isLLM={span.span.spanType === "LLM"} name={span.span.name}>
       <div
-        ref={blockRef}
-        className="rounded relative z-20 flex items-center"
+        key={virtualRow.index}
+        data-index={virtualRow.index}
+        onClick={handleSpanSelect}
+        className={cn(
+          "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
+        )}
         style={{
-          backgroundColor:
-            span.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.span.spanType],
-          marginLeft: span.left + "%",
-          width: `max(${span.width}%, 2px)`,
-          height: 24,
+          transform: `translateY(${virtualRow.start}px)`,
         }}
       >
-        {span.events.map((event) => (
-          <div
-            key={event.id}
-            className="absolute bg-orange-400 w-1 rounded"
-            style={{
-              left: event.left + "%",
-              top: 0,
-              height: 24,
-            }}
-          />
-        ))}
-        {textPosition === "inside" && spanTextElement}
+        {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
+        <div
+          ref={blockRef}
+          className="rounded relative z-20 flex items-center"
+          style={{
+            backgroundColor:
+              span.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.span.spanType],
+            marginLeft: span.left + "%",
+            width: `max(${span.width}%, 2px)`,
+            height: 24,
+          }}
+        >
+          {span.events.map((event) => (
+            <div
+              key={event.id}
+              className="absolute bg-orange-400 w-1 rounded"
+              style={{
+                left: event.left + "%",
+                top: 0,
+                height: 24,
+              }}
+            />
+          ))}
+          {textPosition === "inside" && spanTextElement}
+        </div>
+        {textPosition === "outside" && spanTextElement}
       </div>
-      {textPosition === "outside" && spanTextElement}
-    </div>
+    </SpanDisplayTooltip>
   );
 };
 

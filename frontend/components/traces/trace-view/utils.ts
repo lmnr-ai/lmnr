@@ -259,7 +259,14 @@ export const getLLMMetrics = (span:TraceViewSpan)=>{
 
   if (span.spanType !== "LLM") return null;
 
-  const costValue = span.attributes["gen_ai.usage.cost"];
+  let costValue = span.attributes["gen_ai.usage.cost"];
+
+  if (costValue == null) {
+    const inputCost = span.attributes["gen_ai.usage.input_cost"] ?? 0;
+    const outputCost = span.attributes["gen_ai.usage.output_cost"] ?? 0;
+    costValue = inputCost + outputCost;
+  }
+
   const inputTokens = span.attributes["gen_ai.usage.input_tokens"];
   const outputTokens = span.attributes["gen_ai.usage.output_tokens"];
 
