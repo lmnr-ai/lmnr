@@ -34,17 +34,13 @@ Laminar integrates with Stagehand, giving you full observability across the spec
 
 Install the SDKs:
 
-bash
-
-```
+```bash
 npm install @lmnr-ai/lmnr @browserbasehq/stagehand
 ```
 
 Initialize Laminar with Stagehand instrumentation:
 
-typescript
-
-```
+```typescript
 import { Laminar } from '@lmnr-ai/lmnr';
 import { Stagehand } from '@browserbasehq/stagehand';
 
@@ -60,9 +56,7 @@ Laminar.initialize({
 
 Mix Playwright's precision with Stagehand's AI-powered actions:
 
-typescript
-
-```
+```typescript
 const stagehand = new Stagehand({
   env: "LOCAL",
   model: "openai/gpt-4.1",
@@ -99,9 +93,7 @@ await Laminar.flush();
 
 For multi-step tasks where you want to delegate entirely:
 
-typescript
-
-```
+```typescript
 const stagehand = new Stagehand({
   env: "LOCAL",
   model: "openai/gpt-4.1",
