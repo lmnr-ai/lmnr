@@ -8,7 +8,7 @@ author:
 tags: ["stagehand"]
 ---
 
-Stagehand gives you access to low-level Playwright APIs on its Page instance while layering in AI-powered features. From targeted actions up to fully autonomous Agents, you choose how much control to keep and how much to delegate.
+When automating for the web, Stagehand gives developers access to both programatic and abstracted automations in one framework. Use Playwright APIs when you need fine-tuned control over flows with AI-powered `act()` and `extract()` for flexible interactions, or autonomous Agents to delegate entire tasks.
 
 The tradeoff with this agency has always been visibility. When your workflow fails on step 36, or your Agent starts hallucinating, you're left guessing what happened.
 
@@ -41,8 +41,8 @@ npm install @lmnr-ai/lmnr @browserbasehq/stagehand
 Initialize Laminar with Stagehand instrumentation:
 
 ```typescript
-import { Laminar } from '@lmnr-ai/lmnr';
-import { Stagehand } from '@browserbasehq/stagehand';
+import { Laminar } from "@lmnr-ai/lmnr";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 Laminar.initialize({
   projectApiKey: process.env.LMNR_PROJECT_API_KEY,
@@ -76,10 +76,12 @@ await stagehand.act("Click on the Issues tab");
 const issues = await stagehand.extract(
   "Extract the titles and numbers of the first 5 open issues",
   z.object({
-    issues: z.array(z.object({
-      title: z.string(),
-      number: z.number(),
-    })),
+    issues: z.array(
+      z.object({
+        title: z.string(),
+        number: z.number(),
+      })
+    ),
   })
 );
 
@@ -107,9 +109,7 @@ await page.goto("https://news.ycombinator.com");
 // Create an agent for multi-step autonomous tasks
 const agent = stagehand.agent();
 
-const result = await agent.execute(
-  "Find the top story about AI, click into it, and extract the title and top comment"
-);
+const result = await agent.execute("Find the top story about AI, click into it, and extract the title and top comment");
 
 console.log(result);
 
