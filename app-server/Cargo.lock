@@ -391,6 +391,7 @@ dependencies = [
  "enum_delegate",
  "enum_dispatch",
  "futures-util",
+ "hex",
  "indexmap",
  "itertools 0.14.0",
  "jsonwebtoken",

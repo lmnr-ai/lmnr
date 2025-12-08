@@ -10,8 +10,6 @@ pub enum DeploymentMode {
     #[default]
     CLOUD,
     HYBRID,
-    #[allow(non_camel_case_types)]
-    SELF_HOST,
 }
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
