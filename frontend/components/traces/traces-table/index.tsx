@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import {useCallback, useEffect, useMemo, useRef} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
@@ -17,7 +17,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
-import {useLocalStorage} from "@/hooks/use-local-storage.tsx";
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -70,7 +70,7 @@ function TracesTableContent() {
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
 
-  const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage('traces-table:realtime', false);
+  const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage("traces-table:realtime", false);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -218,21 +218,23 @@ function TracesTableContent() {
     [updateData, isTraceInTimeRange]
   );
 
-  const eventHandlers = useMemo(() => ({
-    trace_update: (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.traces && Array.isArray(payload.traces)) {
-          for (const trace of payload.traces) {
-            updateRealtimeTrace(trace);
+  const eventHandlers = useMemo(
+    () => ({
+      trace_update: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.traces && Array.isArray(payload.traces)) {
+            for (const trace of payload.traces) {
+              updateRealtimeTrace(trace);
+            }
           }
+        } catch (e) {
+          console.warn("Failed to parse realtime trace: ", e);
         }
-      } catch (e) {
-        console.warn("Failed to parse realtime trace: ", e);
-      }
-
-    },
-  }), [updateRealtimeTrace]);
+      },
+    }),
+    [updateRealtimeTrace]
+  );
 
   useRealtime({
     key: "traces",

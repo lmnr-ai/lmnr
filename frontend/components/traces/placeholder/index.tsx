@@ -3,7 +3,7 @@
 import { ArrowUpRight, Radio } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -28,20 +28,30 @@ export default function TracesPagePlaceholder() {
   const params = useParams<{ projectId: string }>();
   const [isConnected, setIsConnected] = useState(false);
 
-  const handleTraceUpdate = useCallback(() => {
-    localStorage.setItem('traces-table:realtime', JSON.stringify(true));
-    router.refresh();
-  }, [router]);
+  const eventHandlers = useMemo(
+    () => ({
+      trace_update: () => {
+        localStorage.setItem("traces-table:realtime", JSON.stringify(true));
+        router.refresh();
+      },
+    }),
+    [router]
+  );
+
+  const onConnectionUpdate = useCallback(
+    (status: boolean) => () => {
+      setIsConnected(status);
+    },
+    []
+  );
 
   useRealtime({
     key: "traces",
     projectId: params.projectId,
     enabled: true,
-    onConnect: () => setIsConnected(true),
-    onError: () => setIsConnected(false),
-    eventHandlers: {
-      trace_update: handleTraceUpdate,
-    },
+    onConnect: onConnectionUpdate(true),
+    onError: onConnectionUpdate(false),
+    eventHandlers,
   });
 
   return (
@@ -54,14 +64,12 @@ export default function TracesPagePlaceholder() {
             <p className="text-muted-foreground">
               You don{"'"}t have any traces yet. Follow these steps to start sending traces.
             </p>
-            {isConnected &&
-                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg border border-border/50">
-                    <Radio className="w-4 h-4 text-primary animate-pulse"/>
-                    <span className="text-sm text-muted-foreground">
-              Waiting for incoming traces...
-                    </span>
-                  </div>
-            }
+            {isConnected && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg border border-border/50">
+                <Radio className="w-4 h-4 text-primary animate-pulse" />
+                <span className="text-sm text-muted-foreground">Waiting for incoming traces...</span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-3">
@@ -84,9 +92,7 @@ export default function TracesPagePlaceholder() {
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
               <h2 className="text-lg font-medium">Initialize Laminar</h2>
-              <p className="text-sm text-muted-foreground">
-                Add 2 lines of code at the top of your project.
-              </p>
+              <p className="text-sm text-muted-foreground">Add 2 lines of code at the top of your project.</p>
             </div>
             <InitializationTabsSection />
           </div>

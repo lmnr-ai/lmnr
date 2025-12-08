@@ -307,16 +307,19 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   const isLoading = isTraceLoading && !trace;
 
-  const eventHandlers = useMemo(() => ({
-    span_update: (event: MessageEvent) => {
-      const payload = JSON.parse(event.data);
-      if (payload.spans && Array.isArray(payload.spans)) {
-        for (const span of payload.spans) {
-          onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+  const eventHandlers = useMemo(
+    () => ({
+      span_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.spans && Array.isArray(payload.spans)) {
+          for (const span of payload.spans) {
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+          }
         }
-      }
-    }
-  }), []);
+      },
+    }),
+    [setBrowserSession, setSpans, setTrace]
+  );
 
   useEffect(() => {
     if (!isSpansLoading) {
