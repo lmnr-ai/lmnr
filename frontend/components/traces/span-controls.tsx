@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import {ChevronDown, Copy, Database, Loader, PlayCircle} from "lucide-react";
+import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { PropsWithChildren, useCallback, useMemo } from "react";
@@ -14,7 +14,12 @@ import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Event } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
@@ -37,7 +42,10 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
   );
 
   const { toast } = useToast();
-  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'span', spanId: span.spanId } });
+  const { openInSql, isLoading } = useOpenInSql({
+    projectId: projectId as string,
+    params: { type: "span", spanId: span.spanId },
+  });
 
   const handleCopySpanId = useCallback(async () => {
     if (span?.spanId) {
@@ -82,12 +90,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
-          <SpanStatsShields
-            className="flex-wrap"
-            startTime={span.startTime}
-            endTime={span.endTime}
-            attributes={span.attributes}
-          >
+          <SpanStatsShields className="flex-wrap" span={span}>
             <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
               {new Date(span.startTime).toLocaleString()}
             </div>
@@ -101,7 +104,6 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </div>
             <TagsList />
             <EvaluatorScoresList spanId={span.spanId} />
-
           </TagsContextProvider>
         </div>
 

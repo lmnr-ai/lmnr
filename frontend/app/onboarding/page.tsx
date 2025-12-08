@@ -32,13 +32,7 @@ export default async function OnboardingPage() {
   const user = session.user;
 
   return (
-    <UserContextProvider
-      id={user.id}
-      email={user.email!}
-      supabaseAccessToken={session.supabaseAccessToken}
-      username={user.name!}
-      imageUrl={user.image!}
-    >
+    <UserContextProvider user={user}>
       <div className="flex flex-col h-screen w-full bg-background">
         <CreateFirstWorkspaceAndProject name={user.name} />
       </div>

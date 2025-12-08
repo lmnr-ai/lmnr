@@ -158,18 +158,18 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
           errorCount: spans.filter((s: any) => s.status === 'ERROR' || s.attributes?.['error.message']).length,
           llmSpans: spans.filter((s: any) => s.spanType === 'LLM'),
           tokenUsage: spans.reduce((acc: any, span: any) => {
-            const inputTokens = span.attributes?.['gen_ai.usage.input_tokens'] || 0;
-            const outputTokens = span.attributes?.['gen_ai.usage.output_tokens'] || 0;
+            const totalTokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+            const inputTokens = span.inputTokens || 0;
+            const outputTokens = span.outputTokens || 0;
             return {
               input: acc.input + inputTokens,
               output: acc.output + outputTokens,
-              total: acc.total + inputTokens + outputTokens,
+              total: acc.total + totalTokens,
             };
           }, { input: 0, output: 0, total: 0 }),
           costs: spans.reduce((acc: number, span: any) => {
-            const inputCost = span.attributes?.['gen_ai.usage.input_cost'] || 0;
-            const outputCost = span.attributes?.['gen_ai.usage.output_cost'] || 0;
-            return acc + inputCost + outputCost;
+            const totalCost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+            return acc + totalCost;
           }, 0),
         };
 

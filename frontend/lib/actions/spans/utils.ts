@@ -297,20 +297,12 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
 
     if (children.length === 0) {
       if (span.spanType === 'LLM') {
-        let cost = span.attributes['gen_ai.usage.cost'];
-
-        if (cost == null) {
-          const inputCost = span.attributes['gen_ai.usage.input_cost'] ?? 0;
-          const outputCost = span.attributes['gen_ai.usage.output_cost'] ?? 0;
-          cost = inputCost + outputCost;
-        }
-
-        const inputTokens = span.attributes['gen_ai.usage.input_tokens'] ?? 0;
-        const outputTokens = span.attributes['gen_ai.usage.output_tokens'] ?? 0;
+        const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+        const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
 
         const metrics = {
           totalCost: cost,
-          totalTokens: inputTokens + outputTokens,
+          totalTokens: tokens,
           hasLLMDescendants: true,
         };
         metricsCache.set(spanId, metrics);

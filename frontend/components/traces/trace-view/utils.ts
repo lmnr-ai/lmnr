@@ -1,4 +1,4 @@
-import { capitalize } from "lodash";
+import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -63,6 +63,12 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           endTime: new Date(span.endTime).toISOString(),
           attributes: {},
           events: [],
+          inputCost: span.inputCost,
+          outputCost: span.outputCost,
+          totalCost: span.totalCost,
+          inputTokens: span.inputTokens,
+          outputTokens: span.outputTokens,
+          totalTokens: span.totalTokens,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
@@ -164,20 +170,17 @@ export const onRealtimeUpdateSpans =
         const newTrace = { ...trace };
 
         newTrace.startTime =
-        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
-          ? newTrace.startTime
-          : newSpan.startTime;
+          new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+            ? newTrace.startTime
+            : newSpan.startTime;
         newTrace.endTime =
-        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-        newTrace.totalTokens +=
-        (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-        (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-        newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-        newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-        newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-        newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-        newTrace.totalCost +=
-        (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) + (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+          new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+        newTrace.totalTokens += newSpan.totalTokens || (newSpan.inputTokens ?? 0) + (newSpan.outputTokens ?? 0);
+        newTrace.inputTokens += newSpan.inputTokens ?? 0;
+        newTrace.outputTokens += newSpan.outputTokens ?? 0;
+        newTrace.inputCost += newSpan.inputCost ?? 0;
+        newTrace.outputCost += newSpan.outputCost ?? 0;
+        newTrace.totalCost += newSpan.totalCost || (newSpan.inputCost ?? 0) + (newSpan.outputCost ?? 0);
         return newTrace;
       });
 
@@ -185,7 +188,7 @@ export const onRealtimeUpdateSpans =
         const newSpans = [...spans];
         const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
         if (index !== -1) {
-        // Always replace existing span, regardless of pending status
+          // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
             collapsed: newSpans[index].collapsed || false,
@@ -237,43 +240,28 @@ export const findSpanToSelect = (
   return spans?.[0];
 };
 
-
-
-export const getSpanDisplayName = (span:TraceViewSpan) => {
-  const modelName = span.model ?? span.attributes["gen_ai.request.model"];
+export const getSpanDisplayName = (span: TraceViewSpan) => {
+  const modelName = span.model ?? get(span.attributes, "gen_ai.request.model");
   return span.spanType === "LLM" && modelName ? modelName : span.name;
 };
 
-
-export const getLLMMetrics = (span:TraceViewSpan)=>{
+export const getLLMMetrics = (span: TraceViewSpan) => {
   if (span.aggregatedMetrics?.hasLLMDescendants) {
-    const cost = span.aggregatedMetrics.totalCost.toFixed(3);
-    const totalTokens = span.aggregatedMetrics.totalTokens;
-
     return {
-      cost,
-      totalTokens,
-      isAggregated: true,
+      cost: span.aggregatedMetrics.totalCost,
+      tokens: span.aggregatedMetrics.totalTokens,
     };
   }
 
   if (span.spanType !== "LLM") return null;
 
-  let costValue = span.attributes["gen_ai.usage.cost"];
+  const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+  const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
 
-  if (costValue == null) {
-    const inputCost = span.attributes["gen_ai.usage.input_cost"] ?? 0;
-    const outputCost = span.attributes["gen_ai.usage.output_cost"] ?? 0;
-    costValue = inputCost + outputCost;
-  }
+  if (costValue === 0 && tokensValue === 0) return null;
 
-  const inputTokens = span.attributes["gen_ai.usage.input_tokens"];
-  const outputTokens = span.attributes["gen_ai.usage.output_tokens"];
-
-  if (costValue == null || inputTokens == null || outputTokens == null) return null;
-
-  const cost = costValue.toFixed(3);
-  const totalTokens = inputTokens + outputTokens;
-
-  return { cost, totalTokens, isAggregated: false };
+  return {
+    cost: costValue,
+    tokens: tokensValue,
+  };
 };

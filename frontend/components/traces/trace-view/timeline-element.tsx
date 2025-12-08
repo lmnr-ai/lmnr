@@ -4,7 +4,6 @@ import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { SpanDisplayTooltip } from "@/components/traces/trace-view/ui/span-display-tooltip.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -13,6 +12,10 @@ const TEXT_PADDING = {
   WITH_EVENTS: 8,
   WITHOUT_EVENTS: 4,
 };
+
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "standard",
+});
 
 const TimelineElement = ({
   setSelectedSpan,
@@ -64,7 +67,7 @@ const TimelineElement = ({
   const spanTextElement = useMemo(() => {
     const textContent = (
       <div className={"flex items-center gap-1.5"}>
-        <div className={"overflow-hidden text-ellipsis whitespace-nowrap max-w-20 text-nowrap"}>
+        <div className={"overflow-hidden text-ellipsis whitespace-nowrap text-nowrap"}>
           {getSpanDisplayName(span.span)}
         </div>
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
@@ -72,12 +75,12 @@ const TimelineElement = ({
           <>
             <span className={"text-white/70 inline-flex items-center gap-1"}>
               <Coins className="min-w-1" size={12} />
-              {llmMetrics.totalTokens}
+              {numberFormatter.format(llmMetrics.tokens)}
             </span>
 
             <span className={"text-white/70 flex w-fit items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
-              {llmMetrics.cost}
+              {llmMetrics.cost.toFixed(3)}
             </span>
           </>
         )}
@@ -111,7 +114,7 @@ const TimelineElement = ({
           className={cn(commonProps.className, "absolute text-right")}
           style={{
             right: `calc(100% - ${span.left}% + 20px)`,
-            maxWidth: "250px",
+            maxWidth: `calc(${span.left}% - 16px)`,
           }}
         >
           {textContent}
@@ -124,57 +127,45 @@ const TimelineElement = ({
         {textContent}
       </span>
     );
-  }, [
-    span.span.name,
-    span.span.startTime,
-    span.span.endTime,
-    span.span.spanType,
-    span.left,
-    span.events.length,
-    textPosition,
-  ]);
+  }, [span.span, span.left, span.events.length, llmMetrics, textPosition]);
 
   return (
-    <SpanDisplayTooltip isLLM={span.span.spanType === "LLM"} name={span.span.name}>
+    <div
+      key={virtualRow.index}
+      data-index={virtualRow.index}
+      onClick={handleSpanSelect}
+      className={cn("absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200")}
+      style={{
+        transform: `translateY(${virtualRow.start}px)`,
+      }}
+    >
+      {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
       <div
-        key={virtualRow.index}
-        data-index={virtualRow.index}
-        onClick={handleSpanSelect}
-        className={cn(
-          "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
-        )}
+        ref={blockRef}
+        className="rounded relative z-20 flex items-center"
         style={{
-          transform: `translateY(${virtualRow.start}px)`,
+          backgroundColor:
+            span.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.span.spanType],
+          marginLeft: span.left + "%",
+          width: `max(${span.width}%, 2px)`,
+          height: 24,
         }}
       >
-        {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
-        <div
-          ref={blockRef}
-          className="rounded relative z-20 flex items-center"
-          style={{
-            backgroundColor:
-              span.span.status === "error" ? "rgba(204, 51, 51, 1)" : SPAN_TYPE_TO_COLOR[span.span.spanType],
-            marginLeft: span.left + "%",
-            width: `max(${span.width}%, 2px)`,
-            height: 24,
-          }}
-        >
-          {span.events.map((event) => (
-            <div
-              key={event.id}
-              className="absolute bg-orange-400 w-1 rounded"
-              style={{
-                left: event.left + "%",
-                top: 0,
-                height: 24,
-              }}
-            />
-          ))}
-          {textPosition === "inside" && spanTextElement}
-        </div>
-        {textPosition === "outside" && spanTextElement}
+        {span.events.map((event) => (
+          <div
+            key={event.id}
+            className="absolute bg-orange-400 w-1 rounded"
+            style={{
+              left: event.left + "%",
+              top: 0,
+              height: 24,
+            }}
+          />
+        ))}
+        {textPosition === "inside" && spanTextElement}
       </div>
-    </SpanDisplayTooltip>
+      {textPosition === "outside" && spanTextElement}
+    </div>
   );
 };
 
