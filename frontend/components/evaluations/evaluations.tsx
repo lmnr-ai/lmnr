@@ -109,7 +109,7 @@ function EvaluationsContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
-  const { email } = useUserContext();
+  const user = useUserContext();
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -207,7 +207,7 @@ function EvaluationsContent() {
   };
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
-    posthog.identify(email);
+    posthog.identify(user.email);
   }
 
   return (

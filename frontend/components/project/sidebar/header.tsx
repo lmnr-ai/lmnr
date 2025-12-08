@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils.ts";
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project, workspace } = useProjectContext();
-  const { username, imageUrl, email } = useUserContext();
+  const user = useUserContext();
   const { broadcastLogout } = useSessionSync();
 
   const handleLogout = async () => {
@@ -87,12 +87,12 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuLabel className="flex gap-2 p-1">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={imageUrl} alt="avatar" />
-                  <AvatarFallback className="rounded-lg">{username?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
+                  <AvatarImage src={user.image ?? ''} alt="avatar" />
+                  <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="text-muted-foreground">Logged in as</span>
-                  <span className="text-sidebar-foreground">{email}</span>
+                  <span className="text-sidebar-foreground">{user.email}</span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

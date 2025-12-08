@@ -19,7 +19,7 @@ export default function CodeHighlighter({ language, code, className, copyable = 
         <CopyButton
           size="icon"
           variant="ghost"
-          className="invisible group-hover:visible absolute right-0 top-1"
+          className="invisible group-hover:visible absolute text-secondary-foreground right-1 top-1"
           text={code}
         />
       )}

@@ -49,7 +49,7 @@ export default function WorkspaceUsers({
   isOwner,
   currentUserRole,
 }: WorkspaceUsersProps) {
-  const { email } = useUserContext();
+  const user = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -64,7 +64,7 @@ export default function WorkspaceUsers({
 
   const canManageUsers = currentUserRole === "owner" || currentUserRole === "admin";
 
-  const isCurrentUser = useCallback((user: WorkspaceUser) => user.email === email, [email]);
+  const isCurrentUser = useCallback((u: WorkspaceUser) => u.email === user.email, [user.email]);
   const openDialog = useCallback((type: DialogState["type"], targetUser?: WorkspaceUser) => {
     setDialogState({ type, targetUser });
   }, []);

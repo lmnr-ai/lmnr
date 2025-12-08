@@ -50,15 +50,9 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const shouldShowPatterns = isFeatureEnabled(Feature.PATTERNS);
 
   return (
-    <UserContextProvider
-      id={user.id}
-      email={user.email!}
-      username={user.name!}
-      imageUrl={user.image!}
-      supabaseAccessToken={session.supabaseAccessToken}
-    >
+    <UserContextProvider user={user}>
       <SessionSyncProvider>
-        <PostHogIdentifier email={user.email!} />
+        <PostHogIdentifier email={user.email} />
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>

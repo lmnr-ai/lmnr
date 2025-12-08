@@ -102,7 +102,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
               Select new owner
             </Label>
             <Combobox
-              items={workspaceUsers.map((user) => ({ value: user.email, label: user.name }))}
+              items={workspaceUsers.map((u) => ({ value: u.email, label: u.name }))}
               value={newOwner}
               setValue={setNewOwner}
               placeholder="Choose an owner"
@@ -140,7 +140,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
                 trigger({
                   workspaceId: workspace.id,
                   currentOwnerId: user.id,
-                  newOwnerId: workspaceUsers.find((user) => user.email === newOwner)!.id,
+                  newOwnerId: workspaceUsers.find((u) => u.email === newOwner)!.id,
                 });
               }
             }}

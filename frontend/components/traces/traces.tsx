@@ -28,15 +28,15 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-      traceId: string;
-      spanId: string;
-    };
+    traceId: string;
+    spanId: string;
+  };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
-  const { email } = useUserContext();
+  const user = useUserContext();
   const posthog = usePostHog();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
@@ -57,7 +57,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
   }, []);
 
   if (isFeatureEnabled(Feature.POSTHOG)) {
-    posthog.identify(email);
+    posthog.identify(user.email);
   }
 
   const resetUrlParams = (newView: string) => {

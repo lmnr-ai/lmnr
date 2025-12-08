@@ -2,7 +2,7 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
@@ -17,7 +17,9 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
+import {useLocalStorage} from "@/hooks/use-local-storage.tsx";
 import { Filter } from "@/lib/actions/common/filters";
+import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
@@ -68,7 +70,7 @@ function TracesTableContent() {
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
 
-  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
+  const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage('traces-table:realtime', false);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -216,55 +218,21 @@ function TracesTableContent() {
     [updateData, isTraceInTimeRange]
   );
 
-  // SSE connection for realtime trace updates
-  useEffect(() => {
-    // Only connect if realtime is enabled
-    if (!realtimeEnabled) {
-      return;
-    }
-
-    // Disable realtime updates if there are filters or search
-    if (filter.length > 0 || !!textSearchFilter) {
-      return;
-    }
-
-    if (!isCurrentTimestampIncluded) {
-      return;
-    }
-
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=traces`);
-
-    eventSource.addEventListener("trace_update", (event) => {
-      try {
+  useRealtime({
+    key: "traces",
+    projectId: projectId as string,
+    enabled: realtimeEnabled && filter.length === 0 && !textSearchFilter && isCurrentTimestampIncluded,
+    eventHandlers: {
+      trace_update: (event) => {
         const payload = JSON.parse(event.data);
         if (payload.traces && Array.isArray(payload.traces)) {
-          // Process batched trace updates
           for (const trace of payload.traces) {
             updateRealtimeTrace(trace);
           }
         }
-      } catch (error) {
-        console.error("Error processing trace update:", error);
-      }
-    });
-
-    eventSource.addEventListener("error", (error) => {
-      console.error("SSE connection error:", error);
-    });
-
-    // Clean up on unmount
-    return () => {
-      eventSource.close();
-    };
-  }, [
-    projectId,
-    isCurrentTimestampIncluded,
-    filter.length,
-    textSearchFilter,
-    realtimeEnabled,
-    updateRealtimeTrace,
-    incrementStat,
-  ]);
+      },
+    },
+  });
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {

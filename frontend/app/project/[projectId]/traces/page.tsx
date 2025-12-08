@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import TracesPagePlaceholder from "@/components/traces/page-placeholder";
+import TracesPagePlaceholder from "@/components/traces/placeholder";
 import TracesDashboard from "@/components/traces/traces";
 import Header from "@/components/ui/header";
 import { executeQuery } from "@/lib/actions/sql";
