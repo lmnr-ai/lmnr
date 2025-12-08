@@ -4,7 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 
-import {createUser, getUserByEmail, updateUserAvatar} from "@/lib/db/auth";
+import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { getEmailsConfig } from "@/lib/server-utils";
 
 import { sendWelcomeEmail } from "./emails/utils";
