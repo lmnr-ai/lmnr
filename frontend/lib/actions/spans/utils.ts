@@ -296,7 +296,7 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     const children = childrenMap.get(spanId) || [];
 
     if (children.length === 0) {
-      if (span.spanType === 'LLM') {
+      if (span.spanType === "LLM") {
         const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
         const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
 
@@ -315,6 +315,12 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     let totalCost = 0;
     let totalTokens = 0;
     let hasLLMDescendants = false;
+
+    if (span.spanType === "LLM") {
+      totalCost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+      totalTokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+      hasLLMDescendants = true;
+    }
 
     for (const childId of children) {
       const childMetrics = calculateMetrics(childId);
@@ -339,7 +345,7 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     return null;
   };
 
-  return spans.map(span => {
+  return spans.map((span) => {
     const metrics = calculateMetrics(span.spanId);
     return metrics ? { ...span, aggregatedMetrics: metrics } : span;
   });
