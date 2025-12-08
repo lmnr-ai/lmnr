@@ -15,7 +15,7 @@ interface BlogMetaProps {
 export default function BlogMeta({ data }: BlogMetaProps) {
   return (
     <div className="flex flex-col gap-8 items-center">
-      <div className="flex flex-col w-full md:w-[700px] lg:w-[900px] gap-4 mb-16">
+      <div className="flex flex-col w-full md:w-[700px] lg:w-3xl gap-4 mb-16">
         <h1 className="text-5xl font-bold font-title">{data.title}</h1>
         <p className="text-secondary-foreground text-sm"> {formatUTCDate(data.date)} </p>
         {data.author.url

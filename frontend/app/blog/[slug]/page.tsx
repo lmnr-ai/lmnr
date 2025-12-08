@@ -38,7 +38,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
   return (
     <div className="mt-8 md:mt-16 lg:mt-32 flex justify-center flex-col items-center pb-16 px-4">
       <BlogMeta data={data} />
-      <article className="flex flex-col z-30 md:w-[700px] lg:w-[900px] w-full px-8 md:px-0">
+      <article className="flex flex-col z-30 md:w-[700px] lg:w-3xl w-full px-8 md:px-0">
         <div className="pt-4 text-lg">
           <MDXRemote
             source={content}
@@ -47,14 +47,14 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               h2: (props) => <MDHeading props={props} level={1} />,
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => <p className="pt-4 text-white/80" {...props} />,
+              p: (props) => <p className="pt-4 text-white/85 font-light leading-relaxed" {...props} />,
               a: (props) => <a className="text-white underline hover:text-primary" target="_blank" rel="noopener noreferrer" {...props} />,
               blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4" {...props} />,
               pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
               code: (props) => <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />,
-              ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85" {...props} />,
-              ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85" {...props} />,
-              li: (props) => <li className="pt-1.5 text-white/85" {...props}>{props.children}</li>,
+              ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85 font-light" {...props} />,
+              ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85 font-light" {...props} />,
+              li: (props) => <li className="pt-1.5 text-white/85 leading-relaxed" {...props}>{props.children}</li>,
               img: (props) => <img className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />,
             }}
           />
