@@ -38,7 +38,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
   return (
     <div className="mt-8 md:mt-16 lg:mt-32 flex justify-center flex-col items-center pb-16 px-4">
       <BlogMeta data={data} />
-      <article className="flex flex-col z-30 md:w-[700px] lg:w-3xl w-full px-8 md:px-0">
+      <article className="flex flex-col z-30 md:w-[700px] lg:max-w-3xl w-full px-8 md:px-0">
         <div className="pt-4 text-lg">
           <MDXRemote
             source={content}
