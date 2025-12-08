@@ -58,7 +58,6 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, containerWidth,
       >
         <div
           className="flex gap-x-1 w-full text-md items-center cursor-pointer group relative pl-2"
-          ref={ref}
           style={{
             height: ROW_HEIGHT,
           }}
