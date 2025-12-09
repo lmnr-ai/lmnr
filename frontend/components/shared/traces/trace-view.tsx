@@ -35,9 +35,11 @@ import { cn } from "@/lib/utils";
 interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
+  initialSpanId?: string;
+  disableRouting?: boolean;
 }
 
-const PureTraceView = ({ trace, spans }: TraceViewProps) => {
+const PureTraceView = ({ trace, spans, initialSpanId, disableRouting = false }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -99,14 +101,14 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (span) {
+      if (span && !disableRouting) {
         const params = new URLSearchParams(searchParams);
         params.set("spanId", span.spanId);
         router.push(`${pathName}?${params.toString()}`);
       }
       setSelectedSpan(span);
     },
-    [pathName, router, searchParams, setSelectedSpan]
+    [disableRouting, pathName, router, searchParams, setSelectedSpan]
   );
 
   const handleResizeTreeView = useCallback(
@@ -142,14 +144,16 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     const enrichedSpans = enrichSpansWithPending(spans);
     setSpans(enrichedSpans);
     setTrace(trace);
+  }, [setSpans, setTrace, spans, trace]);
 
-    const spanId = searchParams.get("spanId");
+  useEffect(() => {
+    const spanId = initialSpanId || searchParams.get("spanId");
     const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];
 
     if (span) {
       setSelectedSpan({ ...span, collapsed: false });
     }
-  }, []);
+  }, [initialSpanId, searchParams, setSelectedSpan, spans]);
 
   return (
     <ScrollContextProvider>

@@ -4,6 +4,7 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import BlogMeta from "@/components/blog/blog-meta";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
+import TraceEmbed from "@/components/embeds/trace-embed";
 import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (
@@ -56,6 +57,8 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85" {...props} />,
               li: (props) => <li className="pt-1.5 text-white/85" {...props}>{props.children}</li>,
               img: (props) => <img className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />,
+              trace: (props) => <TraceEmbed {...props} />,
+              Trace: (props) => <TraceEmbed {...props} />,
             }}
           />
         </div>
