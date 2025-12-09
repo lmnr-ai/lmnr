@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
@@ -17,25 +18,26 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { useProjectContext } from "@/contexts/project-context";
-import { EventDefinitionRow } from "@/lib/actions/event-definitions";
+import { SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import Header from "../ui/header";
 
-export default function EventDefinitions() {
+export default function SemanticEventDefinitions() {
   return (
     <DataTableStateProvider
       storageKey="event-definitions-table"
       uniqueKey="id"
       defaultColumnOrder={defaultEventDefinitionsColumnOrder}
     >
-      <EventDefinitionsContent />
+      <SemanticEventDefinitionsContent />
     </DataTableStateProvider>
   );
 }
 
-function EventDefinitionsContent() {
+function SemanticEventDefinitionsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { workspace } = useProjectContext();
@@ -53,7 +55,7 @@ function EventDefinitionsContent() {
 
   const FETCH_SIZE = 50;
 
-  const fetchEventDefinitions = useCallback(
+  const fetchSemanticEventDefinitions = useCallback(
     async (pageNumber: number) => {
       try {
         const urlParams = new URLSearchParams();
@@ -70,14 +72,14 @@ function EventDefinitionsContent() {
           urlParams.set("search", search);
         }
 
-        const response = await fetch(`/api/projects/${projectId}/event-definitions?${urlParams.toString()}`);
-        if (!response.ok) throw new Error("Failed to fetch event definitions");
+        const response = await fetch(`/api/projects/${projectId}/semantic-event-definitions?${urlParams.toString()}`);
+        if (!response.ok) throw new Error("Failed to fetch semantic event definitions");
 
-        const data = (await response.json()) as { items: EventDefinitionRow[] };
+        const data = (await response.json()) as { items: SemanticEventDefinitionRow[] };
         return { items: data.items };
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Failed to load event definitions.",
+          title: error instanceof Error ? error.message : "Failed to load semantic event definitions.",
           variant: "destructive",
         });
         throw error;
@@ -94,8 +96,8 @@ function EventDefinitionsContent() {
     fetchNextPage,
     refetch,
     updateData,
-  } = useInfiniteScroll<EventDefinitionRow>({
-    fetchFn: fetchEventDefinitions,
+  } = useInfiniteScroll<SemanticEventDefinitionRow>({
+    fetchFn: fetchSemanticEventDefinitions,
     enabled: true,
     deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
@@ -104,10 +106,10 @@ function EventDefinitionsContent() {
     await refetch();
   }, [refetch]);
 
-  const handleDeleteEventDefinitions = useCallback(
+  const handleDelete = useCallback(
     async (selectedRowIds: string[]) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/event-definitions`, {
+        const res = await fetch(`/api/projects/${projectId}/semantic-event-definitions`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -116,7 +118,7 @@ function EventDefinitionsContent() {
         });
 
         if (!res.ok) {
-          throw new Error("Failed to delete event definitions");
+          throw new Error("Failed to delete semantic event definitions");
         }
 
         updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
@@ -140,53 +142,65 @@ function EventDefinitionsContent() {
   return (
     <>
       <Header path="event definitions" />
-      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-        {!isFreeTier && (
-          <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-              Event Definition
-            </Button>
-          </ManageEventDefinitionDialog>
-        )}
-        <InfiniteDataTable<EventDefinitionRow>
-          columns={columns}
-          data={eventDefinitions}
-          getRowId={(row) => row.id}
-          getRowHref={(row) => `/project/${projectId}/events/${row.original.id}`}
-          hasMore={hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          fetchNextPage={fetchNextPage}
-          enableRowSelection
-          state={{
-            rowSelection,
-          }}
-          onRowSelectionChange={onRowSelectionChange}
-          lockedColumns={["__row_selection"]}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
-              <DeleteSelectedRows
-                selectedRowIds={selectedRowIds}
-                onDelete={handleDeleteEventDefinitions}
-                entityName="event definitions"
-              />
-            </div>
-          )}
-        >
-          <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={eventsDefinitionsTableFilters} />
-            <ColumnsMenu
+      <Tabs className="flex flex-1 overflow-hidden gap-4" value="semantic">
+        <TabsList className="mx-4 h-8">
+          <TabsTrigger className="text-xs" value="semantic" asChild>
+            <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
+          </TabsTrigger>
+          <TabsTrigger className="text-xs" value="code" asChild>
+            <Link href={`/project/${projectId}/events/code`}>Code</Link>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="semantic" asChild>
+          <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
+            {!isFreeTier && (
+              <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+                <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+                  Event Definition
+                </Button>
+              </ManageEventDefinitionDialog>
+            )}
+            <InfiniteDataTable<SemanticEventDefinitionRow>
+              columns={columns}
+              data={eventDefinitions}
+              getRowId={(row) => row.id}
+              getRowHref={(row) => `/project/${projectId}/events/semantic/${row.original.id}`}
+              hasMore={hasMore}
+              isFetching={isFetching}
+              isLoading={isLoading}
+              fetchNextPage={fetchNextPage}
+              enableRowSelection
+              state={{
+                rowSelection,
+              }}
+              onRowSelectionChange={onRowSelectionChange}
               lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
-            <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
+              selectionPanel={(selectedRowIds) => (
+                <div className="flex flex-col space-y-2">
+                  <DeleteSelectedRows
+                    selectedRowIds={selectedRowIds}
+                    onDelete={handleDelete}
+                    entityName="event definitions"
+                  />
+                </div>
+              )}
+            >
+              <div className="flex flex-1 w-full space-x-2 pt-1">
+                <DataTableFilter columns={eventsDefinitionsTableFilters} />
+                <ColumnsMenu
+                  lockedColumns={["__row_selection"]}
+                  columnLabels={columns.map((column) => ({
+                    id: column.id!,
+                    label: typeof column.header === "string" ? column.header : column.id!,
+                  }))}
+                />
+                <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
+              </div>
+              <DataTableFilterList />
+            </InfiniteDataTable>
           </div>
-          <DataTableFilterList />
-        </InfiniteDataTable>
-      </div>
+        </TabsContent>
+      </Tabs>
     </>
   );
 }

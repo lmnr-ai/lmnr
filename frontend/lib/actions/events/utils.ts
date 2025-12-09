@@ -77,10 +77,11 @@ export interface BuildEventsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  eventSource?: "CODE" | "SEMANTIC";
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { eventName, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { eventName, filters, limit, offset, startTime, endTime, pastHours, eventSource } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -91,6 +92,13 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { eventName },
     },
   ];
+
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -124,7 +132,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { eventName, filters, startTime, endTime, pastHours } = options;
+  const { eventName, filters, startTime, endTime, pastHours, eventSource } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -135,6 +143,13 @@ export const buildEventsCountQueryWithParams = (
       params: { eventName },
     },
   ];
+
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {

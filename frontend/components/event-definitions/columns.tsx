@@ -35,12 +35,6 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     },
   },
   {
-    header: "Semantic",
-    accessorFn: (row) => row.isSemantic,
-    cell: ({ row }) => (row.original.isSemantic ? "Yes" : "No"),
-    id: "isSemantic",
-  },
-  {
     header: "Created",
     accessorFn: (row) => row.createdAt,
     cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
@@ -52,7 +46,6 @@ export const defaultEventDefinitionsColumnOrder = [
   "__row_selection",
   "name",
   "triggerSpans",
-  "isSemantic",
   "createdAt",
 ];
 
@@ -62,9 +55,4 @@ export const eventsDefinitionsTableFilters: ColumnFilter[] = [
     key: "name",
     dataType: "string",
   },
-  {
-    name: "Semantic",
-    key: "semantic",
-    dataType: "boolean",
-  }
 ];

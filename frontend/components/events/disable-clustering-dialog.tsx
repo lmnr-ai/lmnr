@@ -20,11 +20,13 @@ import { cn } from "@/lib/utils";
 
 interface DisableClusteringDialogProps {
   eventName: string;
+  eventType: "semantic" | "code";
 }
 
 export default function DisableClusteringDialog({
   children,
   eventName,
+  eventType,
 }: PropsWithChildren<DisableClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +41,7 @@ export default function DisableClusteringDialog({
     try {
       setIsLoading(true);
 
-      const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config`, {
+      const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=${eventType}`, {
         method: "DELETE",
       });
 
@@ -65,7 +67,7 @@ export default function DisableClusteringDialog({
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, eventName, toast, setClusterConfig]);
+  }, [projectId, eventName, eventType, toast, setClusterConfig]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -17,6 +17,7 @@ const GetEventsSchema = z.object({
 const GetLastEventSchema = z.object({
   projectId: z.string(),
   name: z.string(),
+  eventSource: z.enum(["CODE", "SEMANTIC"]),
 });
 
 export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise<Event[]> {
@@ -58,10 +59,11 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   eventName: z.string(),
+  eventSource: z.enum(["CODE", "SEMANTIC"]),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
-  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter, eventSource } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
@@ -77,6 +79,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     startTime: startDate,
     endTime: endDate,
     pastHours,
+    eventSource,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
@@ -85,6 +88,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     startTime: startDate,
     endTime: endDate,
     pastHours,
+    eventSource,
   });
 
   const [items, [countResult]] = await Promise.all([
@@ -99,7 +103,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
 }
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, name } = GetLastEventSchema.parse(input);
+  const { projectId, name, eventSource } = GetLastEventSchema.parse(input);
 
   const query = `
       SELECT
@@ -107,7 +111,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
           formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
       name
       FROM events
-      WHERE name = {name: String}
+      WHERE name = {name: String} AND source = {source: String}
       ORDER BY timestamp DESC
       LIMIT 1
   `;
@@ -118,6 +122,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
     parameters: {
       name,
       projectId,
+      source: eventSource
     },
   });
 

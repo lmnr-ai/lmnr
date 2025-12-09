@@ -8,13 +8,19 @@ import {
 } from "@/lib/actions/cluster-configs";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ projectId: string; name: string }> }
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
+    const searchParams = req.nextUrl.searchParams;
+    const eventSource = searchParams.get("eventSource") as "semantic" | "code";
 
-    const result = await getClusterConfig({ projectId, eventName });
+    const result = await getClusterConfig({
+      projectId,
+      eventName,
+      eventSource,
+    });
 
     return NextResponse.json(result);
   } catch (error) {
@@ -41,6 +47,7 @@ export async function POST(
       projectId,
       eventName,
       valueTemplate: body.valueTemplate,
+      eventSource: body.eventSource,
     });
 
     return NextResponse.json(result);
@@ -57,13 +64,19 @@ export async function POST(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ projectId: string; name: string }> }
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
+    const searchParams = req.nextUrl.searchParams;
+    const eventSource = searchParams.get("eventSource") as "semantic" | "code";
 
-    const result = await deleteClusterConfig({ projectId, eventName });
+    const result = await deleteClusterConfig({
+      projectId,
+      eventName,
+      eventSource,
+    });
 
     return NextResponse.json(result);
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import { format, formatRelative } from "date-fns";
 import { Network } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -29,11 +29,15 @@ import Header from "../ui/header";
 function PureEvents({
   lastEvent,
   initialTraceViewWidth,
+  eventType
 }: {
+  eventType: 'semantic' | 'code';
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
+
 }) {
   const pathName = usePathname();
+  const params = useParams<{ projectId: string; }>();
   const { push } = useRouter();
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -93,12 +97,16 @@ function PureEvents({
     }
   }, [defaultTraceViewWidth]);
 
+
   return (
     <>
-      <Header path={`events/${eventDefinition.name}`} />
+      <Header path={[
+        { name: "event definitions", href: `/project/${params.projectId}/events/${eventType}` },
+        { name: eventDefinition.name }
+      ]} />
       <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
         <div className="flex items-center gap-2">
-          {!isFreeTier && (
+          {!isFreeTier && eventType === "semantic" && (
             <ManageEventDefinitionDialog
               open={isDialogOpen}
               setOpen={setIsDialogOpen}
@@ -113,14 +121,14 @@ function PureEvents({
           )}
 
           {clusterConfig ? (
-            <DisableClusteringDialog eventName={eventDefinition.name}>
+            <DisableClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
               <Button variant="secondary">
                 <Network className="mr-2 size-3.5" />
                 Disable Clustering
               </Button>
             </DisableClusteringDialog>
           ) : (
-            <StartClusteringDialog eventName={eventDefinition.name}>
+            <StartClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
               <Button variant="secondary">
                 <Network className="mr-2 size-3.5" />
                 Start Clustering
@@ -135,6 +143,7 @@ function PureEvents({
               projectId={eventDefinition.projectId}
               eventDefinitionId={eventDefinition.id}
               eventDefinitionName={eventDefinition.name}
+              eventType={eventType}
             />
           )}
         </div>
@@ -158,6 +167,7 @@ function PureEvents({
             projectId={eventDefinition.projectId}
             eventName={eventDefinition.name}
             eventDefinitionId={eventDefinition.id}
+            eventType={eventType}
           />
         </div>
       </div>
@@ -199,9 +209,11 @@ function PureEvents({
 export default function Events({
   lastEvent,
   initialTraceViewWidth,
+  eventType,
 }: {
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
+  eventType: 'semantic' | 'code'
 }) {
   const { setTraceId, setSpanId } = useEventsStoreContext((state) => ({
     setTraceId: state.setTraceId,
@@ -220,7 +232,7 @@ export default function Events({
 
   return (
     <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <PureEvents lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+      <PureEvents eventType={eventType} lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </TraceViewNavigationProvider>
   );
 }

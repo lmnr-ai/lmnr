@@ -4,15 +4,18 @@ import { prettifyError, ZodError } from "zod/v4";
 import { getEventClusters } from "@/lib/actions/clusters";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ projectId: string; name: string }> }
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
+    const searchParams = req.nextUrl.searchParams;
+    const eventSource = searchParams.get("eventSource") as "semantic" | "code";
 
     const result = await getEventClusters({
       projectId,
       eventName,
+      eventSource,
     });
 
     return NextResponse.json(result);

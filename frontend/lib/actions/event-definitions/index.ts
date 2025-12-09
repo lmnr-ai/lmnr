@@ -1,5 +1,4 @@
 import { and, desc, eq, gte, ilike, inArray, isNotNull, lte } from "drizzle-orm";
-import { difference } from "lodash";
 import { z } from "zod/v4";
 
 import { parseFilters } from "@/lib/actions/common/filters";
@@ -19,7 +18,6 @@ export type EventDefinition = {
   projectId: string;
   prompt: string | null;
   structuredOutput: Record<string, unknown> | null;
-  isSemantic: boolean;
   triggerSpans: string[];
 };
 
@@ -30,27 +28,6 @@ export const GetEventDefinitionsSchema = PaginationFiltersSchema.extend({
 });
 
 export const GetEventDefinitionSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
-});
-
-export const CreateEventDefinitionSchema = z.object({
-  projectId: z.string(),
-  name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
-  prompt: z.string().nullable(),
-  structuredOutput: z.record(z.string(), z.unknown()).nullable(),
-  triggerSpans: z.array(z.string()).optional().default([]),
-});
-
-export const UpdateEventDefinitionSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
-  prompt: z.string().nullable(),
-  structuredOutput: z.record(z.string(), z.unknown()).nullable(),
-  triggerSpans: z.array(z.string()).optional().default([]),
-});
-
-export const DeleteEventDefinitionSchema = z.object({
   projectId: z.string(),
   id: z.string(),
 });
@@ -90,7 +67,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
   const filterConditions = parseFilters(filter, {
     name: { type: "string", column: eventDefinitions.name },
     id: { type: "string", column: eventDefinitions.id },
-    semantic: { type: 'boolean', column: eventDefinitions.isSemantic },
   } as const);
 
   whereConditions.push(...filterConditions);
@@ -101,7 +77,6 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
       createdAt: eventDefinitions.createdAt,
       name: eventDefinitions.name,
       projectId: eventDefinitions.projectId,
-      isSemantic: eventDefinitions.isSemantic,
     })
     .from(eventDefinitions)
     .where(and(...whereConditions))
@@ -173,104 +148,6 @@ export async function getEventDefinition(input: z.infer<typeof GetEventDefinitio
   };
 }
 
-export async function createEventDefinition(input: z.infer<typeof CreateEventDefinitionSchema>) {
-  const { projectId, name, prompt, structuredOutput, triggerSpans } = CreateEventDefinitionSchema.parse(input);
-
-  const [result] = await db
-    .insert(eventDefinitions)
-    .values({
-      projectId,
-      name,
-      prompt,
-      structuredOutput,
-      isSemantic: true,
-    })
-    .returning();
-
-  if (triggerSpans.length > 0) {
-    await db.insert(summaryTriggerSpans).values(
-      triggerSpans.map((spanName) => ({
-        projectId,
-        eventName: name,
-        spanName,
-      }))
-    );
-    await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
-  }
-
-  return result;
-}
-
-export async function updateEventDefinition(input: z.infer<typeof UpdateEventDefinitionSchema>) {
-  const { projectId, id, prompt, structuredOutput, triggerSpans } = UpdateEventDefinitionSchema.parse(input);
-
-  const result = await db.transaction(async (tx) => {
-    const [result] = await tx
-      .update(eventDefinitions)
-      .set({ prompt, structuredOutput })
-      .where(and(eq(eventDefinitions.projectId, projectId), eq(eventDefinitions.id, id)))
-      .returning();
-
-    await syncTriggerSpans(tx, projectId, result.name, triggerSpans);
-
-    return result;
-  });
-
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
-
-  return result;
-}
-
-const syncTriggerSpans = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  projectId: string,
-  eventName: string,
-  targetSpans: string[]
-) => {
-  const currentSpans = await tx
-    .select({ spanName: summaryTriggerSpans.spanName })
-    .from(summaryTriggerSpans)
-    .where(and(eq(summaryTriggerSpans.eventName, eventName), eq(summaryTriggerSpans.projectId, projectId)));
-
-  const currentSpanNames = currentSpans.map((s) => s.spanName);
-
-  const toAdd = difference(targetSpans, currentSpanNames);
-  const toRemove = difference(currentSpanNames, targetSpans);
-
-  const deletions =
-    toRemove.length > 0
-      ? tx
-        .delete(summaryTriggerSpans)
-        .where(
-          and(
-            eq(summaryTriggerSpans.projectId, projectId),
-            eq(summaryTriggerSpans.eventName, eventName),
-            inArray(summaryTriggerSpans.spanName, toRemove)
-          )
-        )
-      : Promise.resolve();
-
-  const insertions =
-    toAdd.length > 0
-      ? tx.insert(summaryTriggerSpans).values(toAdd.map((spanName) => ({ projectId, eventName, spanName })))
-      : Promise.resolve();
-
-  await Promise.all([deletions, insertions]);
-};
-
-export async function deleteEventDefinition(input: z.infer<typeof DeleteEventDefinitionSchema>) {
-  const { projectId, id } = DeleteEventDefinitionSchema.parse(input);
-
-  const [result] = await db
-    .delete(eventDefinitions)
-    .where(and(eq(eventDefinitions.projectId, projectId), eq(eventDefinitions.id, id)))
-    .returning();
-
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
-
-  return result;
-}
-
 export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDefinitionsSchema>) {
   const { projectId, ids } = DeleteEventDefinitionsSchema.parse(input);
 
@@ -286,6 +163,7 @@ export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDe
           DELETE FROM events
           WHERE project_id = {projectId: UUID}
             AND name IN ({eventNames: Array(String)})
+            AND source = 'code'
         `,
         query_params: {
           projectId,

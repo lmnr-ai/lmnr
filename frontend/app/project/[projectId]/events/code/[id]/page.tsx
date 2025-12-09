@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "Events",
 };
 
-export default async function EventsPage(props: {
+export default async function CodeEventPage(props: {
   params: Promise<{ projectId: string; id: string }>;
   searchParams: Promise<{ traceId?: string; spanId?: string }>;
 }) {
@@ -21,13 +21,14 @@ export default async function EventsPage(props: {
   const { traceId, spanId } = await props.searchParams;
 
   const eventDefinition = (await getEventDefinition({ projectId, id })) as EventDefinition | undefined;
+
   if (!eventDefinition) {
     return notFound();
   }
 
   const [lastEvent, clusterConfig] = await Promise.all([
-    getLastEvent({ projectId, name: eventDefinition.name }),
-    getClusterConfig({ projectId, eventName: eventDefinition.name }),
+    getLastEvent({ projectId, name: eventDefinition.name, eventSource: 'CODE' }),
+    getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "code" }),
   ]);
 
   const cookieStore = await cookies();
@@ -36,7 +37,7 @@ export default async function EventsPage(props: {
 
   return (
     <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
-      <Events lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+      <Events eventType="code" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );
 }
