@@ -14,7 +14,7 @@ const TEXT_PADDING = {
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "standard",
+  notation: "compact",
 });
 
 const TimelineElement = ({

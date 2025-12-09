@@ -33,7 +33,7 @@ interface SpanCardProps {
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "standard",
+  notation: "compact",
 });
 
 export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
