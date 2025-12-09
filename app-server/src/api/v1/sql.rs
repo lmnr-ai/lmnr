@@ -38,7 +38,7 @@ pub async fn execute_sql_query(
     let project_id = project_api_key.project_id;
     let SqlQueryRequest { query } = req.into_inner();
 
-    let tracer: global::BoxedTracer = global::tracer("tracer");
+    let tracer = global::tracer("tracer");
     let span = tracer.start("api_sql_query");
     let _guard = mark_span_as_active(span);
 

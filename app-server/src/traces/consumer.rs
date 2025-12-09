@@ -382,7 +382,7 @@ async fn process_batch(
         log::error!("Failed to write spans: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
-                "[Write to data plane] Failed to reject MQ delivery (batch): {:?}",
+                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
                 e
             );
         });
