@@ -37,10 +37,11 @@ use query_engine::{
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
 use traces::{
-    CLUSTERING_EXCHANGE, CLUSTERING_QUEUE, CLUSTERING_ROUTING_KEY, OBSERVATIONS_EXCHANGE,
-    OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE,
-    TRACE_SUMMARY_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
-    grpc_service::ProcessTracesService, summary::TraceSummaryHandler,
+    EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SEMANTIC_EVENT_EXCHANGE,
+    SEMANTIC_EVENT_QUEUE, SEMANTIC_EVENT_ROUTING_KEY, clustering::ClusteringHandler,
+    consumer::SpanHandler, grpc_service::ProcessTracesService,
+    semantic_events::SemanticEventHandler,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -388,10 +389,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.5 Trace summary message queue ====
+            // ==== 3.5 Semantic event message queue ====
             channel
                 .exchange_declare(
-                    TRACE_SUMMARY_EXCHANGE,
+                    SEMANTIC_EVENT_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -404,7 +405,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    TRACE_SUMMARY_QUEUE,
+                    SEMANTIC_EVENT_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -440,10 +441,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.7 Clustering message queue ====
+            // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
-                    CLUSTERING_EXCHANGE,
+                    EVENT_CLUSTERING_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -456,7 +457,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    CLUSTERING_QUEUE,
+                    EVENT_CLUSTERING_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -493,12 +494,12 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
         // ==== 3.4 Payloads message queue ====
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
-        // ==== 3.5 Trace summary message queue ====
-        queue.register_queue(TRACE_SUMMARY_EXCHANGE, TRACE_SUMMARY_QUEUE);
+        // ==== 3.5 Semantic event message queue ====
+        queue.register_queue(SEMANTIC_EVENT_EXCHANGE, SEMANTIC_EVENT_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
-        // ==== 3.7 Clustering message queue ====
-        queue.register_queue(CLUSTERING_EXCHANGE, CLUSTERING_QUEUE);
+        // ==== 3.7 Event Clustering message queue ====
+        queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -698,7 +699,7 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_trace_summary_workers = env::var("NUM_TRACE_SUMMARY_WORKERS")
+        let num_semantic_event_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
             .unwrap_or(2);
@@ -714,13 +715,13 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(1);
 
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Trace summary workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
-            num_trace_summary_workers,
+            num_semantic_event_workers,
             num_notification_workers,
             num_clustering_workers
         );
@@ -849,21 +850,27 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn trace summary workers using new worker pool
+                    // Spawn semantic event workers using new worker pool
                     {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let client = reqwest::Client::new();
+                        let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
-                            WorkerType::TraceSummaries,
-                            num_trace_summary_workers as usize,
+                            WorkerType::SemanticEvents,
+                            num_semantic_event_workers as usize,
                             move || {
-                                TraceSummaryHandler::new(db.clone(), queue.clone(), client.clone())
+                                SemanticEventHandler::new(
+                                    db.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                    client.clone(),
+                                )
                             },
                             QueueConfig {
-                                queue_name: TRACE_SUMMARY_QUEUE,
-                                exchange_name: TRACE_SUMMARY_EXCHANGE,
-                                routing_key: TRACE_SUMMARY_ROUTING_KEY,
+                                queue_name: SEMANTIC_EVENT_QUEUE,
+                                exchange_name: SEMANTIC_EVENT_EXCHANGE,
+                                routing_key: SEMANTIC_EVENT_ROUTING_KEY,
                             },
                         );
                     }
@@ -894,9 +901,9 @@ fn main() -> anyhow::Result<()> {
                             num_clustering_workers as usize,
                             move || ClusteringHandler::new(cache.clone(), client.clone()),
                             QueueConfig {
-                                queue_name: CLUSTERING_QUEUE,
-                                exchange_name: CLUSTERING_EXCHANGE,
-                                routing_key: CLUSTERING_ROUTING_KEY,
+                                queue_name: EVENT_CLUSTERING_QUEUE,
+                                exchange_name: EVENT_CLUSTERING_EXCHANGE,
+                                routing_key: EVENT_CLUSTERING_ROUTING_KEY,
                             },
                         );
                     }

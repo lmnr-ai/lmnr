@@ -21,6 +21,7 @@ pub enum Feature {
     Tracing,
     AggregateTraces,
     Clustering,
+    SemanticEvents,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -50,8 +51,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
         Feature::Clustering => {
-            env::var("CLUSTER_ENDPOINT").is_ok() && env::var("CLUSTER_ENDPOINT_KEY").is_ok()
+            env::var("CLUSTERING_SERVICE_URL").is_ok()
+                && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
+        Feature::SemanticEvents => env::var("SEMANTIC_EVENT_SERVICE_URL").is_ok(),
     }
 }
 

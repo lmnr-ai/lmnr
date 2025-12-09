@@ -6,23 +6,18 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{CLUSTERING_EXCHANGE, CLUSTERING_ROUTING_KEY};
+use super::{EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_ROUTING_KEY};
 use crate::cache::{Cache, CacheTrait, keys};
+use crate::db::events::Event;
 use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::utils::{call_service_with_retry, render_mustache_template};
 use crate::worker::{HandlerError, MessageHandler};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusteringMessage {
-    pub trace_id: Uuid,
     pub project_id: Uuid,
-    pub content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ClusterRequest {
-    project_id: String,
-    trace_id: String,
-    content: String,
+    pub event: Event,
+    pub value_template: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,28 +25,31 @@ struct ClusterResponse {
     success: bool,
 }
 
-/// Push a clustering message to the clustering queue
-pub async fn push_to_clustering_queue(
-    trace_id: Uuid,
+/// Push an event clustering message to the event clustering queue
+pub async fn push_to_event_clustering_queue(
     project_id: Uuid,
-    content: String,
+    event: Event,
+    value_template: String,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = ClusteringMessage {
-        trace_id,
         project_id,
-        content,
+        event,
+        value_template,
     };
 
     let serialized = serde_json::to_vec(&message)?;
 
     queue
-        .publish(&serialized, CLUSTERING_EXCHANGE, CLUSTERING_ROUTING_KEY)
+        .publish(
+            &serialized,
+            EVENT_CLUSTERING_EXCHANGE,
+            EVENT_CLUSTERING_ROUTING_KEY,
+        )
         .await?;
 
     log::debug!(
-        "Pushed clustering message to queue: trace_id={}, project_id={}",
-        trace_id,
+        "Pushed event clustering message to queue: project_id={}",
         project_id,
     );
 
@@ -138,14 +136,12 @@ async fn process_clustering_logic(
         Ok(success) => {
             if success {
                 log::info!(
-                    "Successfully clustered trace: trace_id={}, project_id={}",
-                    message.trace_id,
+                    "Successfully clustered event for project_id={}",
                     message.project_id
                 );
             } else {
                 log::warn!(
-                    "Clustering endpoint returned success=false for trace_id={}, project_id={}",
-                    message.trace_id,
+                    "Clustering endpoint returned success=false for project_id={}",
                     message.project_id
                 );
             }
@@ -153,8 +149,7 @@ async fn process_clustering_logic(
         }
         Err(e) => {
             log::error!(
-                "Failed to call clustering endpoint for trace_id={}, project_id={}: {:?}",
-                message.trace_id,
+                "Failed to call clustering endpoint for project_id={}: {:?}",
                 message.project_id,
                 e
             );
@@ -173,31 +168,22 @@ async fn call_clustering_endpoint(
     let cluster_endpoint_key = env::var("CLUSTER_ENDPOINT_KEY")
         .map_err(|_| anyhow::anyhow!("CLUSTER_ENDPOINT_KEY environment variable not set"))?;
 
-    let request_body = ClusterRequest {
-        project_id: message.project_id.to_string(),
-        trace_id: message.trace_id.to_string(),
-        content: message.content.clone(),
-    };
+    // Render the value_template with event attributes
+    let content = render_mustache_template(&message.value_template, &message.event.attributes)?;
 
-    let response = client
-        .post(&cluster_endpoint)
-        .header("Authorization", format!("Bearer {}", cluster_endpoint_key))
-        .header("Content-Type", "application/json")
-        .json(&request_body)
-        .timeout(Duration::from_secs(60))
-        .send()
-        .await?;
+    let request_body = serde_json::json!({
+        "project_id": message.project_id.to_string(),
+        "event": message.event,
+        "content": content,
+    });
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Clustering endpoint returned error: status={}, body={}",
-            status,
-            body
-        ));
-    }
+    let cluster_response: ClusterResponse = call_service_with_retry(
+        client,
+        &cluster_endpoint,
+        &cluster_endpoint_key,
+        &request_body,
+    )
+    .await?;
 
-    let cluster_response: ClusterResponse = response.json().await?;
     Ok(cluster_response.success)
 }

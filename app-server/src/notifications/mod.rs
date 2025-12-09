@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,7 +9,7 @@ use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::MessageHandler;
 
 mod slack;
-pub use slack::{EventIdentificationPayload, SlackMessagePayload, TraceAnalysisPayload};
+pub use slack::{EventIdentificationPayload, SlackMessagePayload};
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";

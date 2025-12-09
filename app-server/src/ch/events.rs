@@ -25,6 +25,7 @@ pub struct CHEvent {
     pub user_id: String,
     pub session_id: String,
     pub size_bytes: u64,
+    pub source: String,
 }
 
 impl CHEvent {
@@ -43,6 +44,7 @@ impl CHEvent {
                 "lmnr.event.session_id",
             ),
             size_bytes: event.estimate_size_bytes() as u64,
+            source: event.source.to_string(),
         }
     }
 

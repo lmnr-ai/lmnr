@@ -12,10 +12,8 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
-    summary::push_to_trace_summary_queue,
-    trigger::{check_span_trigger, get_summary_trigger_spans_cached},
+    semantic_events::push_to_semantic_event_queue, trigger::get_semantic_event_trigger_spans_cached,
 };
-use crate::cache::autocomplete::populate_autocomplete_cache;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -39,13 +37,17 @@ use crate::{
     storage::Storage,
     traces::{
         IngestedBytes,
-        events::record_events,
+        events::record_span_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
     worker::MessageHandler,
+};
+use crate::{
+    cache::autocomplete::populate_autocomplete_cache,
+    db::semantic_event_trigger_spans::SemanticEventTriggerSpanWithDefinition,
 };
 
 /// Handler for span processing
@@ -303,9 +305,17 @@ async fn process_batch(
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &pubsub).await;
 
-    // Check for spans matching trigger conditions and push to trace summary queue
-    check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
+    if is_feature_enabled(Feature::SemanticEvents) {
+        // Check for spans matching trigger conditions and push to semantic event queue
+        check_and_push_semantic_events(
+            project_id,
+            &spans,
+            db.clone(),
+            cache.clone(),
+            queue.clone(),
+        )
         .await;
+    }
 
     // Index spans in Quickwit
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
@@ -332,7 +342,7 @@ async fn process_batch(
         })
         .collect::<Vec<_>>();
 
-    let total_events_ingested_bytes = match record_events(
+    let total_events_ingested_bytes = match record_span_events(
         cache.clone(),
         db.clone(),
         project_id,
@@ -434,25 +444,30 @@ async fn process_batch(
     Ok(())
 }
 
-/// Check spans against trigger conditions and push matching traces to summary queue
+/// Check spans against trigger conditions and push matching traces to semantic event queue
 /// This function groups spans by project to minimize database/cache queries
-async fn check_and_push_trace_summaries(
+async fn check_and_push_semantic_events(
     project_id: Uuid,
     spans: &[Span],
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
+    match get_semantic_event_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
         Ok(trigger_spans) => {
             // Check each span against its project's trigger spans
+
+            dbg!("Trigger spans: {:?}", trigger_spans.clone());
             for span in spans {
                 // Check if this span name matches any trigger
-                let matching_triggers = check_span_trigger(&span.name, &trigger_spans);
-
+                let matching_triggers: Vec<SemanticEventTriggerSpanWithDefinition> = trigger_spans
+                    .iter()
+                    .filter(|trigger| trigger.span_name == span.name)
+                    .cloned()
+                    .collect();
                 // Send one message per matching trigger
                 for trigger in matching_triggers {
-                    if let Err(e) = push_to_trace_summary_queue(
+                    if let Err(e) = push_to_semantic_event_queue(
                         span.trace_id,
                         span.project_id,
                         span.span_id,
@@ -462,7 +477,7 @@ async fn check_and_push_trace_summaries(
                     .await
                     {
                         log::error!(
-                            "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                            "Failed to push trace to semantic event queue: trace_id={}, project_id={}, span_name={}, error={:?}",
                             span.trace_id,
                             span.project_id,
                             span.name,
@@ -474,7 +489,7 @@ async fn check_and_push_trace_summaries(
         }
         Err(e) => {
             log::error!(
-                "Failed to get summary trigger spans for project {}: {:?}",
+                "Failed to get semantic event trigger spans for project {}: {:?}",
                 project_id,
                 e
             );

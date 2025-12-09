@@ -14,7 +14,7 @@ use crate::{
 const EVENT_DEFINITION_NAME_CACHE_TTL: u64 = 60 * 60 * 24 * 7; // 7 days
 
 #[instrument(skip(cache, db, project_id, clickhouse, event_payloads))]
-pub async fn record_events(
+pub async fn record_span_events(
     cache: Arc<Cache>,
     db: Arc<DB>,
     project_id: Uuid,
