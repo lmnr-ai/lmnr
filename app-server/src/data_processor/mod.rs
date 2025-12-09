@@ -297,7 +297,6 @@ async fn read_from_data_plane(
         project_id,
         parameters,
     };
-    println!("Request: {:?}", request);
 
     let response = http_client
         .post(format!("{}/api/v1/read", data_plane_url))

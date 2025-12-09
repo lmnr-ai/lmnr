@@ -113,11 +113,10 @@ pub async fn execute_sql_query(
     )
     .await;
 
-    // FIX: Error returned from data_processor is not always a SqlQueryError
     let data = match res {
         Ok(data) => data,
         Err(e) => {
-            return Err(SqlQueryError::InternalError(e.to_string()));
+            return Err(e);
         }
     };
 

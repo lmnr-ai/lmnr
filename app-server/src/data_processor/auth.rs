@@ -61,7 +61,7 @@ fn get_token_cache() -> &'static Cache<Uuid, String> {
 /// Uses Ed25519 signatures with a private key from environment variable.
 /// Tokens are cached per workspace_id and reused until near expiration.
 ///
-/// Token format: `base64url(payload).base64url(signature)`
+/// Token format: `base64(payload).base64(signature)`
 /// Payload format: `workspace_id:issued_at:expires_at`
 pub fn generate_auth_token(workspace_id: Uuid) -> Result<String, String> {
     let cache = get_token_cache();
@@ -83,7 +83,7 @@ pub fn generate_auth_token(workspace_id: Uuid) -> Result<String, String> {
     // Sign the payload
     let signature = sign::sign_detached(payload_bytes, signing_key);
 
-    // Encode as base64url: payload.signature
+    // Encode as base64: payload.signature
     let token = format!(
         "{}.{}",
         URL_SAFE_NO_PAD.encode(payload_bytes),
