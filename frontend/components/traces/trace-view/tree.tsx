@@ -13,8 +13,9 @@ interface TreeProps {
 
 const Tree = ({ onSpanSelect }: TreeProps) => {
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans } = useTraceViewStoreContext((state) => ({
+  const { getTreeSpans, treeWidth, spans } = useTraceViewStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
+    treeWidth: state.treeWidth,
     spans: state.spans,
   }));
 
@@ -61,24 +62,23 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   }
 
   return (
-    <div ref={scrollRef} className="overflow-x-auto overflow-y-auto grow relative h-full w-full styled-scrollbar">
+    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
       <div className="flex flex-col pb-4 pt-1">
         <div
           className="relative"
           style={{
             height: virtualizer.getTotalSize(),
-            width: "max-content",
-            minWidth: "100%",
+            width: "100%",
             position: "relative",
           }}
         >
           <div
+            className="pl-4"
             style={{
               position: "absolute",
               top: 0,
               left: 0,
-              width: "max-content",
-              minWidth: "100%",
+              width: "100%",
               transform: `translateY(${items[0]?.start ?? 0}px)`,
             }}
           >
@@ -93,6 +93,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
                     parentY={spanItem.parentY}
                     yOffset={spanItem.yOffset}
                     depth={spanItem.depth}
+                    containerWidth={treeWidth}
                     onSpanSelect={onSpanSelect}
                   />
                 </div>
