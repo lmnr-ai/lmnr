@@ -162,11 +162,12 @@ async fn call_clustering_endpoint(
     client: &reqwest::Client,
     message: &ClusteringMessage,
 ) -> anyhow::Result<bool> {
-    let cluster_endpoint = env::var("CLUSTER_ENDPOINT")
-        .map_err(|_| anyhow::anyhow!("CLUSTER_ENDPOINT environment variable not set"))?;
+    let cluster_endpoint = env::var("CLUSTERING_SERVICE_URL")
+        .map_err(|_| anyhow::anyhow!("CLUSTERING_SERVICE_URL environment variable not set"))?;
 
-    let cluster_endpoint_key = env::var("CLUSTER_ENDPOINT_KEY")
-        .map_err(|_| anyhow::anyhow!("CLUSTER_ENDPOINT_KEY environment variable not set"))?;
+    let cluster_endpoint_key = env::var("CLUSTERING_SERVICE_SECRET_KEY").map_err(|_| {
+        anyhow::anyhow!("CLUSTERING_SERVICE_SECRET_KEY environment variable not set")
+    })?;
 
     // Render the value_template with event attributes
     let content = render_mustache_template(&message.value_template, &message.event.attributes)?;

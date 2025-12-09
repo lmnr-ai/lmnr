@@ -18,8 +18,8 @@ struct DBTriggerSpanWithDefinition {
     span_name: String,
     event_definition_id: Uuid,
     event_definition_name: String,
-    prompt: Option<String>,
-    structured_output_schema: Option<Value>,
+    prompt: String,
+    structured_output_schema: Value,
 }
 
 /// Get semantic event trigger spans for a project with their associated event definitions
@@ -62,12 +62,8 @@ pub async fn get_semantic_event_trigger_spans_with_definitions(
             event_definition: SemanticEventDefinition {
                 id: db_trigger.event_definition_id,
                 name: db_trigger.event_definition_name,
-                prompt: db_trigger
-                    .prompt
-                    .expect("Either template or definition prompt should be set"),
-                structured_output_schema: db_trigger
-                    .structured_output_schema
-                    .expect("Either template or definition schema should be set"),
+                prompt: db_trigger.prompt,
+                structured_output_schema: db_trigger.structured_output_schema,
             },
         })
         .collect())

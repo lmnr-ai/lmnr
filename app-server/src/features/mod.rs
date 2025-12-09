@@ -54,7 +54,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("CLUSTERING_SERVICE_URL").is_ok()
                 && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
-        Feature::SemanticEvents => env::var("SEMANTIC_EVENT_SERVICE_URL").is_ok(),
+        Feature::SemanticEvents => {
+            env::var("SEMANTIC_EVENT_SERVICE_URL").is_ok()
+                && env::var("SEMANTIC_EVENT_SERVICE_SECRET_KEY").is_ok()
+        }
     }
 }
 

@@ -18,7 +18,7 @@ pub async fn get_event_cluster_config(
 ) -> Result<Option<EventClusterConfig>> {
     let config = sqlx::query_as::<_, EventClusterConfig>(
         r#"
-        SELECT id, created_at, event_name, value_template, project_id
+        SELECT value_template
         FROM event_cluster_configs
         WHERE project_id = $1 AND event_name = $2 AND source = $3
         "#,
