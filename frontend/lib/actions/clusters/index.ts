@@ -24,17 +24,14 @@ export const GetEventClustersSchema = z.object({
 export async function getEventClusters(
   input: z.infer<typeof GetEventClustersSchema>
 ): Promise<{ items: EventCluster[] }> {
-  const { projectId, eventName, eventSource } = input;
+  const { projectId, eventName, eventSource } = GetEventClustersSchema.parse(input);
 
   const whereConditions = [
     eq(eventClusters.projectId, projectId),
     eq(eventClusters.eventName, eventName),
+    eq(eventClusters.eventSource, eventSource),
     ne(eventClusters.level, 0),
   ];
-
-  if (eventSource) {
-    whereConditions.push(eq(eventClusters.eventSource, eventSource));
-  }
 
   const result = await db
     .select({

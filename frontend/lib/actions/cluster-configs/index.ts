@@ -40,11 +40,8 @@ export async function getClusterConfig(
   const whereConditions = [
     eq(eventClusterConfigs.projectId, projectId),
     eq(eventClusterConfigs.eventName, eventName),
+    eq(eventClusterConfigs.eventSource, eventSource)
   ];
-
-  if (eventSource) {
-    whereConditions.push(eq(eventClusterConfigs.eventSource, eventSource));
-  }
 
   const [result] = await db
     .select()

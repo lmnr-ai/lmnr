@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import {
-  columns, defaultSemanticEventDefinitionsColumnOrder,
+  defaultSemanticEventDefinitionsColumnOrder,
   eventsDefinitionsTableFilters, semanticEventDefinitionsColumns,
 } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
@@ -188,7 +188,7 @@ function SemanticEventDefinitionsContent() {
                 <DataTableFilter columns={eventsDefinitionsTableFilters} />
                 <ColumnsMenu
                   lockedColumns={["__row_selection"]}
-                  columnLabels={columns.map((column) => ({
+                  columnLabels={semanticEventDefinitionsColumns.map((column) => ({
                     id: column.id!,
                     label: typeof column.header === "string" ? column.header : column.id!,
                   }))}
