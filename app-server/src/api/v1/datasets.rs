@@ -70,6 +70,7 @@ async fn get_datapoints(
     };
     let query_engine = query_engine.into_inner().as_ref().clone();
     let query = params.into_inner();
+    let http_client = http_client.into_inner().as_ref().clone();
 
     let dataset_id = match query.dataset {
         DatasetIdentifier::Name(name) => {
@@ -118,7 +119,7 @@ async fn get_datapoints(
         parameters.clone(),
         clickhouse_ro.clone(),
         query_engine.clone(),
-        http_client.clone().into_inner().as_ref().clone(),
+        http_client.clone(),
         db.clone(),
     )
     .await?;
@@ -137,7 +138,7 @@ async fn get_datapoints(
         )]),
         clickhouse_ro,
         query_engine,
-        http_client.into_inner().as_ref().clone(),
+        http_client.clone(),
         db.clone(),
     )
     .await?;

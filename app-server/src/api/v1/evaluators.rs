@@ -67,6 +67,7 @@ pub async fn create_evaluator_score(
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
+    let http_client = http_client.as_ref().clone();
 
     // Extract common fields from both variants
     let (name, metadata, score, source) = match &req {
@@ -99,7 +100,7 @@ pub async fn create_evaluator_score(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
-                http_client.clone().into_inner().as_ref().clone(),
+                http_client,
                 db.clone().into_inner(),
             )
             .await?

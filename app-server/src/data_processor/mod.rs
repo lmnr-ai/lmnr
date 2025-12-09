@@ -92,6 +92,8 @@ struct DataPlaneWriteRequest<'a> {
 #[derive(Serialize)]
 struct DataPlaneReadRequest {
     query: String,
+    project_id: Uuid,
+    parameters: HashMap<String, Value>,
 }
 
 pub async fn write_spans(
@@ -175,7 +177,7 @@ pub async fn read(
             read_from_clickhouse(clickhouse_ro, project_id, query, parameters).await
         }
         DeploymentMode::HYBRID => {
-            read_from_data_plane(&http_client, project_id, &config, query).await
+            read_from_data_plane(&http_client, project_id, &config, query, parameters).await
         }
     }
 }
@@ -227,6 +229,11 @@ async fn read_from_clickhouse(
     let data = rows.collect().await.map_err(|e| match e {
         clickhouse::error::Error::BadResponse(e) => {
             let Ok(error) = serde_json::from_str::<ClickhouseBadResponseError>(&e) else {
+                span.record_error(&std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ));
+                span.end();
                 return SqlQueryError::InternalError(format!(
                     "Failed to parse ClickHouse error: {}",
                     e
@@ -256,6 +263,7 @@ async fn read_from_data_plane(
     project_id: Uuid,
     config: &WorkspaceConfig,
     query: String,
+    parameters: HashMap<String, Value>,
 ) -> Result<Bytes> {
     let tracer = global::tracer("app-server");
 
@@ -277,7 +285,11 @@ async fn read_from_data_plane(
         .post(format!("{}/clickhouse/read", data_plane_url))
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
-        .json(&DataPlaneReadRequest { query })
+        .json(&DataPlaneReadRequest {
+            query,
+            project_id,
+            parameters,
+        })
         .send()
         .await
         .map_err(|e| {
@@ -301,5 +313,6 @@ async fn read_from_data_plane(
         ));
     }
 
+    span.end();
     return response.bytes().await.map_err(|e| anyhow!(e));
 }

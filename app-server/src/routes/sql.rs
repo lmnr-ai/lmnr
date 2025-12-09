@@ -93,7 +93,7 @@ pub async fn execute_sql_query(
                 parameters,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
-                http_client.clone().into_inner().as_ref().clone(),
+                http_client.into_inner().as_ref().clone(),
                 db.into_inner(),
             )
             .await

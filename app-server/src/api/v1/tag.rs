@@ -59,6 +59,7 @@ pub async fn tag_trace(
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
+    let http_client = http_client.as_ref().clone();
 
     let span_id = match &req {
         TagRequest::WithTraceId(req) => {
@@ -67,7 +68,7 @@ pub async fn tag_trace(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
-                http_client.clone().into_inner().as_ref().clone(),
+                http_client,
                 db.clone().into_inner(),
             )
             .await?
