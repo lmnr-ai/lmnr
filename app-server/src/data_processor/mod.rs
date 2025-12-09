@@ -169,8 +169,12 @@ pub async fn read(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
-) -> Result<Bytes> {
-    let config = get_workspace_config(pool, project_id).await?;
+) -> Result<Bytes, SqlQueryError> {
+    let config = get_workspace_config(pool, project_id).await;
+    let config = match config {
+        Ok(config) => config,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
 
     match config.deployment_mode {
         DeploymentMode::CLOUD => {
@@ -187,7 +191,7 @@ async fn read_from_clickhouse(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
-) -> Result<Bytes> {
+) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("execute_sql_query");
 
@@ -264,7 +268,7 @@ async fn read_from_data_plane(
     config: &WorkspaceConfig,
     query: String,
     parameters: HashMap<String, Value>,
-) -> Result<Bytes> {
+) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
     let data_plane_url = config.data_plane_url.as_ref().ok_or_else(|| {
@@ -272,10 +276,17 @@ async fn read_from_data_plane(
             "HYBRID deployment requires data_plane_url for project {}",
             project_id
         )
-    })?;
+    });
+    let data_plane_url = match data_plane_url {
+        Ok(url) => url,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
 
-    let auth_token = generate_auth_token(config.workspace_id)
-        .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
+    let auth_token = generate_auth_token(config.workspace_id);
+    let auth_token = match auth_token {
+        Ok(token) => token,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
 
     let mut span = tracer.start("execute_data_plane_sql_query");
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
@@ -299,20 +310,22 @@ async fn read_from_data_plane(
         })?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
+        let res = response.json().await;
+        let error: SqlQueryError = match res {
+            Ok(error) => error,
+            Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+        };
         span.record_error(&std::io::Error::new(
             std::io::ErrorKind::Other,
-            error_text.clone(),
+            error.to_string(),
         ));
         span.end();
-        return Err(anyhow!(
-            "Data plane returned error {}: {}",
-            status,
-            error_text
-        ));
+        return Err(error);
     }
 
     span.end();
-    return response.bytes().await.map_err(|e| anyhow!(e));
+    return response
+        .bytes()
+        .await
+        .map_err(|e| SqlQueryError::InternalError(e.to_string()));
 }

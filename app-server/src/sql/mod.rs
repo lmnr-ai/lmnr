@@ -20,7 +20,7 @@ use crate::{
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Deserialize)]
 pub enum SqlQueryError {
     ValidationError(String),
     BadResponseError(String),
