@@ -89,7 +89,7 @@ struct DataPlaneWriteRequest<'a> {
     data: WriteData<'a>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct DataPlaneReadRequest {
     query: String,
     project_id: Uuid,
@@ -141,7 +141,7 @@ async fn write_spans_to_data_plane(
         .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
 
     let response = http_client
-        .post(format!("{}/clickhouse/write", data_plane_url))
+        .post(format!("{}/api/v1/write", data_plane_url))
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
         .json(&DataPlaneWriteRequest {
@@ -292,15 +292,18 @@ async fn read_from_data_plane(
     span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("data_plane_url", data_plane_url.clone()));
 
+    let request = DataPlaneReadRequest {
+        query,
+        project_id,
+        parameters,
+    };
+    println!("Request: {:?}", request);
+
     let response = http_client
-        .post(format!("{}/clickhouse/read", data_plane_url))
+        .post(format!("{}/api/v1/read", data_plane_url))
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
-        .json(&DataPlaneReadRequest {
-            query,
-            project_id,
-            parameters,
-        })
+        .json(&request)
         .send()
         .await
         .map_err(|e| {
