@@ -9,6 +9,7 @@ import {
   defaultEventDefinitionsColumnOrder,
   eventsDefinitionsTableFilters,
 } from "@/components/event-definitions/columns.tsx";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -86,11 +87,42 @@ function CodeEventDefinitionsContent() {
     isFetching,
     isLoading,
     fetchNextPage,
+    updateData,
   } = useInfiniteScroll<EventDefinitionRow>({
     fetchFn: fetchCodeEventDefinitions,
     enabled: true,
     deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
+
+  const handleDelete = useCallback(
+    async (selectedRowIds: string[]) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/event-definitions`, {
+          method: "DELETE",
+          body: JSON.stringify({ ids: selectedRowIds }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to delete event definitions");
+        }
+
+        updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
+        onRowSelectionChange({});
+
+        toast({
+          title: "Event definitions deleted",
+          description: `Successfully deleted ${selectedRowIds.length} event definition(s).`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to delete event definitions. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [projectId, toast, updateData, onRowSelectionChange]
+  );
 
   return (
     <>
@@ -121,6 +153,15 @@ function CodeEventDefinitionsContent() {
               }}
               onRowSelectionChange={onRowSelectionChange}
               lockedColumns={["__row_selection"]}
+              selectionPanel={(selectedRowIds) => (
+                <div className="flex flex-col space-y-2">
+                  <DeleteSelectedRows
+                    selectedRowIds={selectedRowIds}
+                    onDelete={handleDelete}
+                    entityName="event definitions"
+                  />
+                </div>
+              )}
             >
               <div className="flex flex-1 w-full space-x-2 pt-1">
                 <DataTableFilter columns={eventsDefinitionsTableFilters} />
