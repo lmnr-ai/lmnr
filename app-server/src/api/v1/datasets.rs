@@ -57,6 +57,7 @@ async fn get_datapoints(
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: web::Data<Arc<reqwest::Client>>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
@@ -72,9 +73,12 @@ async fn get_datapoints(
 
     let dataset_id = match query.dataset {
         DatasetIdentifier::Name(name) => {
-            let Some(dataset_id) =
-                db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
-                    .await?
+            let Some(dataset_id) = db::datasets::get_dataset_id_by_name(
+                &db.clone().pool,
+                &name.dataset_name,
+                project_id,
+            )
+            .await?
             else {
                 return Ok(HttpResponse::NotFound().json(serde_json::json!({
                     "error": "Dataset not found"
@@ -114,6 +118,8 @@ async fn get_datapoints(
         parameters.clone(),
         clickhouse_ro.clone(),
         query_engine.clone(),
+        http_client.clone().into_inner().as_ref().clone(),
+        db.clone(),
     )
     .await?;
 
@@ -131,6 +137,8 @@ async fn get_datapoints(
         )]),
         clickhouse_ro,
         query_engine,
+        http_client.into_inner().as_ref().clone(),
+        db.clone(),
     )
     .await?;
 

@@ -61,6 +61,7 @@ pub async fn create_evaluator_score(
     clickhouse_ro: Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: Data<Arc<reqwest::Client>>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
@@ -98,6 +99,8 @@ pub async fn create_evaluator_score(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
+                http_client.clone().into_inner().as_ref().clone(),
+                db.clone().into_inner(),
             )
             .await?
         }

@@ -24,7 +24,7 @@ use crate::{
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation, upsert_traces_batch},
     },
-    data_plane,
+    data_processor,
     db::{
         DB,
         events::Event,
@@ -376,7 +376,8 @@ async fn process_batch(
         .collect();
 
     if let Err(e) =
-        data_plane::write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans).await
+        data_processor::write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans)
+            .await
     {
         log::error!("Failed to write spans: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {

@@ -1,12 +1,13 @@
-//! Data processor handles routing reads/writes to the appropriate backend
-//! based on the workspace's deployment mode (CLOUD vs HYBRID).
+pub mod auth;
 
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
+use bytes::Bytes;
 use moka::future::Cache;
 use opentelemetry::{
     KeyValue, global,
@@ -17,17 +18,18 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::query_engine::QueryEngine;
-use crate::sql::{ClickhouseReadonlyClient, SqlQueryError, execute_sql_query, validate_query};
+use crate::sql::{ClickhouseBadResponseError, ClickhouseReadonlyClient, SqlQueryError};
 use crate::{
     ch::{self, spans::CHSpan},
     db::projects::{DeploymentMode, get_workspace_by_project_id},
 };
 
-use super::auth::generate_auth_token;
+use self::auth::generate_auth_token;
 
-const WORKSPACE_CONFIG_CACHE_TTL_SECS: u64 = 60 * 60; // 1 hour
+const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
+const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
 
+const WORKSPACE_CONFIG_CACHE_TTL_SECS: u64 = 60 * 60;
 static WORKSPACE_CONFIG_CACHE: OnceLock<Cache<Uuid, WorkspaceConfig>> = OnceLock::new();
 
 fn get_cache() -> &'static Cache<Uuid, WorkspaceConfig> {
@@ -162,58 +164,100 @@ pub async fn read(
     pool: &PgPool,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     http_client: Arc<reqwest::Client>,
-    query_engine: Arc<QueryEngine>,
     project_id: Uuid,
     query: String,
-) -> Result<Vec<Value>> {
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes> {
     let config = get_workspace_config(pool, project_id).await?;
 
     match config.deployment_mode {
         DeploymentMode::CLOUD => {
-            read_from_clickhouse(clickhouse_ro, query_engine, project_id, query).await
+            read_from_clickhouse(clickhouse_ro, project_id, query, parameters).await
         }
         DeploymentMode::HYBRID => {
-            read_from_data_plane(&http_client, query_engine, project_id, &config, query).await
+            read_from_data_plane(&http_client, project_id, &config, query).await
         }
     }
 }
 
 async fn read_from_clickhouse(
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
-    query_engine: Arc<QueryEngine>,
     project_id: Uuid,
     query: String,
-) -> Result<Vec<Value>> {
-    let results = execute_sql_query(
-        query,
-        project_id,
-        HashMap::new(),
-        clickhouse_ro,
-        query_engine,
-    )
-    .await
-    .map_err(|e| anyhow!("Failed to execute query: {}", e))?;
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes> {
+    let tracer = global::tracer("app-server");
+    let mut span = tracer.start("execute_sql_query");
 
-    Ok(results)
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
+    let mut clickhouse_query = clickhouse_ro
+        .query(&query)
+        .with_option("default_format", "JSON")
+        .with_option("output_format_json_quote_64bit_integers", "0")
+        .with_option(
+            "max_execution_time",
+            env::var("SQL_QUERY_MAX_EXECUTION_TIME")
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
+        )
+        .with_option(
+            "max_result_bytes",
+            env::var("SQL_QUERY_MAX_RESULT_BYTES")
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
+        );
+
+    for (key, value) in parameters {
+        span.set_attribute(KeyValue::new(
+            format!("sql.parameters.{key}"),
+            value.to_string(),
+        ));
+        clickhouse_query = clickhouse_query.param(&key, value);
+    }
+
+    let mut rows = clickhouse_query.fetch_bytes("JSON").map_err(|e| {
+        span.record_error(&e);
+        span.end();
+        SqlQueryError::InternalError(format!("Failed to execute ClickHouse query: {}", e))
+    })?;
+
+    let data = rows.collect().await.map_err(|e| match e {
+        clickhouse::error::Error::BadResponse(e) => {
+            let Ok(error) = serde_json::from_str::<ClickhouseBadResponseError>(&e) else {
+                return SqlQueryError::InternalError(format!(
+                    "Failed to parse ClickHouse error: {}",
+                    e
+                ));
+            };
+            let msg = error.exception.unwrap_or_default();
+            span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
+            span.end();
+            log::warn!("Error executing user SQL query: {}", &msg);
+            SqlQueryError::BadResponseError(msg)
+        }
+        _ => {
+            span.record_error(&e);
+            span.end();
+            log::error!("Failed to collect query response data: {}", e);
+            SqlQueryError::InternalError(e.to_string())
+        }
+    })?;
+    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
+    span.end();
+
+    return Ok(data);
 }
 
 async fn read_from_data_plane(
     http_client: &reqwest::Client,
-    query_engine: Arc<QueryEngine>,
     project_id: Uuid,
     config: &WorkspaceConfig,
     query: String,
-) -> Result<Vec<Value>> {
+) -> Result<Bytes> {
     let tracer = global::tracer("app-server");
-
-    // Validate query first
-    // TODO: move this function inside read() function above after all execute_sql_query() calls are done via data processor
-    let validated_query = match validate_query(query, project_id, query_engine).await {
-        Ok(validated_query) => validated_query,
-        Err(e) => {
-            return Err(e.into());
-        }
-    };
 
     let data_plane_url = config.data_plane_url.as_ref().ok_or_else(|| {
         anyhow!(
@@ -226,16 +270,14 @@ async fn read_from_data_plane(
         .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
 
     let mut span = tracer.start("execute_data_plane_sql_query");
-    span.set_attribute(KeyValue::new("sql.query", validated_query.clone()));
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
     span.set_attribute(KeyValue::new("data_plane_url", data_plane_url.clone()));
 
     let response = http_client
         .post(format!("{}/clickhouse/read", data_plane_url))
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
-        .json(&DataPlaneReadRequest {
-            query: validated_query,
-        })
+        .json(&DataPlaneReadRequest { query })
         .send()
         .await
         .map_err(|e| {
@@ -259,39 +301,5 @@ async fn read_from_data_plane(
         ));
     }
 
-    let data = response.bytes().await.map_err(|e| {
-        span.record_error(&e);
-        span.end();
-        SqlQueryError::InternalError(format!("Failed to read response: {}", e))
-    })?;
-    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
-    span.end();
-
-    let mut processing_span = tracer.start("process_query_response");
-
-    let results: Value = serde_json::from_slice(&data).map_err(|e| {
-        log::error!("Failed to parse data plane response as JSON: {}", e);
-        processing_span.record_error(&e);
-        processing_span.end();
-        SqlQueryError::InternalError(e.to_string())
-    })?;
-
-    let data_array = results
-        .get("data")
-        .ok_or_else(|| {
-            let msg = "Response missing 'data' field".to_string();
-            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
-            processing_span.end();
-            SqlQueryError::InternalError(msg)
-        })?
-        .as_array()
-        .ok_or_else(|| {
-            let msg = "Response 'data' field is not an array".to_string();
-            processing_span.record_error(&SqlQueryError::InternalError(msg.clone()));
-            processing_span.end();
-            SqlQueryError::InternalError(msg)
-        })?;
-
-    processing_span.end();
-    Ok(data_array.clone())
+    return response.bytes().await.map_err(|e| anyhow!(e));
 }

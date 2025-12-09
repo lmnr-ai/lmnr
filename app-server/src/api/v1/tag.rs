@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     ch::{spans::append_tags_to_span, tags::insert_tag},
-    db::{project_api_keys::ProjectApiKey, tags::TagSource},
+    db::{DB, project_api_keys::ProjectApiKey, tags::TagSource},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -45,6 +45,8 @@ pub async fn tag_trace(
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: web::Data<Arc<reqwest::Client>>,
+    db: web::Data<DB>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let names = match &req {
@@ -65,6 +67,8 @@ pub async fn tag_trace(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
+                http_client.clone().into_inner().as_ref().clone(),
+                db.clone().into_inner(),
             )
             .await?
         }

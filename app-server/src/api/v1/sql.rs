@@ -1,14 +1,17 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
+use opentelemetry::{
+    global,
+    trace::{Tracer, mark_span_as_active},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    data_plane,
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
-    sql::ClickhouseReadonlyClient,
+    sql::{self, ClickhouseReadonlyClient},
 };
 
 #[derive(Deserialize)]
@@ -35,22 +38,29 @@ pub async fn execute_sql_query(
     let project_id = project_api_key.project_id;
     let SqlQueryRequest { query } = req.into_inner();
 
-    let clickhouse = match clickhouse_ro.as_ref() {
-        Some(client) => client.clone(),
-        None => {
-            return Err(anyhow::anyhow!("ClickHouse read-only client is not configured.").into());
+    let tracer: global::BoxedTracer = global::tracer("tracer");
+    let span = tracer.start("api_sql_query");
+    let _guard = mark_span_as_active(span);
+
+    match clickhouse_ro.as_ref() {
+        Some(ro_client) => {
+            match sql::execute_sql_query(
+                query,
+                project_id,
+                HashMap::new(),
+                ro_client.clone(),
+                query_engine.into_inner().as_ref().clone(),
+                http_client.into_inner().as_ref().clone(),
+                db.into_inner(),
+            )
+            .await
+            {
+                Ok(result_json) => {
+                    Ok(HttpResponse::Ok().json(SqlQueryResponse { data: result_json }))
+                }
+                Err(e) => Err(e.into()),
+            }
         }
-    };
-
-    let data = data_plane::read(
-        &db.pool,
-        clickhouse,
-        http_client.get_ref().clone(),
-        query_engine.get_ref().clone(),
-        project_id,
-        query,
-    )
-    .await?;
-
-    Ok(HttpResponse::Ok().json(SqlQueryResponse { data }))
+        None => Err(anyhow::anyhow!("ClickHouse read-only client is not configured.").into()),
+    }
 }

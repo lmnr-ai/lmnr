@@ -4,6 +4,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    db::DB,
     query_engine::QueryEngine,
     sql::{ClickhouseReadonlyClient, SqlQueryError},
 };
@@ -13,6 +14,8 @@ pub async fn get_top_span_id(
     query_engine: Arc<QueryEngine>,
     trace_id: Uuid,
     project_id: Uuid,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
 ) -> Result<Option<Uuid>, SqlQueryError> {
     let result = super::execute_sql_query(
         String::from("SELECT top_span_id FROM traces WHERE id = {trace_id:UUID}"),
@@ -20,6 +23,8 @@ pub async fn get_top_span_id(
         HashMap::from([("trace_id".to_string(), Value::String(trace_id.to_string()))]),
         clickhouse_ro,
         query_engine,
+        http_client,
+        db,
     )
     .await?;
 

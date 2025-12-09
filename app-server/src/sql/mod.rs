@@ -8,12 +8,15 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
-    env,
     sync::{Arc, LazyLock},
 };
 use uuid::Uuid;
 
-use crate::query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult};
+use crate::{
+    data_processor,
+    db::DB,
+    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+};
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
@@ -25,9 +28,9 @@ pub enum SqlQueryError {
 }
 
 #[derive(Deserialize)]
-struct ClickhouseBadResponseError {
+pub struct ClickhouseBadResponseError {
     #[serde(default)]
-    exception: Option<String>,
+    pub exception: Option<String>,
 }
 
 const VERSION_REGEX_RAW: &str = r"\s*\(version\s+\d+(?:\.\d+){0,3}(?:\s+\([^)]*\))?\)$";
@@ -41,9 +44,6 @@ const VERSION_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(VERSION_REGEX
 
 const ERROR_END_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(format!(r"\. \([A-Z_]+\)*{VERSION_REGEX_RAW}").as_str()).unwrap());
-
-const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
-const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
 
 impl SqlQueryError {
     fn sanitize_error(&self) -> String {
@@ -89,6 +89,8 @@ pub async fn execute_sql_query(
     parameters: HashMap<String, Value>,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
 ) -> Result<Vec<Value>, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
@@ -100,67 +102,26 @@ pub async fn execute_sql_query(
         }
     };
 
-    // Execute query
-    let mut span = tracer.start("execute_sql_query");
-    span.set_attribute(KeyValue::new("sql.query", validated_query.clone()));
-    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
-    let mut clickhouse_query = clickhouse_ro
-        .query(&validated_query)
-        .with_option("default_format", "JSON")
-        .with_option("output_format_json_quote_64bit_integers", "0")
-        .with_option(
-            "max_execution_time",
-            env::var("SQL_QUERY_MAX_EXECUTION_TIME")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
-        )
-        .with_option(
-            "max_result_bytes",
-            env::var("SQL_QUERY_MAX_RESULT_BYTES")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
-        );
+    // Execute query via data processor
+    let res = data_processor::read(
+        &db.pool,
+        clickhouse_ro,
+        http_client,
+        project_id,
+        validated_query,
+        parameters,
+    )
+    .await;
 
-    for (key, value) in parameters {
-        span.set_attribute(KeyValue::new(
-            format!("sql.parameters.{key}"),
-            value.to_string(),
-        ));
-        clickhouse_query = clickhouse_query.param(&key, value);
-    }
-
-    let mut rows = clickhouse_query.fetch_bytes("JSON").map_err(|e| {
-        span.record_error(&e);
-        span.end();
-        SqlQueryError::InternalError(format!("Failed to execute ClickHouse query: {}", e))
-    })?;
-
-    let data = rows.collect().await.map_err(|e| match e {
-        clickhouse::error::Error::BadResponse(e) => {
-            let Ok(error) = serde_json::from_str::<ClickhouseBadResponseError>(&e) else {
-                return SqlQueryError::InternalError(format!(
-                    "Failed to parse ClickHouse error: {}",
-                    e
-                ));
-            };
-            let msg = error.exception.unwrap_or_default();
-            span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
-            span.end();
-            log::warn!("Error executing user SQL query: {}", &msg);
-            SqlQueryError::BadResponseError(msg)
+    // FIX: Error returned from data_processor is not always a SqlQueryError
+    let data = match res {
+        Ok(data) => data,
+        Err(e) => {
+            return Err(SqlQueryError::InternalError(e.to_string()));
         }
-        _ => {
-            span.record_error(&e);
-            span.end();
-            log::error!("Failed to collect query response data: {}", e);
-            SqlQueryError::InternalError(e.to_string())
-        }
-    })?;
-    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
-    span.end();
+    };
 
+    // Process query response
     let mut processing_span = tracer.start("process_query_response");
 
     let results: Value = serde_json::from_slice(&data).map_err(|e| {

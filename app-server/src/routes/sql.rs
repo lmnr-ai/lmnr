@@ -10,6 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    db::DB,
     query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
     sql::{self, ClickhouseReadonlyClient},
 };
@@ -72,6 +73,8 @@ pub async fn execute_sql_query(
     path: web::Path<Uuid>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
+    http_client: web::Data<Arc<reqwest::Client>>,
+    db: web::Data<DB>,
 ) -> ResponseResult {
     let project_id = path.into_inner();
     let SqlQueryRequest { query, parameters } = req.into_inner();
@@ -90,6 +93,8 @@ pub async fn execute_sql_query(
                 parameters,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
+                http_client.clone().into_inner().as_ref().clone(),
+                db.into_inner(),
             )
             .await
             {
