@@ -62,7 +62,7 @@ const TimelineElement = ({
       observer.disconnect();
       cancelAnimationFrame(frameId);
     };
-  }, [span.span.name, span.events.length, span.width]);
+  }, [span.span.name, span.span.model, span.span.spanType, span.events.length, span.width]);
 
   const spanTextElement = useMemo(() => {
     const textContent = (

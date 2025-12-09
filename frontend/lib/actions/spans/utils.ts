@@ -316,12 +316,6 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     let totalTokens = 0;
     let hasLLMDescendants = false;
 
-    if (span.spanType === "LLM") {
-      totalCost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-      totalTokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
-      hasLLMDescendants = true;
-    }
-
     for (const childId of children) {
       const childMetrics = calculateMetrics(childId);
       if (childMetrics) {

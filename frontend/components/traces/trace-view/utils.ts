@@ -3,6 +3,7 @@ import { capitalize, get } from "lodash";
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
@@ -63,12 +64,12 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           endTime: new Date(span.endTime).toISOString(),
           attributes: {},
           events: [],
-          inputCost: span.inputCost,
-          outputCost: span.outputCost,
-          totalCost: span.totalCost,
-          inputTokens: span.inputTokens,
-          outputTokens: span.outputTokens,
-          totalTokens: span.totalTokens,
+          inputCost: 0,
+          outputCost: 0,
+          totalCost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
@@ -170,11 +171,11 @@ export const onRealtimeUpdateSpans =
         const newTrace = { ...trace };
 
         newTrace.startTime =
-          new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
-            ? newTrace.startTime
-            : newSpan.startTime;
+        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+          ? newTrace.startTime
+          : newSpan.startTime;
         newTrace.endTime =
-          new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
         newTrace.totalTokens += newSpan.totalTokens || (newSpan.inputTokens ?? 0) + (newSpan.outputTokens ?? 0);
         newTrace.inputTokens += newSpan.inputTokens ?? 0;
         newTrace.outputTokens += newSpan.outputTokens ?? 0;
@@ -188,7 +189,7 @@ export const onRealtimeUpdateSpans =
         const newSpans = [...spans];
         const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
         if (index !== -1) {
-          // Always replace existing span, regardless of pending status
+        // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
             collapsed: newSpans[index].collapsed || false,
@@ -204,7 +205,7 @@ export const onRealtimeUpdateSpans =
           });
         }
 
-        return enrichSpansWithPending(newSpans);
+        return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       });
     };
 
