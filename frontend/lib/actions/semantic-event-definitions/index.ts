@@ -209,6 +209,10 @@ export async function updateSemanticEventDefinition(input: z.infer<typeof Update
       .where(and(eq(semanticEventDefinitions.projectId, projectId), eq(semanticEventDefinitions.id, id)))
       .returning();
 
+    if (!result) {
+      return undefined;
+    }
+
     await syncTriggerSpans(tx, projectId, result.id, triggerSpans);
 
     return result;
