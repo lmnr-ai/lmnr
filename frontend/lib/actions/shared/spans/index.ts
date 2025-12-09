@@ -4,6 +4,7 @@ import z from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
+import {aggregateSpanMetrics} from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
@@ -73,7 +74,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
 
-  return spans.map((span) => ({
+  const transformedSpans = spans.map((span) => ({
     ...span,
     collapsed: false,
     attributes: tryParseJson(span.attributes) || {},
@@ -83,4 +84,6 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
       attributes: tryParseJson(event.attributes),
     })),
   }));
+
+  return aggregateSpanMetrics(transformedSpans);
 };
