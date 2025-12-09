@@ -113,7 +113,6 @@ function ManageEventDefinitionDialogContent({
     handleSubmit,
     reset,
     watch,
-    setValue,
     formState: { errors, isValid },
   } = useFormContext<ManageEventDefinitionForm>();
 
@@ -215,7 +214,7 @@ function ManageEventDefinitionDialogContent({
           <div>
             <Label htmlFor="structuredOutput">Structured Output</Label>
             <p className="text-xs text-muted-foreground mt-1">
-                      Define a JSON schema for the structured output of this event.
+              Define a JSON schema for the structured output of this event.
             </p>
           </div>
           <Controller

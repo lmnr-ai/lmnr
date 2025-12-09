@@ -1,13 +1,12 @@
-import { and, desc, eq, gte, ilike, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { eventDefinitions, summaryTriggerSpans } from "@/lib/db/migrations/schema";
+import { eventDefinitions } from "@/lib/db/migrations/schema";
 
 export type EventDefinitionRow = Omit<EventDefinition, "prompt" | "structuredOutput">;
 
@@ -18,7 +17,6 @@ export type EventDefinition = {
   projectId: string;
   prompt: string | null;
   structuredOutput: Record<string, unknown> | null;
-  triggerSpans: string[];
 };
 
 export const GetEventDefinitionsSchema = PaginationFiltersSchema.extend({
@@ -84,41 +82,8 @@ export async function getEventDefinitions(input: z.infer<typeof GetEventDefiniti
     .limit(limit)
     .offset(offset);
 
-  const triggerSpans = await db
-    .select({
-      eventName: summaryTriggerSpans.eventName,
-      name: summaryTriggerSpans.spanName,
-    })
-    .from(summaryTriggerSpans)
-    .where(
-      and(
-        eq(summaryTriggerSpans.projectId, projectId),
-        inArray(
-          summaryTriggerSpans.eventName,
-          results.map((r) => r.name)
-        ),
-        isNotNull(summaryTriggerSpans.eventName)
-      )
-    );
-
-  const triggerSpansByEvent = triggerSpans.reduce(
-    (acc, span) => {
-      if (!span.eventName) return acc;
-      return {
-        ...acc,
-        [span.eventName]: [...(acc[span.eventName] || []), span.name],
-      };
-    },
-    {} as Record<string, string[]>
-  );
-
-  const items = results.map((eventDef) => ({
-    ...eventDef,
-    triggerSpans: triggerSpansByEvent[eventDef.name] || [],
-  }));
-
   return {
-    items,
+    items: results,
   };
 }
 
@@ -131,21 +96,7 @@ export async function getEventDefinition(input: z.infer<typeof GetEventDefinitio
     .where(and(eq(eventDefinitions.projectId, projectId), eq(eventDefinitions.id, id)))
     .limit(1);
 
-  if (!result) {
-    return result;
-  }
-
-  const triggerSpans = await db
-    .select({
-      name: summaryTriggerSpans.spanName,
-    })
-    .from(summaryTriggerSpans)
-    .where(and(eq(summaryTriggerSpans.projectId, projectId), eq(summaryTriggerSpans.eventName, result.name)));
-
-  return {
-    ...result,
-    triggerSpans: triggerSpans.map((s) => s.name),
-  };
+  return result;
 }
 
 export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDefinitionsSchema>) {
@@ -163,7 +114,7 @@ export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDe
           DELETE FROM events
           WHERE project_id = {projectId: UUID}
             AND name IN ({eventNames: Array(String)})
-            AND source = 'code'
+            AND source = 'CODE'
         `,
         query_params: {
           projectId,
@@ -174,8 +125,6 @@ export async function deleteEventDefinitions(input: z.infer<typeof DeleteEventDe
       console.error("Failed to delete events from ClickHouse:", error);
     }
   }
-
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return { success: true };
 }

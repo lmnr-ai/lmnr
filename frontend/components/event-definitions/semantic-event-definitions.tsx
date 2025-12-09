@@ -5,9 +5,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import {
-  columns,
-  defaultEventDefinitionsColumnOrder,
-  eventsDefinitionsTableFilters,
+  columns, defaultSemanticEventDefinitionsColumnOrder,
+  eventsDefinitionsTableFilters, semanticEventDefinitionsColumns,
 } from "@/components/event-definitions/columns.tsx";
 import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
 import { Button } from "@/components/ui/button";
@@ -28,9 +27,9 @@ import Header from "../ui/header";
 export default function SemanticEventDefinitions() {
   return (
     <DataTableStateProvider
-      storageKey="event-definitions-table"
+      storageKey="semantic-event-definitions-table"
       uniqueKey="id"
-      defaultColumnOrder={defaultEventDefinitionsColumnOrder}
+      defaultColumnOrder={defaultSemanticEventDefinitionsColumnOrder}
     >
       <SemanticEventDefinitionsContent />
     </DataTableStateProvider>
@@ -161,7 +160,7 @@ function SemanticEventDefinitionsContent() {
               </ManageEventDefinitionDialog>
             )}
             <InfiniteDataTable<SemanticEventDefinitionRow>
-              columns={columns}
+              columns={semanticEventDefinitionsColumns}
               data={eventDefinitions}
               getRowId={(row) => row.id}
               getRowHref={(row) => `/project/${projectId}/events/semantic/${row.original.id}`}

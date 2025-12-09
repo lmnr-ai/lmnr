@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { cache, SUMMARY_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
@@ -193,7 +193,7 @@ export async function createSemanticEventDefinition(input: z.infer<typeof Create
         spanName,
       }))
     );
-    await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+    await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
   }
 
   return result;
@@ -214,7 +214,7 @@ export async function updateSemanticEventDefinition(input: z.infer<typeof Update
     return result;
   });
 
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
@@ -269,7 +269,7 @@ export async function deleteSemanticEventDefinition(input: z.infer<typeof Delete
     .where(and(eq(semanticEventDefinitions.projectId, projectId), eq(semanticEventDefinitions.id, id)))
     .returning();
 
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
@@ -289,7 +289,7 @@ export async function deleteSemanticEventDefinitions(input: z.infer<typeof Delet
           DELETE FROM events
           WHERE project_id = {projectId: UUID}
             AND name IN ({eventNames: Array(String)})
-            AND source = 'semantic'
+            AND source = 'SEMANTIC'
         `,
         query_params: {
           projectId,
@@ -301,7 +301,7 @@ export async function deleteSemanticEventDefinitions(input: z.infer<typeof Delet
     }
   }
 
-  await cache.remove(`${SUMMARY_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
 
   return { success: true };
 }
