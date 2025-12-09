@@ -40,7 +40,7 @@ export async function getClusterConfig(
   const whereConditions = [
     eq(eventClusterConfigs.projectId, projectId),
     eq(eventClusterConfigs.eventName, eventName),
-    eq(eventClusterConfigs.eventSource, eventSource)
+    eq(eventClusterConfigs.eventSource, eventSource),
   ];
 
   const [result] = await db
@@ -78,11 +78,8 @@ export async function deleteClusterConfig(
   const whereConditions = [
     eq(eventClusterConfigs.projectId, projectId),
     eq(eventClusterConfigs.eventName, eventName),
+    eq(eventClusterConfigs.eventSource, eventSource),
   ];
-
-  if (eventSource) {
-    whereConditions.push(eq(eventClusterConfigs.eventSource, eventSource));
-  }
 
   const [result] = await db
     .delete(eventClusterConfigs)
@@ -91,4 +88,3 @@ export async function deleteClusterConfig(
 
   return result ?? undefined;
 }
-
