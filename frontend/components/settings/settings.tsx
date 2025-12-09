@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Key, Settings2, Sparkles, Unplug } from "lucide-react";
+import { Key, Settings2, Sparkles, Unplug } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CSSProperties, ReactNode, useMemo, useState } from "react";
@@ -24,7 +24,6 @@ import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
 import { SettingsSectionHeader } from "./settings-section";
-import TraceSummarySettings from "./trace-summary-settings";
 
 interface SettingsProps {
   apiKeys: ProjectApiKey[];
@@ -33,13 +32,12 @@ interface SettingsProps {
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "trace-summary" | "integrations";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "integrations";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
-  { id: "trace-summary", label: "Trace Summary", icon: <FileText /> },
   { id: "integrations", label: "Integrations", icon: <Unplug /> },
 ];
 
@@ -54,12 +52,7 @@ export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slack
 
   const menuTabs = useMemo(
     () =>
-      tabs.filter((t) => {
-        if (t.id === "trace-summary" && workspace?.tierName === "Free") {
-          return false;
-        }
-        return !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled));
-      }),
+      tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled))),
     [workspace, isSlackEnabled]
   );
 
@@ -79,11 +72,6 @@ export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slack
         return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
         return <ProviderApiKeys />;
-      case "trace-summary":
-        if (workspace?.tierName !== "Free") {
-          return <TraceSummarySettings />;
-        }
-        return null;
       case "integrations":
         if (workspace?.tierName === "Pro" && isSlackEnabled) {
           return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;

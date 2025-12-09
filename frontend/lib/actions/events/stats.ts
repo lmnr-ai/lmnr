@@ -11,9 +11,9 @@ export const GetEventStatsSchema = z.object({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   eventName: z.string(),
-  eventDefinitionId: z.string().optional(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+  eventSource: z.enum(["CODE", "SEMANTIC"]),
 });
 
 export interface EventsStatsDataPoint {
@@ -27,13 +27,13 @@ export async function getEventStats(
   const {
     projectId,
     eventName,
-    eventDefinitionId,
     pastHours,
     startDate: startTime,
     endDate: endTime,
     intervalValue,
     intervalUnit,
     filter,
+    eventSource,
   } = input;
 
   const filters = compact(filter);
@@ -48,6 +48,13 @@ export async function getEventStats(
       params: { eventName },
     },
   ];
+
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
 
   const whereResult = buildWhereClause({
     timeRange: {

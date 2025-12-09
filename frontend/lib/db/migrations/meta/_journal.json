@@ -442,13 +442,6 @@
       "when": 1764684944701,
       "tag": "0062_giant_eddie_brock",
       "breakpoints": true
-    },
-    {
-      "idx": 63,
-      "version": "7",
-      "when": 1764689196750,
-      "tag": "0063_steep_typhoid_mary",
-      "breakpoints": true
     }
   ]
 }

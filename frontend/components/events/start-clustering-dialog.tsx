@@ -23,9 +23,10 @@ interface StartClusteringForm {
 
 interface StartClusteringDialogProps {
   eventName: string;
+  eventType: "semantic" | "code";
 }
 
-export default function StartClusteringDialog({ children, eventName }: PropsWithChildren<StartClusteringDialogProps>) {
+export default function StartClusteringDialog({ children, eventName, eventType }: PropsWithChildren<StartClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
@@ -52,7 +53,10 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
 
         const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config`, {
           method: "POST",
-          body: JSON.stringify({ valueTemplate: data.valueTemplate }),
+          body: JSON.stringify({
+            valueTemplate: data.valueTemplate,
+            eventSource: eventType,
+          }),
         });
 
         if (!res.ok) {
@@ -84,7 +88,7 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
         setIsLoading(false);
       }
     },
-    [projectId, eventName, toast, setClusterConfig, reset]
+    [projectId, eventName, eventType, toast, setClusterConfig, reset]
   );
 
   return (
@@ -112,7 +116,7 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
                   basicSetup={false}
                   extensions={[mustache, ...baseExtensions.filter(ext => ext !== EditorView.lineWrapping)]}
                   placeholder="{{input}}"
-                  className="rounded-md border text-sm"
+                  className="rounded-md border p-0.5 text-sm focus-within:border-primary"
                 />
               )}
             />

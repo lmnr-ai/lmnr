@@ -26,9 +26,10 @@ interface EventsTableProps {
   projectId: string;
   eventName: string;
   eventDefinitionId?: string;
+  eventType: "semantic" | "code";
 }
 
-function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTableProps) {
+function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }: EventsTableProps) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -65,6 +66,10 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
           urlParams.set("eventDefinitionId", eventDefinitionId);
         }
 
+        const eventSource = eventType === "semantic" ? "SEMANTIC" : "CODE";
+
+        urlParams.set("eventSource", eventSource);
+
         const response = await fetch(`/api/projects/${projectId}/events/${eventName}?${urlParams.toString()}`);
 
         if (!response.ok) {
@@ -81,7 +86,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
       }
       return { items: [], count: 0 };
     },
-    [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, toast]
+    [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, eventType, toast]
   );
 
   const getRowHref = useCallback(
@@ -129,7 +134,9 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
     startDate,
     endDate,
     filters: filter,
-    additionalParams: eventDefinition.id ? { eventDefinitionId: eventDefinition.id } : {},
+    additionalParams: {
+      eventSource: eventType === "semantic" ? "SEMANTIC" : "CODE",
+    },
   });
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();

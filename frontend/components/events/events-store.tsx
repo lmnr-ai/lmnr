@@ -3,8 +3,9 @@ import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
 import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog";
-import {EventClusterConfig} from "@/lib/actions/cluster-configs";
+import { EventClusterConfig } from "@/lib/actions/cluster-configs";
 import { EventDefinition } from "@/lib/actions/event-definitions";
+import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { EventRow } from "@/lib/events/types";
 
 export type EventsStatsDataPoint = {
@@ -35,7 +36,7 @@ export type EventsActions = {
 };
 
 export interface EventsProps {
-  eventDefinition: EventDefinition;
+  eventDefinition: EventDefinition | SemanticEventDefinition;
   traceId?: string | null;
   spanId?: string | null;
   clusterConfig?: EventClusterConfig;
@@ -60,7 +61,9 @@ export const createEventsStore = (initProps: EventsProps) =>
         initProps.eventDefinition.structuredOutput != null
           ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
           : "",
-      triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((name) => ({ name })),
+      triggerSpans: ('triggerSpans' in initProps.eventDefinition && initProps.eventDefinition.triggerSpans)
+        ? initProps.eventDefinition.triggerSpans.map((name) => ({ name }))
+        : [],
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     setTraceId: (traceId) => set({ traceId }),

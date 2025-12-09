@@ -17,9 +17,10 @@ interface ClustersTableProps {
   projectId: string;
   eventDefinitionId: string;
   eventDefinitionName: string;
+  eventType: "semantic" | "code";
 }
 
-const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
+const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) => {
   const { toast } = useToast();
   const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
@@ -30,7 +31,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/events/${eventDefinitionName}/clusters`);
+      const res = await fetch(`/api/projects/${projectId}/events/${eventDefinitionName}/clusters?eventSource=${eventType}`);
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
@@ -47,7 +48,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, eventDefinitionName, toast]);
+  }, [projectId, eventDefinitionName, eventType, toast]);
 
   useEffect(() => {
     fetchClusters();
@@ -93,7 +94,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
       hasMore={false}
       isFetching={false}
       isLoading={isLoading}
-      fetchNextPage={() => {}}
+      fetchNextPage={() => { }}
       meta={{ totalCount }}
     >
       <div className="flex flex-1 w-full space-x-2">
@@ -109,13 +110,14 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }
   );
 };
 
-export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
+export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) {
   return (
     <DataTableStateProvider storageKey="clusters-table" uniqueKey="id" defaultColumnOrder={defaultClustersColumnOrder}>
       <PureClustersTable
         projectId={projectId}
         eventDefinitionId={eventDefinitionId}
         eventDefinitionName={eventDefinitionName}
+        eventType={eventType}
       />
     </DataTableStateProvider>
   );
