@@ -32,12 +32,6 @@ export type RealtimeSpan = {
   startTime: string;
   endTime: string;
   attributes: Record<string, any>;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
   status?: string;
   projectId: string;
   createdAt: string;

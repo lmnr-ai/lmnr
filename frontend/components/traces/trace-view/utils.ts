@@ -1,4 +1,4 @@
-import { capitalize } from "lodash";
+import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -165,6 +165,16 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
+      const totalTokens =
+      get(newSpan.attributes, "gen_ai.usage.input_tokens", 0) +
+      get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+      const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
+      const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+      const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
+      const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+      const totalCost =
+      get(newSpan.attributes, "gen_ai.usage.input_cost", 0) + get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+
       setTrace((trace) => {
         if (!trace) return trace;
 
@@ -176,12 +186,12 @@ export const onRealtimeUpdateSpans =
           : newSpan.startTime;
         newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-        newTrace.totalTokens += newSpan.totalTokens || (newSpan.inputTokens ?? 0) + (newSpan.outputTokens ?? 0);
-        newTrace.inputTokens += newSpan.inputTokens ?? 0;
-        newTrace.outputTokens += newSpan.outputTokens ?? 0;
-        newTrace.inputCost += newSpan.inputCost ?? 0;
-        newTrace.outputCost += newSpan.outputCost ?? 0;
-        newTrace.totalCost += newSpan.totalCost || (newSpan.inputCost ?? 0) + (newSpan.outputCost ?? 0);
+        newTrace.totalTokens += totalTokens;
+        newTrace.inputTokens += inputTokens;
+        newTrace.outputTokens += outputTokens;
+        newTrace.inputCost += inputCost;
+        newTrace.outputCost += outputCost;
+        newTrace.totalCost += totalCost;
         return newTrace;
       });
 
@@ -192,6 +202,12 @@ export const onRealtimeUpdateSpans =
         // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
+            totalTokens,
+            inputTokens,
+            outputTokens,
+            inputCost,
+            outputCost,
+            totalCost,
             collapsed: newSpans[index].collapsed || false,
             events: [],
             path: "",
@@ -199,6 +215,12 @@ export const onRealtimeUpdateSpans =
         } else {
           newSpans.push({
             ...newSpan,
+            totalTokens,
+            inputTokens,
+            outputTokens,
+            inputCost,
+            outputCost,
+            totalCost,
             collapsed: false,
             events: [],
             path: "",
