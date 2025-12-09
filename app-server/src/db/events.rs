@@ -12,7 +12,9 @@ use crate::traces::utils::convert_any_value_to_json_value;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventSource {
+    #[serde(rename = "code")]
     Code,
+    #[serde(rename = "semantic")]
     Semantic,
 }
 
