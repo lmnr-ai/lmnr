@@ -174,6 +174,7 @@ export const onRealtimeUpdateSpans =
       const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
       const totalCost =
       get(newSpan.attributes, "gen_ai.usage.input_cost", 0) + get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+      const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
 
       setTrace((trace) => {
         if (!trace) return trace;
@@ -208,6 +209,7 @@ export const onRealtimeUpdateSpans =
             inputCost,
             outputCost,
             totalCost,
+            model,
             collapsed: newSpans[index].collapsed || false,
             events: [],
             path: "",
@@ -221,6 +223,7 @@ export const onRealtimeUpdateSpans =
             inputCost,
             outputCost,
             totalCost,
+            model,
             collapsed: false,
             events: [],
             path: "",
