@@ -39,7 +39,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         trace_id as traceId,
         status,
         attributes,
-        path
+        path,
+        model
       FROM spans
       WHERE trace_id = {traceId: UUID}
     `,

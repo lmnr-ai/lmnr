@@ -102,7 +102,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
             className={cn("min-w-[22px]", { "text-muted-foreground bg-muted ": span.pending })}
           />
           <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
-            <div className={cn("whitespace-nowrap text-base", span.pending && "text-muted-foreground")}>
+            <div className={cn("text-ellipsis overflow-hidden whitespace-nowrap text-base truncate", span.pending && "text-muted-foreground")}>
               {getSpanDisplayName(span)}
             </div>
           </SpanDisplayTooltip>

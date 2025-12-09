@@ -1,4 +1,4 @@
-import { capitalize, get } from "lodash";
+import { capitalize } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -242,7 +242,7 @@ export const findSpanToSelect = (
 };
 
 export const getSpanDisplayName = (span: TraceViewSpan) => {
-  const modelName = span.model ?? get(span.attributes, "gen_ai.request.model");
+  const modelName = span.model;
   return span.spanType === "LLM" && modelName ? modelName : span.name;
 };
 

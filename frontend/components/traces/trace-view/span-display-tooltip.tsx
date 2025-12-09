@@ -14,7 +14,7 @@ export const SpanDisplayTooltip = ({ name, isLLM, children }: PropsWithChildren<
     return (
       <TooltipProvider delayDuration={100}>
         <Tooltip>
-          <TooltipTrigger>{children}</TooltipTrigger>
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
           <TooltipPortal>
             <TooltipContent
               side="top"
