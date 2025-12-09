@@ -456,8 +456,6 @@ async fn check_and_push_semantic_events(
     match get_semantic_event_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
         Ok(trigger_spans) => {
             // Check each span against its project's trigger spans
-
-            dbg!("Trigger spans: {:?}", trigger_spans.clone());
             for span in spans {
                 // Check if this span name matches any trigger
                 let matching_triggers: Vec<SemanticEventTriggerSpanWithDefinition> = trigger_spans
