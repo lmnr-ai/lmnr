@@ -165,15 +165,12 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
-      const totalTokens =
-      get(newSpan.attributes, "gen_ai.usage.input_tokens", 0) +
-      get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
       const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
       const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+      const totalTokens = inputTokens + outputTokens;
       const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
       const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
-      const totalCost =
-      get(newSpan.attributes, "gen_ai.usage.input_cost", 0) + get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+      const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
       const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
 
       setTrace((trace) => {
