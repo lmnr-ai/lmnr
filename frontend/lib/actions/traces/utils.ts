@@ -82,7 +82,8 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
           }
           return "";
         },
@@ -91,7 +92,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `"${val}"`,
+              [`${paramKey}_val`]: `${val}`,
             };
           }
           return {};
@@ -159,11 +160,11 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `trace_type = {traceType:String}`,
-      params: { traceType },
-    },
-  ];
+      {
+        condition: `trace_type = {traceType:String}`,
+        params: { traceType },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
