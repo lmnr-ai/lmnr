@@ -13,10 +13,8 @@ pub struct SemanticEventTriggerSpanWithDefinition {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-#[allow(dead_code)]
 struct DBTriggerSpanWithDefinition {
     span_name: String,
-    event_definition_id: Uuid,
     event_definition_name: String,
     prompt: String,
     structured_output_schema: Value,
@@ -32,23 +30,17 @@ pub async fn get_semantic_event_trigger_spans_with_definitions(
     let results = sqlx::query_as::<_, DBTriggerSpanWithDefinition>(
         r#"
         SELECT 
-            sets.span_name,
-            sed.id as event_definition_id,
+            set.span_name,
             sed.name as event_definition_name,
-            COALESCE(set.prompt, sed.prompt) as prompt,
-            COALESCE(set.structured_output_schema, sed.structured_output_schema) as structured_output_schema
+            sed.prompt as prompt,
+            sed.structured_output_schema as structured_output_schema
         FROM 
-            semantic_event_trigger_spans sets
+            semantic_event_trigger_spans set
         INNER JOIN 
-            semantic_event_definitions sed 
-            ON sets.event_definition_id = sed.id 
-            AND sets.project_id = sed.project_id
-        LEFT JOIN 
-            semantic_event_templates set
-            ON sed.template_id = set.id 
-            AND sed.project_id = set.project_id
+            semantic_event_definitions sed
+            ON set.event_definition_id = sed.id
         WHERE 
-            sets.project_id = $1
+            set.project_id = $1
         "#,
     )
     .bind(project_id)
@@ -60,7 +52,6 @@ pub async fn get_semantic_event_trigger_spans_with_definitions(
         .map(|db_trigger| SemanticEventTriggerSpanWithDefinition {
             span_name: db_trigger.span_name,
             event_definition: SemanticEventDefinition {
-                id: db_trigger.event_definition_id,
                 name: db_trigger.event_definition_name,
                 prompt: db_trigger.prompt,
                 structured_output_schema: db_trigger.structured_output_schema,

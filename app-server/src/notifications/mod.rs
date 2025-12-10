@@ -79,7 +79,6 @@ impl MessageHandler for NotificationHandler {
             .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
 
         let integration_id = match &slack_payload {
-            SlackMessagePayload::TraceAnalysis(payload) => payload.integration_id,
             SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
         };
 
@@ -101,6 +100,7 @@ impl MessageHandler for NotificationHandler {
                 &slack_payload,
                 &message.project_id.to_string(),
                 &message.trace_id.to_string(),
+                &message.span_id.to_string(),
                 &message.event_name,
             );
 

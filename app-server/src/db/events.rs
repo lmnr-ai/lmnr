@@ -12,17 +12,17 @@ use crate::traces::utils::convert_any_value_to_json_value;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EventSource {
-    #[serde(rename = "code")]
+    #[serde(rename = "CODE")]
     Code,
-    #[serde(rename = "semantic")]
+    #[serde(rename = "SEMANTIC")]
     Semantic,
 }
 
 impl std::fmt::Display for EventSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EventSource::Code => write!(f, "code"),
-            EventSource::Semantic => write!(f, "semantic"),
+            EventSource::Code => write!(f, "CODE"),
+            EventSource::Semantic => write!(f, "SEMANTIC"),
         }
     }
 }
