@@ -43,6 +43,7 @@ const Overlay = ({
 export default function LightboxImage(props: LightboxImageProps) {
   const [open, setOpen] = useState(false);
   const { className, onClick, ...rest } = props;
+  const source: string | undefined = typeof rest.src === "string" ? rest.src : undefined;
 
   return (
     <>
@@ -56,7 +57,7 @@ export default function LightboxImage(props: LightboxImageProps) {
           }
         }}
       />
-      {open && <Overlay src={props.src} alt={props.alt} onClose={() => setOpen(false)} />}
+      {open && <Overlay src={source} alt={props.alt} onClose={() => setOpen(false)} />}
     </>
   );
 }
