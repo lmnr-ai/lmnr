@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MDXRemote } from "next-mdx-remote/rsc";
 
 import BlogMeta from "@/components/blog/blog-meta";
+import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import { getBlogPost } from "@/lib/blog/utils";
@@ -55,7 +56,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85 font-light" {...props} />,
               ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85 font-light" {...props} />,
               li: (props) => <li className="pt-1.5 text-white/85 leading-relaxed" {...props}>{props.children}</li>,
-              img: (props) => <img className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />,
+              img: (props) => <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />,
             }}
           />
         </div>
