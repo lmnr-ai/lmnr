@@ -35,7 +35,8 @@ const getStaticSuggestions = (prefix: string): AutocompleteSuggestion[] => {
 
 const SearchTracesInput = ({ className }: { className?: string }) => (
   <AutocompleteSearchInput
-    className={cn("min-w-32", className)}
+    inputClassName={cn("min-w-32", className)}
+    className="mr-1"
     resource="traces"
     placeholder="Search in traces..."
     getStaticSuggestions={getStaticSuggestions}

@@ -23,7 +23,8 @@ const getStaticSuggestions = (prefix: string): AutocompleteSuggestion[] => {
 
 const SearchSpansInput = ({ className }: { className?: string }) => (
   <AutocompleteSearchInput
-    className={cn("min-w-32", className)}
+    inputClassName={cn("min-w-32", className)}
+    className="mr-1"
     resource="spans"
     placeholder="Search in spans..."
     getStaticSuggestions={getStaticSuggestions}

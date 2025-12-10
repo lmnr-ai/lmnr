@@ -8,7 +8,7 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
-import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
+import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
@@ -129,7 +129,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSpanPath: state.setSpanPath,
   }));
 
-  const { value: filters } = useFiltersContextProvider();
+  const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -305,6 +305,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSearchEnabled(!searchEnabled);
   }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
 
+  const handleAddFilter = useCallback(
+    (filter: Filter) => {
+      setFilters((prevFilters) => [...prevFilters, filter]);
+    },
+    [setFilters]
+  );
+
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -344,7 +351,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSpans([]);
       setBrowserSession(false);
       setSearch("");
-      setSearchEnabled(false);
+      // setSearchEnabled(false);
       setTraceError(undefined);
       setSpansError(undefined);
     };
@@ -476,11 +483,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <StatefulFilterList className="py-[3px] text-xs px-1" />
           </div>
           {(search || searchEnabled) && (
-            <SearchSpansInput
-              submit={fetchSpans}
-              filterBoxClassName="top-10"
-              className="rounded-none w-full border-0 border-b ring-0 bg-background"
-            />
+            <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
           )}
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
