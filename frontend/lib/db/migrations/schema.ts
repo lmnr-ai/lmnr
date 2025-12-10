@@ -782,21 +782,6 @@ export const eventClusters = pgTable("event_clusters", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const semanticEventTemplates = pgTable("semantic_event_templates", {
-  id: uuid().defaultRandom().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  prompt: text().notNull(),
-  structuredOutputSchema: jsonb("structured_output_schema").notNull(),
-  projectId: uuid("project_id").notNull(),
-}, (table) => [
-  foreignKey({
-    columns: [table.projectId],
-    foreignColumns: [projects.id],
-    name: "semantic_event_templates_project_id_fkey"
-  }).onUpdate("cascade").onDelete("cascade"),
-  primaryKey({ columns: [table.id, table.projectId], name: "semantic_event_templates_pkey"}),
-]);
-
 export const tagClasses = pgTable("tag_classes", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
@@ -833,9 +818,8 @@ export const semanticEventDefinitions = pgTable("semantic_event_definitions", {
   projectId: uuid("project_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
-  prompt: text(),
-  structuredOutputSchema: jsonb("structured_output_schema"),
-  templateId: uuid("template_id"),
+  prompt: text().notNull(),
+  structuredOutputSchema: jsonb("structured_output_schema").notNull(),
 }, (table) => [
   foreignKey({
     columns: [table.projectId],
