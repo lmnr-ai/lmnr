@@ -42,14 +42,19 @@ const Overlay = ({
 
 export default function LightboxImage(props: LightboxImageProps) {
   const [open, setOpen] = useState(false);
-  const { className, ...rest } = props;
+  const { className, onClick, ...rest } = props;
 
   return (
     <>
       <img
         {...rest}
         className={`${className ?? ""} cursor-zoom-in transition-transform duration-150 hover:scale-[1.01]`}
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          onClick?.(e);
+          if (!e.defaultPrevented) {
+            setOpen(true);
+          }
+        }}
       />
       {open && <Overlay src={props.src} alt={props.alt} onClose={() => setOpen(false)} />}
     </>
