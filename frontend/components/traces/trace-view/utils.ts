@@ -1,8 +1,9 @@
-import { capitalize } from "lodash";
+import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
@@ -63,6 +64,12 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           endTime: new Date(span.endTime).toISOString(),
           attributes: {},
           events: [],
+          inputCost: 0,
+          outputCost: 0,
+          totalCost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
@@ -158,6 +165,14 @@ export const onRealtimeUpdateSpans =
         setShowBrowserSession(true);
       }
 
+      const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
+      const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+      const totalTokens = inputTokens + outputTokens;
+      const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
+      const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+      const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
+      const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
+
       setTrace((trace) => {
         if (!trace) return trace;
 
@@ -169,15 +184,12 @@ export const onRealtimeUpdateSpans =
           : newSpan.startTime;
         newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-        newTrace.totalTokens +=
-        (newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0) +
-        (newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0);
-        newTrace.inputTokens += newSpan.attributes["gen_ai.usage.input_tokens"] ?? 0;
-        newTrace.outputTokens += newSpan.attributes["gen_ai.usage.output_tokens"] ?? 0;
-        newTrace.inputCost += newSpan.attributes["gen_ai.usage.input_cost"] ?? 0;
-        newTrace.outputCost += newSpan.attributes["gen_ai.usage.output_cost"] ?? 0;
-        newTrace.totalCost +=
-        (newSpan.attributes["gen_ai.usage.input_cost"] ?? 0) + (newSpan.attributes["gen_ai.usage.output_cost"] ?? 0);
+        newTrace.totalTokens += totalTokens;
+        newTrace.inputTokens += inputTokens;
+        newTrace.outputTokens += outputTokens;
+        newTrace.inputCost += inputCost;
+        newTrace.outputCost += outputCost;
+        newTrace.totalCost += totalCost;
         return newTrace;
       });
 
@@ -188,6 +200,13 @@ export const onRealtimeUpdateSpans =
         // Always replace existing span, regardless of pending status
           newSpans[index] = {
             ...newSpan,
+            totalTokens,
+            inputTokens,
+            outputTokens,
+            inputCost,
+            outputCost,
+            totalCost,
+            model,
             collapsed: newSpans[index].collapsed || false,
             events: [],
             path: "",
@@ -195,13 +214,20 @@ export const onRealtimeUpdateSpans =
         } else {
           newSpans.push({
             ...newSpan,
+            totalTokens,
+            inputTokens,
+            outputTokens,
+            inputCost,
+            outputCost,
+            totalCost,
+            model,
             collapsed: false,
             events: [],
             path: "",
           });
         }
 
-        return enrichSpansWithPending(newSpans);
+        return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       });
     };
 
@@ -235,4 +261,30 @@ export const findSpanToSelect = (
 
   // Priority 3: First span as fallback
   return spans?.[0];
+};
+
+export const getSpanDisplayName = (span: TraceViewSpan) => {
+  const modelName = span.model;
+  return span.spanType === "LLM" && modelName ? modelName : span.name;
+};
+
+export const getLLMMetrics = (span: TraceViewSpan) => {
+  if (span.aggregatedMetrics?.hasLLMDescendants) {
+    return {
+      cost: span.aggregatedMetrics.totalCost,
+      tokens: span.aggregatedMetrics.totalTokens,
+    };
+  }
+
+  if (span.spanType !== "LLM") return null;
+
+  const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+  const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+
+  if (costValue === 0 && tokensValue === 0) return null;
+
+  return {
+    cost: costValue,
+    tokens: tokensValue,
+  };
 };

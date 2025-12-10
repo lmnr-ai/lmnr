@@ -86,7 +86,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     spanPath: state.spanPath,
     setSpanPath: state.setSpanPath,
   }));
-
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>

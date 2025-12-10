@@ -1,12 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { compact, get, isNil, sortBy, uniq } from "lodash";
+import { compact, get, isNil, pick, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, PropsWithChildren } from "react";
 
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Span } from "@/lib/traces/types.ts";
 import { cn, getDurationString, pluralize } from "@/lib/utils";
 
 import ContentRenderer from "../ui/content-renderer/index";
@@ -18,9 +19,7 @@ interface TraceStatsShieldsProps {
 }
 
 interface SpanStatsShieldsProps {
-  startTime: string;
-  endTime: string;
-  attributes: Record<string, any>;
+  span: Span;
   className?: string;
 }
 
@@ -119,9 +118,7 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
       const name = attributes[`llm.request.functions.${index}.name`];
       const description = attributes[`llm.request.functions.${index}.description`];
       const rawParameters = attributes[`llm.request.functions.${index}.parameters`];
-      const parameters = typeof rawParameters === "string"
-        ? rawParameters
-        : JSON.stringify(rawParameters || {});
+      const parameters = typeof rawParameters === "string" ? rawParameters : JSON.stringify(rawParameters || {});
 
       return name ? { name, description, parameters } : null;
     })
@@ -129,33 +126,22 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
 };
 
 function StatsShieldsContent({
-  startTime,
-  endTime,
-  totalTokens,
-  inputTokens,
-  outputTokens,
-  inputCost,
-  outputCost,
-  totalCost,
+  stats,
   className,
   children,
 }: PropsWithChildren<{
-  startTime: string;
-  endTime: string;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
+  stats: Pick<
+    TraceViewSpan,
+    "startTime" | "endTime" | "inputTokens" | "outputTokens" | "totalTokens" | "inputCost" | "outputCost" | "totalCost"
+  >;
   className?: string;
 }>) {
   return (
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
       <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
         <Clock3 size={12} className="min-w-3 min-h-3" />
-        <Label className="text-xs truncate text-foreground" title={getDurationString(startTime, endTime)}>
-          {getDurationString(startTime, endTime)}
+        <Label className="text-xs truncate text-foreground" title={getDurationString(stats.startTime, stats.endTime)}>
+          {getDurationString(stats.startTime, stats.endTime)}
         </Label>
       </div>
       <TooltipProvider delayDuration={250}>
@@ -163,17 +149,17 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{totalTokens}</Label>
+              <Label className="text-xs truncate text-foreground">{stats.totalTokens}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input tokens</span> {inputTokens}
+                  <span className="text-secondary-foreground">Input tokens</span> {stats.inputTokens}
                 </Label>
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output tokens</span> {outputTokens}
+                  <span className="text-secondary-foreground">Output tokens</span> {stats.outputTokens}
                 </Label>
               </div>
             </TooltipContent>
@@ -185,20 +171,20 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
               <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{totalCost?.toFixed(3)}</Label>
+              <Label className="text-xs truncate text-foreground">{stats.totalCost?.toFixed(3)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Total cost</span> {"$" + totalCost?.toFixed(5)}
+                  <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
                 </Label>
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input cost</span> {"$" + inputCost?.toFixed(5)}
+                  <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
                 </Label>
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output cost</span> {"$" + outputCost?.toFixed(5)}
+                  <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
                 </Label>
               </div>
             </TooltipContent>
@@ -212,49 +198,41 @@ function StatsShieldsContent({
 
 const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren<TraceStatsShieldsProps>) => (
   <StatsShieldsContent
-    startTime={trace.startTime}
-    endTime={trace.endTime}
-    totalTokens={trace.totalTokens}
-    inputTokens={trace.inputTokens}
-    outputTokens={trace.outputTokens}
-    inputCost={trace.inputCost}
-    outputCost={trace.outputCost}
-    totalCost={trace.totalCost}
+    stats={pick(trace, [
+      "startTime",
+      "endTime",
+      "inputTokens",
+      "outputTokens",
+      "totalTokens",
+      "inputCost",
+      "outputCost",
+      "totalCost",
+    ])}
     className={className}
   >
     {children}
   </StatsShieldsContent>
 );
 
-const SpanStatsShields = ({
-  startTime,
-  endTime,
-  attributes,
-  className,
-  children,
-}: PropsWithChildren<SpanStatsShieldsProps>) => {
-  const inputTokenCount = get(attributes, "gen_ai.usage.input_tokens", 0);
-  const outputTokenCount = get(attributes, "gen_ai.usage.output_tokens", 0);
-  const totalTokenCount = inputTokenCount + outputTokenCount;
-  const inputCost = get(attributes, "gen_ai.usage.input_cost", 0);
-  const outputCost = get(attributes, "gen_ai.usage.output_cost", 0);
-  const cost = get(attributes, "gen_ai.usage.cost", 0);
-  const model = get(attributes, "gen_ai.response.model") || get(attributes, "gen_ai.request.model") || "";
-  const tools = extractToolsFromAttributes(attributes);
+const SpanStatsShields = ({ span, className, children }: PropsWithChildren<SpanStatsShieldsProps>) => {
+  const model = get(span.attributes, "gen_ai.response.model") || get(span.attributes, "gen_ai.request.model") || "";
+  const tools = extractToolsFromAttributes(span.attributes);
   const structuredOutputSchema =
-    get(attributes, "gen_ai.request.structured_output_schema") || get(attributes, "ai.schema");
+    get(span.attributes, "gen_ai.request.structured_output_schema") || get(span.attributes, "ai.schema");
 
   return (
     <div className="flex flex-wrap flex-col gap-1.5">
       <StatsShieldsContent
-        startTime={startTime}
-        endTime={endTime}
-        totalTokens={totalTokenCount}
-        inputTokens={inputTokenCount}
-        outputTokens={outputTokenCount}
-        inputCost={inputCost}
-        outputCost={outputCost}
-        totalCost={cost}
+        stats={pick(span, [
+          "startTime",
+          "endTime",
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "inputCost",
+          "outputCost",
+          "totalCost",
+        ])}
         className={className}
       >
         {children}

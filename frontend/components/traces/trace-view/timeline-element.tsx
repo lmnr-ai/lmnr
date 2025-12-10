@@ -1,8 +1,10 @@
 import { VirtualItem } from "@tanstack/react-virtual";
+import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -10,6 +12,10 @@ const TEXT_PADDING = {
   WITH_EVENTS: 8,
   WITHOUT_EVENTS: 4,
 };
+
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+});
 
 const TimelineElement = ({
   setSelectedSpan,
@@ -34,6 +40,8 @@ const TimelineElement = ({
     }
   };
 
+  const llmMetrics = getLLMMetrics(span.span);
+
   useLayoutEffect(() => {
     if (!blockRef.current || !textRef.current) return;
 
@@ -54,20 +62,35 @@ const TimelineElement = ({
       observer.disconnect();
       cancelAnimationFrame(frameId);
     };
-  }, [span.span.name, span.events.length, span.width]);
+  }, [span.span.name, span.span.model, span.span.spanType, span.events.length, span.width]);
 
-  const SpanText = useMemo(() => {
+  const spanTextElement = useMemo(() => {
     const textContent = (
-      <>
-        {span.span.name}{" "}
+      <div className={"flex items-center gap-1.5"}>
+        <div className={"overflow-hidden text-ellipsis whitespace-nowrap text-nowrap"}>
+          {getSpanDisplayName(span.span)}
+        </div>
         <span className="text-white/70">{getDurationString(span.span.startTime, span.span.endTime)}</span>
-      </>
+        {llmMetrics && (
+          <>
+            <span className={"text-white/70 inline-flex items-center gap-1"}>
+              <Coins className="min-w-1" size={12} />
+              {numberFormatter.format(llmMetrics.tokens)}
+            </span>
+
+            <span className={"text-white/70 flex w-fit items-center gap-1"}>
+              <CircleDollarSign className="min-w-1" size={12} />
+              {llmMetrics.cost.toFixed(3)}
+            </span>
+          </>
+        )}
+      </div>
     );
 
     const commonProps = {
       title: span.span.name,
       ref: textRef,
-      className: "text-xs font-medium text-white/90 truncate",
+      className: "text-xs font-medium text-white/90",
     };
 
     if (textPosition === "inside") {
@@ -90,8 +113,8 @@ const TimelineElement = ({
           {...commonProps}
           className={cn(commonProps.className, "absolute text-right")}
           style={{
-            right: `calc(100% - ${span.left}% + 16px)`,
-            maxWidth: "250px",
+            right: `calc(100% - ${span.left}% + 20px)`,
+            maxWidth: `calc(${span.left}% - 16px)`,
           }}
         >
           {textContent}
@@ -104,36 +127,19 @@ const TimelineElement = ({
         {textContent}
       </span>
     );
-  }, [span.span.name, span.span.startTime, span.span.endTime, span.left, span.events.length, textPosition]);
+  }, [span.span, span.left, span.events.length, llmMetrics, textPosition]);
 
   return (
     <div
       key={virtualRow.index}
       data-index={virtualRow.index}
       onClick={handleSpanSelect}
-      className={cn(
-        "absolute top-0 left-0 w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200"
-      )}
+      className={cn("absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200")}
       style={{
         transform: `translateY(${virtualRow.start}px)`,
       }}
     >
       {isSelected && <div className="h-full w-full absolute left-0 bg-primary/25" />}
-      {span.left > 50 && textPosition === "outside" && (
-        <span
-          title={span.span.name}
-          ref={textRef}
-          className="text-xs font-medium text-black truncate absolute"
-          style={{
-            right: `calc(100% - ${span.left}% + 16px)`,
-            textAlign: "right",
-            maxWidth: "250px",
-          }}
-        >
-          {span.span.name}{" "}
-          <span className="text-secondary-foreground">{getDurationString(span.span.startTime, span.span.endTime)}</span>
-        </span>
-      )}
       <div
         ref={blockRef}
         className="rounded relative z-20 flex items-center"
@@ -156,9 +162,9 @@ const TimelineElement = ({
             }}
           />
         ))}
-        {textPosition === "inside" && SpanText}
+        {textPosition === "inside" && spanTextElement}
       </div>
-      {textPosition === "outside" && SpanText}
+      {textPosition === "outside" && spanTextElement}
     </div>
   );
 };

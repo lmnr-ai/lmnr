@@ -6,7 +6,12 @@ import { Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
+import {
+  aggregateSpanMetrics,
+  buildSpansQueryWithParams,
+  createParentRewiring,
+  transformSpanWithEvents,
+} from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
@@ -239,6 +244,12 @@ const fetchTraceSpans = async ({
       "trace_id as traceId",
       "parent_span_id as parentSpanId",
       "name",
+      "input_tokens as inputTokens",
+      "output_tokens as outputTokens",
+      "total_tokens as totalTokens",
+      "input_cost as inputCost",
+      "output_cost as outputCost",
+      "total_cost as totalCost",
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
@@ -304,7 +315,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
-  return spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+  const transformedSpans = spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+
+  return aggregateSpanMetrics(transformedSpans);
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
