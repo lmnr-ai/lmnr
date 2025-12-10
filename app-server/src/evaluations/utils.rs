@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ use crate::utils::json_value_to_string;
 
 const MAX_JSON_VALUE_LENGTH: usize = 1000;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointDatasetLink {
     pub dataset_id: Uuid,
@@ -17,7 +17,7 @@ pub struct EvaluationDatapointDatasetLink {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointResult {
     pub data: Value,

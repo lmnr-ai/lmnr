@@ -13,7 +13,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    data_processor,
+    data_processor::read::read,
     db::DB,
     query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
 };
@@ -103,7 +103,7 @@ pub async fn execute_sql_query(
     };
 
     // Execute query via data processor
-    let res = data_processor::read(
+    let res = read(
         &db.pool,
         clickhouse_ro,
         http_client,

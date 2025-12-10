@@ -1,0 +1,197 @@
+use crate::data_processor::auth::generate_auth_token;
+use crate::data_processor::{WorkspaceConfig, get_workspace_config};
+use crate::db::projects::DeploymentMode;
+use crate::sql::{ClickhouseBadResponseError, ClickhouseReadonlyClient, SqlQueryError};
+use anyhow::{Result, anyhow};
+use bytes::Bytes;
+use opentelemetry::{
+    KeyValue, global,
+    trace::{Span, Tracer},
+};
+use serde::Serialize;
+use serde_json::Value;
+use sqlx::PgPool;
+use std::collections::HashMap;
+use std::env;
+use std::sync::Arc;
+use uuid::Uuid;
+
+const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
+const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
+
+#[derive(Serialize, Debug)]
+struct DataPlaneReadRequest {
+    query: String,
+    project_id: Uuid,
+    parameters: HashMap<String, Value>,
+}
+
+pub async fn read(
+    pool: &PgPool,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    http_client: Arc<reqwest::Client>,
+    project_id: Uuid,
+    query: String,
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes, SqlQueryError> {
+    let config = get_workspace_config(pool, project_id).await;
+    let config = match config {
+        Ok(config) => config,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
+
+    match config.deployment_mode {
+        DeploymentMode::CLOUD => {
+            read_from_clickhouse(clickhouse_ro, project_id, query, parameters).await
+        }
+        DeploymentMode::HYBRID => {
+            read_from_data_plane(&http_client, project_id, &config, query, parameters).await
+        }
+    }
+}
+
+async fn read_from_clickhouse(
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    project_id: Uuid,
+    query: String,
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes, SqlQueryError> {
+    let tracer = global::tracer("app-server");
+    let mut span = tracer.start("execute_sql_query");
+
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
+    let mut clickhouse_query = clickhouse_ro
+        .query(&query)
+        .with_option("default_format", "JSON")
+        .with_option("output_format_json_quote_64bit_integers", "0")
+        .with_option(
+            "max_execution_time",
+            env::var("SQL_QUERY_MAX_EXECUTION_TIME")
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
+        )
+        .with_option(
+            "max_result_bytes",
+            env::var("SQL_QUERY_MAX_RESULT_BYTES")
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
+        );
+
+    for (key, value) in parameters {
+        span.set_attribute(KeyValue::new(
+            format!("sql.parameters.{key}"),
+            value.to_string(),
+        ));
+        clickhouse_query = clickhouse_query.param(&key, value);
+    }
+
+    let mut rows = clickhouse_query.fetch_bytes("JSON").map_err(|e| {
+        span.record_error(&e);
+        span.end();
+        SqlQueryError::InternalError(format!("Failed to execute ClickHouse query: {}", e))
+    })?;
+
+    let data = rows.collect().await.map_err(|e| match e {
+        clickhouse::error::Error::BadResponse(e) => {
+            let Ok(error) = serde_json::from_str::<ClickhouseBadResponseError>(&e) else {
+                span.record_error(&std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ));
+                span.end();
+                return SqlQueryError::InternalError(format!(
+                    "Failed to parse ClickHouse error: {}",
+                    e
+                ));
+            };
+            let msg = error.exception.unwrap_or_default();
+            span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
+            span.end();
+            log::warn!("Error executing user SQL query: {}", &msg);
+            SqlQueryError::BadResponseError(msg)
+        }
+        _ => {
+            span.record_error(&e);
+            span.end();
+            log::error!("Failed to collect query response data: {}", e);
+            SqlQueryError::InternalError(e.to_string())
+        }
+    })?;
+    span.set_attribute(KeyValue::new("sql.response_bytes", data.len() as i64));
+    span.end();
+
+    return Ok(data);
+}
+
+async fn read_from_data_plane(
+    http_client: &reqwest::Client,
+    project_id: Uuid,
+    config: &WorkspaceConfig,
+    query: String,
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes, SqlQueryError> {
+    let tracer = global::tracer("app-server");
+
+    let data_plane_url = config.data_plane_url.as_ref().ok_or_else(|| {
+        anyhow!(
+            "HYBRID deployment requires data_plane_url for project {}",
+            project_id
+        )
+    });
+    let data_plane_url = match data_plane_url {
+        Ok(url) => url,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
+
+    let auth_token = generate_auth_token(config.workspace_id);
+    let auth_token = match auth_token {
+        Ok(token) => token,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
+
+    let mut span = tracer.start("execute_data_plane_sql_query");
+    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    span.set_attribute(KeyValue::new("data_plane_url", data_plane_url.clone()));
+
+    let request = DataPlaneReadRequest {
+        query,
+        project_id,
+        parameters,
+    };
+
+    let response = http_client
+        .post(format!("{}/api/v1/read", data_plane_url))
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| {
+            span.record_error(&e);
+            span.end();
+            SqlQueryError::InternalError(format!("Failed to send request to data plane: {}", e))
+        })?;
+
+    if !response.status().is_success() {
+        let res = response.json().await;
+        let error: SqlQueryError = match res {
+            Ok(error) => error,
+            Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+        };
+        span.record_error(&std::io::Error::new(
+            std::io::ErrorKind::Other,
+            error.to_string(),
+        ));
+        span.end();
+        return Err(error);
+    }
+
+    span.end();
+    return response
+        .bytes()
+        .await
+        .map_err(|e| SqlQueryError::InternalError(e.to_string()));
+}

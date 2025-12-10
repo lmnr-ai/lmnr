@@ -22,9 +22,9 @@ use crate::{
     cache::Cache,
     ch::{
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation, upsert_traces_batch},
+        traces::{CHTrace, TraceAggregation},
     },
-    data_processor,
+    data_processor::write::{write_spans, write_tags, write_traces},
     db::{
         DB,
         events::Event,
@@ -337,7 +337,10 @@ async fn process_batch(
                         .map(|trace| CHTrace::from_db_trace(trace))
                         .collect();
 
-                    if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+                    if let Err(e) =
+                        write_traces(&db.pool, &clickhouse, &http_client, project_id, &ch_traces)
+                            .await
+                    {
                         log::error!(
                             "Failed to upsert {} traces to ClickHouse: {:?}",
                             ch_traces.len(),
@@ -375,10 +378,7 @@ async fn process_batch(
         })
         .collect();
 
-    if let Err(e) =
-        data_processor::write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans)
-            .await
-    {
+    if let Err(e) = write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans).await {
         log::error!("Failed to write spans: {:?}", e);
         let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
@@ -477,7 +477,9 @@ async fn process_batch(
 
     // Record all tags in a single batch
     if !tags_batch.is_empty() {
-        if let Err(e) = crate::ch::tags::insert_tags_batch(clickhouse.clone(), &tags_batch).await {
+        if let Err(e) =
+            write_tags(&db.pool, &clickhouse, &http_client, project_id, &tags_batch).await
+        {
             log::error!(
                 "Failed to record tags to DB for batch of {} tags: {:?}",
                 tags_batch.len(),
