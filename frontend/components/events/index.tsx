@@ -6,9 +6,9 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable, ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import ManageEventDefinitionDialog, {
+import ManageEventDefinitionSheet, {
   ManageEventDefinitionForm,
-} from "@/components/event-definitions/manage-event-definition-dialog";
+} from "@/components/event-definitions/manage-event-definition-sheet.tsx";
 import ClustersTable from "@/components/events/clusters-table";
 import DisableClusteringDialog from "@/components/events/disable-clustering-dialog";
 import { useEventsStoreContext } from "@/components/events/events-store";
@@ -29,15 +29,14 @@ import Header from "../ui/header";
 function PureEvents({
   lastEvent,
   initialTraceViewWidth,
-  eventType
+  eventType,
 }: {
-  eventType: 'semantic' | 'code';
+  eventType: "semantic" | "code";
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
-
 }) {
   const pathName = usePathname();
-  const params = useParams<{ projectId: string; }>();
+  const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -97,17 +96,18 @@ function PureEvents({
     }
   }, [defaultTraceViewWidth]);
 
-
   return (
     <>
-      <Header path={[
-        { name: "event definitions", href: `/project/${params.projectId}/events/${eventType}` },
-        { name: eventDefinition.name }
-      ]} />
+      <Header
+        path={[
+          { name: "event definitions", href: `/project/${params.projectId}/events/${eventType}` },
+          { name: eventDefinition.name },
+        ]}
+      />
       <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
         <div className="flex items-center gap-2">
           {!isFreeTier && eventType === "semantic" && (
-            <ManageEventDefinitionDialog
+            <ManageEventDefinitionSheet
               open={isDialogOpen}
               setOpen={setIsDialogOpen}
               defaultValues={eventDefinition}
@@ -117,7 +117,7 @@ function PureEvents({
               <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
                 Event Definition
               </Button>
-            </ManageEventDefinitionDialog>
+            </ManageEventDefinitionSheet>
           )}
 
           {clusterConfig ? (
@@ -213,7 +213,7 @@ export default function Events({
 }: {
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
-  eventType: 'semantic' | 'code'
+  eventType: "semantic" | "code";
 }) {
   const { setTraceId, setSpanId } = useEventsStoreContext((state) => ({
     setTraceId: state.setTraceId,

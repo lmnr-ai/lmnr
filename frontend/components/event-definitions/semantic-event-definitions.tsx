@@ -6,9 +6,10 @@ import React, { useCallback, useState } from "react";
 
 import {
   defaultSemanticEventDefinitionsColumnOrder,
-  eventsDefinitionsTableFilters, semanticEventDefinitionsColumns,
+  eventsDefinitionsTableFilters,
+  semanticEventDefinitionsColumns,
 } from "@/components/event-definitions/columns.tsx";
-import ManageEventDefinitionDialog from "@/components/event-definitions/manage-event-definition-dialog";
+import ManageEventDefinitionSheet from "@/components/event-definitions/manage-event-definition-sheet.tsx";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -153,11 +154,11 @@ function SemanticEventDefinitionsContent() {
         <TabsContent value="semantic" asChild>
           <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
             {!isFreeTier && (
-              <ManageEventDefinitionDialog open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+              <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
                 <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
                   Event Definition
                 </Button>
-              </ManageEventDefinitionDialog>
+              </ManageEventDefinitionSheet>
             )}
             <InfiniteDataTable<SemanticEventDefinitionRow>
               columns={semanticEventDefinitionsColumns}

@@ -17,8 +17,8 @@ export type SemanticEventDefinition = {
   name: string;
   createdAt: string;
   projectId: string;
-  prompt: string | null;
-  structuredOutput: Record<string, unknown> | null;
+  prompt: string;
+  structuredOutput: Record<string, unknown>;
   triggerSpans: string[];
 };
 
@@ -36,16 +36,16 @@ export const GetSemanticEventDefinitionSchema = z.object({
 export const CreateSemanticEventDefinitionSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
-  prompt: z.string().nullable(),
-  structuredOutput: z.record(z.string(), z.unknown()).nullable(),
+  prompt: z.string(),
+  structuredOutput: z.record(z.string(), z.unknown()),
   triggerSpans: z.array(z.string()).optional().default([]),
 });
 
 export const UpdateSemanticEventDefinitionSchema = z.object({
   projectId: z.string(),
   id: z.string(),
-  prompt: z.string().nullable(),
-  structuredOutput: z.record(z.string(), z.unknown()).nullable(),
+  prompt: z.string(),
+  structuredOutput: z.record(z.string(), z.unknown()),
   triggerSpans: z.array(z.string()).optional().default([]),
 });
 
@@ -259,7 +259,9 @@ const syncTriggerSpans = async (
 
   const insertions =
     toAdd.length > 0
-      ? tx.insert(semanticEventTriggerSpans).values(toAdd.map((spanName) => ({ projectId, eventDefinitionId, spanName })))
+      ? tx
+        .insert(semanticEventTriggerSpans)
+        .values(toAdd.map((spanName) => ({ projectId, eventDefinitionId, spanName })))
       : Promise.resolve();
 
   await Promise.all([deletions, insertions]);
