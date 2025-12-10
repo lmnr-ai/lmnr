@@ -1,5 +1,4 @@
 import { parseISO } from "date-fns";
-import {isEmpty} from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
@@ -59,9 +58,6 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
         }
         const data = (await response.json()) as { items: TracesStatsDataPoint[] };
 
-        if (isEmpty(data?.items)) {
-
-        }
         set({ stats: data.items, isLoadingStats: false });
       } catch (error) {
         console.error("Failed to fetch stats:", error);
