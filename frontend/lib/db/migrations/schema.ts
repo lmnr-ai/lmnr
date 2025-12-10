@@ -811,6 +811,7 @@ export const semanticEventTriggerSpans = pgTable("semantic_event_trigger_spans",
     name: "semantic_event_trigger_spans_event_definition_id_project_i_fkey"
   }).onUpdate("cascade").onDelete("cascade"),
   primaryKey({ columns: [table.id, table.projectId], name: "semantic_event_trigger_spans_pkey"}),
+  unique("semantic_event_trigger_spans_project_event_definition_span_key").on(table.projectId, table.spanName, table.eventDefinitionId),
 ]);
 
 export const semanticEventDefinitions = pgTable("semantic_event_definitions", {
