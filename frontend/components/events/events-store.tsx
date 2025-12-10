@@ -57,8 +57,9 @@ export const createEventsStore = (initProps: EventsProps) =>
     clusterConfig: initProps.clusterConfig,
     eventDefinition: {
       ...initProps.eventDefinition,
+      prompt: 'prompt' in initProps.eventDefinition ? initProps.eventDefinition.prompt : '' ,
       structuredOutput:
-        initProps.eventDefinition.structuredOutput != null
+        'structuredOutput' in initProps.eventDefinition
           ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
           : "",
       triggerSpans:

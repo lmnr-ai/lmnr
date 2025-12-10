@@ -17,8 +17,8 @@ export type SemanticEventDefinition = {
   name: string;
   createdAt: string;
   projectId: string;
-  prompt: string | null;
-  structuredOutput: Record<string, unknown> | null;
+  prompt: string;
+  structuredOutput: Record<string, unknown>;
   triggerSpans: string[];
 };
 

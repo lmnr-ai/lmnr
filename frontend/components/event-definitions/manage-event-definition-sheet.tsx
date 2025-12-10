@@ -26,12 +26,12 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { EventDefinition } from "@/lib/actions/event-definitions";
+import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
 
 export type ManageEventDefinitionForm = Omit<
-  EventDefinition,
+  SemanticEventDefinition,
   "isSemantic" | "createdAt" | "id" | "structuredOutput" | "triggerSpans"
 > & {
   id?: string;
@@ -135,7 +135,7 @@ function ManageEventDefinitionSheetContent({
       setValue("prompt", template.prompt, { shouldValidate: true });
       setValue("structuredOutput", template.structuredOutputSchema, { shouldValidate: true });
     },
-    [setValue, toast]
+    [setValue]
   );
 
   const submit = useCallback(
@@ -145,8 +145,8 @@ function ManageEventDefinitionSheetContent({
 
         const eventDefinition = {
           name: data.name,
-          prompt: data.prompt || null,
-          structuredOutput: data.structuredOutput ? tryParseJson(data.structuredOutput) : null,
+          prompt: data.prompt,
+          structuredOutput: tryParseJson(data.structuredOutput),
           triggerSpans: data.triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
         };
 
@@ -251,7 +251,7 @@ function ManageEventDefinitionSheetContent({
 
             <Controller
               name="prompt"
-              rules={{ required: "Propmpt is required" }}
+              rules={{ required: "Prompt is required" }}
               control={control}
               render={({ field }) => (
                 <Textarea

@@ -15,8 +15,6 @@ export type EventDefinition = {
   name: string;
   createdAt: string;
   projectId: string;
-  prompt: string | null;
-  structuredOutput: Record<string, unknown> | null;
 };
 
 export const GetEventDefinitionsSchema = PaginationFiltersSchema.extend({
