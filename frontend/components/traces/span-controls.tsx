@@ -61,9 +61,12 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
           <SpanTypeIcon spanType={span.spanType} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-6 px-1 text-xl font-medium focus-visible:outline-0">
-                {span.name}
-                <ChevronDown className="ml-1 size-3.5" />
+              <Button
+                variant="ghost"
+                className="h-6 px-1 text-xl font-medium focus-visible:outline-0 truncate text-left min-w-0"
+              >
+                <span className="truncate">{span.name}</span>
+                <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">

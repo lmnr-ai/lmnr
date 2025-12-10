@@ -3,17 +3,9 @@ import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 
-// No 'healthy' data may be recorded before this date, as this is the
-// start of Laminar minus a good buffer.
-const EARLIEST_DATE = new Date("2023-01-01");
-
 const RelativeTimeInputSchema = z.object({
   pastHours: z.union([z.string(), z.number()]).refine(
     (hours) => {
-      if (hours === "all") {
-        return true;
-      }
-
       const parsed = typeof hours === "string" ? parseInt(hours) : hours;
       return !isNaN(parsed) && parsed > 0;
     },
@@ -80,17 +72,6 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
       start_time: start.toISOString().replace("T", " ").replace("Z", ""),
       end_time: end.toISOString().replace("T", " ").replace("Z", ""),
       interval_unit: interval.toUpperCase(),
-    });
-  }
-
-  if (validatedInput.pastHours === "all") {
-    const startISO = EARLIEST_DATE.toISOString();
-    const endISO = new Date().toISOString();
-
-    return TimeParametersSchema.parse({
-      start_time: startISO.replace("T", " ").replace("Z", ""),
-      end_time: endISO.replace("T", " ").replace("Z", ""),
-      interval_unit: groupByInterval?.toUpperCase() || GroupByInterval.Day.toUpperCase(),
     });
   }
 

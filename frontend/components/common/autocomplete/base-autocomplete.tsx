@@ -21,6 +21,7 @@ interface BaseAutocompleteProps {
   placeholder?: string;
   className?: string;
   inputClassName?: string;
+  listClassName?: string;
   wrapperClassName?: string;
 }
 
@@ -104,6 +105,7 @@ const BaseAutocomplete = ({
   placeholder = "Search...",
   className,
   inputClassName,
+  listClassName,
   wrapperClassName,
 }: BaseAutocompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -180,7 +182,8 @@ const BaseAutocomplete = ({
       <div className={cn("relative ", isOpen ? "block" : "hidden")}>
         <CommandList
           className={cn(
-            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none rounded-md border max-h-64 mt-1"
+            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none rounded-md border max-h-64 mt-1",
+            listClassName
           )}
         >
           <SuggestionsList

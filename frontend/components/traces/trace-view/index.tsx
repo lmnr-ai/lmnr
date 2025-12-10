@@ -197,6 +197,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const fetchSpans = useCallback(
     async (search: string, searchIn: string[], filters: Filter[]) => {
       try {
+        if (!trace) {
+          return;
+        }
+
         setIsSpansLoading(true);
         setSpansError(undefined);
 
@@ -206,6 +210,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
         searchIn.forEach((val) => params.append("searchIn", val));
         filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
+
+        if (trace) {
+          const startDate = new Date(new Date(trace.startTime).getTime() - 1000);
+          const endDate = new Date(new Date(trace.endTime).getTime() + 1000);
+          params.set("startDate", startDate.toISOString());
+          params.set("endDate", endDate.toISOString());
+        }
 
         setSearch(search);
         if (search) {
@@ -255,6 +266,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSearchEnabled,
       projectId,
       traceId,
+      trace,
       setSpans,
       hasBrowserSession,
       setHasBrowserSession,
@@ -342,6 +354,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [handleFetchTrace, projectId, traceId]);
 
   useEffect(() => {
+    if (!trace) return;
     const searchTerm = searchParams.get("search") || search || "";
     const searchIn = searchParams.getAll("searchIn");
 
@@ -359,6 +372,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     traceId,
     projectId,
     filters,
+    trace,
     setSpans,
     setBrowserSession,
     setSearch,

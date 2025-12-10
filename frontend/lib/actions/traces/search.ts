@@ -27,12 +27,10 @@ export const searchSpans = async ({
     startTime = timeRange.start.toISOString();
     endTime = timeRange.end.toISOString();
   } else if ("pastHours" in timeRange) {
-    if (timeRange.pastHours !== "all") {
-      const end = new Date();
-      const start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
-      startTime = start.toISOString();
-      endTime = end.toISOString();
-    }
+    const end = new Date();
+    const start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
+    startTime = start.toISOString();
+    endTime = end.toISOString();
   }
 
   const body = {

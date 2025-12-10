@@ -1,4 +1,3 @@
-import { uniq } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
@@ -14,17 +13,16 @@ export const STATIC_SPAN_SUGGESTIONS: AutocompleteSuggestion[] = [
 ];
 
 export const extractSpanSuggestions = (spans: TraceViewSpan[]): AutocompleteSuggestion[] => {
-  const suggestions: AutocompleteSuggestion[] = [];
+  const nameSet = new Set<string>();
+  const modelSet = new Set<string>();
 
-  const spanNames = uniq(spans.map((span) => span.name).filter(Boolean));
-  spanNames.forEach((name) => {
-    suggestions.push({ field: "name", value: name });
-  });
-
-  const rootSpan = spans.find((span) => !span.parentSpanId);
-  if (rootSpan) {
-    suggestions.push({ field: "top_span_name", value: rootSpan.name });
+  for (const span of spans) {
+    if (span.name) nameSet.add(span.name);
+    if (span.model) modelSet.add(span.model);
   }
 
-  return suggestions;
+  return [
+    ...Array.from(nameSet, (name) => ({ field: "name", value: name })),
+    ...Array.from(modelSet, (model) => ({ field: "model", value: model })),
+  ];
 };

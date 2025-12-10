@@ -23,7 +23,7 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
     setSearch: state.setSearch,
   }));
 
-  const lastSubmittedValueRef = useRef<string>("");
+  const lastSubmittedValueRef = useRef<string>(search);
 
   const dynamicSuggestions = useMemo(() => extractSpanSuggestions(spans), [spans]);
 
@@ -85,7 +85,8 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
         onSelect={handleSelect}
         onSubmit={handleSubmit}
         placeholder="Search in spans..."
-        wrapperClassName="border px-2 py-0.5 rounded-none border-0 border-b ring-0 bg-background not-focus-within:bg-background focus-within:ring-0"
+        wrapperClassName="px-2 py-0.5 rounded-none border-0 border-b ring-0 bg-background not-focus-within:bg-background focus-within:ring-0"
+        listClassName="bg-background mt-0 w-[calc(100%_-_16px)] left-2 rounded-t-none border-t-0"
       />
     </div>
   );
