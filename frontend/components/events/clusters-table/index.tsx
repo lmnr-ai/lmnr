@@ -17,7 +17,7 @@ interface ClustersTableProps {
   projectId: string;
   eventDefinitionId: string;
   eventDefinitionName: string;
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
 }
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) => {

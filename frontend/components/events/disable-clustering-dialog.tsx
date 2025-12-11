@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 interface DisableClusteringDialogProps {
   eventName: string;
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
 }
 
 export default function DisableClusteringDialog({

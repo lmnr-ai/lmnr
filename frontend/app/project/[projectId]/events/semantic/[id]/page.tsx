@@ -28,7 +28,7 @@ export default async function SemanticEventPage(props: {
 
   const [lastEvent, clusterConfig] = await Promise.all([
     getLastEvent({ projectId, name: eventDefinition.name, eventSource: 'SEMANTIC' }),
-    getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "semantic" }),
+    getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "SEMANTIC" }),
   ]);
 
   const cookieStore = await cookies();
@@ -37,7 +37,7 @@ export default async function SemanticEventPage(props: {
 
   return (
     <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
-      <Events eventType="semantic" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+      <Events eventType="SEMANTIC" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );
 }

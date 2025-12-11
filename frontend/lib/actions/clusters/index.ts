@@ -18,7 +18,7 @@ export type EventCluster = {
 export const GetEventClustersSchema = z.object({
   projectId: z.string(),
   eventName: z.string(),
-  eventSource: z.enum(["semantic", "code"]),
+  eventSource: z.enum(["SEMANTIC", "CODE"]),
 });
 
 export async function getEventClusters(

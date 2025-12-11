@@ -142,16 +142,16 @@ function SemanticEventDefinitionsContent() {
   return (
     <>
       <Header path="event definitions" />
-      <Tabs className="flex flex-1 overflow-hidden gap-4" value="semantic">
+      <Tabs className="flex flex-1 overflow-hidden gap-4" value="SEMANTIC">
         <TabsList className="mx-4 h-8">
-          <TabsTrigger className="text-xs" value="semantic" asChild>
+          <TabsTrigger className="text-xs" value="SEMANTIC" asChild>
             <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
           </TabsTrigger>
           <TabsTrigger className="text-xs" value="code" asChild>
             <Link href={`/project/${projectId}/events/code`}>Code</Link>
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="semantic" asChild>
+        <TabsContent value="SEMANTIC" asChild>
           <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
             {!isFreeTier && (
               <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>

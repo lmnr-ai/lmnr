@@ -174,7 +174,8 @@ async fn call_clustering_endpoint(
 
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
-        "event": message.event,
+        "event_name": message.event.name,
+        "event_id": message.event.id.to_string(),
         "content": content,
     });
 

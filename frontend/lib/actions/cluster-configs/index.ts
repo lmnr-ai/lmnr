@@ -16,20 +16,20 @@ export type EventClusterConfig = {
 export const GetClusterConfigSchema = z.object({
   projectId: z.string(),
   eventName: z.string(),
-  eventSource: z.enum(["semantic", "code"]),
+  eventSource: z.enum(["SEMANTIC", "CODE"]),
 });
 
 export const CreateClusterConfigSchema = z.object({
   projectId: z.string(),
   eventName: z.string(),
   valueTemplate: z.string().min(1, "Value template is required"),
-  eventSource: z.enum(["semantic", "code"]),
+  eventSource: z.enum(["SEMANTIC", "CODE"]),
 });
 
 export const DeleteClusterConfigSchema = z.object({
   projectId: z.string(),
   eventName: z.string(),
-  eventSource: z.enum(["semantic", "code"]),
+  eventSource: z.enum(["SEMANTIC", "CODE"]),
 });
 
 export async function getClusterConfig(

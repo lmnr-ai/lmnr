@@ -26,7 +26,7 @@ interface EventsTableProps {
   projectId: string;
   eventName: string;
   eventDefinitionId?: string;
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
 }
 
 function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }: EventsTableProps) {
@@ -66,14 +66,12 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
           urlParams.set("eventDefinitionId", eventDefinitionId);
         }
 
-        const eventSource = eventType === "semantic" ? "SEMANTIC" : "CODE";
-
-        urlParams.set("eventSource", eventSource);
+        urlParams.set("eventSource", eventType);
 
         const response = await fetch(`/api/projects/${projectId}/events/${eventName}?${urlParams.toString()}`);
 
         if (!response.ok) {
-          throw new Error("Failed to fetch events");
+          throw new Error("Failed to fetch events, event type: " + eventType);
         }
 
         const data: { items: EventRow[]; count: number } = await response.json();
@@ -135,7 +133,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
     endDate,
     filters: filter,
     additionalParams: {
-      eventSource: eventType === "semantic" ? "SEMANTIC" : "CODE",
+      eventSource: eventType,
     },
   });
 

@@ -14,7 +14,7 @@ export async function GET(
   try {
     const { projectId, name: eventName } = await params;
     const searchParams = req.nextUrl.searchParams;
-    const eventSource = searchParams.get("eventSource") as "semantic" | "code";
+    const eventSource = searchParams.get("eventSource") as "SEMANTIC" | "CODE";
 
     const result = await getClusterConfig({
       projectId,
@@ -70,7 +70,7 @@ export async function DELETE(
   try {
     const { projectId, name: eventName } = await params;
     const searchParams = req.nextUrl.searchParams;
-    const eventSource = searchParams.get("eventSource") as "semantic" | "code";
+    const eventSource = searchParams.get("eventSource") as "SEMANTIC" | "CODE";
 
     const result = await deleteClusterConfig({
       projectId,

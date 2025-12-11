@@ -23,7 +23,7 @@ interface StartClusteringForm {
 
 interface StartClusteringDialogProps {
   eventName: string;
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
 }
 
 export default function StartClusteringDialog({ children, eventName, eventType }: PropsWithChildren<StartClusteringDialogProps>) {

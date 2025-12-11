@@ -31,7 +31,7 @@ function PureEvents({
   initialTraceViewWidth,
   eventType,
 }: {
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
 }) {
@@ -106,7 +106,7 @@ function PureEvents({
       />
       <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
         <div className="flex items-center gap-2">
-          {!isFreeTier && eventType === "semantic" && (
+          {!isFreeTier && eventType === "SEMANTIC" && (
             <ManageEventDefinitionSheet
               open={isDialogOpen}
               setOpen={setIsDialogOpen}
@@ -213,7 +213,7 @@ export default function Events({
 }: {
   lastEvent?: { id: string; name: string; timestamp: string };
   initialTraceViewWidth?: number;
-  eventType: "semantic" | "code";
+  eventType: "SEMANTIC" | "CODE";
 }) {
   const { setTraceId, setSpanId } = useEventsStoreContext((state) => ({
     setTraceId: state.setTraceId,

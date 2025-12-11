@@ -28,7 +28,7 @@ export default async function CodeEventPage(props: {
 
   const [lastEvent, clusterConfig] = await Promise.all([
     getLastEvent({ projectId, name: eventDefinition.name, eventSource: 'CODE' }),
-    getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "code" }),
+    getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "CODE" }),
   ]);
 
   const cookieStore = await cookies();
@@ -37,7 +37,7 @@ export default async function CodeEventPage(props: {
 
   return (
     <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
-      <Events eventType="code" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
+      <Events eventType="CODE" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );
 }
