@@ -375,7 +375,7 @@ async fn process_batch(
 
     if let Err(e) = write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans).await {
         log::error!("Failed to write spans: {:?}", e);
-        let _ = acker.reject(true).await.map_err(|e| {
+        let _ = acker.reject(false).await.map_err(|e| {
             log::error!(
                 "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
                 e
