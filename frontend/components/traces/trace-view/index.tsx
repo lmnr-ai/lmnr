@@ -266,16 +266,17 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       }
     },
     [
+      trace,
       setIsSpansLoading,
       setSpansError,
       projectId,
       traceId,
-      trace,
       setSpans,
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
       spanId,
+      searchParams,
       spanPath,
       setSelectedSpan,
     ]
@@ -374,7 +375,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, trace, setSpans, setTraceError, setSpansError, fetchSpans]);
+  }, [traceId, projectId, filters, trace, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,
