@@ -22,7 +22,7 @@ interface ClustersTableProps {
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) => {
   const { toast } = useToast();
-  const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
+  const columns = useMemo(() => getClusterColumns(projectId, eventType, eventDefinitionId), [projectId, eventDefinitionId, eventType]);
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
   const [isLoading, setIsLoading] = useState(true);

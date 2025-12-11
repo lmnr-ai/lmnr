@@ -14,11 +14,11 @@ interface ClusterTableMeta {
   totalCount: number;
 }
 
-export const getClusterColumns = (projectId: string, eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
+export const getClusterColumns = (projectId: string, eventType: "SEMANTIC" | "CODE", eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
-      row.original.numChildrenClusters > 0 ? (
+      (row.original.numChildrenClusters > 0 && row.original.level > 1) ? (
         <Button
           icon={row.getIsExpanded() ? "chevronDown" : "chevronRight"}
           variant="ghost"
@@ -52,7 +52,7 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
       });
       params.append("filter", clusterFilter);
 
-      const eventsUrl = `/project/${projectId}/events/${eventDefinitionId}?${params.toString()}`;
+      const eventsUrl = `/project/${projectId}/events/${eventType.toLowerCase()}/${eventDefinitionId}?${params.toString()}`;
 
       return (
         <div style={{ paddingLeft: `${paddingLeft}px` }} className="truncate text-primary">
@@ -65,7 +65,9 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
     size: 350,
   },
   {
-    accessorFn: (row) => row.numChildrenClusters,
+    accessorFn: (row) => {
+      return row.level > 1 ? String(row.numChildrenClusters) : '';
+    },
     header: "Sub clusters",
     id: "children_clusters",
     size: 120,
