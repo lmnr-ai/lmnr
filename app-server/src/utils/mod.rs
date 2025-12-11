@@ -74,7 +74,9 @@ where
                 backoff::Error::transient(anyhow::Error::from(e))
             })?;
 
-        if response.status().is_success() {
+        let status = response.status();
+
+        if status.is_success() {
             let response_text = response.text().await.unwrap_or_default();
             log::debug!("Service response ({}): {}", service_url, response_text);
 
@@ -86,6 +88,18 @@ where
                 );
                 backoff::Error::permanent(anyhow::Error::from(e))
             })
+        } else if status.is_server_error() {
+            let response_text = response.text().await.unwrap_or_default();
+
+            log::warn!(
+                "Service returned server error status {}: Response: {}",
+                status,
+                response_text
+            );
+            Err(backoff::Error::transient(anyhow::anyhow!(
+                "Service server error. Response: {}",
+                response_text
+            )))
         } else {
             let status = response.status();
             let response_text = response.text().await.unwrap_or_default();
@@ -94,7 +108,7 @@ where
                 status,
                 response_text
             );
-            Err(backoff::Error::transient(anyhow::anyhow!(
+            Err(backoff::Error::permanent(anyhow::anyhow!(
                 "Service error: {}, Response: {}",
                 status,
                 response_text

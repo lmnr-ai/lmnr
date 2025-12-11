@@ -177,6 +177,7 @@ async fn call_clustering_endpoint(
         "event_name": message.event.name,
         "event_id": message.event.id.to_string(),
         "content": content,
+        "event_source": message.event.source.to_string(),
     });
 
     let cluster_response: ClusterResponse = call_service_with_retry(

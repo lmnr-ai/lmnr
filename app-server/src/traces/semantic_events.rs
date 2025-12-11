@@ -149,7 +149,24 @@ async fn process_semantic_event(
 
     // if response has attributes it means we identified the event
     if let Some(attributes) = response.attributes.clone() {
+        // create a new event if we have attributes
+        let event = Event {
+            id: uuid::Uuid::new_v4(),
+            span_id: message.trigger_span_id,
+            project_id: message.project_id,
+            timestamp: chrono::Utc::now(),
+            name: event_definition.name.clone(),
+            attributes: attributes.clone(),
+            trace_id: message.trace_id,
+            source: EventSource::Semantic,
+        };
+
+        let ch_events = vec![CHEvent::from_db_event(&event)];
+
+        ch::events::insert_events(clickhouse, ch_events).await?;
+
         // Check for Slack notifications
+        // It's ok to not check for feature flag here, because channels can't be added without Slack integration
         let channels = db::slack_channel_to_events::get_channels_for_event(
             &db.pool,
             message.project_id,
@@ -184,22 +201,6 @@ async fn process_semantic_event(
                 );
             }
         }
-
-        // create a new event if we have attributes
-        let event = Event {
-            id: uuid::Uuid::new_v4(),
-            span_id: message.trigger_span_id,
-            project_id: message.project_id,
-            timestamp: chrono::Utc::now(),
-            name: event_definition.name.clone(),
-            attributes: attributes.clone(),
-            trace_id: message.trace_id,
-            source: EventSource::Semantic,
-        };
-
-        let ch_events = vec![CHEvent::from_db_event(&event)];
-
-        ch::events::insert_events(clickhouse, ch_events).await?;
 
         if is_feature_enabled(Feature::Clustering) {
             // Check for event clustering configuration
