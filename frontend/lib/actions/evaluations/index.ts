@@ -38,10 +38,13 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
       const [key, value] = String(filter.value).split(/=(.*)/);
-      const parsedValue = tryParseJson(value);
-      const typedMatch = sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: parsedValue })}`;
-      const stringMatch = sql`${evaluations.metadata}->>${key} = ${String(value)}`;
-      return sql`(${typedMatch} OR ${stringMatch})`;
+      if (key && value) {
+        const parsedValue = tryParseJson(value);
+        const typedMatch = sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: parsedValue })}`;
+        const stringMatch = sql`${evaluations.metadata}->>${key} = ${String(value)}`;
+        return sql`(${typedMatch} OR ${stringMatch})`;
+      }
+      return sql`1=1`;
     });
 
   const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");
