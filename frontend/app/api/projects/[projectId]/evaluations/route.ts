@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const pageSize = req.nextUrl.searchParams.get("pageSize");
   const pageNumber = req.nextUrl.searchParams.get("pageNumber");
   const search = req.nextUrl.searchParams.get("search");
-  const filters = req.nextUrl.searchParams.getAll("filter");
+  const filter = req.nextUrl.searchParams.getAll("filter");
 
   const parseResult = GetEvaluationsSchema.safeParse({
     projectId,
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     pageSize,
     pageNumber,
     search,
-    filters,
+    filter,
   });
 
   if (!parseResult.success) {

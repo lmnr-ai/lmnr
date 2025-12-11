@@ -20,7 +20,8 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },
@@ -29,7 +30,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `"${val}"`,
+              [`${paramKey}_val`]: `${val}`,
             };
           }
           return {};

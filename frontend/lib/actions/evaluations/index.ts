@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 import { Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import {tryParseJson} from "@/lib/actions/common/utils.ts";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
@@ -37,7 +38,13 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     .filter((filter) => filter.column === "metadata" && filter.operator === "eq")
     .map((filter) => {
       const [key, value] = String(filter.value).split(/=(.*)/);
-      return sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: value })}`;
+      if (key && value) {
+        const parsedValue = tryParseJson(value);
+        const typedMatch = sql`${evaluations.metadata} @> ${JSON.stringify({ [key]: parsedValue })}`;
+        const stringMatch = sql`${evaluations.metadata}->>${key} = ${String(value)}`;
+        return sql`(${typedMatch} OR ${stringMatch})`;
+      }
+      return sql`1=1`;
     });
 
   const otherFilters = urlParamFilters.filter((filter) => filter.column !== "metadata");
