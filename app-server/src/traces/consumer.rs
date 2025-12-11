@@ -43,7 +43,7 @@ use crate::{
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    worker::MessageHandler,
+    worker::{HandlerError, MessageHandler},
 };
 use crate::{
     cache::autocomplete::populate_autocomplete_cache,
@@ -64,7 +64,7 @@ pub struct SpanHandler {
 impl MessageHandler for SpanHandler {
     type Message = Vec<RabbitMqSpanMessage>;
 
-    async fn handle(&self, messages: Self::Message) -> Result<(), crate::worker::HandlerError> {
+    async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
         process_spans_and_events_batch(
             messages,
             self.db.clone(),
@@ -75,7 +75,6 @@ impl MessageHandler for SpanHandler {
             self.pubsub.clone(),
         )
         .await
-        .map_err(Into::into)
     }
 }
 
@@ -88,7 +87,7 @@ async fn process_spans_and_events_batch(
     storage: Arc<Storage>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-) -> anyhow::Result<()> {
+) -> Result<(), HandlerError> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
@@ -183,7 +182,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-) -> anyhow::Result<()> {
+) -> Result<(), HandlerError> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
@@ -290,10 +289,12 @@ async fn process_batch(
             ch_spans.len(),
             e
         );
-        return Err(anyhow::anyhow!(
+        // We don't want to drop spans if we can't insert them to Clickhouse
+        // most likely it's a transient Clickhouse issue, so we want to requeue the message
+        return Err(HandlerError::transient(anyhow::anyhow!(
             "Failed to insert spans to Clickhouse: {:?}",
             e
-        ));
+        )));
     }
 
     // Temporary solution to filter out spans before sending realtime span updates
