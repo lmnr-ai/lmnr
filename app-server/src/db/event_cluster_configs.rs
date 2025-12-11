@@ -20,7 +20,7 @@ pub async fn get_event_cluster_config(
         r#"
         SELECT value_template
         FROM event_cluster_configs
-        WHERE project_id = $1 AND event_name = $2 AND source = $3
+        WHERE project_id = $1 AND event_name = $2 AND event_source = $3
         "#,
     )
     .bind(project_id)

@@ -710,9 +710,9 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         let num_clustering_workers = env::var("NUM_CLUSTERING_WORKERS")
-            .unwrap_or(String::from("1"))
+            .unwrap_or(String::from("2"))
             .parse::<u8>()
-            .unwrap_or(1);
+            .unwrap_or(2);
 
         log::info!(
             "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",

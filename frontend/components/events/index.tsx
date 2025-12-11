@@ -100,7 +100,7 @@ function PureEvents({
     <>
       <Header
         path={[
-          { name: "event definitions", href: `/project/${params.projectId}/events/${eventType}` },
+          { name: "event definitions", href: `/project/${params.projectId}/events/${eventType.toLowerCase()}` },
           { name: eventDefinition.name },
         ]}
       />
