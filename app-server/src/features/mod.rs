@@ -19,7 +19,6 @@ pub enum Feature {
     SqlQueryEngine,
     ClickhouseReadOnly,
     Tracing,
-    AggregateTraces,
     Clustering,
     SemanticEvents,
 }
@@ -45,10 +44,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
         Feature::Tracing => {
             env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
-        }
-        Feature::AggregateTraces => {
-            env::var("AGGREGATE_TRACES").is_ok()
-                && env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string())
         }
         Feature::Clustering => {
             env::var("CLUSTERING_SERVICE_URL").is_ok()
