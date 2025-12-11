@@ -29,8 +29,8 @@ const evaluationDatapointsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
-              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },

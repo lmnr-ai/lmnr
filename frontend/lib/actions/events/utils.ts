@@ -20,8 +20,8 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`
-              + ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },
