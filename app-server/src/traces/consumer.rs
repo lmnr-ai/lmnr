@@ -325,40 +325,35 @@ async fn process_batch(
     }
 
     // Process trace aggregations and update trace statistics
-    if is_feature_enabled(Feature::AggregateTraces) {
-        let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
-        if !trace_aggregations.is_empty() {
-            // Upsert trace statistics in PostgreSQL
-            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-                Ok(updated_traces) => {
-                    // Convert to ClickHouse traces and upsert
-                    let ch_traces: Vec<CHTrace> = updated_traces
-                        .iter()
-                        .map(|trace| CHTrace::from_db_trace(trace))
-                        .collect();
+    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+    // Upsert trace statistics in PostgreSQL
+    match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+        Ok(updated_traces) => {
+            // Convert to ClickHouse traces and upsert
+            let ch_traces: Vec<CHTrace> = updated_traces
+                .iter()
+                .map(|trace| CHTrace::from_db_trace(trace))
+                .collect();
 
-                    if let Err(e) =
-                        write_traces(&db.pool, &clickhouse, &http_client, project_id, &ch_traces)
-                            .await
-                    {
-                        log::error!(
-                            "Failed to upsert {} traces to ClickHouse: {:?}",
-                            ch_traces.len(),
-                            e
-                        );
-                    }
-
-                    // Send trace_update events for realtime updates
-                    send_trace_updates(&updated_traces, &pubsub).await;
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
-                        project_id,
-                        e
-                    );
-                }
+            if let Err(e) =
+                write_traces(&db.pool, &clickhouse, &http_client, project_id, &ch_traces).await
+            {
+                log::error!(
+                    "Failed to upsert {} traces to ClickHouse: {:?}",
+                    ch_traces.len(),
+                    e
+                );
             }
+
+            // Send trace_update events for realtime updates
+            send_trace_updates(&updated_traces, &pubsub).await;
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
+                project_id,
+                e
+            );
         }
     }
 
@@ -380,7 +375,7 @@ async fn process_batch(
 
     if let Err(e) = write_spans(&db.pool, &clickhouse, &http_client, project_id, &ch_spans).await {
         log::error!("Failed to write spans: {:?}", e);
-        let _ = acker.reject(false).await.map_err(|e| {
+        let _ = acker.reject(true).await.map_err(|e| {
             log::error!(
                 "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
                 e
