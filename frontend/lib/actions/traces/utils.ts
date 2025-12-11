@@ -86,7 +86,8 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },
@@ -95,7 +96,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `"${val}"`,
+              [`${paramKey}_val`]: `${val}`,
             };
           }
           return {};
@@ -104,19 +105,6 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
-    [
-      "pattern",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(patterns, {${paramKey}:UUID})`;
-          } else {
-            return `NOT has(patterns, {${paramKey}:UUID})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
   ]),
 };
 

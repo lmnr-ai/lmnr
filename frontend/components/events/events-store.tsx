@@ -2,8 +2,10 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-dialog";
+import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet.tsx";
+import { EventClusterConfig } from "@/lib/actions/cluster-configs";
 import { EventDefinition } from "@/lib/actions/event-definitions";
+import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { EventRow } from "@/lib/events/types";
 
 export type EventsStatsDataPoint = {
@@ -20,6 +22,7 @@ export type EventsState = {
   stats?: EventsStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
+  clusterConfig?: EventClusterConfig;
 };
 
 export type EventsActions = {
@@ -29,12 +32,14 @@ export type EventsActions = {
   setEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
+  setClusterConfig: (config?: EventClusterConfig) => void;
 };
 
 export interface EventsProps {
-  eventDefinition: EventDefinition;
+  eventDefinition: EventDefinition | SemanticEventDefinition;
   traceId?: string | null;
   spanId?: string | null;
+  clusterConfig?: EventClusterConfig;
 }
 
 export type EventsStore = EventsState & EventsActions;
@@ -49,18 +54,24 @@ export const createEventsStore = (initProps: EventsProps) =>
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
+    clusterConfig: initProps.clusterConfig,
     eventDefinition: {
       ...initProps.eventDefinition,
+      prompt: 'prompt' in initProps.eventDefinition ? initProps.eventDefinition.prompt : '' ,
       structuredOutput:
-        initProps.eventDefinition.structuredOutput != null
+        'structuredOutput' in initProps.eventDefinition
           ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
           : "",
-      triggerSpans: (initProps.eventDefinition.triggerSpans || []).map((name) => ({ name })),
+      triggerSpans:
+        "triggerSpans" in initProps.eventDefinition && initProps.eventDefinition.triggerSpans
+          ? initProps.eventDefinition.triggerSpans.map((name) => ({ name }))
+          : [],
     },
     setEventDefinition: (eventDefinition) => set({ eventDefinition }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
+    setClusterConfig: (clusterConfig) => set({ clusterConfig }),
     fetchEvents: async (params: URLSearchParams) => {
       const { eventDefinition } = get();
 

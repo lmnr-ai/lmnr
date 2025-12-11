@@ -5,8 +5,38 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter.ts
 import { Badge } from "@/components/ui/badge.tsx";
 import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { EventDefinitionRow } from "@/lib/actions/event-definitions";
+import { SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
 
 export const columns: ColumnDef<EventDefinitionRow>[] = [
+  {
+    header: "Name",
+    accessorFn: (row) => row.name,
+    cell: ({ row }) => <span className="truncate">{row.original.name}</span>,
+    id: "name",
+  },
+  {
+    header: "Created",
+    accessorFn: (row) => row.createdAt,
+    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
+    id: "createdAt",
+  },
+];
+
+export const defaultEventDefinitionsColumnOrder = [
+  "__row_selection",
+  "name",
+  "createdAt",
+];
+
+export const eventsDefinitionsTableFilters: ColumnFilter[] = [
+  {
+    name: "Name",
+    key: "name",
+    dataType: "string",
+  },
+];
+
+export const semanticEventDefinitionsColumns: ColumnDef<SemanticEventDefinitionRow>[] = [
   {
     header: "Name",
     accessorFn: (row) => row.name,
@@ -35,12 +65,6 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
     },
   },
   {
-    header: "Semantic",
-    accessorFn: (row) => row.isSemantic,
-    cell: ({ row }) => (row.original.isSemantic ? "Yes" : "No"),
-    id: "isSemantic",
-  },
-  {
     header: "Created",
     accessorFn: (row) => row.createdAt,
     cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
@@ -48,23 +72,9 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
   },
 ];
 
-export const defaultEventDefinitionsColumnOrder = [
+export const defaultSemanticEventDefinitionsColumnOrder = [
   "__row_selection",
   "name",
   "triggerSpans",
-  "isSemantic",
   "createdAt",
-];
-
-export const eventsDefinitionsTableFilters: ColumnFilter[] = [
-  {
-    name: "Name",
-    key: "name",
-    dataType: "string",
-  },
-  {
-    name: "Semantic",
-    key: "semantic",
-    dataType: "boolean",
-  }
 ];

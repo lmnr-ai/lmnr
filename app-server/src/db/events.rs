@@ -10,17 +10,34 @@ use crate::{
 
 use crate::traces::utils::convert_any_value_to_json_value;
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum EventSource {
+    #[serde(rename = "CODE")]
+    Code,
+    #[serde(rename = "SEMANTIC")]
+    Semantic,
+}
+
+impl std::fmt::Display for EventSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EventSource::Code => write!(f, "CODE"),
+            EventSource::Semantic => write!(f, "SEMANTIC"),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     pub id: Uuid,
     pub span_id: Uuid,
     pub project_id: Uuid,
-    pub created_at: DateTime<Utc>,
     pub timestamp: DateTime<Utc>,
     pub name: String,
     pub attributes: Value,
     pub trace_id: Uuid,
+    pub source: EventSource,
 }
 
 impl Event {
@@ -28,9 +45,8 @@ impl Event {
         // 16 bytes for id,
         // 16 bytes for span_id,
         // 16 bytes for project_id,
-        // 8 bytes for created_at,
         // 8 bytes for timestamp,
-        return 16 + 16 + 16 + 8 + 8 + self.name.len() + estimate_json_size(&self.attributes);
+        return 16 + 16 + 16 + 8 + self.name.len() + estimate_json_size(&self.attributes);
     }
 }
 
@@ -46,11 +62,11 @@ impl Event {
             id: Uuid::new_v4(),
             span_id,
             project_id,
-            created_at: Utc::now(),
             timestamp: Utc.timestamp_nanos(event.time_unix_nano as i64),
             name: event.name,
             attributes: Value::Object(attributes),
             trace_id,
+            source: EventSource::Code,
         }
     }
 }

@@ -1,4 +1,8 @@
+import { and, eq } from "drizzle-orm";
+import { compact, keyBy } from "lodash";
+
 import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -8,6 +12,8 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { db } from "@/lib/db/drizzle";
+import { eventClusters } from "@/lib/db/migrations/schema";
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -15,12 +21,26 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
     ["user_id", createStringFilter],
     ["session_id", createStringFilter],
     [
+      "cluster",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Eq) {
+            return `has(clusters, {${paramKey}:UUID})`;
+          } else {
+            return `NOT has(clusters, {${paramKey}:UUID})`;
+          }
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
+    [
       "attributes",
       createCustomFilter(
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },
@@ -29,7 +49,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `"${val}"`,
+              [`${paramKey}_val`]: `${val}`,
             };
           }
           return {};
@@ -58,10 +78,11 @@ export interface BuildEventsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  eventSource?: "CODE" | "SEMANTIC";
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { eventName, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { eventName, filters, limit, offset, startTime, endTime, pastHours, eventSource } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -72,6 +93,13 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { eventName },
     },
   ];
+
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -87,10 +115,12 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
-    orderBy: [{
-      column: "timestamp",
-      direction: "DESC",
-    }],
+    orderBy: [
+      {
+        column: "timestamp",
+        direction: "DESC",
+      },
+    ],
     pagination: {
       limit,
       offset,
@@ -103,7 +133,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { eventName, filters, startTime, endTime, pastHours } = options;
+  const { eventName, filters, startTime, endTime, pastHours, eventSource } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -114,6 +144,13 @@ export const buildEventsCountQueryWithParams = (
       params: { eventName },
     },
   ];
+
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -133,3 +170,42 @@ export const buildEventsCountQueryWithParams = (
 
   return buildSelectQuery(queryOptions);
 };
+
+export interface ResolveClusterFiltersOptions {
+  filters: Filter[];
+  projectId: string;
+  eventName?: string;
+}
+
+export async function resolveClusterFilters({
+  filters,
+  projectId,
+  eventName,
+}: ResolveClusterFiltersOptions): Promise<Filter[]> {
+  const hasClusterFilter = filters.some((f) => f.column === "cluster");
+  if (!hasClusterFilter) {
+    return filters;
+  }
+
+  const conditions = [eq(eventClusters.projectId, projectId)];
+  if (eventName) {
+    conditions.push(eq(eventClusters.eventName, eventName));
+  }
+
+  const clustersList = await db
+    .select()
+    .from(eventClusters)
+    .where(and(...conditions));
+
+  const clustersByName = keyBy(clustersList, "name");
+
+  return compact(
+    filters.map((filter) => {
+      if (filter.column !== "cluster") {
+        return filter;
+      }
+      const cluster = clustersByName[String(filter.value)];
+      return cluster ? { ...filter, value: cluster.id } : null;
+    })
+  );
+}

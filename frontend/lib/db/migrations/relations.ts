@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm/relations";
 
-import { agentChats, agentMessages, agentSessions, apiKeys, clusters, dashboardCharts, datasetDatapoints, datasetExportJobs, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans, sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces,tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
+import { agentChats, agentMessages, agentSessions, apiKeys, clusters, dashboardCharts, datasetDatapoints, datasetExportJobs, datasetParquets, datasets, evaluationResults, evaluations, evaluationScores, evaluators, evaluatorScores, evaluatorSpanPaths, eventClusterConfigs, eventClusters, eventDefinitions, labelingQueueItems, labelingQueues, membersOfWorkspaces, playgrounds, projectApiKeys, projects, projectSettings, providerApiKeys, renderTemplates, semanticEventDefinitions, semanticEventTriggerSpans, sharedPayloads, sharedTraces, slackChannelToEvents, slackIntegrations, spans, sqlTemplates, subscriptionTiers, summaryTriggerSpans, tagClasses, traces,tracesAgentChats, tracesAgentMessages, tracesSummaries, users, userSubscriptionInfo, userUsage, workspaceInvitations, workspaces, workspaceUsage } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
   dataset: one(datasets, {
@@ -46,12 +46,15 @@ export const projectsRelations = relations(projects, ({one, many}) => ({
   evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
   sqlTemplates: many(sqlTemplates),
+  eventClusterConfigs: many(eventClusterConfigs),
   playgrounds: many(playgrounds),
   eventDefinitions: many(eventDefinitions),
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
   projectSettings: many(projectSettings),
+  eventClusters: many(eventClusters),
   tagClasses: many(tagClasses),
+  semanticEventDefinitions: many(semanticEventDefinitions),
   clusters: many(clusters),
   spans: many(spans),
   traces: many(traces),
@@ -309,6 +312,13 @@ export const sqlTemplatesRelations = relations(sqlTemplates, ({one}) => ({
   }),
 }));
 
+export const eventClusterConfigsRelations = relations(eventClusterConfigs, ({one}) => ({
+  project: one(projects, {
+    fields: [eventClusterConfigs.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const playgroundsRelations = relations(playgrounds, ({one}) => ({
   project: one(projects, {
     fields: [playgrounds.projectId],
@@ -344,9 +354,31 @@ export const projectSettingsRelations = relations(projectSettings, ({one}) => ({
   }),
 }));
 
+export const eventClustersRelations = relations(eventClusters, ({one}) => ({
+  project: one(projects, {
+    fields: [eventClusters.projectId],
+    references: [projects.id]
+  }),
+}));
+
 export const tagClassesRelations = relations(tagClasses, ({one}) => ({
   project: one(projects, {
     fields: [tagClasses.projectId],
+    references: [projects.id]
+  }),
+}));
+
+export const semanticEventTriggerSpansRelations = relations(semanticEventTriggerSpans, ({one}) => ({
+  semanticEventDefinition: one(semanticEventDefinitions, {
+    fields: [semanticEventTriggerSpans.projectId],
+    references: [semanticEventDefinitions.id]
+  }),
+}));
+
+export const semanticEventDefinitionsRelations = relations(semanticEventDefinitions, ({one, many}) => ({
+  semanticEventTriggerSpans: many(semanticEventTriggerSpans),
+  project: one(projects, {
+    fields: [semanticEventDefinitions.projectId],
     references: [projects.id]
   }),
 }));
