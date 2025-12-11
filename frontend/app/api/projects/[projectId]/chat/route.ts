@@ -24,6 +24,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error(error);
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }

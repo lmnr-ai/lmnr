@@ -1,6 +1,8 @@
 import { Row, RowData } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table.tsx";
 
@@ -12,6 +14,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   rowVirtualizer,
   virtualItems,
   isLoading,
+  isFetching,
   hasMore,
   onRowClick,
   focusedRowId,
@@ -19,6 +22,8 @@ export function InfiniteDatatableBody<TData extends RowData>({
   emptyRow,
   loadingRow,
   getRowHref,
+  loadMoreButton,
+  fetchNextPage,
 }: InfiniteDataTableBodyProps<TData>) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -34,11 +39,13 @@ export function InfiniteDatatableBody<TData extends RowData>({
 
   const { rows } = table.getRowModel();
   const columns = table.getAllColumns().filter((col) => col.id !== "__row_selection");
+  const totalSize = rowVirtualizer.getTotalSize();
+  const buttonHeight = loadMoreButton && hasMore ? 36 : 0;
 
   return (
     <TableBody
       style={{
-        height: isLoading ? "auto" : `${rowVirtualizer.getTotalSize() > 0 ? rowVirtualizer.getTotalSize() : 52}px`,
+        height: isLoading ? "auto" : `${(totalSize > 0 ? totalSize : 52) + buttonHeight}px`,
         position: "relative",
         display: "block",
       }}
@@ -71,7 +78,32 @@ export function InfiniteDatatableBody<TData extends RowData>({
               />
             );
           })}
-          {!isLoading && hasMore && <tr className="absolute border-b-0 bottom-0" ref={loadMoreRef} />}
+          {!loadMoreButton && !isLoading && hasMore && (
+            <tr className="absolute border-b-0 bottom-0" ref={loadMoreRef} />
+          )}
+          {loadMoreButton && hasMore && (
+            <tr
+              className="absolute flex justify-center w-full"
+              style={{
+                transform: `translateY(${rowVirtualizer.getTotalSize()}px)`,
+              }}
+            >
+              <td colSpan={columns.length} className="w-full flex justify-center py-1">
+                {typeof loadMoreButton === "function" ? (
+                  loadMoreButton({ onClick: fetchNextPage, isFetching, hasMore })
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="hover:bg-accent text-secondary-foreground"
+                    onClick={fetchNextPage}
+                    disabled={isFetching}
+                  >
+                    {isFetching ? <Loader2 className="size-4 animate-spin" /> : "Load More"}
+                  </Button>
+                )}
+              </td>
+            </tr>
+          )}
         </>
       ) : (
         (emptyRow ?? (

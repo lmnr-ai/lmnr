@@ -2,13 +2,18 @@ import { Row, RowData, Table, TableOptions } from "@tanstack/react-table";
 import { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
 import { ReactNode, RefObject } from "react";
 
+export interface LoadMoreButtonProps {
+  onClick: () => void;
+  isFetching: boolean;
+  hasMore: boolean;
+}
+
 export interface InfiniteDataTableProps<TData extends RowData>
   extends Omit<Partial<TableOptions<TData>>, "data" | "columns"> {
   data: TData[];
   columns: TableOptions<TData>["columns"];
 
   lockedColumns?: string[];
-  // Infinite scroll props
   hasMore: boolean;
   isFetching: boolean;
   isLoading: boolean;
@@ -31,6 +36,7 @@ export interface InfiniteDataTableProps<TData extends RowData>
   loadingRow?: ReactNode;
   error?: Error | null;
   getRowHref?: (row: Row<TData>) => string;
+  loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
@@ -46,6 +52,7 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
   virtualItems: VirtualItem[];
   isLoading: boolean;
+  isFetching: boolean;
   hasMore: boolean;
   onRowClick?: (row: Row<TData>) => void;
   focusedRowId?: string | null;
@@ -53,6 +60,8 @@ export interface InfiniteDataTableBodyProps<TData extends RowData> {
   emptyRow?: ReactNode;
   loadingRow?: ReactNode;
   getRowHref?: (row: Row<TData>) => string;
+  loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
+  fetchNextPage: () => void;
 }
 
 export interface InfiniteDataTableRowProps<TData extends RowData> {

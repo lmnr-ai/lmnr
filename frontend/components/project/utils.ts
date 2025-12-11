@@ -3,7 +3,6 @@ import {
   FlaskConical,
   Layers,
   LayoutGrid,
-  Network,
   Pen,
   PlayCircle,
   Rows4,
@@ -27,11 +26,6 @@ export const getSidebarMenus = (projectId: string) => [
     name: "events",
     href: `/project/${projectId}/events`,
     icon: Layers,
-  },
-  {
-    name: "patterns",
-    href: `/project/${projectId}/patterns`,
-    icon: Network,
   },
   {
     name: "evaluations",

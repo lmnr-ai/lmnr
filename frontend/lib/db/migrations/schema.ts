@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, foreignKey, index, integer, jsonb, pgEnum,pgPolicy, pgTable, primaryKey, real, smallint, text, timestamp, unique, uuid, vector } from "drizzle-orm/pg-core";
 
 export const agentMachineStatus = pgEnum("agent_machine_status", ['not_started', 'running', 'paused', 'stopped']);
 export const agentMessageType = pgEnum("agent_message_type", ['user', 'assistant', 'step', 'error']);
@@ -666,6 +666,22 @@ export const sqlTemplates = pgTable("sql_templates", {
   }).onDelete("cascade"),
 ]);
 
+export const eventClusterConfigs = pgTable("event_cluster_configs", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  eventName: text("event_name").notNull(),
+  valueTemplate: text("value_template").notNull(),
+  projectId: uuid("project_id").notNull(),
+  eventSource: text("event_source").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "event_cluster_configs_project_id_fkey"
+  }).onDelete("cascade"),
+  unique("event_cluster_configs_project_id_event_name_source_key").on(table.eventName, table.projectId, table.eventSource),
+]);
+
 export const playgrounds = pgTable("playgrounds", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -743,6 +759,29 @@ export const projectSettings = pgTable("project_settings", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+export const eventClusters = pgTable("event_clusters", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).notNull(),
+  projectId: uuid("project_id").defaultRandom().notNull(),
+  level: integer().notNull(),
+  parentId: uuid("parent_id"),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  numChildrenClusters: bigint("num_children_clusters", { mode: "number" }).notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  numEvents: bigint("num_events", { mode: "number" }).notNull(),
+  centroid: vector({ dimensions: 3072 }).notNull(),
+  name: text().notNull(),
+  eventName: text("event_name").notNull(),
+  eventSource: text("event_source").default('').notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "event_clusters_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const tagClasses = pgTable("tag_classes", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text().notNull(),
@@ -757,6 +796,39 @@ export const tagClasses = pgTable("tag_classes", {
   }).onUpdate("cascade").onDelete("cascade"),
   primaryKey({ columns: [table.name, table.projectId], name: "tag_classes_pkey"}),
   unique("tag_classes_name_project_id_unique").on(table.name, table.projectId),
+]);
+
+export const semanticEventTriggerSpans = pgTable("semantic_event_trigger_spans", {
+  id: uuid().defaultRandom().notNull(),
+  projectId: uuid("project_id").defaultRandom().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  spanName: text("span_name").notNull(),
+  eventDefinitionId: uuid("event_definition_id").defaultRandom().notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId, table.eventDefinitionId],
+    foreignColumns: [semanticEventDefinitions.id, semanticEventDefinitions.projectId],
+    name: "semantic_event_trigger_spans_event_definition_id_project_i_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  primaryKey({ columns: [table.id, table.projectId], name: "semantic_event_trigger_spans_pkey"}),
+  unique("semantic_event_trigger_spans_project_event_definition_span_key").on(table.projectId, table.spanName, table.eventDefinitionId),
+]);
+
+export const semanticEventDefinitions = pgTable("semantic_event_definitions", {
+  id: uuid().defaultRandom().notNull(),
+  projectId: uuid("project_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  name: text().notNull(),
+  prompt: text().notNull(),
+  structuredOutputSchema: jsonb("structured_output_schema").notNull(),
+}, (table) => [
+  foreignKey({
+    columns: [table.projectId],
+    foreignColumns: [projects.id],
+    name: "semantic_event_definitions_project_id_fkey"
+  }).onUpdate("cascade").onDelete("cascade"),
+  primaryKey({ columns: [table.id, table.projectId], name: "semantic_event_definitions_pkey"}),
+  unique("semantic_event_definitions_project_id_name_key").on(table.projectId, table.name),
 ]);
 
 export const clusters = pgTable("clusters", {
@@ -774,6 +846,8 @@ export const clusters = pgTable("clusters", {
   numTraces: bigint("num_traces", { mode: "number" }).notNull(),
   centroid: doublePrecision().array().notNull(),
 }, (table) => [
+  index("clusters_project_id_level_idx").using("btree", table.projectId.asc().nullsLast().op("int8_ops"), table.level.asc().nullsLast().op("uuid_ops")),
+  index("clusters_project_id_name_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
   foreignKey({
     columns: [table.projectId],
     foreignColumns: [projects.id],

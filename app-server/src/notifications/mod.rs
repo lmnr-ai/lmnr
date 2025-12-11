@@ -1,18 +1,15 @@
 use std::sync::Arc;
 
-use backoff::ExponentialBackoffBuilder;
-use reqwest::Client;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::db::DB;
-use crate::mq::{
-    MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-    MessageQueueTrait,
-};
+use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::worker::MessageHandler;
 
 mod slack;
-pub use slack::{EventIdentificationPayload, SlackMessagePayload, TraceAnalysisPayload};
+pub use slack::{EventIdentificationPayload, SlackMessagePayload};
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
@@ -59,157 +56,73 @@ pub async fn push_to_notification_queue(
     Ok(())
 }
 
-/// Main worker function to process notification messages
-pub async fn process_notifications(
-    db: Arc<DB>,
-    slack_client: Arc<Client>,
-    queue: Arc<MessageQueue>,
-) {
-    loop {
-        inner_process_notifications(db.clone(), slack_client.clone(), queue.clone()).await;
-        log::warn!("Notification listener exited. Rebinding queue connection...");
+/// Handler for notifications
+pub struct NotificationHandler {
+    pub db: Arc<DB>,
+    pub slack_client: reqwest::Client,
+}
+
+impl NotificationHandler {
+    pub fn new(db: Arc<DB>, slack_client: reqwest::Client) -> Self {
+        Self { db, slack_client }
     }
 }
 
-async fn inner_process_notifications(
-    db: Arc<DB>,
-    slack_client: Arc<Client>,
-    queue: Arc<MessageQueue>,
-) {
-    // Add retry logic with exponential backoff for connection failures
-    let get_receiver = || async {
-        queue
-            .get_receiver(
-                NOTIFICATIONS_QUEUE,
-                NOTIFICATIONS_EXCHANGE,
-                NOTIFICATIONS_ROUTING_KEY,
+#[async_trait]
+impl MessageHandler for NotificationHandler {
+    type Message = NotificationMessage;
+
+    async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
+        let NotificationType::Slack = message.notification_type;
+
+        let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
+
+        let integration_id = match &slack_payload {
+            SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
+        };
+
+        let integration =
+            crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+
+        if let Some(integration) = integration {
+            let decrypted_token = slack::decode_slack_token(
+                &integration.team_id,
+                &integration.nonce_hex,
+                &integration.token,
             )
-            .await
-            .map_err(|e| {
-                log::error!("Failed to get receiver from notification queue: {:?}", e);
-                backoff::Error::transient(e)
-            })
-    };
+            .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
 
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_secs(1))
-        .with_max_interval(std::time::Duration::from_secs(60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
-        .build();
-
-    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
-        Ok(receiver) => {
-            log::info!("Successfully connected to notification queue");
-            receiver
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to connect to notification queue after retries: {:?}",
-                e
+            // Build blocks from the payload
+            let blocks = slack::format_message_blocks(
+                &slack_payload,
+                &message.project_id.to_string(),
+                &message.trace_id.to_string(),
+                &message.span_id.to_string(),
+                &message.event_name,
             );
-            return;
-        }
-    };
 
-    log::info!("Started processing notifications from queue");
+            // Get the channel ID from the payload
+            let channel_id = slack::get_channel_id(&slack_payload);
 
-    while let Some(delivery) = receiver.receive().await {
-        if let Err(e) = delivery {
-            log::error!("Failed to receive message from notification queue: {:?}", e);
-            continue;
-        }
-        let delivery = delivery.unwrap();
-        let acker = delivery.acker();
-        let notification_message =
-            match serde_json::from_slice::<NotificationMessage>(&delivery.data()) {
-                Ok(message) => message,
-                Err(e) => {
-                    log::error!("Failed to deserialize notification message: {:?}", e);
-                    let _ = acker.reject(false).await;
-                    continue;
-                }
-            };
+            // Send the message with blocks and channel_id
+            slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
-        if let Err(e) = process_single_notification(
-            &db.pool,
-            slack_client.as_ref(),
-            notification_message,
-            acker,
-        )
-        .await
-        {
-            log::error!("Failed to process notification: {:?}", e);
+            log::debug!(
+                "Successfully sent Slack notification for trace_id={}",
+                message.trace_id
+            );
+        } else {
+            log::warn!(
+                "Slack integration not found for integration_id: {}",
+                integration_id
+            );
         }
+
+        Ok(())
     }
-
-    log::warn!("Notification queue closed connection. Shutting down notification listener");
-}
-
-async fn process_single_notification(
-    pool: &sqlx::PgPool,
-    slack_client: &Client,
-    message: NotificationMessage,
-    acker: MessageQueueAcker,
-) -> anyhow::Result<()> {
-    let result = match message.notification_type {
-        NotificationType::Slack => {
-            let slack_payload: SlackMessagePayload =
-                serde_json::from_value(message.payload.clone())
-                    .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
-
-            let integration_id = match &slack_payload {
-                SlackMessagePayload::TraceAnalysis(payload) => payload.integration_id,
-                SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
-            };
-
-            let integration =
-                crate::db::slack_integrations::get_integration_by_id(pool, &integration_id).await?;
-
-            if let Some(integration) = integration {
-                let decrypted_token = slack::decode_slack_token(
-                    &integration.team_id,
-                    &integration.nonce_hex,
-                    &integration.token,
-                )?;
-
-                // Build blocks from the payload
-                let blocks = slack::format_message_blocks(
-                    &slack_payload,
-                    &message.project_id.to_string(),
-                    &message.trace_id.to_string(),
-                    &message.event_name,
-                );
-
-                // Get the channel ID from the payload
-                let channel_id = slack::get_channel_id(&slack_payload);
-
-                // Send the message with blocks and channel_id
-                slack::send_message(slack_client, &decrypted_token, channel_id, blocks).await?;
-
-                log::debug!(
-                    "Successfully sent Slack notification for trace_id={}",
-                    message.trace_id
-                );
-            }
-
-            Ok(())
-        }
-    };
-
-    match result {
-        Ok(_) => {
-            if let Err(e) = acker.ack().await {
-                log::error!("Failed to ack notification message: {:?}", e);
-            }
-        }
-        Err(e) => {
-            log::error!("Error processing notification: {:?}", e);
-            if let Err(e) = acker.reject(false).await {
-                log::error!("Failed to reject notification message: {:?}", e);
-            }
-            return Err(e);
-        }
-    }
-
-    Ok(())
 }
