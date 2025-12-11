@@ -10,7 +10,7 @@ import { Operator } from "@/lib/actions/common/operators.ts";
 
 interface SearchTraceSpansInputProps {
   spans: TraceViewSpan[];
-  submit: (search: string, searchIn: string[], filters: Filter[]) => Promise<void>;
+  submit: (search: string, filters: Filter[]) => Promise<void>;
   filters: Filter[];
   onAddFilter: (filter: Filter) => void;
 }
@@ -49,10 +49,10 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
     return unique.slice(0, MAX_SUGGESTIONS);
   }, [search, dynamicSuggestions]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (search !== lastSubmittedValueRef.current) {
       lastSubmittedValueRef.current = search;
-      submit(search, ["input", "output"], filters);
+      await submit(search, filters);
     }
   }, [search, submit, filters]);
 
@@ -61,7 +61,7 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
       if (suggestion.field === "search") {
         lastSubmittedValueRef.current = suggestion.value;
         setSearch(suggestion.value);
-        await submit(suggestion.value, ["input", "output"], filters);
+        await submit(suggestion.value, filters);
       } else {
         lastSubmittedValueRef.current = "";
         setSearch("");

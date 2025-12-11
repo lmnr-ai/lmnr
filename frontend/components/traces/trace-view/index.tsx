@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, ChartNoAxesGantt, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -171,7 +171,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, propsTrace, setIsTraceLoading, setTrace, setTraceError, traceId]);
+  }, [
+    projectId,
+    propsTrace,
+    setBrowserSession,
+    setHasBrowserSession,
+    setIsTraceLoading,
+    setTrace,
+    setTraceError,
+    traceId,
+  ]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -195,7 +204,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   const fetchSpans = useCallback(
-    async (search: string, searchIn: string[], filters: Filter[]) => {
+    async (search: string, filters: Filter[]) => {
       try {
         if (!trace) {
           return;
@@ -208,7 +217,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         if (search) {
           params.set("search", search);
         }
-        searchIn.forEach((val) => params.append("searchIn", val));
+        params.append("searchIn", "input");
+        params.append("searchIn", "output");
+
         filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
 
         if (trace) {
@@ -216,11 +227,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           const endDate = new Date(new Date(trace.endTime).getTime() + 1000);
           params.set("startDate", startDate.toISOString());
           params.set("endDate", endDate.toISOString());
-        }
-
-        setSearch(search);
-        if (search) {
-          setSearchEnabled(true);
         }
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
@@ -262,8 +268,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [
       setIsSpansLoading,
       setSpansError,
-      setSearch,
-      setSearchEnabled,
       projectId,
       traceId,
       trace,
@@ -272,7 +276,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setHasBrowserSession,
       setBrowserSession,
       spanId,
-      searchParams,
       spanPath,
       setSelectedSpan,
     ]
@@ -307,15 +310,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [setTreeWidth, treeWidth]
   );
 
-  const handleToggleSearch = useCallback(() => {
+  const handleToggleSearch = useCallback(async () => {
     if (searchEnabled) {
       if (search !== "") {
-        fetchSpans("", ["input", "output"], []);
+        await fetchSpans("", filters);
       }
       setSearch("");
     }
     setSearchEnabled(!searchEnabled);
-  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
+  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, filters, search]);
 
   const handleAddFilter = useCallback(
     (filter: Filter) => {
@@ -351,35 +354,27 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   useEffect(() => {
     handleFetchTrace();
-  }, [handleFetchTrace, projectId, traceId]);
+  }, [handleFetchTrace]);
+
+  useLayoutEffect(() => {
+    const urlSearch = searchParams.get("search");
+    if (urlSearch) {
+      setSearch(urlSearch);
+      setSearchEnabled(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!trace) return;
-    const searchTerm = searchParams.get("search") || search || "";
-    const searchIn = searchParams.getAll("searchIn");
 
-    fetchSpans(searchTerm, searchIn, filters);
+    fetchSpans(search, filters);
 
     return () => {
       setSpans([]);
-      setBrowserSession(false);
-      setSearch("");
-      // setSearchEnabled(false);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [
-    traceId,
-    projectId,
-    filters,
-    trace,
-    setSpans,
-    setBrowserSession,
-    setSearch,
-    setSearchEnabled,
-    setTraceError,
-    setSpansError,
-  ]);
+  }, [traceId, projectId, filters, trace, setSpans, setTraceError, setSpansError, fetchSpans]);
 
   useRealtime({
     key: `trace_${traceId}`,
