@@ -6,7 +6,7 @@ import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesStatsWhereConditions } from "@/lib/actions/traces/utils";
+import {buildTracesStatsWhereConditions, generateEmptyTimeBuckets} from "@/lib/actions/traces/utils";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
@@ -54,7 +54,9 @@ export async function getTraceStats(
   let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
-    return { items: [] };
+    const timeRange = getTimeRange(pastHours, startTime, endTime);
+    const items = generateEmptyTimeBuckets(timeRange);
+    return { items };
   }
 
   const { conditions: whereConditions, params: whereParams } = buildTracesStatsWhereConditions({

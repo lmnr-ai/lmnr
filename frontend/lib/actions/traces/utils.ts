@@ -1,3 +1,5 @@
+import {scaleUtc} from "d3-scale";
+
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
@@ -11,6 +13,8 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import {TracesStatsDataPoint} from "@/lib/actions/traces/stats.ts";
+import {TimeRange} from "@/lib/clickhouse/utils.ts";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -216,4 +220,26 @@ export const buildTracesStatsWhereConditions = (options: {
   });
 
   return { conditions, params };
+};
+
+export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataPoint[] => {
+  let start: Date;
+  let end: Date;
+
+  if ('pastHours' in timeRange) {
+    end = new Date();
+    start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
+  } else {
+    start = timeRange.start;
+    end = timeRange.end;
+  }
+
+  const scale = scaleUtc().domain([start, end]);
+  const ticks = scale.ticks(24);
+
+  return ticks.map(tick => ({
+    timestamp: tick.toISOString(),
+    successCount: 0,
+    errorCount: 0,
+  }) as TracesStatsDataPoint);
 };

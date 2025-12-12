@@ -1,14 +1,14 @@
 import { get } from "lodash";
 import { AlertTriangle, ChartNoAxesGantt, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
-import SearchSpansInput from "@/components/traces/trace-view/search-spans-input.tsx";
+import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
@@ -129,7 +129,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSpanPath: state.setSpanPath,
   }));
 
-  const { value: filters } = useFiltersContextProvider();
+  const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -171,7 +171,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, propsTrace, setIsTraceLoading, setTrace, setTraceError, traceId]);
+  }, [
+    projectId,
+    propsTrace,
+    setBrowserSession,
+    setHasBrowserSession,
+    setIsTraceLoading,
+    setTrace,
+    setTraceError,
+    traceId,
+  ]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -195,8 +204,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   const fetchSpans = useCallback(
-    async (search: string, searchIn: string[], filters: Filter[]) => {
+    async (search: string, filters: Filter[]) => {
       try {
+        if (!trace) {
+          return;
+        }
+
         setIsSpansLoading(true);
         setSpansError(undefined);
 
@@ -204,12 +217,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         if (search) {
           params.set("search", search);
         }
-        searchIn.forEach((val) => params.append("searchIn", val));
+        params.append("searchIn", "input");
+        params.append("searchIn", "output");
+
         filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
 
-        setSearch(search);
-        if (search) {
-          setSearchEnabled(true);
+        if (trace) {
+          const startDate = new Date(new Date(trace.startTime).getTime() - 1000);
+          const endDate = new Date(new Date(trace.endTime).getTime() + 1000);
+          params.set("startDate", startDate.toISOString());
+          params.set("endDate", endDate.toISOString());
         }
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
@@ -249,10 +266,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       }
     },
     [
+      trace,
       setIsSpansLoading,
       setSpansError,
-      setSearch,
-      setSearchEnabled,
       projectId,
       traceId,
       setSpans,
@@ -295,15 +311,24 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [setTreeWidth, treeWidth]
   );
 
-  const handleToggleSearch = useCallback(() => {
+  const handleToggleSearch = useCallback(async () => {
     if (searchEnabled) {
-      if (search !== "") {
-        fetchSpans("", ["input", "output"], []);
-      }
+      setSearchEnabled(false);
       setSearch("");
+      if (search !== "") {
+        await fetchSpans("", filters);
+      }
+    } else {
+      setSearchEnabled(true);
     }
-    setSearchEnabled(!searchEnabled);
-  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, search]);
+  }, [searchEnabled, setSearchEnabled, setSearch, search, fetchSpans, filters]);
+
+  const handleAddFilter = useCallback(
+    (filter: Filter) => {
+      setFilters((prevFilters) => [...prevFilters, filter]);
+    },
+    [setFilters]
+  );
 
   const isLoading = isTraceLoading && !trace;
 
@@ -332,33 +357,27 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   useEffect(() => {
     handleFetchTrace();
-  }, [handleFetchTrace, projectId, traceId]);
+  }, [handleFetchTrace]);
+
+  useLayoutEffect(() => {
+    const urlSearch = searchParams.get("search");
+    if (urlSearch) {
+      setSearch(urlSearch);
+      setSearchEnabled(true);
+    }
+  }, []);
 
   useEffect(() => {
-    const searchTerm = searchParams.get("search") || search || "";
-    const searchIn = searchParams.getAll("searchIn");
+    if (!trace) return;
 
-    fetchSpans(searchTerm, searchIn, filters);
+    fetchSpans(search, filters);
 
     return () => {
       setSpans([]);
-      setBrowserSession(false);
-      setSearch("");
-      setSearchEnabled(false);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [
-    traceId,
-    projectId,
-    filters,
-    setSpans,
-    setBrowserSession,
-    setSearch,
-    setSearchEnabled,
-    setTraceError,
-    setSpansError,
-  ]);
+  }, [traceId, projectId, filters, trace, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,
@@ -476,11 +495,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <StatefulFilterList className="py-[3px] text-xs px-1" />
           </div>
           {(search || searchEnabled) && (
-            <SearchSpansInput
-              submit={fetchSpans}
-              filterBoxClassName="top-10"
-              className="rounded-none w-full border-0 border-b ring-0 bg-background"
-            />
+            <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
           )}
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">

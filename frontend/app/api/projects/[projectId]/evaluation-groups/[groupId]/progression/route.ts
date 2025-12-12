@@ -18,7 +18,7 @@ export const GET = async (request: NextRequest, props: { params: Promise<{ proje
     const endDate = new Date(request.nextUrl.searchParams.get("endDate") ?? "");
     timeRange = { start: startDate, end: endDate };
   } else {
-    timeRange = { pastHours: "all" };
+    timeRange = { pastHours: 24 };
   }
 
   const aggregationFunction = (request.nextUrl.searchParams.get("aggregate") ?? "AVG") as AggregationFunction;
