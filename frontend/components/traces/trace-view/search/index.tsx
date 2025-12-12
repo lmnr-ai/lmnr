@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete.tsx";
 import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/traces/trace-view/search/utils.ts";
@@ -17,17 +17,18 @@ interface SearchTraceSpansInputProps {
 const MAX_SUGGESTIONS = 15;
 
 const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTraceSpansInputProps) => {
-  const { search, setSearch } = useTraceViewStoreContext((state) => ({
-    search: state.search,
+  const { storeSearch, setSearch } = useTraceViewStoreContext((state) => ({
+    storeSearch: state.search,
     setSearch: state.setSearch,
   }));
 
-  const lastSubmittedValueRef = useRef<string>(search);
+  const [localSearch, setLocalSearch] = useState(storeSearch);
+  const lastSubmittedValueRef = useRef<string>(storeSearch);
 
   const dynamicSuggestions = useMemo(() => extractSpanSuggestions(spans), [spans]);
 
   const filteredSuggestions = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase();
+    const searchTerm = localSearch.trim().toLowerCase();
     const MAX_PER_CATEGORY = 3;
     const byCategory = new Map<string, AutocompleteSuggestion[]>();
 
@@ -52,27 +53,30 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
     const results = Array.from(byCategory.values()).flat();
 
     if (searchTerm) {
-      results.push({ field: "search", value: search.trim() });
+      results.push({ field: "search", value: localSearch.trim() });
     }
 
     return results.slice(0, MAX_SUGGESTIONS);
-  }, [search, dynamicSuggestions]);
+  }, [localSearch, dynamicSuggestions]);
 
   const handleSubmit = useCallback(async () => {
-    if (search !== lastSubmittedValueRef.current) {
-      lastSubmittedValueRef.current = search;
-      await submit(search, filters);
+    if (localSearch !== lastSubmittedValueRef.current) {
+      lastSubmittedValueRef.current = localSearch;
+      setSearch(localSearch); // Only update store on submit
+      await submit(localSearch, filters);
     }
-  }, [search, submit, filters]);
+  }, [localSearch, submit, filters, setSearch]);
 
   const handleSelect = useCallback(
     async (suggestion: AutocompleteSuggestion) => {
       if (suggestion.field === "search") {
         lastSubmittedValueRef.current = suggestion.value;
+        setLocalSearch(suggestion.value);
         setSearch(suggestion.value);
         await submit(suggestion.value, filters);
       } else {
         lastSubmittedValueRef.current = "";
+        setLocalSearch("");
         setSearch("");
         const newFilter: Filter = {
           column: suggestion.field,
@@ -89,8 +93,8 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
     <div className="flex flex-col sticky bg-background z-40 box-border">
       <BaseAutocomplete
         suggestions={filteredSuggestions}
-        inputValue={search}
-        onInputChange={setSearch}
+        inputValue={localSearch}
+        onInputChange={setLocalSearch}
         onSelect={handleSelect}
         onSubmit={handleSubmit}
         placeholder="Search in spans..."
