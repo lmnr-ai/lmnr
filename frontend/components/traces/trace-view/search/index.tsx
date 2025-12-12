@@ -1,4 +1,3 @@
-import { uniqBy } from "lodash";
 import { memo, useCallback, useMemo, useRef } from "react";
 
 import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete.tsx";
@@ -29,24 +28,34 @@ const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTr
 
   const filteredSuggestions = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
+    const MAX_PER_CATEGORY = 3;
+    const byCategory = new Map<string, AutocompleteSuggestion[]>();
 
     const allSuggestions = [...dynamicSuggestions, ...STATIC_SPAN_SUGGESTIONS];
 
-    const filtered = searchTerm
-      ? allSuggestions.filter(
-        (suggestion) =>
-          suggestion.value.toLowerCase().includes(searchTerm) || suggestion.field.toLowerCase().includes(searchTerm)
-      )
-      : allSuggestions;
+    for (const suggestion of allSuggestions) {
+      const matches =
+        !searchTerm ||
+        suggestion.value.toLowerCase().includes(searchTerm) ||
+        suggestion.field.toLowerCase().includes(searchTerm);
 
-    const unique = uniqBy(filtered, (s) => `${s.field}:${s.value}`);
-    const results = unique.slice(0, MAX_SUGGESTIONS - 1);
+      if (!matches) continue;
 
-    if (searchTerm) {
-      return [...results, { field: "search", value: search.trim() }];
+      const items = byCategory.get(suggestion.field);
+      if (!items) {
+        byCategory.set(suggestion.field, [suggestion]);
+      } else if (items.length < MAX_PER_CATEGORY) {
+        items.push(suggestion);
+      }
     }
 
-    return unique.slice(0, MAX_SUGGESTIONS);
+    const results = Array.from(byCategory.values()).flat();
+
+    if (searchTerm) {
+      results.push({ field: "search", value: search.trim() });
+    }
+
+    return results.slice(0, MAX_SUGGESTIONS);
   }, [search, dynamicSuggestions]);
 
   const handleSubmit = useCallback(async () => {

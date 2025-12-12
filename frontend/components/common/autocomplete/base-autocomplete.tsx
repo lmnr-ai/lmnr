@@ -7,6 +7,7 @@ import { KeyboardEvent, memo, useCallback, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { cn } from "@/lib/utils";
@@ -56,21 +57,26 @@ const SuggestionsList = ({
 }) => (
   <>
     {!isEmpty(suggestions) && (
-      <CommandGroup>
-        {suggestions.map((suggestion) => (
-          <CommandItem
-            className="text-secondary-foreground text-xs"
-            key={`${suggestion.field}:${suggestion.value}`}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onSelect={() => onSelect(suggestion)}
-          >
-            <SuggestionItem suggestion={suggestion} />
-          </CommandItem>
-        ))}
-      </CommandGroup>
+      <>
+        <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium">Suggestions</div>
+        <ScrollArea className="max-h-64 [&>div]:max-h-64">
+          <CommandGroup className="pb-1">
+            {suggestions.map((suggestion) => (
+              <CommandItem
+                className="text-secondary-foreground text-xs"
+                key={`${suggestion.field}:${suggestion.value}`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onSelect={() => onSelect(suggestion)}
+              >
+                <SuggestionItem suggestion={suggestion} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </ScrollArea>
+      </>
     )}
     {isEmpty(suggestions) &&
       (isLoading || inputValue ? (
@@ -182,7 +188,7 @@ const BaseAutocomplete = ({
       <div className={cn("relative ", isOpen ? "block" : "hidden")}>
         <CommandList
           className={cn(
-            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none rounded-md border max-h-64 mt-1",
+            "animate-in fade-in-0 zoom-in-95 absolute top-0 z-50 w-full bg-secondary outline-none rounded-md border mt-1 overflow-hidden max-h-none",
             listClassName
           )}
         >
