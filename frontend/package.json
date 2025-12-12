@@ -46,7 +46,6 @@
     "@lezer/highlight": "^1.2.1",
     "@lmnr-ai/lmnr": "^0.7.8",
     "@mux/mux-player-react": "^3.5.3",
-    "@novnc/novnc": "1.5.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
