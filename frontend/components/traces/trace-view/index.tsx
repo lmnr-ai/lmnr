@@ -313,13 +313,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   const handleToggleSearch = useCallback(async () => {
     if (searchEnabled) {
+      setSearchEnabled(false);
+      setSearch("");
       if (search !== "") {
         await fetchSpans("", filters);
       }
-      setSearch("");
+    } else {
+      setSearchEnabled(true);
     }
-    setSearchEnabled(!searchEnabled);
-  }, [fetchSpans, searchEnabled, setSearch, setSearchEnabled, filters, search]);
+  }, [searchEnabled, setSearchEnabled, setSearch, search, fetchSpans, filters]);
 
   const handleAddFilter = useCallback(
     (filter: Filter) => {
