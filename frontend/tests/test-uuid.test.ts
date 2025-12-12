@@ -1,8 +1,7 @@
-import { generateSequentialUuidsV7 } from "@/lib/utils";
-import { describe, it } from "node:test";
-import { v7 as uuidv7, parse as uuidParse, stringify as uuidStringify } from "uuid";
-
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 describe("generateSequentialUuidsV7", () => {
   it("generates sequential UUIDs", () => {

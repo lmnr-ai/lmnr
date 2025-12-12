@@ -22,7 +22,7 @@ import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 
 const presetFilters: Filter[] = [];
 

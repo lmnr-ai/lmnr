@@ -17,7 +17,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 
 const FETCH_SIZE = 50;
 

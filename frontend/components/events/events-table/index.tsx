@@ -16,7 +16,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 
 import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
 
