@@ -6,7 +6,7 @@ import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import fullLogo from "@/assets/logo/logo.svg";
 import SessionPlayer from "@/components/shared/traces/session-player";
@@ -36,12 +36,15 @@ import { cn } from "@/lib/utils";
 interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
+  initialSpanId?: string;
+  disableRouting?: boolean;
 }
 
-const PureTraceView = ({ trace, spans }: TraceViewProps) => {
+const PureTraceView = ({ trace, spans, initialSpanId, disableRouting = false }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
+  const hasInitializedSelection = useRef(false);
 
   const {
     tab,
@@ -101,13 +104,15 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
       if (span) {
-        const params = new URLSearchParams(searchParams);
-        params.set("spanId", span.spanId);
-        router.push(`${pathName}?${params.toString()}`);
+        if (!disableRouting) {
+          const params = new URLSearchParams(searchParams);
+          params.set("spanId", span.spanId);
+          router.push(`${pathName}?${params.toString()}`);
+        }
       }
       setSelectedSpan(span);
     },
-    [pathName, router, searchParams, setSelectedSpan]
+    [disableRouting, pathName, router, searchParams, setSelectedSpan]
   );
 
   const handleResizeTreeView = useCallback(
@@ -139,18 +144,24 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     }
   }, []);
 
+  // When routing is disabled (embeds), avoid resetting selection on search param changes.
   useEffect(() => {
+    if (disableRouting && hasInitializedSelection.current) {
+      return;
+    }
+
     const enrichedSpans = enrichSpansWithPending(spans);
     setSpans(enrichedSpans);
     setTrace(trace);
 
-    const spanId = searchParams.get("spanId");
+    const spanId = initialSpanId || searchParams.get("spanId");
     const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];
 
     if (span) {
       setSelectedSpan({ ...span, collapsed: false });
+      hasInitializedSelection.current = true;
     }
-  }, []);
+  }, [disableRouting, initialSpanId, searchParams, setSelectedSpan, setSpans, setTrace, spans, trace]);
 
   return (
     <ScrollContextProvider>
