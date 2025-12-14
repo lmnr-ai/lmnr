@@ -1,0 +1,87 @@
+name: LLM docs draft
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  draft-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    env:
+      DOCS_REPO: your-org/docs-repo
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Gather diff against previous main
+        id: diff
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            if git rev-parse "${AFTER}^" >/dev/null 2>&1; then
+              BEFORE=$(git rev-parse "${AFTER}^")
+            else
+              BEFORE=$(git rev-list --max-parents=0 "$AFTER" | tail -n 1)
+            fi
+          else
+            git fetch origin "${BEFORE}" --depth=1 || true
+          fi
+
+          git diff "$BEFORE" "$AFTER" > /tmp/main.diff
+
+          if [ ! -s /tmp/main.diff ]; then
+            echo "Diff is empty; skipping docs generation."
+            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout docs repo
+        if: steps.diff.outputs.has_diff == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.DOCS_REPO }}
+          token: ${{ secrets.DOCS_PAT }}
+          path: docs-repo
+
+      - name: Set up Python
+        if: steps.diff.outputs.has_diff == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install LLM client
+        if: steps.diff.outputs.has_diff == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "openai>=1.55,<2"
+
+      - name: Generate doc patch with LLM
+        if: steps.diff.outputs.has_diff == 'true'
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          python scripts/generate_docs.py \
+            --diff /tmp/main.diff \
+            --docs-path docs-repo
+
+      - name: Create PR to docs repo
+        if: steps.diff.outputs.has_diff == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: docs-repo
+          branch: llm-docs/${{ github.sha }}
+          title: "LLM docs update for ${{ github.sha }}"
+          commit-message: "LLM docs update for ${{ github.sha }}"
+          token: ${{ secrets.DOCS_PAT }}
