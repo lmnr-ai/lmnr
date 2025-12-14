@@ -1,0 +1,44 @@
+name: Check AI SDK Build
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    paths:
+      - 'ai-sdk/**' # Trigger only if files in the `/ai-sdk` directory change
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      # Step 2: Install pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # Step 3: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*' # Use the latest LTS version of Node.js
+          cache: 'pnpm'
+          # Specify the subdirectory containing the lockfile
+          cache-dependency-path: ./ai-sdk/pnpm-lock.yaml
+
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        working-directory: ./ai-sdk
+        run: pnpm install
+
+      # Step 5: Run the build
+      - name: Build app
+        working-directory: ./ai-sdk
+        run: pnpm build

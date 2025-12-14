@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": [
+      "esnext"
+    ],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist"
+  },
+  "include": [
+    "api.ts",
+    "types.ts",
+    "crypto.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
