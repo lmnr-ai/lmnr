@@ -14,19 +14,6 @@ CREATE VIEW IF NOT EXISTS default.events_v0 SQL SECURITY INVOKER AS
        events.user_id,
        events.session_id,
        events.trace_id AS trace_id,
-       events.source as source,
-       c.clusters AS clusters
+       events.source as source
    FROM default.events
-            LEFT JOIN
-        (
-            SELECT
-                project_id,
-                event_id,
-                arrayDistinct(groupArray(cluster_id)) AS clusters
-            FROM default.events_to_clusters
-            WHERE project_id = {project_id:UUID}
-            GROUP BY
-                project_id,
-                event_id
-        ) AS c ON (events.project_id = c.project_id) AND (events.id = c.event_id)
-   WHERE events.project_id = {project_id:UUID}
+   WHERE events.project_id = {project_id:UUID};
