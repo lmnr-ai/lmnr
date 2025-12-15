@@ -1,5 +1,5 @@
 # Build stage with cargo chef for dependency caching
-FROM rust:1.90-slim-bullseye AS chef
+FROM rust:1.92-slim-bullseye AS chef
 WORKDIR /app-server
 
 # Install build dependencies and cargo-chef
