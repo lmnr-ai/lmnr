@@ -43,25 +43,6 @@ CREATE TABLE "clusters" (
 	CONSTRAINT "clusters_pkey" PRIMARY KEY("id","project_id")
 );
 --> statement-breakpoint
--- CREATE TABLE "dataset_export_jobs" (
--- 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
--- 	"dataset_id" uuid NOT NULL,
--- 	"project_id" uuid NOT NULL,
--- 	"status" text NOT NULL,
--- 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
--- 	CONSTRAINT "dataset_export_jobs_project_dataset_key" UNIQUE("dataset_id","project_id")
--- );
---> statement-breakpoint
--- CREATE TABLE "dataset_parquets" (
--- 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
--- 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
--- 	"dataset_id" uuid NOT NULL,
--- 	"parquet_path" text NOT NULL,
--- 	"job_id" uuid NOT NULL,
--- 	"name" text,
--- 	"project_id" uuid NOT NULL
--- );
---> statement-breakpoint
 CREATE TABLE "event_cluster_configs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -156,14 +137,6 @@ CREATE TABLE "workspace_deployments" (
 	"data_plane_url_nonce" text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "api_keys" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "evaluation_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "evaluations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "spans" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "traces" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "tag_classes" DROP CONSTRAINT "label_classes_name_project_id_unique";--> statement-breakpoint
-ALTER TABLE "traces" DROP CONSTRAINT "traces_project_id_id_unique";--> statement-breakpoint
 DROP INDEX "spans_project_id_start_time_idx";--> statement-breakpoint
 ALTER TABLE "shared_traces" ALTER COLUMN "project_id" SET DEFAULT gen_random_uuid();--> statement-breakpoint
 /* 
@@ -183,15 +156,10 @@ ALTER TABLE "shared_traces" ALTER COLUMN "project_id" SET DEFAULT gen_random_uui
 
 ALTER TABLE "traces" DROP CONSTRAINT "traces_pkey";--> statement-breakpoint
 ALTER TABLE "traces" ADD CONSTRAINT "traces_pkey" PRIMARY KEY("id","project_id");--> statement-breakpoint
-ALTER TABLE "tags" ADD COLUMN "class_id" uuid NOT NULL;--> statement-breakpoint
 ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "clusters" ADD CONSTRAINT "clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_cluster_configs" ADD CONSTRAINT "event_cluster_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "event_clusters" ADD CONSTRAINT "event_clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "semantic_event_definitions" ADD CONSTRAINT "semantic_event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
@@ -202,13 +170,13 @@ ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("
 CREATE INDEX "agent_chats_created_at_idx" ON "agent_chats" USING btree ("created_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_chats_updated_at_idx" ON "agent_chats" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_chats_user_id_idx" ON "agent_chats" USING hash ("user_id" uuid_ops);--> statement-breakpoint
-CREATE INDEX "agent_messages_session_id_created_at_idx" ON "agent_messages" USING btree ("created_at" timestamptz_ops,"session_id" timestamptz_ops);--> statement-breakpoint
+CREATE INDEX "agent_messages_session_id_created_at_idx" ON "agent_messages" USING btree ("created_at" timestamptz_ops,"session_id" uuid_ops);--> statement-breakpoint
 CREATE INDEX "agent_sessions_created_at_idx" ON "agent_sessions" USING btree ("created_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_sessions_updated_at_idx" ON "agent_sessions" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
-CREATE INDEX "clusters_project_id_level_idx" ON "clusters" USING btree ("project_id" int8_ops,"level" uuid_ops);--> statement-breakpoint
+CREATE INDEX "clusters_project_id_level_idx" ON "clusters" USING btree ("project_id" uuid_ops,"level" int8_ops);--> statement-breakpoint
 CREATE INDEX "clusters_project_id_name_idx" ON "clusters" USING btree ("project_id" uuid_ops);--> statement-breakpoint
 ALTER TABLE "event_definitions" ADD CONSTRAINT "event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "events_span_id_project_id_idx" ON "events" USING btree ("project_id" uuid_ops,"span_id" uuid_ops);--> statement-breakpoint
-CREATE INDEX "spans_root_project_id_start_time_trace_id_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" uuid_ops,"trace_id" uuid_ops) WHERE (parent_span_id IS NULL);--> statement-breakpoint
+CREATE INDEX "spans_root_project_id_start_time_trace_id_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops,"trace_id" uuid_ops) WHERE (parent_span_id IS NULL);--> statement-breakpoint
 CREATE INDEX "spans_project_id_start_time_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops);--> statement-breakpoint
 ALTER TABLE "tag_classes" ADD CONSTRAINT "tag_classes_name_project_id_unique" UNIQUE("name","project_id");--> statement-breakpoint

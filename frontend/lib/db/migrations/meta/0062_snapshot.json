@@ -1,5 +1,5 @@
 {
-  "id": "2c80cf65-67f3-44f7-a13e-cf8db5fa7436",
+  "id": "56cbdc15-9c47-42ad-9f84-52e6472f7741",
   "prevId": "c57748c1-8aef-4287-a457-9204fadfd0d8",
   "version": "7",
   "dialect": "postgresql",
@@ -1602,7 +1602,7 @@
         },
         "centroid": {
           "name": "centroid",
-          "type": "vector(3072)",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
