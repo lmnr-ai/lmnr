@@ -119,7 +119,7 @@ export const eventClusters = pgTable("event_clusters", {
   centroid: jsonb().notNull(),
   name: text().notNull(),
   eventName: text("event_name").notNull(),
-  eventSource: text("event_source").default('').notNull(),
+  eventSource: text("event_source").default('SEMANTIC').notNull(),
 }, (table) => [
   foreignKey({
     columns: [table.projectId],
@@ -209,11 +209,11 @@ export const projects = pgTable("projects", {
 export const workspaceDeployments = pgTable("workspace_deployments", {
   workspaceId: uuid("workspace_id").primaryKey().notNull(),
   mode: text().default('CLOUD').notNull(),
-  privateKey: text("private_key").default('').notNull(),
-  privateKeyNonce: text("private_key_nonce").default('').notNull(),
-  publicKey: text("public_key").default('').notNull(),
-  dataPlaneUrl: text("data_plane_url").default('').notNull(),
-  dataPlaneUrlNonce: text("data_plane_url_nonce").default('').notNull(),
+  privateKey: text("private_key"),
+  privateKeyNonce: text("private_key_nonce"),
+  publicKey: text("public_key"),
+  dataPlaneUrl: text("data_plane_url"),
+  dataPlaneUrlNonce: text("data_plane_url_nonce"),
 });
 
 export const membersOfWorkspaces = pgTable("members_of_workspaces", {
@@ -253,12 +253,12 @@ export const providerApiKeys = pgTable("provider_api_keys", {
 ]);
 
 export const projectApiKeys = pgTable("project_api_keys", {
-  value: text().default('').notNull(),
+  value: text(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   name: text(),
   projectId: uuid("project_id").notNull(),
-  shorthand: text().default('').notNull(),
-  hash: text().default('').notNull(),
+  shorthand: text(),
+  hash: text(),
   id: uuid().defaultRandom().primaryKey().notNull(),
   isIngestOnly: boolean("is_ingest_only").default(false).notNull(),
 }, (table) => [
@@ -369,7 +369,7 @@ export const renderTemplates = pgTable("render_templates", {
 export const workspaceInvitations = pgTable("workspace_invitations", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   workspaceId: uuid("workspace_id").defaultRandom().notNull(),
-  email: text().default('').notNull(),
+  email: text(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
   foreignKey({
@@ -469,7 +469,7 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   membersPerWorkspace: bigint("members_per_workspace", { mode: "number" }).default(sql`'-1'`).notNull(),
-  stripeProductId: text("stripe_product_id").default('').notNull(),
+  stripeProductId: text("stripe_product_id"),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   steps: bigint({ mode: "number" }).default(sql`'0'`).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -532,7 +532,7 @@ export const playgrounds = pgTable("playgrounds", {
   name: text().notNull(),
   projectId: uuid("project_id").notNull(),
   promptMessages: jsonb("prompt_messages").default([{"role":"user","content":""}]).notNull(),
-  modelId: text("model_id").default('').notNull(),
+  modelId: text("model_id"),
   outputSchema: text("output_schema"),
   tools: jsonb().default({}),
   toolChoice: jsonb("tool_choice").default("none"),

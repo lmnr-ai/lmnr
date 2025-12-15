@@ -1,9 +1,6 @@
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { db } from "@/lib/db/drizzle";
-import { evaluationScores } from "@/lib/db/migrations/schema";
 
 export const UpdateEvaluationScoreSchema = z.object({
   evaluationResultId: z.string(),
@@ -14,14 +11,26 @@ export const UpdateEvaluationScoreSchema = z.object({
 export const GetEvaluationScoreSchema = z.object({
   evaluationResultId: z.string(),
   name: z.string(),
+  projectId: z.string(),
 });
 
 export async function getEvaluationScore(input: z.infer<typeof GetEvaluationScoreSchema>) {
-  const { evaluationResultId, name } = GetEvaluationScoreSchema.parse(input);
+  const { evaluationResultId, name, projectId } = GetEvaluationScoreSchema.parse(input);
 
-  const evaluationScore = await db.query.evaluationScores.findFirst({
-    where: and(eq(evaluationScores.resultId, evaluationResultId), eq(evaluationScores.name, name)),
+  const evaluationScoreResult = await clickhouseClient.query({
+    query: `
+      SELECT name, value score, project_id FROM evaluation_scores
+      WHERE evaluation_datapoint_id = {resultId: UUID} AND name = {name: String}
+      AND project_id = {projectId: UUID}
+    `,
+    query_params: {
+      resultId: evaluationResultId,
+      name: name,
+      projectId: projectId,
+    },
   });
+
+  const evaluationScore = (await evaluationScoreResult.json()).data[0] as { value: number };
 
   if (!evaluationScore) {
     return {};
@@ -32,18 +41,6 @@ export async function getEvaluationScore(input: z.infer<typeof GetEvaluationScor
 
 export async function updateEvaluationScore(input: z.infer<typeof UpdateEvaluationScoreSchema>) {
   const { evaluationResultId, name, score } = UpdateEvaluationScoreSchema.parse(input);
-
-  const [updatedEvaluationScore] = await db
-    .update(evaluationScores)
-    .set({
-      score,
-    })
-    .where(and(eq(evaluationScores.resultId, evaluationResultId), eq(evaluationScores.name, name)))
-    .returning();
-
-  if (!updatedEvaluationScore) {
-    throw new Error("Evaluation score not found");
-  }
 
   await clickhouseClient.command({
     query: `
@@ -58,5 +55,9 @@ export async function updateEvaluationScore(input: z.infer<typeof UpdateEvaluati
     },
   });
 
-  return updatedEvaluationScore;
+  return {
+    resultId: evaluationResultId,
+    name,
+    score,
+  };
 }

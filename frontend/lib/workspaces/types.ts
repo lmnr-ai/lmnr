@@ -41,7 +41,7 @@ export interface WorkspaceWithOptionalUsers extends Workspace {
 export interface WorkspaceInvitation {
   id: string;
   workspaceId: string;
-  email: string;
+  email: string | null;
   createdAt: string;
 }
 
