@@ -65,9 +65,7 @@ export const getClusterColumns = (projectId: string, eventType: "SEMANTIC" | "CO
     size: 350,
   },
   {
-    accessorFn: (row) => {
-      return row.level > 1 ? String(row.numChildrenClusters) : '';
-    },
+    accessorFn: (row) => row.level > 1 ? String(row.numChildrenClusters) : '',
     header: "Sub clusters",
     id: "children_clusters",
     size: 120,

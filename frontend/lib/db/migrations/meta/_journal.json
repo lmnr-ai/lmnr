@@ -435,6 +435,13 @@
       "when": 1762206424293,
       "tag": "0061_zippy_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1765804066098,
+      "tag": "0062_elite_karnak",
+      "breakpoints": true
     }
   ]
 }
