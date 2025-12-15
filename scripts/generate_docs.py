@@ -146,7 +146,7 @@ def paths_are_safe(patch_text: str) -> bool:
         path = parts[1].strip()
         if path.startswith(("a/", "b/")):
             path = path[2:]
-        if path.startswith("/") or path.startswith("..") or "/../" in path:
+        if path.startswith("/") or path.startswith("..") or "/../" in path or path.endswith("/.."):
             return False
     return True
 
