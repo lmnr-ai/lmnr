@@ -435,13 +435,6 @@
       "when": 1762206424293,
       "tag": "0061_zippy_the_hood",
       "breakpoints": true
-    },
-    {
-      "idx": 62,
-      "version": "7",
-      "when": 1764684944701,
-      "tag": "0062_giant_eddie_brock",
-      "breakpoints": true
     }
   ]
 }
