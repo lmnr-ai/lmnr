@@ -13,13 +13,20 @@ jobs:
       pull-requests: write
 
     env:
-      DOCS_REPO: your-org/docs-repo
+      DOCS_REPO: ${{ vars.DOCS_REPO }}
 
     steps:
       - name: Checkout app repo
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Ensure DOCS_REPO is configured
+        run: |
+          if [ -z "${DOCS_REPO:-}" ]; then
+            echo "DOCS_REPO is not set. Configure a repository variable DOCS_REPO (e.g. your-org/your-docs-repo)."
+            exit 1
+          fi
 
       - name: Gather diff against previous main
         id: diff
@@ -65,7 +72,7 @@ jobs:
         if: steps.diff.outputs.has_diff == 'true'
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "openai>=1.55,<2"
+          python -m pip install "openai>=1.55"
 
       - name: Generate doc patch with LLM
         if: steps.diff.outputs.has_diff == 'true'
