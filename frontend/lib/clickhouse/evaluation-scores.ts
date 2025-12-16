@@ -2,12 +2,11 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { AggregationFunction } from "@/lib/clickhouse/types";
 
 import { EvaluationTimeProgression } from "../evaluation/types";
-import { addTimeRangeToQuery, aggregationFunctionToCh, TimeRange } from "./utils";
+import { aggregationFunctionToCh } from "./utils";
 
 export const getEvaluationTimeProgression = async (
   projectId: string,
   groupId: string,
-  timeRange: TimeRange,
   aggregationFunction: AggregationFunction,
   ids: string[]
 ): Promise<EvaluationTimeProgression[]> => {
@@ -19,9 +18,8 @@ export const getEvaluationTimeProgression = async (
     ${aggregationFunctionToCh(aggregationFunction)}(value) AS value
   FROM evaluation_scores
   WHERE project_id = {projectId: UUID} AND group_id = {groupId: String} and evaluation_id in {ids: Array(UUID)} AND evaluation_scores.value IS NOT NULL`;
-  const queryWithTimeRange = addTimeRangeToQuery(query, timeRange, "evaluation_scores.timestamp");
 
-  const finalQuery = `${queryWithTimeRange} GROUP BY evaluation_id, name ORDER BY name
+  const finalQuery = `${query} GROUP BY evaluation_id, name ORDER BY name
   ) SELECT groupArray(name) names, groupArray(value) values, MIN(timestamp) timestamp, evaluation_id as evaluationId
    FROM base
    GROUP BY evaluation_id
