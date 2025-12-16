@@ -5,6 +5,7 @@ doc_mapping:
     - name: is_exception
       type: bool
       fast: true
+      stored: false
     - name: project_id
       type: text
       tokenizer: raw
