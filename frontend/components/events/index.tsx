@@ -43,7 +43,7 @@ function PureEvents({
   const ref = useRef<Resizable>(null);
   const { workspace } = useProjectContext();
 
-  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId, clusterConfig } =
+  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId, clusterConfig, isSemanticEventsEnabled } =
     useEventsStoreContext((state) => ({
       eventDefinition: state.eventDefinition,
       setEventDefinition: state.setEventDefinition,
@@ -52,6 +52,7 @@ function PureEvents({
       setTraceId: state.setTraceId,
       setSpanId: state.setSpanId,
       clusterConfig: state.clusterConfig,
+      isSemanticEventsEnabled: state.isSemanticEventsEnabled,
     }));
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
@@ -105,48 +106,52 @@ function PureEvents({
         ]}
       />
       <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
-        <div className="flex items-center gap-2">
-          {!isFreeTier && eventType === "SEMANTIC" && (
-            <ManageEventDefinitionSheet
-              open={isDialogOpen}
-              setOpen={setIsDialogOpen}
-              defaultValues={eventDefinition}
-              key={eventDefinition.id}
-              onSuccess={handleSuccess}
-            >
-              <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
-                Event Definition
-              </Button>
-            </ManageEventDefinitionSheet>
-          )}
+        {isSemanticEventsEnabled && (
+          <>
+            <div className="flex items-center gap-2">
+              {!isFreeTier && eventType === "SEMANTIC" && (
+                <ManageEventDefinitionSheet
+                  open={isDialogOpen}
+                  setOpen={setIsDialogOpen}
+                  defaultValues={eventDefinition}
+                  key={eventDefinition.id}
+                  onSuccess={handleSuccess}
+                >
+                  <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
+                    Event Definition
+                  </Button>
+                </ManageEventDefinitionSheet>
+              )}
 
-          {clusterConfig ? (
-            <DisableClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
-              <Button variant="secondary">
-                <Network className="mr-2 size-3.5" />
-                Disable Clustering
-              </Button>
-            </DisableClusteringDialog>
-          ) : (
-            <StartClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
-              <Button variant="secondary">
-                <Network className="mr-2 size-3.5" />
-                Start Clustering
-              </Button>
-            </StartClusteringDialog>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-lg font-semibold">Clusters</span>
-          {eventDefinition.id && (
-            <ClustersTable
-              projectId={eventDefinition.projectId}
-              eventDefinitionId={eventDefinition.id}
-              eventDefinitionName={eventDefinition.name}
-              eventType={eventType}
-            />
-          )}
-        </div>
+              {clusterConfig ? (
+                <DisableClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
+                  <Button variant="secondary">
+                    <Network className="mr-2 size-3.5" />
+                    Disable Clustering
+                  </Button>
+                </DisableClusteringDialog>
+              ) : (
+                <StartClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
+                  <Button variant="secondary">
+                    <Network className="mr-2 size-3.5" />
+                    Start Clustering
+                  </Button>
+                </StartClusteringDialog>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-lg font-semibold">Clusters</span>
+              {eventDefinition.id && (
+                <ClustersTable
+                  projectId={eventDefinition.projectId}
+                  eventDefinitionId={eventDefinition.id}
+                  eventDefinitionName={eventDefinition.name}
+                  eventType={eventType}
+                />
+              )}
+            </div>
+          </>
+        )}
 
         <div className="flex flex-col gap-2 flex-1">
           <div className="flex items-center gap-2">

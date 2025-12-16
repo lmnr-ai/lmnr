@@ -12,6 +12,7 @@ export const enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   PATTERNS = "PATTERNS",
+  SEMANTIC_EVENTS = "SEMANTIC_EVENTS",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -68,6 +69,11 @@ export const isFeatureEnabled = (feature: Feature) => {
       !!process.env.SLACK_SIGNING_SECRET &&
       !!process.env.SLACK_REDIRECT_URL
     );
+  }
+
+  if (feature === Feature.SEMANTIC_EVENTS) {
+    // return process.env.ENVIRONMENT === "PRODUCTION";
+    return false;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

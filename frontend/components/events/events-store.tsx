@@ -23,6 +23,7 @@ export type EventsState = {
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
   clusterConfig?: EventClusterConfig;
+  isSemanticEventsEnabled: boolean;
 };
 
 export type EventsActions = {
@@ -40,6 +41,7 @@ export interface EventsProps {
   traceId?: string | null;
   spanId?: string | null;
   clusterConfig?: EventClusterConfig;
+  isSemanticEventsEnabled: boolean;
 }
 
 export type EventsStore = EventsState & EventsActions;
@@ -55,9 +57,10 @@ export const createEventsStore = (initProps: EventsProps) =>
     isLoadingStats: false,
     chartContainerWidth: null,
     clusterConfig: initProps.clusterConfig,
+    isSemanticEventsEnabled: initProps.isSemanticEventsEnabled,
     eventDefinition: {
       ...initProps.eventDefinition,
-      prompt: 'prompt' in initProps.eventDefinition ? initProps.eventDefinition.prompt : '' ,
+      prompt: 'prompt' in initProps.eventDefinition ? initProps.eventDefinition.prompt : '',
       structuredOutput:
         'structuredOutput' in initProps.eventDefinition
           ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
