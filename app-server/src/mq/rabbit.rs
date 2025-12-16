@@ -132,27 +132,6 @@ impl RabbitMQ {
             publisher_channel_pool: pool,
         }
     }
-
-    /// Check if the publisher connection is healthy
-    #[allow(dead_code)]
-    pub fn is_publisher_connected(&self) -> bool {
-        self.publisher_connection.status().connected()
-    }
-
-    /// Check if the consumer connection is healthy (returns true if no consumer connection exists)
-    #[allow(dead_code)]
-    pub fn is_consumer_connected(&self) -> bool {
-        self.consumer_connection
-            .as_ref()
-            .map(|c| c.status().connected())
-            .unwrap_or(true)
-    }
-
-    /// Get the status of the publisher channel pool
-    #[allow(dead_code)]
-    pub fn publisher_pool_status(&self) -> deadpool::managed::Status {
-        self.publisher_channel_pool.status()
-    }
 }
 
 impl MessageQueueTrait for RabbitMQ {
