@@ -18,7 +18,7 @@ import { EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import DateRangeFilter from "@/shared/ui/date-range-filter";
 
-import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
+import { defaultEventsColumnOrder, eventsTableColumns, getEventsTableFilters } from "./columns";
 
 const FETCH_SIZE = 50;
 
@@ -106,6 +106,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
     fetchStats,
     setChartContainerWidth,
     chartContainerWidth,
+    isSemanticEventsEnabled,
   } = useEventsStoreContext((state) => ({
     eventDefinition: state.eventDefinition,
     traceId: state.traceId,
@@ -115,7 +116,10 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
     fetchStats: state.fetchStats,
     setChartContainerWidth: state.setChartContainerWidth,
     chartContainerWidth: state.chartContainerWidth,
+    isSemanticEventsEnabled: state.isSemanticEventsEnabled,
   }));
+
+  const eventsTableFilters = useMemo(() => getEventsTableFilters(isSemanticEventsEnabled), [isSemanticEventsEnabled]);
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {

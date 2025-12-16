@@ -72,7 +72,8 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SEMANTIC_EVENTS) {
-    return process.env.ENVIRONMENT === "PRODUCTION";
+    // return process.env.ENVIRONMENT === "PRODUCTION";
+    return false;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
