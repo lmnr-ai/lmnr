@@ -6,6 +6,7 @@ export const UpdateEvaluationScoreSchema = z.object({
   evaluationResultId: z.string(),
   name: z.string(),
   score: z.number(),
+  projectId: z.string(),
 });
 
 export const GetEvaluationScoreSchema = z.object({
@@ -40,18 +41,20 @@ export async function getEvaluationScore(input: z.infer<typeof GetEvaluationScor
 }
 
 export async function updateEvaluationScore(input: z.infer<typeof UpdateEvaluationScoreSchema>) {
-  const { evaluationResultId, name, score } = UpdateEvaluationScoreSchema.parse(input);
+  const { evaluationResultId, name, score, projectId } = UpdateEvaluationScoreSchema.parse(input);
 
   await clickhouseClient.command({
     query: `
         ALTER TABLE default.evaluation_scores 
         UPDATE value = {score: Float64}
         WHERE evaluation_datapoint_id = {resultId: UUID} AND name = {name: String}
+        AND project_id = {projectId: UUID}
       `,
     query_params: {
       score: score,
       resultId: evaluationResultId,
       name: name,
+      projectId: projectId,
     },
   });
 
