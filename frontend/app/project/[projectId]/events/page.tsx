@@ -1,5 +1,6 @@
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { redirect } from "next/navigation";
+
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export default async function EventsPage(props: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await props.params;

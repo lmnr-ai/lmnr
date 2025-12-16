@@ -38,10 +38,10 @@ export default async function CodeEventPage(props: {
   const isSemanticEventsEnabled = isFeatureEnabled(Feature.SEMANTIC_EVENTS);
 
   return (
-    <EventsStoreProvider 
-      eventDefinition={eventDefinition} 
-      traceId={traceId} 
-      spanId={spanId} 
+    <EventsStoreProvider
+      eventDefinition={eventDefinition}
+      traceId={traceId}
+      spanId={spanId}
       clusterConfig={clusterConfig}
       isSemanticEventsEnabled={isSemanticEventsEnabled}
     >
