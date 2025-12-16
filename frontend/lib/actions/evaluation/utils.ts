@@ -96,11 +96,11 @@ export const buildEvaluationDatapointsQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: `evaluation_id = {evaluationId:UUID}`,
-        params: { evaluationId },
-      },
-    ];
+    {
+      condition: `evaluation_id = {evaluationId:UUID}`,
+      params: { evaluationId },
+    },
+  ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -169,11 +169,11 @@ export const buildEvaluationStatisticsQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-      {
-        condition: `evaluation_id = {evaluationId:UUID}`,
-        params: { evaluationId },
-      },
-    ];
+    {
+      condition: `evaluation_id = {evaluationId:UUID}`,
+      params: { evaluationId },
+    },
+  ];
 
   if (traceIds.length > 0) {
     customConditions.push({
