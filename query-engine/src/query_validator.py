@@ -127,6 +127,8 @@ class QueryValidator:
             # Replace table references with view functions
             parsed = self._replace_tables_with_views(parsed, project_id)
 
+            # parsed = self._strip_settings_clause(parsed)
+
             # Convert back to SQL
             result = parsed.sql(dialect="clickhouse", pretty=True)
             return result
@@ -246,7 +248,7 @@ class QueryValidator:
                 for t in cte_tables:
                     if t is table:
                         return cte.this
-        
+
         # If not in any CTE, check if the table is directly in the main query
         # Use a more specific search that doesn't include tables from CTEs
         main_from = query.args.get("from")
@@ -255,7 +257,7 @@ class QueryValidator:
             for t in main_tables:
                 if t is table:
                     return query
-        
+
         # Fallback to main query if not found (shouldn't happen)
         return query
 
@@ -306,6 +308,12 @@ class QueryValidator:
                             end_time = condition.expression
 
         return start_time, end_time
+
+    def _strip_settings_clause(self, query: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
+         """Strip SETTINGS clause from query"""
+         query = query.copy()
+         query.args.pop('settings', None)
+         return query
 
 
 # Default instance for easy importing
