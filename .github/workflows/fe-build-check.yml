@@ -7,7 +7,7 @@ on:
       - opened
       - reopened
     paths:
-      - 'frontend/**' # Trigger only if files in the `/frontend` directory change
+      - "frontend/**" # Trigger only if files in the `/frontend` directory change
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
     steps:
       # Step 1: Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # Step 2: Install pnpm
       - name: Install pnpm
@@ -28,8 +28,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 'lts/*' # Use the latest LTS version of Node.js
-          cache: 'pnpm'
+          node-version: "lts/*" # Use the latest LTS version of Node.js
+          cache: "pnpm"
           # Specify the subdirectory containing the lockfile
           cache-dependency-path: ./frontend/pnpm-lock.yaml
 
