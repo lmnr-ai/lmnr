@@ -8,6 +8,7 @@ import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { EventDefinition, getEventDefinition } from "@/lib/actions/event-definitions";
 import { getLastEvent } from "@/lib/actions/events";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -34,9 +35,16 @@ export default async function CodeEventPage(props: {
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
   const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
+  const isSemanticEventsEnabled = isFeatureEnabled(Feature.SEMANTIC_EVENTS);
 
   return (
-    <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
+    <EventsStoreProvider
+      eventDefinition={eventDefinition}
+      traceId={traceId}
+      spanId={spanId}
+      clusterConfig={clusterConfig}
+      isSemanticEventsEnabled={isSemanticEventsEnabled}
+    >
       <Events eventType="CODE" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );

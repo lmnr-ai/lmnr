@@ -22,19 +22,19 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 import Header from "../ui/header";
 
-export default function CodeEventDefinitions() {
+export default function CodeEventDefinitions({ isSemanticEventsEnabled }: { isSemanticEventsEnabled: boolean }) {
   return (
     <DataTableStateProvider
       storageKey="event-definitions-table"
       uniqueKey="id"
       defaultColumnOrder={defaultEventDefinitionsColumnOrder}
     >
-      <CodeEventDefinitionsContent />
+      <CodeEventDefinitionsContent isSemanticEventsEnabled={isSemanticEventsEnabled} />
     </DataTableStateProvider>
   );
 }
 
-function CodeEventDefinitionsContent() {
+function CodeEventDefinitionsContent({ isSemanticEventsEnabled }: { isSemanticEventsEnabled: boolean }) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { rowSelection, onRowSelectionChange } = useSelection();
@@ -128,14 +128,16 @@ function CodeEventDefinitionsContent() {
     <>
       <Header path="event definitions" />
       <Tabs className="flex flex-1 overflow-hidden gap-4" value="code">
-        <TabsList className="mx-4 h-8">
-          <TabsTrigger className="text-xs" value="SEMANTIC" asChild>
-            <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
-          </TabsTrigger>
-          <TabsTrigger className="text-xs" value="code" asChild>
-            <Link href={`/project/${projectId}/events/code`}>Code</Link>
-          </TabsTrigger>
-        </TabsList>
+        {isSemanticEventsEnabled && (
+          <TabsList className="mx-4 h-8">
+            <TabsTrigger className="text-xs" value="SEMANTIC" asChild>
+              <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="code" asChild>
+              <Link href={`/project/${projectId}/events/code`}>Code</Link>
+            </TabsTrigger>
+          </TabsList>
+        )}
         <TabsContent value="code" asChild>
           <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
             <InfiniteDataTable<EventDefinitionRow>

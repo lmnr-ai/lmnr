@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { Form } from "@/components/dashboard/editor/Form.tsx";
+import { Form } from "@/components/dashboard/editor/form.tsx";
 import { getDefaultFormValues } from "@/components/dashboard/editor/types";
 import { QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 

@@ -65,9 +65,7 @@ export const getClusterColumns = (projectId: string, eventType: "SEMANTIC" | "CO
     size: 350,
   },
   {
-    accessorFn: (row) => {
-      return row.level > 1 ? String(row.numChildrenClusters) : '';
-    },
+    accessorFn: (row) => row.level > 1 ? String(row.numChildrenClusters) : '',
     header: "Sub clusters",
     id: "children_clusters",
     size: 120,
@@ -121,21 +119,3 @@ export const defaultClustersColumnOrder = [
   "created_at",
   "updated_at",
 ];
-
-// export const clustersTableFilters: ColumnFilter[] = [
-//   {
-//     name: "Cluster",
-//     key: "name",
-//     dataType: "string",
-//   },
-//   {
-//     name: "Children clusters",
-//     key: "numChildrenClusters",
-//     dataType: "number",
-//   },
-//   {
-//     name: "Events",
-//     key: "numEvents",
-//     dataType: "number",
-//   },
-// ];
