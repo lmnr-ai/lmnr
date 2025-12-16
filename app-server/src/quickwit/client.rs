@@ -52,7 +52,8 @@ impl QuickwitError {
         match status.code() {
             tonic::Code::DeadlineExceeded
             | tonic::Code::Unavailable
-            | tonic::Code::FailedPrecondition => Self::Transient(QuickwitErrorInner {
+            | tonic::Code::FailedPrecondition
+            | tonic::Code::ResourceExhausted => Self::Transient(QuickwitErrorInner {
                 message: status.message().to_string(),
                 code: status.code(),
             }),
