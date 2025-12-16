@@ -100,31 +100,28 @@ impl MessageHandler for QuickwitIndexerHandler {
             (Err(e), _) => {
                 // Log specific failures
                 log::error!(
-                    "Failed to ingest {} spans into Quickwit: {:?}",
+                    "Failed to ingest {} spans into Quickwit: [{}] {:?}",
                     indexed_spans.len(),
-                    e
+                    e.status_code(),
+                    e.message()
                 );
                 if let Err(e) = self.quickwit_client.reconnect().await {
                     log::error!("Failed to reconnect to Quickwit: {:?}", e);
                 }
-                Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
-                    "Failed to ingest spans into Quickwit: {:?}",
-                    e
-                )))
+
+                Err(e.to_handler_error())
             }
             (_, Err(e)) => {
                 log::error!(
-                    "Failed to ingest {} events into Quickwit: {:?}",
+                    "Failed to ingest {} events into Quickwit: [{}] {:?}",
                     indexed_events.len(),
-                    e
+                    e.status_code(),
+                    e.message()
                 );
                 if let Err(e) = self.quickwit_client.reconnect().await {
                     log::error!("Failed to reconnect to Quickwit: {:?}", e);
                 }
-                Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
-                    "Failed to ingest events into Quickwit: {:?}",
-                    e
-                )))
+                Err(e.to_handler_error())
             }
         }
     }
