@@ -70,7 +70,6 @@ pub async fn set_evaluation_results(
     pool: &PgPool,
     evaluation_id: Uuid,
     ids: &Vec<Uuid>,
-    scores: &Vec<HashMap<String, Option<f64>>>,
     datas: &Vec<Value>,
     targets: &Vec<Value>,
     metadatas: &Vec<HashMap<String, Value>>,
@@ -83,7 +82,7 @@ pub async fn set_evaluation_results(
         .map(|m| serde_json::to_value(m).unwrap_or(Value::Null))
         .collect();
 
-    let results = sqlx::query_as::<_, EvaluationDatapointPreview>(
+    sqlx::query_as::<_, EvaluationDatapointPreview>(
         r"INSERT INTO evaluation_results (
             id,
             evaluation_id,
@@ -122,35 +121,6 @@ pub async fn set_evaluation_results(
     .fetch_all(pool)
     .await?;
 
-    // Each datapoint can have multiple scores, so unzip the scores and result ids.
-    let (score_result_ids, (score_names, score_values)): (
-        Vec<Uuid>,
-        (Vec<String>, Vec<Option<f64>>),
-    ) = scores
-        .iter()
-        .zip(results.iter())
-        .flat_map(|(score, result)| {
-            score
-                .iter()
-                .map(|(name, value)| (result.id, (name.clone(), value)))
-        })
-        .unzip();
-
-    sqlx::query(
-        "INSERT INTO evaluation_scores (result_id, name, score)
-        SELECT
-            result_id,
-            name,
-            score
-        FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
-        AS tmp_table(result_id, name, score)",
-    )
-    .bind(&score_result_ids)
-    .bind(&score_names)
-    .bind(&score_values)
-    .execute(pool)
-    .await?;
-
     Ok(())
 }
 
@@ -179,7 +149,6 @@ pub async fn update_evaluation_datapoint_and_get_trace_id(
     evaluation_id: Uuid,
     datapoint_id: Uuid,
     executor_output: &Option<Value>,
-    scores: HashMap<String, Option<f64>>,
 ) -> Result<Uuid> {
     // Update the executor output in the evaluation_results table
     let trace_id = sqlx::query_scalar(
@@ -193,30 +162,6 @@ pub async fn update_evaluation_datapoint_and_get_trace_id(
     .bind(evaluation_id)
     .fetch_one(pool)
     .await?;
-
-    // Insert new scores into PostgreSQL
-    if !scores.is_empty() {
-        let (score_names, score_values): (Vec<String>, Vec<Option<f64>>) =
-            scores.into_iter().unzip();
-        let score_result_ids = vec![datapoint_id; score_names.len()];
-
-        sqlx::query(
-            "INSERT INTO evaluation_scores (result_id, name, score)
-            SELECT
-                result_id,
-                name,
-                score
-            FROM UNNEST ($1::uuid[], $2::text[], $3::float8[])
-            AS tmp_table(result_id, name, score)
-            ON CONFLICT (result_id, name) DO UPDATE
-                SET score = EXCLUDED.score",
-        )
-        .bind(&score_result_ids)
-        .bind(&score_names)
-        .bind(&score_values)
-        .execute(pool)
-        .await?;
-    }
 
     Ok(trace_id)
 }

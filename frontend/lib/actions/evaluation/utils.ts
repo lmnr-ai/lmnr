@@ -68,7 +68,6 @@ const evaluationDatapointsSelectColumns = [
 ];
 
 export interface BuildEvaluationDatapointsQueryOptions {
-  projectId: string;
   evaluationId: string;
   traceIds: string[];
   filters: Filter[];
@@ -77,14 +76,12 @@ export interface BuildEvaluationDatapointsQueryOptions {
 }
 
 export interface BuildEvaluationStatisticsQueryOptions {
-  projectId: string;
   evaluationId: string;
   traceIds: string[];
   filters: Filter[];
 }
 
 export interface BuildTracesForEvaluationQueryOptions {
-  projectId: string;
   evaluationId: string;
   traceIds: string[];
   filters: Filter[];

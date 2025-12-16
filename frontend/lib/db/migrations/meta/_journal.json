@@ -439,8 +439,22 @@
     {
       "idx": 62,
       "version": "7",
-      "when": 1764684944701,
-      "tag": "0062_giant_eddie_brock",
+      "when": 1765808018191,
+      "tag": "0062_daily_centennial",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1765812740984,
+      "tag": "0063_flashy_leech",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1765817940399,
+      "tag": "0064_open_prima",
       "breakpoints": true
     }
   ]

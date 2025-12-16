@@ -114,7 +114,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     scores: string[];
   }>(targetStatsUrl, swrFetcher);
 
-  const evaluation = statsData?.evaluation;
   const scores = statsData?.scores || [];
 
   const onClose = useCallback(() => {

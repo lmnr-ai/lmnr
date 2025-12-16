@@ -86,6 +86,7 @@ export async function getApiKeys(
   return apiKeys.map(key => ({
     ...key,
     name: key.name ?? undefined,
+    shorthand: key.shorthand ?? "",
   }));
 }
 
