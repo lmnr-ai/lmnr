@@ -127,7 +127,7 @@ class QueryValidator:
             # Replace table references with view functions
             parsed = self._replace_tables_with_views(parsed, project_id)
 
-            # parsed = self._strip_settings_clause(parsed)
+            parsed = self._strip_settings_clause(parsed)
 
             # Convert back to SQL
             result = parsed.sql(dialect="clickhouse", pretty=True)

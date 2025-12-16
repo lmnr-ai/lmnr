@@ -27,9 +27,9 @@ FROM debian:trixie-slim
 RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
-COPY --from=builder --chown=app:app /python /python
+COPY --from=builder --chown=nonroot:nonroot /python /python
 
-COPY --from=builder --chown=app:app /app /app
+COPY --from=builder --chown=nonroot:nonroot /app /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 
