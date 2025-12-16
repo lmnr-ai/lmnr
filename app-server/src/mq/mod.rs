@@ -98,4 +98,8 @@ pub trait MessageQueueTrait {
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<MessageQueueReceiver>;
+
+    /// Check if the message queue connections are healthy.
+    /// Returns true if all active connections are in a connected state.
+    fn is_healthy(&self) -> bool;
 }
