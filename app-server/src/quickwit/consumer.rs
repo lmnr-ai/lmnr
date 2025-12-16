@@ -104,7 +104,9 @@ impl MessageHandler for QuickwitIndexerHandler {
                     indexed_spans.len(),
                     e
                 );
-                let _ = self.quickwit_client.reconnect().await;
+                if let Err(e) = self.quickwit_client.reconnect().await {
+                    log::error!("Failed to reconnect to Quickwit: {:?}", e);
+                }
                 Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
                     "Failed to ingest spans into Quickwit: {:?}",
                     e
@@ -116,7 +118,9 @@ impl MessageHandler for QuickwitIndexerHandler {
                     indexed_events.len(),
                     e
                 );
-                let _ = self.quickwit_client.reconnect().await;
+                if let Err(e) = self.quickwit_client.reconnect().await {
+                    log::error!("Failed to reconnect to Quickwit: {:?}", e);
+                }
                 Err(crate::worker::HandlerError::transient(anyhow::anyhow!(
                     "Failed to ingest events into Quickwit: {:?}",
                     e
