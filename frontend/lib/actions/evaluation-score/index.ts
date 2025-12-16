@@ -31,7 +31,7 @@ export async function getEvaluationScore(input: z.infer<typeof GetEvaluationScor
     },
   });
 
-  const evaluationScore = (await evaluationScoreResult.json()).data[0] as { value: number };
+  const evaluationScore = (await evaluationScoreResult.json()).data[0] as { score: number };
 
   if (!evaluationScore) {
     return {};
