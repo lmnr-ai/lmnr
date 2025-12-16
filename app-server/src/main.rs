@@ -223,6 +223,8 @@ fn main() -> anyhow::Result<()> {
 
     // === 3. Message queues ===
     // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
+    // Create publisher connection always (needed for both modes)
+    // Create consumer connection only if consumer mode is enabled
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
@@ -232,22 +234,27 @@ fn main() -> anyhow::Result<()> {
                         .await
                         .unwrap(),
                 );
-                let consumer_conn = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                        .await
-                        .unwrap(),
-                );
-                (Some(publisher_conn), Some(consumer_conn))
+
+                // Only create consumer connection if consumer mode is enabled
+                let consumer_conn = if enable_consumer() {
+                    log::info!("Consumer mode enabled - creating consumer connection");
+                    Some(Arc::new(
+                        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                            .await
+                            .unwrap(),
+                    ))
+                } else {
+                    log::info!("Producer-only mode - skipping consumer connection");
+                    None
+                };
+
+                (Some(publisher_conn), consumer_conn)
             })
         } else {
             (None, None)
         };
 
-    let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
-
-    let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) =
-        (publisher_connection.as_ref(), consumer_connection.as_ref())
-    {
+    let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
         runtime_handle.block_on(async {
             let channel = publisher_conn.create_channel().await.unwrap();
 
@@ -476,7 +483,7 @@ fn main() -> anyhow::Result<()> {
 
             let rabbit_mq = mq::rabbit::RabbitMQ::new(
                 publisher_conn.clone(),
-                consumer_conn.clone(),
+                consumer_connection.clone(),
                 max_channel_pool_size,
             );
             Arc::new(rabbit_mq.into())
@@ -726,7 +733,7 @@ fn main() -> anyhow::Result<()> {
             num_clustering_workers
         );
 
-        let connection_for_health_clone = connection_for_health.clone();
+        let queue_for_health = mq_for_http.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
@@ -911,7 +918,7 @@ fn main() -> anyhow::Result<()> {
                     HttpServer::new(move || {
                         App::new()
                             .wrap(NormalizePath::trim())
-                            .app_data(web::Data::new(connection_for_health_clone.clone()))
+                            .app_data(web::Data::new(queue_for_health.clone()))
                             .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)
@@ -966,7 +973,6 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
-                            .app_data(web::Data::new(connection_for_health.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
