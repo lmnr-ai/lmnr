@@ -33,7 +33,10 @@ use crate::{
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     pubsub::PubSub,
-    quickwit::{QuickwitIndexedEvent, QuickwitIndexedSpan, producer::publish_spans_for_indexing},
+    quickwit::{
+        QuickwitIndexedEvent, QuickwitIndexedSpan,
+        producer::{publish_events_for_indexing, publish_spans_for_indexing},
+    },
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -318,16 +321,21 @@ async fn process_batch(
         .await;
     }
 
-    // Index spans in Quickwit
+    // Index spans and events in Quickwit
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> =
         all_events.iter().map(|event| event.into()).collect();
-    if let Err(e) =
-        publish_spans_for_indexing(&quickwit_spans, &quickwit_events, queue.clone()).await
-    {
+    if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
         log::error!(
             "Failed to publish {} spans for Quickwit indexing: {:?}",
             quickwit_spans.len(),
+            e
+        );
+    }
+    if let Err(e) = publish_events_for_indexing(&quickwit_events, queue.clone()).await {
+        log::error!(
+            "Failed to publish {} events for Quickwit indexing: {:?}",
+            quickwit_events.len(),
             e
         );
     }

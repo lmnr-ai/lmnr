@@ -13,20 +13,31 @@ use crate::{
 
 pub async fn publish_spans_for_indexing(
     spans: &[QuickwitIndexedSpan],
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    if spans.is_empty() {
+        return Ok(());
+    }
+    let payload = IndexerQueueMessage::Spans(spans.to_vec());
+    let payload = serde_json::to_vec(&IndexerQueuePayload::IndexerQueueMessage(payload))
+        .context("Failed to serialize spans for Quickwit indexing")?;
+    publish_payload(&payload, queue).await
+}
+
+pub async fn publish_events_for_indexing(
     events: &[QuickwitIndexedEvent],
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
-    if spans.is_empty() && events.is_empty() {
+    if events.is_empty() {
         return Ok(());
     }
-
-    let payload = IndexerQueueMessage {
-        spans: spans.to_vec(),
-        events: events.to_vec(),
-    };
-
+    let payload = IndexerQueueMessage::Events(events.to_vec());
     let payload = serde_json::to_vec(&IndexerQueuePayload::IndexerQueueMessage(payload))
-        .context("Failed to serialize spans for Quickwit indexing")?;
+        .context("Failed to serialize events for Quickwit indexing")?;
+    publish_payload(&payload, queue).await
+}
+
+async fn publish_payload(payload: &[u8], queue: Arc<MessageQueue>) -> anyhow::Result<()> {
     let payload_size = payload.len();
 
     let max_payload = mq_max_payload();

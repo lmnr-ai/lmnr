@@ -149,7 +149,7 @@ impl QuickwitClient {
             .map_err(|status| QuickwitError::from_status(status))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, query_body))]
     pub async fn search_spans(
         &self,
         query_body: serde_json::Value,
