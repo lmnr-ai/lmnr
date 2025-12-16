@@ -244,6 +244,7 @@ fn main() -> anyhow::Result<()> {
         };
 
     let connection_for_health = publisher_connection.clone(); // Clone before moving into HttpServer
+    let consumer_connection_for_health = consumer_connection.clone(); // Clone consumer connection for health checks
 
     let queue: Arc<MessageQueue> = if let (Some(publisher_conn), Some(consumer_conn)) =
         (publisher_connection.as_ref(), consumer_connection.as_ref())
@@ -726,7 +727,8 @@ fn main() -> anyhow::Result<()> {
             num_clustering_workers
         );
 
-        let connection_for_health_clone = connection_for_health.clone();
+        // In consumer mode, health check should monitor the consumer connection
+        let connection_for_health_clone = consumer_connection_for_health.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
