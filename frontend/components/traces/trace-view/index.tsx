@@ -206,10 +206,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const fetchSpans = useCallback(
     async (search: string, filters: Filter[]) => {
       try {
-        if (!trace) {
-          return;
-        }
-
         setIsSpansLoading(true);
         setSpansError(undefined);
 
@@ -368,7 +364,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, []);
 
   useEffect(() => {
-    if (!trace) return;
 
     fetchSpans(search, filters);
 
@@ -377,7 +372,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, trace, setSpans, setTraceError, setSpansError]);
+  }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,
