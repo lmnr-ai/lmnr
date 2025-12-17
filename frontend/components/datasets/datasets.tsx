@@ -48,7 +48,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
   },
 ];
 
-export const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
+const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
 const datasetsTableFilters: ColumnFilter[] = [
   {

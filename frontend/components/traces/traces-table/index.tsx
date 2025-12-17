@@ -10,6 +10,7 @@ import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
 import SearchTracesInput from "@/components/traces/traces-table/search";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -22,7 +23,6 @@ import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 const presetFilters: Filter[] = [];
 

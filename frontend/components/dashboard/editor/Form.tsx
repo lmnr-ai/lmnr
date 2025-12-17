@@ -12,11 +12,11 @@ import { ColumnInfo, transformDataToColumns } from "@/components/chart-builder/u
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
 import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { QueryStructure, TimeRange } from "@/lib/actions/sql/types.ts";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
