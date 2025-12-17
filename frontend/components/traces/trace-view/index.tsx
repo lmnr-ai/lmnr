@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search } from "lucide-react";
+import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
@@ -439,6 +439,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               >
                 <FileText size={14} className="mr-1" />
                 <span>Metadata</span>
+              </Button>
+              <Button
+                onClick={() => setTab("chat")}
+                variant="outline"
+                className={cn("h-6 text-xs px-1.5", {
+                  "border-primary text-primary": tab === "chat",
+                })}
+              >
+                <Sparkles size={14} className="mr-1" />
+                <span>Ask AI</span>
               </Button>
               {tab === "timeline" && (
                 <>

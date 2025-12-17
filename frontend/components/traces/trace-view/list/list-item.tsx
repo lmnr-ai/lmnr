@@ -59,18 +59,21 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
       onClick={() => onSpanSelect(span)}
     >
       <div className="flex items-center gap-2 pl-1 pr-3 py-2">
-        <button
+        <Button
+          variant="ghost"
           onClick={(e) => {
             e.stopPropagation();
-            setIsExpanded(!isExpanded);
+            setIsExpanded((prevState) => !prevState);
           }}
-          className="p-0.5 hover:bg-secondary rounded transition-colors"
+          className="h-5 py-0 px-0.5 hover:bg-muted rounded transition-colors"
         >
           <ChevronDown
-            size={16}
-            className={cn("text-muted-foreground transition-transform", !isExpanded && "-rotate-90")}
+            className={cn(
+              "size-4 text-secondary-foreground transition-transform ease-in-out",
+              !isExpanded && "-rotate-90"
+            )}
           />
-        </button>
+        </Button>
         <div className="flex items-center gap-2 flex-1 justify-between overflow-hidden">
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
             <SpanTypeIcon spanType={span.spanType} />
@@ -98,13 +101,13 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
             </div>
             <Button
               variant="ghost"
-              className="hidden py-0 px-[3px] h-5 group-hover/message:block"
+              className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenSettings(span);
               }}
             >
-              <Settings className="size-4" />
+              <Settings className="size-3.5 text-secondary-foreground" />
             </Button>
 
             {span.pathInfo && (

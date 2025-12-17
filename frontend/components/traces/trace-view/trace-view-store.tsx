@@ -375,6 +375,7 @@ const createTraceViewStore = () =>
           treeWidth: state.treeWidth,
           spanPath: state.spanPath,
           spanTemplates: state.spanTemplates,
+          tab: state.tab,
         }),
       }
     )

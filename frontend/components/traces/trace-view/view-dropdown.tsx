@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, ListTree, LucideIcon, MessageSquare, Sparkles } from "lucide-react";
+import { ChartNoAxesGantt, ChevronDown, List, ListTree, LucideIcon } from "lucide-react";
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "timeline" | "list" | "chat";
+type ViewTab = "tree" | "timeline" | "list";
 
 const viewOptions: Record<
   ViewTab,
@@ -28,16 +28,12 @@ const viewOptions: Record<
     label: "Timeline",
   },
   list: {
-    icon: MessageSquare,
+    icon: List,
     label: "List",
-  },
-  chat: {
-    icon: Sparkles,
-    label: "Ask AI",
   },
 };
 
-const VIEW_TABS: ViewTab[] = ["tree", "timeline", "list", "chat"];
+const VIEW_TABS: ViewTab[] = ["tree", "timeline", "list"];
 
 export default function ViewDropdown() {
   const { tab, setTab } = useTraceViewStoreContext((state) => ({

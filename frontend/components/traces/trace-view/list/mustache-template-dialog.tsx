@@ -57,8 +57,8 @@ const MustacheTemplateDialog = ({ output, isLoadingOutput, span, open, onOpenCha
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-auto flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6">
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 flex-shrink-0">
           <DialogTitle>Mustache Template Editor</DialogTitle>
           <div className="text-xs text-muted-foreground text-left pt-2 space-y-1">
             <div>Templates are saved per span path. All spans matching this path will use this template.</div>
@@ -66,28 +66,28 @@ const MustacheTemplateDialog = ({ output, isLoadingOutput, span, open, onOpenCha
           </div>
           <DialogDescription />
         </DialogHeader>
-        <div className="grid gap-4 px-6 pb-6">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Output Data</label>
-            {output ? (
-              <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
-                <CodeMirror
-                  className="w-full"
-                  value={JSON.stringify(output, null, 2)}
-                  readOnly
-                  extensions={[json(), ...baseExtensions]}
-                  theme={theme}
-                />
-              </div>
-            ) : (
-              <span className="text-muted-foreground">No output available</span>
-            )}
-          </div>
+        <div className="overflow-y-auto overflow-x-hidden flex-1">
+          <div className="grid gap-4 px-6 pb-6 pt-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Output Data</label>
+              {output ? (
+                <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
+                  <CodeMirror
+                    className="w-full"
+                    value={JSON.stringify(output, null, 2)}
+                    readOnly
+                    extensions={[json(), ...baseExtensions]}
+                    theme={theme}
+                  />
+                </div>
+              ) : (
+                <span className="text-muted-foreground">No output available</span>
+              )}
+            </div>
 
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium">Template</label>
-              <div className="flex gap-2">
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">Template</label>
                 {savedTemplate && (
                   <Button
                     variant="ghost"
@@ -101,63 +101,60 @@ const MustacheTemplateDialog = ({ output, isLoadingOutput, span, open, onOpenCha
                     Clear
                   </Button>
                 )}
-                <Button
-                  variant={isSaved ? "secondary" : "default"}
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSaveTemplate();
-                  }}
-                  disabled={!templateInput.trim() || isSaved}
-                  className="h-7 text-xs"
-                >
-                  {isSaved ? "Saved" : "Save"}
-                </Button>
               </div>
-            </div>
-            <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
-              <CodeMirror
-                className="w-full"
-                value={templateInput}
-                onChange={(value) => setTemplateInput(value)}
-                basicSetup={false}
-                extensions={[mustache, ...baseExtensions]}
-                theme={theme}
-                placeholder="Enter mustache template, e.g., {{key}}"
-              />
-            </div>
-            {suggestions.length > 0 && (
-              <div className="mt-2">
-                <p className="text-xs text-muted-foreground mb-1">Suggestions</p>
-                <div className="flex flex-wrap gap-1">
-                  {suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion.key}
-                      onClick={() => {
-                        const newValue = templateInput + suggestion.template;
-                        setTemplateInput(newValue);
-                      }}
-                      className="text-xs bg-muted hover:bg-muted/80 px-2 py-1 rounded transition-colors"
-                    >
-                      {suggestion.key}
-                    </button>
-                  ))}
+              <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
+                <CodeMirror
+                  className="w-full"
+                  value={templateInput}
+                  onChange={(value) => setTemplateInput(value)}
+                  extensions={[mustache, ...baseExtensions]}
+                  theme={theme}
+                  placeholder="Enter mustache template, e.g., {{key}}"
+                />
+              </div>
+              {suggestions.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-1">Suggestions</p>
+                  <div className="flex flex-wrap gap-1">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.key}
+                        onClick={() => {
+                          const newValue = templateInput + suggestion.template;
+                          setTemplateInput(newValue);
+                        }}
+                        className="text-xs bg-muted hover:bg-muted/80 px-2 py-1 rounded transition-colors"
+                      >
+                        {suggestion.key}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col h-60 overflow-hidden">
-            <label className="text-sm font-medium mb-2 block">Result</label>
-            {templateInput ? (
-              <Markdown
-                className="flex-1 border rounded-md bg-muted/50 p-3"
-                output={output}
-                isLoadingOutput={isLoadingOutput}
-                defaultValue={templateInput}
-              />
-            ) : (
-              <span className="text-muted-foreground text-sm">Enter a template to see results...</span>
-            )}
+              )}
+            </div>
+            <div className="flex flex-col h-60 overflow-hidden">
+              <label className="text-sm font-medium mb-2 block">Result</label>
+              {templateInput ? (
+                <Markdown
+                  className="flex-1 border rounded-md bg-muted/50 p-3"
+                  output={output}
+                  isLoadingOutput={isLoadingOutput}
+                  defaultValue={templateInput}
+                />
+              ) : (
+                <span className="text-muted-foreground text-sm">Enter a template to see results...</span>
+              )}
+            </div>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSaveTemplate();
+              }}
+              disabled={!templateInput.trim() || isSaved}
+              className="w-fit ml-auto"
+            >
+              Save
+            </Button>
           </div>
         </div>
       </DialogContent>
