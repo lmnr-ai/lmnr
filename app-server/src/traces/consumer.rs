@@ -34,8 +34,8 @@ use crate::{
     mq::MessageQueue,
     pubsub::PubSub,
     quickwit::{
-        QuickwitIndexedEvent, QuickwitIndexedSpan,
-        producer::{publish_events_for_indexing, publish_spans_for_indexing},
+        IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
+        producer::publish_for_indexing,
     },
     storage::Storage,
     traces::{
@@ -321,19 +321,30 @@ async fn process_batch(
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> =
         all_events.iter().map(|event| event.into()).collect();
-    if let Err(e) = publish_spans_for_indexing(&quickwit_spans, queue.clone()).await {
-        log::error!(
-            "Failed to publish {} spans for Quickwit indexing: {:?}",
-            quickwit_spans.len(),
-            e
-        );
+
+    let spans_count = quickwit_spans.len();
+    let events_count = quickwit_events.len();
+    if spans_count > 0 {
+        if let Err(e) =
+            publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
+        {
+            log::error!(
+                "Failed to publish {} spans for Quickwit indexing: {:?}",
+                spans_count,
+                e
+            );
+        }
     }
-    if let Err(e) = publish_events_for_indexing(&quickwit_events, queue.clone()).await {
-        log::error!(
-            "Failed to publish {} events for Quickwit indexing: {:?}",
-            quickwit_events.len(),
-            e
-        );
+    if events_count > 0 {
+        if let Err(e) =
+            publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
+        {
+            log::error!(
+                "Failed to publish {} events for Quickwit indexing: {:?}",
+                events_count,
+                e
+            );
+        }
     }
 
     // Populate autocomplete cache
