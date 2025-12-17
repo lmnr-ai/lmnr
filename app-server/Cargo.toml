@@ -17,7 +17,7 @@ backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
 bytes = "1.10.1"
 chrono = {version = "0.4.41", features = ["serde"]}
-clickhouse = {version = "0.13.3", features = ["rustls-tls", "uuid"]}
+clickhouse = {version = "0.14.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
 deadpool = "0.12.2"
 dotenv = "0.15"
@@ -28,7 +28,7 @@ indexmap = {version = "2.11.4", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.7"
 log = "0.4.28"
-moka = {version = "0.12.10", features = ["sync", "future"]}
+moka = {version = "0.12.11", features = ["sync", "future"]}
 num_cpus = "1.16.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}

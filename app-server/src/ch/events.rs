@@ -62,7 +62,7 @@ pub async fn insert_events(clickhouse: clickhouse::Client, events: Vec<CHEvent>)
         return Ok(0);
     }
 
-    let ch_insert = clickhouse.insert("events");
+    let ch_insert = clickhouse.insert::<CHEvent>("events").await;
     match ch_insert {
         Ok(mut ch_insert) => {
             let mut total_size_bytes = 0;

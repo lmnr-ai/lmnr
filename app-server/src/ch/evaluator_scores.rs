@@ -57,7 +57,9 @@ pub async fn insert_evaluator_score_ch(
     evaluator_id: Option<Uuid>,
     score: f64,
 ) -> Result<()> {
-    let ch_insert = clickhouse.insert("evaluator_scores");
+    let ch_insert = clickhouse
+        .insert::<CHEvaluatorScore>("evaluator_scores")
+        .await;
     match ch_insert {
         Ok(mut ch_insert) => {
             ch_insert
