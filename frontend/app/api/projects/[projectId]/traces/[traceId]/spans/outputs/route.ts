@@ -12,8 +12,9 @@ export async function POST(
 
   try {
     const body = await req.json();
+    const { spanIds, startDate, endDate } = body;
 
-    const outputs = await getSpanOutputs({ projectId, traceId, ...body });
+    const outputs = await getSpanOutputs({ projectId, traceId, spanIds, startDate, endDate });
 
     return NextResponse.json({ outputs });
   } catch (error) {

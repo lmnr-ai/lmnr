@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types.ts";
-import { tryParseJson } from "@/lib/actions/common/utils.ts";
+import { deepParseJson, tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 
 export const GetSpanOutputsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
@@ -36,7 +36,7 @@ export async function getSpanOutputs(input: z.infer<typeof GetSpanOutputsSchema>
     const outputsMap: Record<string, any> = {};
 
     for (const result of results) {
-      outputsMap[result.spanId] = tryParseJson(result.output);
+      outputsMap[result.spanId] = deepParseJson(tryParseJson(result.output));
     }
 
     for (const spanId of spanIds) {
@@ -51,3 +51,4 @@ export async function getSpanOutputs(input: z.infer<typeof GetSpanOutputsSchema>
     throw new Error("Failed to fetch span outputs");
   }
 }
+

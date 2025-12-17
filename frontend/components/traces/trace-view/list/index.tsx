@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
-import MustacheTemplateDialog from "@/components/traces/trace-view/list/mustache-template-dialog.tsx";
+import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs.ts";
 import {
   TraceViewListSpan,
@@ -195,17 +195,16 @@ const List = ({ onSpanSelect }: ListProps) => {
           </div>
         </div>
       </div>
-      {settingsSpan && (
-        <MustacheTemplateDialog
-          span={settingsSpan}
-          output={getOutput(settingsSpan.spanId)}
-          isLoadingOutput={getOutput(settingsSpan.spanId) === undefined}
-          open
-          onOpenChange={(open) => !open && setSettingsSpan(null)}
-        />
-      )}
+      <MustacheTemplateSheet
+        span={settingsSpan}
+        output={getOutput(settingsSpan?.spanId ?? "")}
+        isLoadingOutput={getOutput(settingsSpan?.spanId ?? "") === undefined}
+        open={!!settingsSpan}
+        onOpenChange={(open) => !open && setSettingsSpan(null)}
+      />
     </div>
   );
 };
 
 export default List;
+

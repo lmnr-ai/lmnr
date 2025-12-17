@@ -100,6 +100,12 @@ export function useBatchedSpanOutputs(
       }
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
+
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
+    };
   }, [visibleSpanIds, scheduleFetch, debounceMs]);
 
   const getOutput = useCallback((spanId: string) => cache.current.get(spanId), []);
@@ -109,16 +115,6 @@ export function useBatchedSpanOutputs(
     fetching.current.clear();
     setUpdateTrigger((prev) => prev + 1);
   }, []);
-
-  // useEffect(() => {
-  //   cache.current.clear();
-  //   fetching.current.clear();
-  //   pendingFetch.current.clear();
-  //   lastIdsRef.current = "";
-  //   if (timer.current) {
-  //     clearTimeout(timer.current);
-  //   }
-  // }, [trace?.id]);
 
   return { getOutput, clearCache };
 }
