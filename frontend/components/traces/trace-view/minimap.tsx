@@ -38,7 +38,7 @@ function Minimap({ onSpanSelect }: Props) {
     [trace?.endTime, trace?.startTime]
   );
 
-  const minimapSpans = useMemo(() => tab === "list" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
+  const minimapSpans = useMemo(() => tab === "reader" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
@@ -269,7 +269,7 @@ function Minimap({ onSpanSelect }: Props) {
         />
         <div ref={spansContainerRef} className="relative w-2 flex-none cursor-pointer" onClick={handleMinimapClick}>
           {minimapSpans.map((span, index) => {
-            const isVisible = tab === "list" && visibleSpanIds.includes(span.spanId);
+            const isVisible = tab === "reader" && visibleSpanIds.includes(span.spanId);
             return (
               <div
                 style={{
@@ -280,7 +280,7 @@ function Minimap({ onSpanSelect }: Props) {
                 key={span.spanId}
                 className={cn(
                   "bg-background absolute duration-100 transition-opacity",
-                  tab === "list"
+                  tab === "reader"
                     ? isVisible
                       ? "opacity-100"
                       : "opacity-40 hover:opacity-100"

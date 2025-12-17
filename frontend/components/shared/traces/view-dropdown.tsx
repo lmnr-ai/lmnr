@@ -37,8 +37,8 @@ export default function ViewDropdown() {
     setTab: state.setTab,
   }));
 
-  const isViewTab = viewTabs.includes(tab as ViewTab);
-  const displayTab: ViewTab | null = isViewTab ? (tab as ViewTab) : null;
+  const isValidTab = viewTabs.includes(tab as ViewTab);
+  const displayTab: ViewTab | null = isValidTab ? (tab as ViewTab) : null;
   const currentView = displayTab ? viewOptions[displayTab] : null;
 
   return (
@@ -47,7 +47,7 @@ export default function ViewDropdown() {
         <Button
           variant="outline"
           className={cn("h-6 text-xs px-1.5 focus-visible:outline-0", {
-            "border-primary text-primary": isViewTab,
+            "border-primary text-primary": isValidTab,
           })}
         >
           {currentView ? (
@@ -62,16 +62,16 @@ export default function ViewDropdown() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {viewTabs.map((viewTab) => {
-          const view = viewOptions[viewTab];
-          const ViewIcon = view.icon;
+        {viewTabs.map((option) => {
+          const view = viewOptions[option];
+          const OptionIcon = view.icon;
           return (
             <DropdownMenuItem
-              key={viewTab}
-              onClick={() => setTab(viewTab)}
-              className={cn(tab === viewTab && "bg-accent")}
+              key={option}
+              onClick={() => setTab(option)}
+              className={cn(tab === option && "bg-accent")}
             >
-              <ViewIcon size={14} />
+              <OptionIcon size={14} />
               {view.label}
             </DropdownMenuItem>
           );

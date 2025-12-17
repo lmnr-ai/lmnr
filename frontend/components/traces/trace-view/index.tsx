@@ -500,7 +500,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   />
                 )}
                 {tab === "timeline" && <Timeline />}
-                {tab === "list" && (
+                {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
                     <List onSpanSelect={handleSpanSelect} />
                     <Minimap onSpanSelect={handleSpanSelect} />

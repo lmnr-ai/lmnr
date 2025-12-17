@@ -100,7 +100,7 @@ interface TraceViewStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "metadata" | "list";
+  tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
   search: string;
   zoom: number;
   treeWidth: number;

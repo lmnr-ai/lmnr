@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "timeline" | "list";
+type ViewTab = "tree" | "timeline" | "reader";
 
 const viewOptions: Record<
   ViewTab,
@@ -27,13 +27,13 @@ const viewOptions: Record<
     icon: ChartNoAxesGantt,
     label: "Timeline",
   },
-  list: {
+  reader: {
     icon: List,
-    label: "List",
+    label: "Reader",
   },
 };
 
-const VIEW_TABS: ViewTab[] = ["tree", "timeline", "list"];
+const viewTabs: ViewTab[] = ["tree", "timeline", "reader"];
 
 export default function ViewDropdown() {
   const { tab, setTab } = useTraceViewStoreContext((state) => ({
@@ -41,10 +41,10 @@ export default function ViewDropdown() {
     setTab: state.setTab,
   }));
 
-  const isViewTab = VIEW_TABS.includes(tab as ViewTab);
-  const displayTab: ViewTab = isViewTab ? (tab as ViewTab) : "tree";
+  const isValidTab = viewTabs.includes(tab as ViewTab);
+  const displayTab: ViewTab = isValidTab ? (tab as ViewTab) : "tree";
   const currentView = viewOptions[displayTab];
-  const Icon = currentView.icon;
+  const CurrentIcon = currentView.icon;
 
   return (
     <DropdownMenu>
@@ -52,25 +52,25 @@ export default function ViewDropdown() {
         <Button
           variant="outline"
           className={cn("h-6 text-xs px-1.5 focus-visible:outline-0", {
-            "border-primary text-primary": isViewTab,
+            "border-primary text-primary": isValidTab,
           })}
         >
-          <Icon size={14} className="mr-1" />
+          <CurrentIcon size={14} className="mr-1" />
           <span className="capitalize">{currentView.label}</span>
           <ChevronDown size={14} className="ml-1" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {VIEW_TABS.map((viewTab) => {
-          const view = viewOptions[viewTab];
-          const ViewIcon = view.icon;
+        {viewTabs.map((option) => {
+          const view = viewOptions[option];
+          const OptionIcon = view.icon;
           return (
             <DropdownMenuItem
-              key={viewTab}
-              onClick={() => setTab(viewTab)}
-              className={cn(tab === viewTab && "bg-accent")}
+              key={option}
+              onClick={() => setTab(option)}
+              className={cn(tab === option && "bg-accent")}
             >
-              <ViewIcon size={14} />
+              <OptionIcon size={14} />
               {view.label}
             </DropdownMenuItem>
           );
