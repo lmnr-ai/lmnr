@@ -1,17 +1,17 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
 
+import ApiKeyGenerator from "../onboarding/api-key-generator.tsx";
 import CodeHighlighter from "../ui/code-highlighter";
 import Header from "../ui/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 export default function EvalsPagePlaceholder() {
-  const { projectId } = useParams();
   const [tabValue, setTabValue] = useState("typescript");
 
   const pythonEval = `from lmnr import evaluate
@@ -30,6 +30,7 @@ evaluate(
     group_id="my_first_feature",
     project_api_key='<YOUR_PROJECT_API_KEY>'
 )`;
+
   const tsEval = `import { evaluate } from '@lmnr-ai/lmnr';
 
 evaluate({
@@ -47,28 +48,30 @@ evaluate({
   config: {
     projectApiKey: '<YOUR_PROJECT_API_KEY>'
   }
-})
-`;
+})`;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <Header path="evaluations" />
       <ScrollArea>
-        <div className="flex flex-1 flex-col mx-auto p-6 pb-16 gap-4 max-w-[800px]">
-          <h1 className="text-2xl font-semibold">Evaluations</h1>
-          <p className="text-muted-foreground">
-            You don{"'"}t have any evaluations in this project yet. To run an evaluation you can start by following the
-            example below.
-          </p>
-          <h2 className="text-xl font-semibold">Install Laminar</h2>
-          <Tabs value={tabValue} onValueChange={setTabValue}>
-            <TabsList className="border-none flex">
-              <TabsTrigger value="typescript">Typescript</TabsTrigger>
-              <TabsTrigger value="python">Python</TabsTrigger>
-            </TabsList>
-            <div className="mt-4">
+        <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-16">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold">Get started with Evaluations</h1>
+            <p className="text-muted-foreground">
+              You don{"'"}t have any evaluations yet. Follow these steps to run your first evaluation.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <h2 className="text-lg font-medium">Install Laminar SDK</h2>
+            <Tabs value={tabValue} onValueChange={setTabValue} defaultValue="typescript">
+              <TabsList className="border-none flex">
+                <TabsTrigger value="typescript">Typescript</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+              </TabsList>
               <TabsContent value="python">
                 <CodeHighlighter
+                  copyable
                   className="text-xs bg-background p-4 rounded-md border"
                   code={PYTHON_INSTALL}
                   language="bash"
@@ -76,31 +79,27 @@ evaluate({
               </TabsContent>
               <TabsContent value="typescript">
                 <CodeHighlighter
+                  copyable
                   className="text-xs bg-background p-4 rounded-md border"
                   code={TYPESCRIPT_INSTALL}
                   language="bash"
                 />
               </TabsContent>
-            </div>
-          </Tabs>
-          <h2 className="text-xl font-semibold">Generate API key</h2>
-          <p className="text-muted-foreground">
-            Go to
-            <a href={`/project/${projectId}/settings`} className="text-primary-foreground font-medium" target="_blank">
-              {" "}
-              settings page{" "}
-            </a>
-            to generate an API key and use it in your code.
-          </p>
-          <h2 className="text-xl font-semibold">Run your first evaluation</h2>
-          <Tabs value={tabValue} onValueChange={setTabValue}>
-            <TabsList className="border-none flex">
-              <TabsTrigger value="typescript">Typescript</TabsTrigger>
-              <TabsTrigger value="python">Python</TabsTrigger>
-            </TabsList>
-            <div className="mt-4">
+            </Tabs>
+          </div>
+
+          <ApiKeyGenerator context="evaluations" />
+
+          <div className="flex flex-col gap-3">
+            <h2 className="text-lg font-medium">Run your first evaluation</h2>
+            <Tabs value={tabValue} onValueChange={setTabValue} defaultValue="typescript">
+              <TabsList className="border-none flex">
+                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+              </TabsList>
               <TabsContent value="python">
                 <CodeHighlighter
+                  copyable
                   className="text-xs bg-background p-4 rounded-md border"
                   code={pythonEval}
                   language="python"
@@ -108,38 +107,35 @@ evaluate({
               </TabsContent>
               <TabsContent value="typescript">
                 <CodeHighlighter
+                  copyable
                   className="text-xs bg-background p-4 rounded-md border"
                   code={tsEval}
                   language="typescript"
                 />
               </TabsContent>
-            </div>
-          </Tabs>
-          <p className="text-muted-foreground">
+            </Tabs>
+          </div>
+
+          <div className="flex items-center gap-6 text-sm">
             <a
               href="https://docs.lmnr.ai/evaluations/introduction"
-              className="text-primary font-medium underline"
               target="_blank"
+              rel="noopener noreferrer"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
             >
-              Read the docs
-            </a>{" "}
-            to learn more.
-          </p>
-          <h2 className="text-xl font-semibold">Run your app</h2>
-          <p className="text-muted-foreground">
-            Run your Python or Typescript app. Refresh the page to see evaluations.
-          </p>
-          <h2 className="text-xl font-semibold">Cannot run evaluations?</h2>
-          <p className="text-muted-foreground">
+              Documentation
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
             <a
               href="https://discord.com/invite/nNFUUDAKub"
-              className="text-primary font-medium underline"
               target="_blank"
+              rel="noopener noreferrer"
+              className="underline inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
             >
-              Message us
-            </a>{" "}
-            and we{"'"}ll be happy to help.
-          </p>
+              Need help? Join Discord
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </ScrollArea>
     </div>

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys, membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
 const INVITATION_EXPIRY_MINUTES = 2880;
 
@@ -22,18 +22,10 @@ const verifyToken = (token: string): JwtPayload => {
   }
 };
 
-const handleInvitation = async (action: "accept" | "decline", id: string, workspaceId: string, apiKey: string) => {
+const handleInvitation = async (action: "accept" | "decline", id: string, workspaceId: string, userId: string) => {
   "use server";
 
   if (id) {
-    const row = await db.query.apiKeys.findFirst({
-      where: eq(apiKeys.apiKey, apiKey),
-    });
-
-    if (!row) {
-      throw new Error("No user found.");
-    }
-
     const invitation = await db.query.workspaceInvitations.findFirst({
       where: eq(workspaceInvitations.id, id),
     });
@@ -48,7 +40,7 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
           .delete(workspaceInvitations)
           .where(and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)));
 
-        await tx.insert(membersOfWorkspaces).values({ userId: row.userId, memberRole: "member", workspaceId });
+        await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
     }
 
@@ -100,12 +92,12 @@ export default async function InvitationsPage(props: {
 
   async function acceptInvitation() {
     "use server";
-    return handleInvitation("accept", decoded.id, decoded.workspaceId, user!.apiKey);
+    return handleInvitation("accept", decoded.id, decoded.workspaceId, user!.id);
   }
 
   async function declineInvitation() {
     "use server";
-    return handleInvitation("decline", decoded.id, decoded.workspaceId, user!.apiKey);
+    return handleInvitation("decline", decoded.id, decoded.workspaceId, user!.id);
   }
 
   return (

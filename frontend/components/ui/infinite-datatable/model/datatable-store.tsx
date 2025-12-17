@@ -1,6 +1,6 @@
 "use client";
 
-import { uniqBy } from "lodash";
+import { intersection, pick, uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useRef } from "react";
 import { createStore, StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
@@ -23,8 +23,8 @@ export interface InfiniteScrollActions<TData> {
   setIsLoading: (loading: boolean) => void;
   setError: (error: Error | null) => void;
   setHasMore: (hasMore: boolean) => void;
-  appendData: (items: TData[], count: number) => void;
-  replaceData: (items: TData[], count: number) => void;
+  appendData: (items: TData[], count?: number) => void;
+  replaceData: (items: TData[], count?: number) => void;
   resetInfiniteScroll: () => void;
 }
 
@@ -45,6 +45,7 @@ export interface SelectionActions {
   setColumnOrder: (order: string[]) => void;
   setDraggingColumnId: (columnId: string | null) => void;
   resetColumns: () => void;
+  getStorageKey: () => string;
 }
 
 type DataTableStore<TData> = InfiniteScrollState<TData> &
@@ -150,6 +151,7 @@ function createDataTableStore<TData>(
         selectedRows: new Set(ids),
       }),
     clearSelection: () => set({ selectedRows: new Set() }),
+    getStorageKey: () => storageKey || "datatable",
   });
 
   if (storageKey) {
@@ -160,6 +162,19 @@ function createDataTableStore<TData>(
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
         }),
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<Pick<SelectionState, "columnVisibility" | "columnOrder">>;
+          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
+          const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
+          const mergedColumnOrder = [...validColumns, ...newColumns];
+          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
+
+          return {
+            ...currentState,
+            columnVisibility: filteredColumnVisibility,
+            columnOrder: mergedColumnOrder,
+          };
+        },
       })
     );
   }

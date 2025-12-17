@@ -12,7 +12,7 @@ type AbsoluteTimeRange = {
 };
 
 type RelativeTimeRange = {
-  pastHours: number | "all";
+  pastHours: number;
 };
 
 export const aggregationFunctionToCh = (f: AggregationFunction) => {
@@ -46,9 +46,6 @@ export const getTimeRange = (
   endDate: string | undefined
 ): TimeRange => {
   if (pastHours) {
-    if (pastHours === "all") {
-      return { pastHours: "all" };
-    }
     return { pastHours: parseInt(pastHours) };
   }
   if (startDate && endDate) {
@@ -69,9 +66,6 @@ export const addTimeRangeToQuery = (query: string, timeRange: TimeRange, column:
       AND ${column} <= fromUnixTimestamp(${endSeconds})`;
   }
   if ("pastHours" in timeRange) {
-    if (timeRange.pastHours === "all") {
-      return query;
-    }
     return `${query} AND ${column} >= now() - INTERVAL ${timeRange.pastHours} HOUR`;
   }
   throw new Error("Invalid time range");

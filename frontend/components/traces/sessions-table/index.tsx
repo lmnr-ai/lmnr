@@ -9,6 +9,7 @@ import SearchInput from "@/components/common/search-input";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -17,7 +18,6 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SessionRow, TraceRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 const FETCH_SIZE = 50;
 
@@ -221,9 +221,14 @@ function SessionsTableContent() {
         fetchNextPage={fetchNextPage}
         error={error}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in sessions..." />

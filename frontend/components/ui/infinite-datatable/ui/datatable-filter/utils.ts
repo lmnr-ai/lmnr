@@ -1,22 +1,15 @@
 import { ReactNode } from "react";
 
+import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, Operator, STRING_OPERATORS } from "@/lib/actions/common/operators";
+
 export type ColumnFilter = ColumnFilterPrimitives | ColumnFilterEnum;
-type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" };
+type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" | "boolean" };
 type ColumnFilterEnum = {
   name: string;
   key: string;
   dataType: "enum";
   options: { label: string; value: string; icon?: ReactNode }[];
 };
-
-export enum Operator {
-  Eq = "eq",
-  Lt = "lt",
-  Gt = "gt",
-  Lte = "lte",
-  Gte = "gte",
-  Ne = "ne",
-}
 
 export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Eq]: "=",
@@ -26,10 +19,6 @@ export const OperatorLabelMap: Record<Operator, string> = {
   [Operator.Gte]: ">=",
   [Operator.Ne]: "!=",
 };
-
-const STRING_OPERATORS = [Operator.Eq, Operator.Ne];
-const NUMBER_OPERATORS = [Operator.Eq, Operator.Lt, Operator.Gt, Operator.Lte, Operator.Gte, Operator.Ne];
-const JSON_OPERATORS = [Operator.Eq];
 
 export const STRING_OPERATIONS = STRING_OPERATORS.map((op) => ({
   key: op,
@@ -46,15 +35,15 @@ export const JSON_OPERATIONS = JSON_OPERATORS.map((op) => ({
   label: OperatorLabelMap[op],
 }));
 
+export const BOOLEAN_OPERATIONS = BOOLEAN_OPERATORS.map((op) => ({
+  key: op,
+  label: OperatorLabelMap[op],
+}));
+
 export const dataTypeOperationsMap: Record<ColumnFilter["dataType"], { key: Operator; label: string }[]> = {
   string: STRING_OPERATIONS,
   number: NUMBER_OPERATIONS,
   json: JSON_OPERATIONS,
+  boolean: BOOLEAN_OPERATIONS,
   enum: STRING_OPERATIONS,
-};
-
-export type DatatableFilter = {
-  column: string;
-  operator: Operator;
-  value: string;
 };

@@ -80,10 +80,10 @@ class CacheManager {
       const client = await this.getRedisClient();
       let args: any[] = [];
       if (options.expireAfterSeconds) {
-        args.push('EX', options.expireAfterSeconds);
+        args.push("EX", options.expireAfterSeconds);
       }
       if (options.expireAt) {
-        args.push('PXAT', options.expireAt.getTime());
+        args.push("PXAT", options.expireAt.getTime());
       }
       try {
         await client.set(key, JSON.stringify(value), ...args);
@@ -109,11 +109,54 @@ class CacheManager {
       this.memoryCache.delete(key);
     }
   }
+
+  async zrange(key: string, start: number, stop: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrange(key, start, stop);
+      } catch (e) {
+        console.error("Error getting zrange from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
+
+  async zrangebylex(key: string, min: string, max: string, limit: number): Promise<string[]> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        return await client.zrangebylex(key, min, max, "LIMIT", 0, limit);
+      } catch (e) {
+        console.error("Error getting zrangebylex from cache", e);
+        return [];
+      }
+    } else {
+      return [];
+    }
+  }
+
+  async exists(key: string): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.exists(key);
+        return result === 1;
+      } catch (e) {
+        console.error("Error checking if key exists in cache", e);
+        return false;
+      }
+    } else {
+      const entry = this.memoryCache.get(key);
+      return !!entry;
+    }
+  }
 }
 
 export const cache = new CacheManager();
 
-// This cache keys MUST match the keys in the app-server
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
@@ -121,4 +164,12 @@ export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
-export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
+export const SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY = "semantic_event_trigger_spans";
+
+export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
+  `workspace_member:${workspaceId}:${userId}`;
+
+export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `project_member:${projectId}:${userId}`;
+
+export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
+  `autocomplete:${resource}:${projectId}:${field}`;

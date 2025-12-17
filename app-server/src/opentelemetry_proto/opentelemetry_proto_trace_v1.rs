@@ -9,6 +9,7 @@
 ///
 /// When new fields are added into this message, the OTLP request MUST be updated
 /// as well.
+#[allow(dead_code)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TracesData {
     /// An array of ResourceSpans.
@@ -149,10 +150,12 @@ pub struct Span {
     /// attributes is a collection of key/value pairs. Note, global attributes
     /// like server name can be set using the resource API. Examples of attributes:
     ///
-    ///      "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
-    ///      "/http/server_latency": 300
-    ///      "example.com/myattribute": true
-    ///      "example.com/score": 10.239
+    /// ```text
+    /// "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
+    /// "/http/server_latency": 300
+    /// "example.com/myattribute": true
+    /// "example.com/score": 10.239
+    /// ```
     ///
     /// The OpenTelemetry API specification further restricts the allowed value types:
     /// <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute>
@@ -326,7 +329,7 @@ pub mod span {
 }
 /// The Status type defines a logical error model that is suitable for different
 /// programming environments, including REST APIs and RPC APIs.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Status {
     /// A developer-facing human readable error message.
     #[prost(string, tag = "2")]
@@ -389,7 +392,7 @@ pub mod status {
 /// a bit-mask.  To extract the bit-field, for example, use an
 /// expression like:
 ///
-///    (span.flags & SPAN_FLAGS_TRACE_FLAGS_MASK)
+/// (span.flags & SPAN_FLAGS_TRACE_FLAGS_MASK)
 ///
 /// See <https://www.w3.org/TR/trace-context-2/#trace-flags> for the flag definitions.
 ///

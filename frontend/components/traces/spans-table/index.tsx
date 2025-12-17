@@ -4,10 +4,11 @@ import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
-import SearchInput from "@/components/common/search-input";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
+import SearchSpansInput from "@/components/traces/spans-table/search.tsx";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -16,7 +17,6 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SpanRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
 
 const FETCH_SIZE = 50;
 
@@ -126,37 +126,50 @@ function SpansTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<SpanRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
-      router.push(`${pathName}?${params.toString()}`);
       setTraceId(row.original.traceId);
       setSpanId(row.original.spanId);
     },
-    [pathName, router, searchParams, setSpanId, setTraceId]
+    [setSpanId, setTraceId]
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<SpanRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("spanId", row.original.spanId);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
   );
 
   return (
-    <div className="flex overflow-hidden px-4 pb-6">
+    <div className="flex flex-1 overflow-hidden px-4 pb-6">
       <InfiniteDataTable<SpanRow>
         className="w-full"
         columns={columns}
         data={spans}
         getRowId={(span) => span.spanId}
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
         focusedRowId={spanId || searchParams.get("spanId")}
-        hasMore={hasMore}
+        hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} />
+          <ColumnsMenu
+            lockedColumns={["status"]}
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
-          <SearchInput placeholder="Search in spans..." />
+          <SearchSpansInput />
         </div>
         <DataTableFilterList />
       </InfiniteDataTable>

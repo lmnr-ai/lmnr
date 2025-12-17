@@ -1,17 +1,18 @@
-import { eq } from "drizzle-orm";
+
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { buildTracesQueryWithParams, searchSpans } from "@/lib/actions/traces/utils";
+import { searchSpans } from "@/lib/actions/traces/search";
+import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { clusters } from "@/lib/db/migrations/schema";
-import { FilterDef } from "@/lib/db/modifiers";
 import { TraceRow } from "@/lib/traces/types.ts";
+
+import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
 const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
@@ -52,57 +53,37 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     filter: inputFilters,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
-  const traceIds = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
+      traceId: undefined,
       searchQuery: search,
       timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  if (search && traceIds?.length === 0) {
-    return { items: [] };
-  }
-
-  // Resolve pattern names to cluster IDs (lazy - only if pattern filters exist)
-  let processedFilters = filters;
-
-  const hasPatternFilter = filters.some((f) => f.column === "pattern");
-  if (hasPatternFilter) {
-    const clustersList = await db
-      .select()
-      .from(clusters)
-      .where(eq(clusters.projectId, projectId));
-
-    // Replace pattern names with cluster IDs, remove filters for non-existent patterns
-    processedFilters = filters
-      .map((filter) => {
-        if (filter.column === "pattern") {
-          const cluster = clustersList.find((c) => c.name === filter.value);
-          if (cluster) {
-            return { ...filter, value: cluster.id };
-          } else {
-            // Pattern doesn't exist - log warning and filter it out
-            console.warn(`Pattern "${filter.value}" not found in clusters for project ${projectId}`);
-            return null;
-          }
-        }
-        return filter;
-      })
-      .filter((f): f is FilterDef => f !== null);
+  if (search) {
+    if (traceIds?.length === 0) {
+      return { items: [] };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
     traceIds,
-    filters: processedFilters,
+    filters,
     limit,
     offset,
     startTime,
@@ -111,6 +92,16 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
+
+  // If we have traceIds from search, sort items to match the search order
+  if (search && traceIds.length > 0) {
+    const traceIdIndexMap = new Map(traceIds.map((id, index) => [id, index]));
+    items.sort((a, b) => {
+      const indexA = traceIdIndexMap.get(a.id) ?? Infinity;
+      const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
+      return indexA - indexB;
+    });
+  }
 
   return {
     items,
@@ -131,6 +122,7 @@ export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       input_cost as inputCost,
       output_cost as outputCost,
+      total_cost as totalCost,
       status
     FROM traces
     WHERE id IN ({traceIds:Array(UUID)})

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys, membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -26,14 +26,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     return new Response("Workspace ID is required", { status: 400 });
   }
 
-  const row = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.apiKey, user.apiKey),
-  });
-
-  if (!row) {
-    return new Response("User not found", { status: 404 });
-  }
-
   const invitation = await db.query.workspaceInvitations.findFirst({
     where: and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.email, email)),
   });
@@ -48,7 +40,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         .delete(workspaceInvitations)
         .where(and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)));
 
-      await tx.insert(membersOfWorkspaces).values({ userId: row.userId, memberRole: "member", workspaceId });
+      await tx.insert(membersOfWorkspaces).values({ userId: user.id, memberRole: "member", workspaceId });
     });
     return new Response("Invitation accepted.", { status: 200 });
   }

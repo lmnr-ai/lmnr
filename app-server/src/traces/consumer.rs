@@ -1,8 +1,8 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
-//! and clickhouse
+//! and clickhouse, and quickwit
 use std::sync::Arc;
 
-use backoff::ExponentialBackoffBuilder;
+use async_trait::async_trait;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
@@ -12,9 +12,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
-    summary::push_to_trace_summary_queue,
-    trigger::{check_span_trigger, get_summary_trigger_spans_cached},
+    semantic_events::push_to_semantic_event_queue, trigger::get_semantic_event_trigger_spans_cached,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -33,140 +31,66 @@ use crate::{
     },
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
-    mq::{
-        MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiverTrait,
-        MessageQueueTrait,
+    mq::MessageQueue,
+    pubsub::PubSub,
+    quickwit::{
+        IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
+        producer::publish_for_indexing,
     },
-    realtime::SseConnectionMap,
     storage::Storage,
     traces::{
         IngestedBytes,
-        events::record_events,
+        events::record_span_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
+    worker::{HandlerError, MessageHandler},
+};
+use crate::{
+    cache::autocomplete::populate_autocomplete_cache,
+    db::semantic_event_trigger_spans::SemanticEventTriggerSpanWithDefinition,
 };
 
-pub async fn process_queue_spans(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    clickhouse: clickhouse::Client,
-    storage: Arc<Storage>,
-    sse_connections: SseConnectionMap,
-) {
-    loop {
-        inner_process_queue_spans(
-            db.clone(),
-            cache.clone(),
-            queue.clone(),
-            clickhouse.clone(),
-            storage.clone(),
-            sse_connections.clone(),
-        )
-        .await;
-        log::warn!("Span listener exited. Rebinding queue conneciton...");
-    }
+/// Handler for span processing
+pub struct SpanHandler {
+    pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
+    pub queue: Arc<MessageQueue>,
+    pub clickhouse: clickhouse::Client,
+    pub storage: Arc<Storage>,
+    pub pubsub: Arc<PubSub>,
 }
 
-async fn inner_process_queue_spans(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    clickhouse: clickhouse::Client,
-    storage: Arc<Storage>,
-    sse_connections: SseConnectionMap,
-) {
-    // Add retry logic with exponential backoff for connection failures
-    let get_receiver = || async {
-        queue
-            .get_receiver(
-                OBSERVATIONS_QUEUE,
-                OBSERVATIONS_EXCHANGE,
-                OBSERVATIONS_ROUTING_KEY,
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Failed to get receiver from queue: {:?}", e);
-                backoff::Error::transient(e)
-            })
-    };
+#[async_trait]
+impl MessageHandler for SpanHandler {
+    type Message = Vec<RabbitMqSpanMessage>;
 
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(std::time::Duration::from_secs(1))
-        .with_max_interval(std::time::Duration::from_secs(60))
-        .with_max_elapsed_time(Some(std::time::Duration::from_secs(300))) // 5 minutes max
-        .build();
-
-    let mut receiver = match backoff::future::retry(backoff, get_receiver).await {
-        Ok(receiver) => {
-            log::info!("Successfully connected to spans queue");
-            receiver
-        }
-        Err(e) => {
-            log::error!("Failed to connect to spans queue after retries: {:?}", e);
-            return;
-        }
-    };
-
-    log::info!("Started processing spans from queue");
-
-    while let Some(delivery) = receiver.receive().await {
-        if let Err(e) = delivery {
-            log::error!("Failed to receive message from queue: {:?}", e);
-            continue;
-        }
-        let delivery = delivery.unwrap();
-        let acker = delivery.acker();
-        let rabbitmq_span_messages =
-            match serde_json::from_slice::<Vec<RabbitMqSpanMessage>>(&delivery.data()) {
-                Ok(messages) => messages,
-                Err(e) => {
-                    log::error!("Failed to deserialize span message: {:?}", e);
-                    let _ = acker.reject(false).await;
-                    continue;
-                }
-            };
-
-        // Process all spans in the batch
+    async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
         process_spans_and_events_batch(
-            rabbitmq_span_messages,
-            db.clone(),
-            clickhouse.clone(),
-            cache.clone(),
-            storage.clone(),
-            acker,
-            queue.clone(),
-            sse_connections.clone(),
+            messages,
+            self.db.clone(),
+            self.clickhouse.clone(),
+            self.cache.clone(),
+            self.storage.clone(),
+            self.queue.clone(),
+            self.pubsub.clone(),
         )
-        .await;
+        .await
     }
-
-    log::warn!("Queue closed connection. Shutting down span listener");
 }
 
-#[instrument(skip(
-    messages,
-    db,
-    clickhouse,
-    cache,
-    storage,
-    acker,
-    queue,
-    sse_connections
-))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     storage: Arc<Storage>,
-    acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
-    sse_connections: SseConnectionMap,
-) {
+    pubsub: Arc<PubSub>,
+) -> Result<(), HandlerError> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
     let mut spans_ingested_bytes = Vec::new();
@@ -227,12 +151,11 @@ async fn process_spans_and_events_batch(
         db,
         clickhouse,
         cache,
-        acker,
         queue,
-        sse_connections,
+        pubsub,
     )
     .with_current_context()
-    .await;
+    .await
 }
 
 struct StrippedSpan {
@@ -250,9 +173,8 @@ struct StrippedSpan {
     db,
     clickhouse,
     cache,
-    acker,
     queue,
-    sse_connections
+    pubsub
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -261,10 +183,9 @@ async fn process_batch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    acker: MessageQueueAcker,
     queue: Arc<MessageQueue>,
-    sse_connections: SseConnectionMap,
-) {
+    pubsub: Arc<PubSub>,
+) -> Result<(), HandlerError> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
 
@@ -314,41 +235,37 @@ async fn process_batch(
     }
 
     // Process trace aggregations and update trace statistics
-    if is_feature_enabled(Feature::AggregateTraces) {
-        let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
-        if !trace_aggregations.is_empty() {
-            // Upsert trace statistics in PostgreSQL
-            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-                Ok(updated_traces) => {
-                    // Convert to ClickHouse traces and upsert
-                    let ch_traces: Vec<CHTrace> = updated_traces
-                        .iter()
-                        .map(|trace| CHTrace::from_db_trace(trace))
-                        .collect();
+    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+    // Upsert trace statistics in PostgreSQL
+    match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+        Ok(updated_traces) => {
+            // Convert to ClickHouse traces and upsert
+            let ch_traces: Vec<CHTrace> = updated_traces
+                .iter()
+                .map(|trace| CHTrace::from_db_trace(trace))
+                .collect();
 
-                    if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
-                        log::error!(
-                            "Failed to upsert {} traces to ClickHouse: {:?}",
-                            ch_traces.len(),
-                            e
-                        );
-                    }
-
-                    // Send trace_update events for realtime updates
-                    send_trace_updates(&updated_traces, &sse_connections).await;
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
-                        project_id,
-                        e
-                    );
-                }
+            if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+                log::error!(
+                    "Failed to upsert {} traces to ClickHouse: {:?}",
+                    ch_traces.len(),
+                    e
+                );
             }
+
+            // Send trace_update events for realtime updates
+            send_trace_updates(&updated_traces, &pubsub).await;
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
+                project_id,
+                e
+            );
         }
     }
 
-    // Record spans to clickhouse
+    // Filter out spans that should not be recorded to clickhouse
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
@@ -364,27 +281,74 @@ async fn process_batch(
         })
         .collect();
 
+    // Record spans to clickhouse
     if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
             e
         );
-        let _ = acker.reject(false).await.map_err(|e| {
-            log::error!(
-                "[Write to Clickhouse] Failed to reject MQ delivery (batch): {:?}",
-                e
-            );
-        });
-        return;
+        // We don't want to drop spans if we can't insert them to Clickhouse
+        // most likely it's a transient Clickhouse issue, so we want to requeue the message
+        return Err(HandlerError::transient(anyhow::anyhow!(
+            "Failed to insert spans to Clickhouse: {:?}",
+            e
+        )));
     }
 
-    // Check for spans matching trigger conditions and push to trace summary queue
-    check_and_push_trace_summaries(project_id, &spans, db.clone(), cache.clone(), queue.clone())
-        .await;
+    // Temporary solution to filter out spans before sending realtime span updates
+    let spans: Vec<Span> = spans
+        .into_iter()
+        .filter(|span| span.should_record_to_clickhouse())
+        .collect();
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
-    send_span_updates(&spans, &sse_connections).await;
+    send_span_updates(&spans, &pubsub).await;
+
+    if is_feature_enabled(Feature::SemanticEvents) {
+        // Check for spans matching trigger conditions and push to semantic event queue
+        check_and_push_semantic_events(
+            project_id,
+            &spans,
+            db.clone(),
+            cache.clone(),
+            queue.clone(),
+        )
+        .await;
+    }
+
+    // Index spans and events in Quickwit
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
+    let quickwit_events: Vec<QuickwitIndexedEvent> =
+        all_events.iter().map(|event| event.into()).collect();
+
+    let spans_count = quickwit_spans.len();
+    let events_count = quickwit_events.len();
+    if spans_count > 0 {
+        if let Err(e) =
+            publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
+        {
+            log::error!(
+                "Failed to publish {} spans for Quickwit indexing: {:?}",
+                spans_count,
+                e
+            );
+        }
+    }
+    if events_count > 0 {
+        if let Err(e) =
+            publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
+        {
+            log::error!(
+                "Failed to publish {} events for Quickwit indexing: {:?}",
+                events_count,
+                e
+            );
+        }
+    }
+
+    // Populate autocomplete cache
+    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
 
     // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
     let stripped_spans = spans
@@ -398,11 +362,7 @@ async fn process_batch(
         })
         .collect::<Vec<_>>();
 
-    let _ = acker.ack().await.map_err(|e| {
-        log::error!("Failed to ack MQ delivery (batch): {:?}", e);
-    });
-
-    let total_events_ingested_bytes = match record_events(
+    let total_events_ingested_bytes = match record_span_events(
         cache.clone(),
         db.clone(),
         project_id,
@@ -500,27 +460,32 @@ async fn process_batch(
             }
         }
     }
+
+    Ok(())
 }
 
-/// Check spans against trigger conditions and push matching traces to summary queue
+/// Check spans against trigger conditions and push matching traces to semantic event queue
 /// This function groups spans by project to minimize database/cache queries
-async fn check_and_push_trace_summaries(
+async fn check_and_push_semantic_events(
     project_id: Uuid,
     spans: &[Span],
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    match get_summary_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
+    match get_semantic_event_trigger_spans_cached(db.clone(), cache.clone(), project_id).await {
         Ok(trigger_spans) => {
             // Check each span against its project's trigger spans
             for span in spans {
                 // Check if this span name matches any trigger
-                let matching_triggers = check_span_trigger(&span.name, &trigger_spans);
-
+                let matching_triggers: Vec<SemanticEventTriggerSpanWithDefinition> = trigger_spans
+                    .iter()
+                    .filter(|trigger| trigger.span_name == span.name)
+                    .cloned()
+                    .collect();
                 // Send one message per matching trigger
                 for trigger in matching_triggers {
-                    if let Err(e) = push_to_trace_summary_queue(
+                    if let Err(e) = push_to_semantic_event_queue(
                         span.trace_id,
                         span.project_id,
                         span.span_id,
@@ -530,7 +495,7 @@ async fn check_and_push_trace_summaries(
                     .await
                     {
                         log::error!(
-                            "Failed to push trace completion to summary queue: trace_id={}, project_id={}, span_name={}, error={:?}",
+                            "Failed to push trace to semantic event queue: trace_id={}, project_id={}, span_name={}, error={:?}",
                             span.trace_id,
                             span.project_id,
                             span.name,
@@ -542,7 +507,7 @@ async fn check_and_push_trace_summaries(
         }
         Err(e) => {
             log::error!(
-                "Failed to get summary trigger spans for project {}: {:?}",
+                "Failed to get semantic event trigger spans for project {}: {:?}",
                 project_id,
                 e
             );

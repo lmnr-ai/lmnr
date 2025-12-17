@@ -57,6 +57,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
           throw new Error(`Failed to fetch stats: ${response.status} ${response.statusText}`);
         }
         const data = (await response.json()) as { items: TracesStatsDataPoint[] };
+
         set({ stats: data.items, isLoadingStats: false });
       } catch (error) {
         console.error("Failed to fetch stats:", error);

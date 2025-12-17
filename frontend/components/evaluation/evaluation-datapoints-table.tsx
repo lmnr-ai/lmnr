@@ -34,6 +34,7 @@ interface EvaluationDatapointsTableProps {
   data: EvaluationDatapointPreview[] | undefined;
   scores: string[];
   handleRowClick: (row: Row<EvaluationDatapointPreviewWithCompared>) => void;
+  getRowHref?: (row: Row<EvaluationDatapointPreviewWithCompared>) => string;
   hasMore: boolean;
   isFetching: boolean;
   fetchNextPage: () => void;
@@ -55,6 +56,7 @@ const EvaluationDatapointsTableContent = ({
   data,
   scores,
   handleRowClick,
+  getRowHref,
   datapointId,
   isLoading,
   hasMore,
@@ -134,18 +136,24 @@ const EvaluationDatapointsTableContent = ({
       <InfiniteDataTable
         columns={columns}
         data={data ?? []}
-        hasMore={hasMore}
+        hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowId={(row) => row.id}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
         className="flex-1"
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
-          <ColumnsMenu />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

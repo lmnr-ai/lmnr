@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import React from "react";
 
+import { useSessionSync } from "@/components/auth/session-sync-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
@@ -22,13 +23,26 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { cn } from "@/lib/utils.ts";
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project, workspace } = useProjectContext();
-  const { username, imageUrl, email } = useUserContext();
+  const user = useUserContext();
+  const { broadcastLogout } = useSessionSync();
+
+  const handleLogout = async () => {
+    try {
+      await deleteLastWorkspaceIdCookie();
+      await deleteLastProjectIdCookie();
+      await signOut({ callbackUrl: "/" });
+      broadcastLogout();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <SidebarHeader className="px-0 mt-2">
@@ -73,12 +87,12 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuLabel className="flex gap-2 p-1">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={imageUrl} alt="avatar" />
-                  <AvatarFallback className="rounded-lg">{username?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
+                  <AvatarImage src={user.image ?? ''} alt="avatar" />
+                  <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left leading-tight">
                   <span className="text-muted-foreground">Logged in as</span>
-                  <span className="text-sidebar-foreground">{email}</span>
+                  <span className="text-sidebar-foreground">{user.email}</span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -117,7 +131,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />
                 <span className="text-xs">Log out</span>
               </DropdownMenuItem>

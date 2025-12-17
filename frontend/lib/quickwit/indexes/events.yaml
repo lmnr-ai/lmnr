@@ -1,0 +1,45 @@
+version: "0.8"
+index_id: events
+doc_mapping:
+  field_mappings:
+    - name: is_exception
+      type: bool
+      fast: true
+      stored: false
+    - name: project_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: trace_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: span_id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: id
+      type: text
+      tokenizer: raw
+      fast: true
+    - name: timestamp
+      type: datetime
+      fast: true
+      stored: false
+    - name: name
+      type: text
+      tokenizer: default
+      stored: false
+    - name: attributes
+      type: text
+      tokenizer: default
+      fast: false
+      stored: false
+      record: position
+  tag_fields: []
+  timestamp_field: timestamp
+search_settings:
+  default_search_fields: [name, attributes]
+retention:
+  period: 90 days
+  schedule: daily

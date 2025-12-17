@@ -109,6 +109,20 @@ export const baseExtensions = [
       color: "hsl(var(--primary-foreground))",
       fontWeight: "600",
     },
+    ".cm-mustache-bracket": {
+      color: "#79c0ff",
+      fontWeight: "bold",
+    },
+    ".cm-mustache-keyword": {
+      color: "#ff7b72",
+      fontWeight: "bold",
+    },
+    ".cm-mustache-variable": {
+      color: "#a5d6ff",
+    },
+    ".cm-mustache-operator": {
+      color: "#ffab70",
+    },
   }),
   search({
     createPanel: (view) => {

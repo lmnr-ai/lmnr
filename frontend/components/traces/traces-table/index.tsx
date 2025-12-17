@@ -2,27 +2,29 @@
 import { Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
-import SearchTracesInput from "@/components/traces/search-traces-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
+import SearchTracesInput from "@/components/traces/traces-table/search";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { Filter } from "@/lib/actions/common/filters";
+import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
-import DateRangeFilter from "@/shared/ui/date-range-filter";
 
-const presetFilters: DatatableFilter[] = [];
+const presetFilters: Filter[] = [];
 
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
@@ -68,7 +70,7 @@ function TracesTableContent() {
   const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
 
-  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
+  const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage("traces-table:realtime", false);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -146,7 +148,8 @@ function TracesTableContent() {
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
           variant: "destructive",
         });
         throw error;
@@ -204,6 +207,10 @@ function TracesTableContent() {
             newTraces.splice(FETCH_SIZE);
           }
 
+          if (traceData.startTime) {
+            incrementStat(traceData.startTime, traceData.status === "error");
+          }
+
           return newTraces;
         }
       });
@@ -211,58 +218,30 @@ function TracesTableContent() {
     [updateData, isTraceInTimeRange]
   );
 
-  // SSE connection for realtime trace updates
-  useEffect(() => {
-    // Only connect if realtime is enabled
-    if (!realtimeEnabled) {
-      return;
-    }
-
-    // Disable realtime updates if there are filters or search
-    if (filter.length > 0 || !!textSearchFilter) {
-      return;
-    }
-
-    if (!isCurrentTimestampIncluded) {
-      return;
-    }
-
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=traces`);
-
-    eventSource.addEventListener("trace_update", (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.traces && Array.isArray(payload.traces)) {
-          // Process batched trace updates
-          for (const trace of payload.traces) {
-            updateRealtimeTrace(trace);
-            if (trace.startTime) {
-              incrementStat(trace.startTime, trace.status === "error");
+  const eventHandlers = useMemo(
+    () => ({
+      trace_update: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.traces && Array.isArray(payload.traces)) {
+            for (const trace of payload.traces) {
+              updateRealtimeTrace(trace);
             }
           }
+        } catch (e) {
+          console.warn("Failed to parse realtime trace: ", e);
         }
-      } catch (error) {
-        console.error("Error processing trace update:", error);
-      }
-    });
+      },
+    }),
+    [updateRealtimeTrace]
+  );
 
-    eventSource.addEventListener("error", (error) => {
-      console.error("SSE connection error:", error);
-    });
-
-    // Clean up on unmount
-    return () => {
-      eventSource.close();
-    };
-  }, [
-    projectId,
-    isCurrentTimestampIncluded,
-    filter.length,
-    textSearchFilter,
-    realtimeEnabled,
-    updateRealtimeTrace,
-    incrementStat,
-  ]);
+  useRealtime({
+    key: "traces",
+    projectId: projectId as string,
+    enabled: realtimeEnabled && filter.length === 0 && !textSearchFilter && isCurrentTimestampIncluded,
+    eventHandlers,
+  });
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -290,12 +269,18 @@ function TracesTableContent() {
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
       onRowClick?.(row.id);
-      const params = new URLSearchParams(searchParams);
+    },
+    [onRowClick]
+  );
+
+  const getRowHref = useCallback(
+    (row: Row<TraceRow>) => {
+      const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.id);
       params.delete("spanId");
-      router.push(`${pathName}?${params.toString()}`);
+      return `${pathName}?${params.toString()}`;
     },
-    [onRowClick, pathName, router, searchParams]
+    [pathName, searchParams]
   );
 
   return (
@@ -307,15 +292,22 @@ function TracesTableContent() {
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
         focusedRowId={traceId || searchParams.get("traceId")}
-        hasMore={hasMore}
+        hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
+        getRowHref={getRowHref}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 pt-1 w-full h-full gap-2">
           <DataTableFilter presetFilters={presetFilters} columns={filters} />
-          <ColumnsMenu lockedColumns={["status"]} />
+          <ColumnsMenu
+            lockedColumns={["status"]}
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

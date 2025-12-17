@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys, membersOfWorkspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { WorkspaceRole } from "@/lib/workspaces/types";
 
 const CheckWorkspaceRoleSchema = z.object({
@@ -20,16 +20,8 @@ export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspac
     throw new Error("Unauthorized: User not authenticated");
   }
 
-  const userApiKey = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.apiKey, session.user.apiKey),
-  });
-
-  if (!userApiKey) {
-    throw new Error("User not found");
-  }
-
   const membership = await db.query.membersOfWorkspaces.findFirst({
-    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, userApiKey.userId)),
+    where: and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, session.user.id)),
   });
 
   if (!membership) {

@@ -1,52 +1,54 @@
-"use server";
-
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { clusters, projects } from "@/lib/db/migrations/schema";
+import { eventClusters } from "@/lib/db/migrations/schema";
 
-export type Cluster = {
+export type EventCluster = {
   id: string;
-  projectId: string;
   name: string;
   parentId: string | null;
   level: number;
   numChildrenClusters: number;
-  numTraces: number;
-  centroid: number[];
+  numEvents: number;
   createdAt: string;
   updatedAt: string;
 };
 
-export async function getClusters(projectId: string): Promise<Cluster[]> {
+export const GetEventClustersSchema = z.object({
+  projectId: z.string(),
+  eventName: z.string(),
+  eventSource: z.enum(["SEMANTIC", "CODE"]),
+});
+
+export async function getEventClusters(
+  input: z.infer<typeof GetEventClustersSchema>
+): Promise<{ items: EventCluster[] }> {
+  const { projectId, eventName, eventSource } = GetEventClustersSchema.parse(input);
+
+  const whereConditions = [
+    eq(eventClusters.projectId, projectId),
+    eq(eventClusters.eventName, eventName),
+    eq(eventClusters.eventSource, eventSource),
+    ne(eventClusters.level, 0),
+  ];
+
   const result = await db
     .select({
-      id: clusters.id,
-      projectId: clusters.projectId,
-      name: clusters.name,
-      parentId: clusters.parentId,
-      level: clusters.level,
-      numChildrenClusters: clusters.numChildrenClusters,
-      numTraces: clusters.numTraces,
-      centroid: clusters.centroid,
-      createdAt: clusters.createdAt,
-      updatedAt: clusters.updatedAt,
+      id: eventClusters.id,
+      name: eventClusters.name,
+      parentId: eventClusters.parentId,
+      level: eventClusters.level,
+      numChildrenClusters: eventClusters.numChildrenClusters,
+      numEvents: eventClusters.numEvents,
+      createdAt: eventClusters.createdAt,
+      updatedAt: eventClusters.updatedAt,
     })
-    .from(clusters)
-    .innerJoin(projects, eq(clusters.projectId, projects.id))
-    .where(eq(clusters.projectId, projectId))
-    .orderBy(desc(clusters.numTraces), clusters.level, clusters.createdAt);
+    .from(eventClusters)
+    .where(and(...whereConditions))
+    .orderBy(desc(eventClusters.numEvents), eventClusters.level, eventClusters.createdAt);
 
-  return result.map((row) => ({
-    id: row.id,
-    projectId: row.projectId,
-    name: row.name,
-    parentId: row.parentId,
-    level: Number(row.level),
-    numChildrenClusters: Number(row.numChildrenClusters),
-    numTraces: Number(row.numTraces),
-    centroid: row.centroid as number[],
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
+  return {
+    items: result,
+  };
 }

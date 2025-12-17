@@ -19,7 +19,7 @@ export default function PreHighlighter({ children, className }: PreHighlighterPr
   return <CodeHighlighter
     code={code}
     language={language}
-    className={cn("bg-secondary rounded-md", className)}
+    className={cn("bg-secondary rounded-md mt-4", className)}
     copyable
   />;
 }

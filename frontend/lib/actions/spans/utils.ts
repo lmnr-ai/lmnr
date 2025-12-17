@@ -1,7 +1,9 @@
 import { isNil } from "lodash";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -12,7 +14,6 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { FilterDef } from "@/lib/db/modifiers";
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
@@ -91,7 +92,7 @@ export interface BuildSpansQueryOptions {
   columns?: string[];
   projectId: string;
   spanIds?: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit?: number;
   offset?: number;
   startTime?: string;
@@ -265,3 +266,81 @@ export const transformSpanWithEvents = (
   })),
   collapsed: false,
 });
+
+interface AggregatedMetrics {
+  totalCost: number;
+  totalTokens: number;
+  hasLLMDescendants: boolean;
+}
+
+export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] => {
+  const spanMap = new Map<string, TraceViewSpan>();
+  const childrenMap = new Map<string, string[]>();
+  const metricsCache = new Map<string, AggregatedMetrics | null>();
+
+  for (const span of spans) {
+    spanMap.set(span.spanId, span);
+    if (span.parentSpanId) {
+      const siblings = childrenMap.get(span.parentSpanId) || [];
+      siblings.push(span.spanId);
+      childrenMap.set(span.parentSpanId, siblings);
+    }
+  }
+
+  const calculateMetrics = (spanId: string): AggregatedMetrics | null => {
+    if (metricsCache.has(spanId)) {
+      return metricsCache.get(spanId)!;
+    }
+
+    const span = spanMap.get(spanId)!;
+    const children = childrenMap.get(spanId) || [];
+
+    if (children.length === 0) {
+      if (span.spanType === "LLM") {
+        const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
+        const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+
+        const metrics = {
+          totalCost: cost,
+          totalTokens: tokens,
+          hasLLMDescendants: true,
+        };
+        metricsCache.set(spanId, metrics);
+        return metrics;
+      }
+      metricsCache.set(spanId, null);
+      return null;
+    }
+
+    let totalCost = 0;
+    let totalTokens = 0;
+    let hasLLMDescendants = false;
+
+    for (const childId of children) {
+      const childMetrics = calculateMetrics(childId);
+      if (childMetrics) {
+        totalCost += childMetrics.totalCost;
+        totalTokens += childMetrics.totalTokens;
+        hasLLMDescendants = true;
+      }
+    }
+
+    if (hasLLMDescendants) {
+      const metrics = {
+        totalCost,
+        totalTokens,
+        hasLLMDescendants: true,
+      };
+      metricsCache.set(spanId, metrics);
+      return metrics;
+    }
+
+    metricsCache.set(spanId, null);
+    return null;
+  };
+
+  return spans.map((span) => {
+    const metrics = calculateMetrics(span.spanId);
+    return metrics ? { ...span, aggregatedMetrics: metrics } : span;
+  });
+};

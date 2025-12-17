@@ -1,4 +1,8 @@
-import { Operator, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import {scaleUtc} from "d3-scale";
+
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   ColumnFilterConfig,
@@ -9,11 +13,8 @@ import {
   QueryResult,
   SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans.ts";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, TimeRange } from "@/lib/clickhouse/utils";
-import { FilterDef } from "@/lib/db/modifiers";
+import {TracesStatsDataPoint} from "@/lib/actions/traces/stats.ts";
+import {TimeRange} from "@/lib/clickhouse/utils.ts";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -83,18 +84,19 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       "metadata",
       createCustomFilter(
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`;
+            return `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
+              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
           }
           return "";
         },
         (filter, paramKey) => {
-          const [key, val] = filter.value.split("=", 2);
+          const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return {
               [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `"${val}"`,
+              [`${paramKey}_val`]: `${val}`,
             };
           }
           return {};
@@ -103,19 +105,6 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
-    [
-      "pattern",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(patterns, {${paramKey}:UUID})`;
-          } else {
-            return `NOT has(patterns, {${paramKey}:UUID})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
   ]),
 };
 
@@ -141,11 +130,13 @@ const tracesSelectColumns = [
   "user_id as userId",
 ];
 
+export const DEFAULT_SEARCH_MAX_HITS = 500;
+
 export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
   limit: number;
   offset: number;
   startTime?: string;
@@ -186,13 +177,13 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     },
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
-    customConditions,
     orderBy: [
       {
         column: "start_time",
         direction: "DESC",
       },
     ],
+    customConditions,
     pagination: {
       limit,
       offset,
@@ -202,46 +193,10 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   return buildSelectQuery(queryOptions);
 };
 
-export const searchSpans = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
-  });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
-};
-
 export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }): { conditions: [string, ...string[]]; params: Record<string, any> } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };
@@ -265,4 +220,26 @@ export const buildTracesStatsWhereConditions = (options: {
   });
 
   return { conditions, params };
+};
+
+export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataPoint[] => {
+  let start: Date;
+  let end: Date;
+
+  if ('pastHours' in timeRange) {
+    end = new Date();
+    start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
+  } else {
+    start = timeRange.start;
+    end = timeRange.end;
+  }
+
+  const scale = scaleUtc().domain([start, end]);
+  const ticks = scale.ticks(24);
+
+  return ticks.map(tick => ({
+    timestamp: tick.toISOString(),
+    successCount: 0,
+    errorCount: 0,
+  }) as TracesStatsDataPoint);
 };

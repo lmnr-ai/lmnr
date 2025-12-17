@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { buildTimeRangeWithFill, buildWhereClause, QueryParams } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { eventsColumnFilterConfig } from "@/lib/actions/events/utils";
+import { eventsColumnFilterConfig, resolveClusterFilters } from "@/lib/actions/events/utils";
 import { executeQuery } from "@/lib/actions/sql";
 
 export const GetEventStatsSchema = z.object({
@@ -13,6 +13,7 @@ export const GetEventStatsSchema = z.object({
   eventName: z.string(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+  eventSource: z.enum(["CODE", "SEMANTIC"]),
 });
 
 export interface EventsStatsDataPoint {
@@ -32,11 +33,12 @@ export async function getEventStats(
     intervalValue,
     intervalUnit,
     filter,
+    eventSource,
   } = input;
 
   const filters = compact(filter);
 
-  // Build WHERE clause using the query builder for consistency with events table
+  const processedFilters = await resolveClusterFilters({ filters, projectId, eventName });
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
@@ -47,6 +49,13 @@ export async function getEventStats(
     },
   ];
 
+  if (eventSource) {
+    customConditions.push({
+      condition: "source = {eventSource:String}",
+      params: { eventSource },
+    });
+  }
+
   const whereResult = buildWhereClause({
     timeRange: {
       startTime,
@@ -54,7 +63,7 @@ export async function getEventStats(
       pastHours,
       timeColumn: "timestamp",
     },
-    filters,
+    filters: processedFilters,
     columnFilterConfig: eventsColumnFilterConfig,
     customConditions,
   });

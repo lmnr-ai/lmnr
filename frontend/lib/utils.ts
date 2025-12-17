@@ -2,31 +2,13 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
-import { DatatableFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-
 import { GroupByInterval } from "./clickhouse/modifiers";
-import { ChatMessageContentPart } from "./types";
 
 export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
 export const TIME_SECONDS_FORMAT = "timeSeconds";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-export async function fetcher(url: string, init: any): Promise<Response> {
-  const res = await fetch(`${process.env.BACKEND_URL}/api/v1${url}`, {
-    ...init,
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-
-    throw new Error(text);
-  }
-
-  return res;
 }
 
 export async function fetcherRealTime(url: string, init: any): Promise<Response> {
@@ -58,10 +40,16 @@ export async function fetcherJSON<JSON = any>(url: string, init: any): Promise<J
   return (await res.json()) as JSON;
 }
 
-export const swrFetcher = (url: string) =>
-  fetch(url)
-    .then((res) => res.json())
-    .catch((err) => console.error(err));
+export const swrFetcher = async (url: string) => {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    const errorText = (await res.json()) as { error: string };
+    throw new Error(errorText.error);
+  }
+
+  return res.json();
+};
 
 // return string such as 0319 for March 19 or 1201 for December 1
 // Note that the date is calculated for local time
@@ -178,9 +166,6 @@ function innerFormatTimestamp(date: Date, format?: string): string {
   return `${dateStr}, ${timeStr}`;
 }
 
-export const isStringType = (content: string | ChatMessageContentPart[]): content is string =>
-  typeof content === "string" || content instanceof String;
-
 export function deep<T>(value: T): T {
   if (typeof value !== "object" || value === null) {
     return value;
@@ -203,14 +188,6 @@ function deepObject<T extends {}>(source: T) {
 function deepArray<T extends any[]>(collection: T): any {
   return collection.map((value) => deep(value));
 }
-
-export const getFilterFromUrlParams = (filter: string): DatatableFilter[] | undefined => {
-  const filters = JSON.parse(filter);
-  if (Array.isArray(filters)) {
-    return filters.filter((f: any) => typeof f === "object" && f.column && f.operator && f.value) as DatatableFilter[];
-  }
-  return undefined;
-};
 
 export const getGroupByInterval = (
   pastHours: string | undefined,

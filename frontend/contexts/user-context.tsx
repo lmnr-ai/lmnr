@@ -1,65 +1,27 @@
 "use client";
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import React, { createContext, useContext } from "react";
+import React, { createContext, PropsWithChildren, useContext } from "react";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/const";
-
-type UserContextType = {
+export type User = {
   id: string;
   email: string;
-  username: string;
-  imageUrl: string;
-  supabaseClient?: SupabaseClient;
+  name: string;
+  image?: string | null;
 };
 
-export const UserContext = createContext<UserContextType>({
-  id: "",
-  email: "",
-  username: "",
-  imageUrl: "",
-  supabaseClient: undefined,
-});
+export const UserContext = createContext<User | undefined>(undefined);
 
 type UserContextProviderProps = {
-  id: string;
-  email: string;
-  username: string;
-  imageUrl: string;
-  children: React.ReactNode;
-  supabaseAccessToken: string;
+  user: User;
 };
 
-const clients: { [key: string]: SupabaseClient } = {};
-
-export const UserContextProvider = ({
-  id,
-  email,
-  username,
-  imageUrl,
-  children,
-  supabaseAccessToken,
-}: UserContextProviderProps) => {
-  const supabaseClient =
-    clients[supabaseAccessToken] ||
-    createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${supabaseAccessToken}`,
-        },
-      },
-    });
-  supabaseClient.realtime.setAuth(supabaseAccessToken);
-  clients[supabaseAccessToken] = supabaseClient;
-
-  return (
-    <UserContext.Provider value={{ id, email, username, imageUrl, supabaseClient }}>{children}</UserContext.Provider>
-  );
+export const UserContextProvider = ({ user, children }: PropsWithChildren<UserContextProviderProps>) => {
+  return <UserContext.Provider value={user}>{children}</UserContext.Provider>;
 };
 
 export function useUserContext() {
   const context = useContext(UserContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useUserContext must be used within a UserContextProvider");
   }
   return context;

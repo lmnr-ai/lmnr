@@ -142,9 +142,13 @@ const AvailableTags = ({
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
-        <Checkbox checked={false} onCheckedChange={onCheck(tag)} className="border border-secondary mr-2" />
+        <Checkbox
+          checked={false}
+          onCheckedChange={onCheck(tag)}
+          className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
+        />
         <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
-        <span className="ml-1.5">{tag.name}</span>
+        <span>{tag.name}</span>
       </DropdownMenuItem>
     ))}
   </DropdownMenuGroup>
@@ -165,10 +169,10 @@ const SelectedTags = ({
         <Checkbox
           onCheckedChange={onCheck(spanTags.find((s) => s.name === tag.name))}
           checked
-          className="border border-secondary mr-2"
+          className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
         />
         <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
-        <span className="ml-1.5">{tag.name}</span>
+        <span>{tag.name}</span>
       </DropdownMenuItem>
     ))}
   </DropdownMenuGroup>

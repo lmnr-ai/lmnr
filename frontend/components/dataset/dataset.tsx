@@ -42,8 +42,9 @@ const columns: ColumnDef<Datapoint>[] = [
     id: "index",
   },
   {
+    id: "createdAt",
     accessorKey: "createdAt",
-    header: "Updated at",
+    header: "Updated",
     size: 150,
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
   },
@@ -70,7 +71,7 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-export const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
+const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -152,20 +153,21 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
+  const handleDatapointSelect = useCallback((datapoint: Row<Datapoint> | null) => {
+    if (datapoint) {
+      setSelectedDatapoint(datapoint.original);
+    } else {
+      setSelectedDatapoint(null);
+    }
+  }, []);
 
-  const handleDatapointSelect = useCallback(
-    (datapoint: Row<Datapoint> | null) => {
-      const params = new URLSearchParams(searchParams);
-      if (datapoint) {
-        setSelectedDatapoint(datapoint.original);
-        params.set("datapointId", datapoint.id);
-      } else {
-        setSelectedDatapoint(null);
-        params.delete("datapointId");
-      }
-      router.push(`${pathName}?${params.toString()}`);
+  const getRowHref = useCallback(
+    (row: Row<Datapoint>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("datapointId", row.id);
+      return `${pathName}?${params.toString()}`;
     },
-    [pathName, router, searchParams]
+    [pathName, searchParams]
   );
 
   const handleDatapointUpdate = useCallback(
@@ -180,8 +182,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
   const handlePanelClose = useCallback(() => {
     setIsEditingDatapoint(false);
-    handleDatapointSelect(null);
-  }, [handleDatapointSelect]);
+    setSelectedDatapoint(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("datapointId");
+    router.push(`${pathName}?${params.toString()}`);
+  }, [pathName, router, searchParams]);
 
   const handleDeleteDatapoints = useCallback(
     async (datapointIds: string[]) => {
@@ -209,7 +214,10 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         });
 
         if (selectedDatapoint && datapointIds.includes(selectedDatapoint.id)) {
-          handleDatapointSelect(null);
+          setSelectedDatapoint(null);
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("datapointId");
+          router.push(`${pathName}?${params.toString()}`);
         }
       } catch (error) {
         toast({
@@ -218,7 +226,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         });
       }
     },
-    [dataset.id, handleDatapointSelect, projectId, selectedDatapoint, toast, updateData]
+    [dataset.id, pathName, projectId, router, searchParams, selectedDatapoint, toast, updateData]
   );
 
   const revalidateDatapoints = useCallback(() => {
@@ -289,6 +297,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             fetchNextPage={fetchNextPage}
             getRowId={(datapoint) => datapoint.id}
             onRowClick={handleDatapointSelect}
+            getRowHref={getRowHref}
             focusedRowId={datapointId}
             enableRowSelection
             state={{
@@ -307,7 +316,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu lockedColumns={["__row_selection"]} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+            />
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>

@@ -1,64 +1,67 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { prettifyError } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { playgrounds } from "@/lib/db/migrations/schema";
+import { parseUrlParams } from "@/lib/actions/common/utils";
+import { createPlayground, deletePlaygrounds, getPlaygrounds, GetPlaygroundsSchema } from "@/lib/actions/playgrounds";
 
-export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
 
-  const result = await db.query.playgrounds.findMany({
-    where: eq(playgrounds.projectId, projectId),
-    orderBy: [desc(playgrounds.createdAt)],
-    columns: {
-      id: true,
-      name: true,
-      createdAt: true,
-    },
-  });
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetPlaygroundsSchema.omit({ projectId: true }));
 
-  return new Response(JSON.stringify(result));
+    if (!parseResult.success) {
+      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    const result = await getPlaygrounds({
+      ...parseResult.data,
+      projectId,
+    });
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const body = await req.json();
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
+    const body = await req.json();
 
-  const result = await db
-    .insert(playgrounds)
-    .values({
+    const result = await createPlayground({
       projectId,
       name: body.name,
-    })
-    .returning();
+    });
 
-  if (result.length === 0) {
-    return new Response("Failed to create playground", { status: 500 });
+    return NextResponse.json(result);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  return new Response(JSON.stringify(result[0]));
 }
 
 export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-
-  const searchParams = req.nextUrl.searchParams;
-  const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
-
-  if (!playgroundIds) {
-    return new Response("At least one playground id is required", { status: 400 });
-  }
-
   try {
-    await db
-      .delete(playgrounds)
-      .where(and(inArray(playgrounds.id, playgroundIds), eq(playgrounds.projectId, projectId)));
+    const params = await props.params;
+    const projectId = params.projectId;
 
-    return new Response("Playgrounds deleted successfully", { status: 200 });
-  } catch (error) {
-    return new Response("Error deleting playgrounds", { status: 500 });
+    const searchParams = req.nextUrl.searchParams;
+    const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
+
+    if (!playgroundIds) {
+      return NextResponse.json({ error: "At least one playground id is required" }, { status: 400 });
+    }
+
+    await deletePlaygrounds({
+      projectId,
+      playgroundIds,
+    });
+
+    return NextResponse.json({ message: "Playgrounds deleted successfully" });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

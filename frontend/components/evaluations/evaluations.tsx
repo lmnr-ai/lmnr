@@ -1,7 +1,7 @@
 "use client";
 
-import { ColumnDef, Row } from "@tanstack/react-table";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ColumnDef } from "@tanstack/react-table";
+import { useParams, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useState } from "react";
 
@@ -33,25 +33,30 @@ const columns: ColumnDef<Evaluation>[] = [
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "ID",
+    id: "id",
     size: 300,
   },
   {
+    id: "name",
     accessorKey: "name",
     header: "Name",
     size: 300,
   },
   {
+    id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
   },
   {
+    id: "metadata",
     accessorKey: "metadata",
     header: "Metadata",
     accessorFn: (row) => row.metadata,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
   },
   {
-    header: "Created at",
+    id: "createdAt",
+    header: "Created",
     accessorKey: "createdAt",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
@@ -101,11 +106,10 @@ export default function Evaluations() {
 
 function EvaluationsContent() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const posthog = usePostHog();
-  const { email } = useUserContext();
+  const user = useUserContext();
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -202,15 +206,8 @@ function EvaluationsContent() {
     }
   };
 
-  const handleRowClick = useCallback(
-    (row: Row<Evaluation>) => {
-      router.push(`/project/${params?.projectId}/evaluations/${row.original.id}`);
-    },
-    [params?.projectId, router]
-  );
-
   if (isFeatureEnabled(Feature.POSTHOG)) {
-    posthog.identify(email);
+    posthog.identify(user.email);
   }
 
   return (
@@ -237,7 +234,7 @@ function EvaluationsContent() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup className="overflow-hidden" direction="vertical">
+          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" direction="vertical">
             <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
@@ -253,7 +250,7 @@ function EvaluationsContent() {
                 columns={columns}
                 data={evaluations}
                 getRowId={(evaluation) => evaluation.id}
-                onRowClick={handleRowClick}
+                getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
                 hasMore={hasMore}
                 isFetching={isFetching}
                 isLoading={isLoading}
@@ -273,7 +270,13 @@ function EvaluationsContent() {
               >
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
-                  <ColumnsMenu lockedColumns={["__row_selection"]} />
+                  <ColumnsMenu
+                    lockedColumns={["__row_selection"]}
+                    columnLabels={columns.map((column) => ({
+                      id: column.id!,
+                      label: typeof column.header === "string" ? column.header : column.id!,
+                    }))}
+                  />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />

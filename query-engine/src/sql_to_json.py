@@ -7,24 +7,24 @@ class QueryBuilderError(Exception):
 
 
 class SqlToJsonConverter:
-    
+
     def convert(self, sql: str) -> dict[str, Any]:
         try:
             ast = sqlglot.parse_one(sql, read="clickhouse")
-            
+
             if not isinstance(ast, sqlglot.exp.Select):
                 raise QueryBuilderError("Only SELECT queries supported")
-            
+
             table = ast.args['from'].this.name
             grouped_columns = self._get_grouped_columns(ast)
-            
+
             metrics, dimensions, time_range = self._parse_select_expressions(ast, grouped_columns)
             filters = self._parse_where_clause(ast, time_range)
             order_by = self._parse_order_by_clause(ast)
             limit = self._parse_limit_clause(ast)
-            
+
             result = {'table': table, 'metrics': metrics}
-            
+
             if dimensions:
                 result['dimensions'] = dimensions
             if filters:
@@ -35,21 +35,21 @@ class SqlToJsonConverter:
                 result['order_by'] = order_by
             if limit:
                 result['limit'] = limit
-            
+
             return result
         except Exception as e:
             raise QueryBuilderError(f"Failed to parse SQL: {e}")
-    
+
     def _parse_select_expressions(self, ast: sqlglot.exp.Select, grouped_columns: set[str]) -> tuple[list[dict], list[str], dict | None]:
         metrics = []
         dimensions = []
         time_range = None
-        
+
         for expr in ast.expressions:
             if isinstance(expr, sqlglot.exp.Alias):
                 alias = expr.alias
                 inner = expr.this
-                
+
                 if self._is_time_bucket(inner):
                     time_range = self._extract_time_range(ast, inner)
                 elif alias in grouped_columns or self._is_simple_column_ref(inner, grouped_columns):
@@ -59,33 +59,33 @@ class SqlToJsonConverter:
                     metrics.append(self._extract_metric(inner, alias))
             elif isinstance(expr, sqlglot.exp.Column):
                 dimensions.append(expr.name)
-        
+
         return metrics, dimensions, time_range
-    
+
     def _parse_where_clause(self, ast: sqlglot.exp.Select, time_range: dict | None) -> list[dict]:
         if not ast.args.get('where'):
             return []
-        
+
         time_col = time_range['column'] if time_range else None
         return self._extract_filters(ast.args['where'].this, time_col)
-    
+
     def _parse_order_by_clause(self, ast: sqlglot.exp.Select) -> list[dict[str, str]] | None:
         if not ast.args.get('order'):
             return None
-        
+
         order_by = []
         for order in ast.args['order'].expressions:
             if isinstance(order, sqlglot.exp.Ordered):
                 col = order.this.name if isinstance(order.this, sqlglot.exp.Column) else str(order.this)
                 direction = "desc" if order.args.get("desc") else "asc"
                 order_by.append({"field": col, "dir": direction})
-        
+
         return order_by if order_by else None
-    
+
     def _parse_limit_clause(self, ast: sqlglot.exp.Select) -> int | None:
         if not ast.args.get('limit'):
             return None
-        
+
         limit_expr = ast.args['limit']
         try:
             if hasattr(limit_expr, 'this') and limit_expr.this:
@@ -96,7 +96,7 @@ class SqlToJsonConverter:
                 return int(str(limit_expr))
         except (ValueError, AttributeError, TypeError):
             return None
-    
+
     def _get_grouped_columns(self, ast: sqlglot.exp.Select) -> set[str]:
         grouped = set()
         group_clause = ast.args.get('group')
@@ -107,16 +107,16 @@ class SqlToJsonConverter:
                 else:
                     grouped.add(str(expr))
         return grouped
-    
+
     def _is_simple_column_ref(self, expr, grouped_columns: set[str]) -> bool:
         if isinstance(expr, sqlglot.exp.Column):
             return expr.name in grouped_columns
         return str(expr) in grouped_columns
-    
+
     def _is_time_bucket(self, expr) -> bool:
         return (isinstance(expr, sqlglot.exp.Anonymous) and 
                 str(expr.this).upper() == 'TOSTARTOFINTERVAL')
-    
+
     def _extract_metric(self, expr, alias: str) -> dict[str, Any]:
         for node in expr.walk():
             if hasattr(sqlglot.exp, 'Quantile') and isinstance(node, sqlglot.exp.Quantile):
@@ -152,14 +152,14 @@ class SqlToJsonConverter:
             sqlglot.exp.Min: 'min',
             sqlglot.exp.Max: 'max'
         }
-        
+
         for node_type, fn_name in agg_map.items():
             if isinstance(node, node_type):
                 column = self._extract_column(node.this) if node.this else '*'
                 return {'fn': fn_name, 'column': column, 'alias': alias}
-        
+
         return {'fn': 'unknown', 'column': str(node), 'alias': alias}
-    
+
     def _extract_column(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Column):
             return expr.name
@@ -168,14 +168,14 @@ class SqlToJsonConverter:
         elif isinstance(expr, sqlglot.exp.Star):
             return '*'
         return str(expr)
-    
+
     def _extract_time_range(self, ast, expr) -> dict[str, Any]:
         time_col = expr.expressions[0].name
         interval_expr = expr.expressions[1]
-        
+
         fill_gaps = self._has_with_fill(ast)
         from_val, to_val = self._extract_time_bounds_from_ast(ast, time_col)
-        
+
         result = {
             'column': time_col,
             'from': from_val,
@@ -300,7 +300,7 @@ class SqlToJsonConverter:
                 col = e.left.name if isinstance(e.left, sqlglot.exp.Column) else None
                 if col == time_col:
                     to_val = self._normalize_value(e.right)
-        
+
         walk(expr)
         return from_val, to_val
 

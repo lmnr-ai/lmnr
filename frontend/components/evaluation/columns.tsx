@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { flow } from "lodash";
+import { flow, isNil } from "lodash";
 import { ArrowRight, Check, X } from "lucide-react";
 
 import {
@@ -8,7 +8,6 @@ import {
   calculateTotalCost,
   createHeatmapStyle,
   DisplayValue,
-  formatCost,
   formatCostIntl,
   formatScoreValue,
   isValidScore,
@@ -195,22 +194,24 @@ const createDurationCell = (row: EvaluationDatapointPreviewWithCompared) => {
 };
 
 const createCostCell = (row: EvaluationDatapointPreviewWithCompared) => {
-  const comparison =
-    row.comparedInputCost && row.comparedOutputCost
-      ? formatCost(calculateTotalCost(row.comparedInputCost, row.comparedOutputCost))
-      : "-";
+  const getComparedCost = () => {
+    const { comparedInputCost, comparedOutputCost, comparedTotalCost } = row;
 
-  const comparisonValue =
-    row.comparedInputCost && row.comparedOutputCost
-      ? calculateTotalCost(row.comparedInputCost, row.comparedOutputCost)
-      : undefined;
+    if (isNil(comparedInputCost) && isNil(comparedOutputCost) && isNil(comparedTotalCost)) {
+      return null;
+    }
+
+    return calculateTotalCost(comparedInputCost ?? 0, comparedOutputCost ?? 0, comparedTotalCost ?? 0);
+  };
+
+  const comparisonValue = getComparedCost();
 
   return (
     <ComparisonCell
-      original={formatCost(calculateTotalCost(row.inputCost, row.outputCost))}
-      comparison={comparison}
-      originalValue={calculateTotalCost(row.inputCost, row.outputCost)}
-      comparisonValue={comparisonValue}
+      original={formatCostIntl(calculateTotalCost(row.inputCost, row.outputCost, row.totalCost))}
+      comparison={comparisonValue != null ? formatCostIntl(comparisonValue) : "-"}
+      originalValue={calculateTotalCost(row.inputCost, row.outputCost, row.totalCost)}
+      comparisonValue={comparisonValue ?? undefined}
     />
   );
 };
@@ -354,7 +355,7 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
   {
     id: "cost",
     accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => calculateTotalCost(row.inputCost, row.outputCost),
+      (row: EvaluationDatapointPreviewWithCompared) => calculateTotalCost(row.inputCost, row.outputCost, row.totalCost),
       formatCostIntl
     ),
     header: "Cost",

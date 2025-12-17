@@ -9,7 +9,7 @@ export const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
-export const chartColors = [
+const chartColors = [
   "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
   "hsl(var(--chart-3))",

@@ -1,14 +1,15 @@
 [project]
+name = "query-engine"
+readme = "README.md"
+requires-python = ">=3.13"
+version = "0.1.0"
+
 dependencies = [
   "dotenv>=0.9.9",
   "grpcio-tools>=1.74.0",
   "grpcio>=1.60.0",
   "sqlglot[rs]>=27.1.0",
 ]
-name = "query-engine"
-readme = "README.md"
-requires-python = ">=3.13"
-version = "0.1.0"
 
 [dependency-groups]
 dev = [

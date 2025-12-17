@@ -2,7 +2,7 @@ import { ColumnDef, RowData } from "@tanstack/react-table";
 
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 
-import { CheckboxColumnOptions } from "./types.ts";
+import { CheckboxColumnOptions } from "./model/types.ts";
 
 export const EMPTY_ARRAY: RowData[] = [];
 

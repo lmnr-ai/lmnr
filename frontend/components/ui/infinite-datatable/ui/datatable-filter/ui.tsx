@@ -6,26 +6,27 @@ import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } fr
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import {
+  BOOLEAN_OPERATIONS,
   ColumnFilter,
-  DatatableFilter,
   dataTypeOperationsMap,
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
-  Operator,
   STRING_OPERATIONS,
 } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
 
 interface FilterUIProps {
   columns: ColumnFilter[];
-  presetFilters?: DatatableFilter[];
+  presetFilters?: Filter[];
   className?: string;
-  onAddFilter: (filter: DatatableFilter) => void;
-  filters: DatatableFilter[];
+  onAddFilter: (filter: Filter) => void;
+  filters: Filter[];
 }
 
 const FilterPopover = ({
@@ -36,10 +37,10 @@ const FilterPopover = ({
   filters,
   children,
 }: PropsWithChildren<FilterUIProps>) => {
-  const [filter, setFilter] = useState<DatatableFilter>({ operator: Operator.Eq, column: "", value: "" });
+  const [filter, setFilter] = useState<Filter>({ operator: Operator.Eq, column: "", value: "" });
 
   const handleApplyFilters = useCallback(
-    (filter: DatatableFilter) => {
+    (filter: Filter) => {
       if (!filters.some((f) => isEqual(f, filter))) {
         onAddFilter(filter);
       }
@@ -47,7 +48,7 @@ const FilterPopover = ({
     [filters, onAddFilter]
   );
 
-  const handleValueChange = useCallback(({ field, value }: { field: keyof DatatableFilter; value: string }) => {
+  const handleValueChange = useCallback(({ field, value }: { field: keyof Filter; value: string }) => {
     if (field === "column") {
       setFilter((prev) => ({
         ...prev,
@@ -101,7 +102,7 @@ const FilterPopover = ({
                   const column = find(columns, ["key", presetFilter.column]);
                   const operatorLabel = get(
                     find(
-                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS],
+                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
                       ["key", presetFilter.operator]
                     ),
                     "label",
@@ -167,9 +168,9 @@ const FilterPopover = ({
 };
 
 interface FilterInputsProps {
-  filter: DatatableFilter;
+  filter: Filter;
   columns: ColumnFilter[];
-  onValueChange: ({ field, value }: { field: keyof DatatableFilter; value: string }) => void;
+  onValueChange: ({ field, value }: { field: keyof Filter; value: string }) => void;
 }
 
 const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => {
@@ -177,13 +178,14 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
   const dataType = column?.dataType || "string";
 
   const { currentKey, currentValue } = useMemo(() => {
-    const equalIndex = filter.value.indexOf("=");
+    const valueStr = String(filter.value);
+    const equalIndex = valueStr.indexOf("=");
     if (equalIndex === -1) {
-      return { currentKey: filter.value, currentValue: "" };
+      return { currentKey: valueStr, currentValue: "" };
     }
     return {
-      currentKey: filter.value.substring(0, equalIndex),
-      currentValue: filter.value.substring(equalIndex + 1),
+      currentKey: valueStr.substring(0, equalIndex),
+      currentValue: valueStr.substring(equalIndex + 1),
     };
   }, [filter.value]);
 
@@ -236,7 +238,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
       return (
         <>
           {renderOperatorSelect()}
-          <Select value={filter.value} onValueChange={(value) => onValueChange({ field: "value", value })}>
+          <Select value={String(filter.value)} onValueChange={(value) => onValueChange({ field: "value", value })}>
             <SelectTrigger className="font-medium flex-1">
               <SelectValue placeholder="Select option..." />
             </SelectTrigger>
@@ -250,6 +252,22 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
                     </div>
                   </SelectItem>
                 ))}
+            </SelectContent>
+          </Select>
+        </>
+      );
+
+    case "boolean":
+      return (
+        <>
+          {renderOperatorSelect()}
+          <Select value={String(filter.value)} onValueChange={(value) => onValueChange({ field: "value", value })}>
+            <SelectTrigger className="font-medium flex-1">
+              <SelectValue placeholder="Select value..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">true</SelectItem>
+              <SelectItem value="false">false</SelectItem>
             </SelectContent>
           </Select>
         </>
@@ -290,8 +308,8 @@ const PureFilterList = ({
   onRemoveFilter,
   className,
 }: {
-  filters: DatatableFilter[];
-  onRemoveFilter: (filter: DatatableFilter) => void;
+  filters: Filter[];
+  onRemoveFilter: (filter: Filter) => void;
   className?: string;
 }) => {
   if (filters.length === 0) {
@@ -311,7 +329,7 @@ const PureFilterList = ({
               <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}
                 {get(
-                  find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS], ["key", f.operator]),
+                  find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS], ["key", f.operator]),
                   "label",
                   f.operator
                 )}{" "}
@@ -326,7 +344,7 @@ const PureFilterList = ({
             <TooltipContent>
               {f.column}{" "}
               {get(
-                find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS], ["key", f.operator]),
+                find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS], ["key", f.operator]),
                 "label",
                 f.operator
               )}{" "}

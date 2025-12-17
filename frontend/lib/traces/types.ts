@@ -55,6 +55,12 @@ export type Span = {
   model?: string;
   pending?: boolean;
   status?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
 };
 
 export type SpanRow = {

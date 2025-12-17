@@ -8,7 +8,7 @@ export async function GET(
   props: { params: Promise<{ projectId: string; evaluationResultId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const { evaluationResultId } = params;
+  const { evaluationResultId, projectId } = params;
 
   try {
     const name = req.nextUrl.searchParams.get("name");
@@ -20,6 +20,7 @@ export async function GET(
     const evaluationScore = await getEvaluationScore({
       evaluationResultId,
       name,
+      projectId,
     });
 
     return new Response(JSON.stringify(evaluationScore), {
@@ -41,7 +42,7 @@ export async function POST(
   props: { params: Promise<{ projectId: string; evaluationResultId: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const { evaluationResultId } = params;
+  const { evaluationResultId, projectId } = params;
 
   try {
     const body = (await req.json()) as { score: number; name: string };
@@ -49,6 +50,7 @@ export async function POST(
       evaluationResultId,
       score: body.score,
       name: body.name,
+      projectId,
     });
 
     return new Response(JSON.stringify(updatedEvaluationScore), {

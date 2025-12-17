@@ -3,9 +3,8 @@ import { uniq } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { transformMessages } from "@/lib/actions/trace/utils";
+import { PAYLOAD_URL_TAG, transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { sharedPayloads, sharedTraces } from "@/lib/db/migrations/schema";
@@ -61,37 +60,45 @@ interface ClickHouseSpan {
 export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVisibilitySchema>) {
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
-  const chResult = await clickhouseClient.query({
-    query: `
-      SELECT *
-      FROM spans
-      WHERE trace_id = {traceId: UUID} 
-        AND project_id = {projectId: UUID}
-        AND (
-          span_type = {llmSpanType: UInt8}
-        )
-    `,
-    format: "JSONEachRow",
-    query_params: {
-      traceId,
-      projectId,
-      llmSpanType: 1,
-    },
-  });
+  const [llmResult, nonLlmResult] = await Promise.all([
+    clickhouseClient.query({
+      query: `
+        SELECT *
+        FROM spans
+        WHERE trace_id = {traceId: UUID} 
+          AND project_id = {projectId: UUID}
+          AND span_type = {llmSpanType: UInt8}
+      `,
+      format: "JSONEachRow",
+      query_params: { traceId, projectId, llmSpanType: 1 },
+    }),
+    clickhouseClient.query({
+      query: `
+        SELECT *
+        FROM spans
+        WHERE trace_id = {traceId: UUID} 
+          AND project_id = {projectId: UUID}
+          AND span_type != {llmSpanType: UInt8}
+          AND (
+            startsWith(input, {payloadUrlOpen: String}) 
+            OR startsWith(output, {payloadUrlOpen: String})
+          )
+      `,
+      format: "JSONEachRow",
+      query_params: { traceId, projectId, llmSpanType: 1, payloadUrlOpen: `<${PAYLOAD_URL_TAG}>` },
+    }),
+  ]);
 
-  const traceSpans = (await chResult.json()) as ClickHouseSpan[];
+  const llmSpans = (await llmResult.json()) as ClickHouseSpan[];
+  const nonLlmSpans = (await nonLlmResult.json()) as ClickHouseSpan[];
 
   /**
    * 1. Parse span image url's, and extract payload id's
    */
-
-  const parseResult = traceSpans
+  const parseResult = [...llmSpans, ...nonLlmSpans]
     .map((span) => {
-      const inputData = tryParseJson(span.input);
-      const outputData = tryParseJson(span.output);
-
-      const input = transformMessages(inputData, projectId, visibility);
-      const output = transformMessages(outputData, projectId, visibility);
+      const input = transformMessages(span.input, projectId, visibility);
+      const output = transformMessages(span.output, projectId, visibility);
 
       return {
         id: span.span_id,
@@ -127,8 +134,8 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
 
     const updatedSpans: ClickHouseSpan[] = parseResult.map((item) => ({
       ...item.existingSpan,
-      input: JSON.stringify(item.input),
-      output: JSON.stringify(item.output),
+      input: typeof item.input === "string" ? item.input : JSON.stringify(item.input),
+      output: typeof item.output === "string" ? item.output : JSON.stringify(item.output),
     }));
 
     await clickhouseClient.insert({
@@ -208,6 +215,14 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
   };
 }
 
+export async function isTracePublic(traceId: string): Promise<boolean> {
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
+
+  return !!sharedTrace;
+}
+
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
@@ -235,7 +250,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         total_cost as totalCost,
         metadata,
         status,
-        trace_type as traceType
+        trace_type as traceType,
+        has_browser_session as hasBrowserSession
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1

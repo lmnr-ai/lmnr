@@ -2,16 +2,25 @@ import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
 import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Operator } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { buildSpansQueryWithParams, createParentRewiring, transformSpanWithEvents } from "@/lib/actions/spans/utils";
+import {
+  aggregateSpanMetrics,
+  buildSpansQueryWithParams,
+  createParentRewiring,
+  transformSpanWithEvents,
+} from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { FilterDef } from "@/lib/db/modifiers";
+import { getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { Span } from "@/lib/traces/types";
+
+import { searchSpans } from "../traces/search";
+import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -21,6 +30,7 @@ export const GetSpansSchema = PaginationFiltersSchema.extend({
 });
 
 export const GetTraceSpansSchema = FiltersSchema.extend({
+  ...TimeRangeSchema.shape,
   projectId: z.string(),
   traceId: z.string(),
   search: z.string().nullable().optional(),
@@ -87,10 +97,10 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     filter: inputFilters,
   } = input;
 
-  const filters: FilterDef[] = compact(inputFilters);
+  const filters: Filter[] = compact(inputFilters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
   const traceSubquery = buildTraceSubquery({
     startTime,
@@ -98,16 +108,25 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     pastHours,
   });
 
-  const spanIds = search
-    ? await searchSpanIds({
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
       projectId,
+      traceId: undefined,
       searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let spanIds = spanHits.map((span) => span.span_id);
 
-  if (search && spanIds?.length === 0) {
-    return { items: [] };
+  if (search) {
+    if (spanIds?.length === 0) {
+      return { items: [] };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSpansQueryWithParams({
@@ -219,7 +238,7 @@ const fetchTraceSpans = async ({
   projectId: string;
   traceId: string;
   spanIds: string[];
-  filters: FilterDef[];
+  filters: Filter[];
 }) => {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: [
@@ -227,6 +246,12 @@ const fetchTraceSpans = async ({
       "trace_id as traceId",
       "parent_span_id as parentSpanId",
       "name",
+      "input_tokens as inputTokens",
+      "output_tokens as outputTokens",
+      "total_tokens as totalTokens",
+      "input_cost as inputCost",
+      "output_cost as outputCost",
+      "total_cost as totalCost",
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
@@ -248,17 +273,19 @@ const fetchTraceSpans = async ({
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {
-  const { projectId, search, traceId, searchIn, filter: inputFilters } = input;
-  const filters: FilterDef[] = compact(inputFilters);
+  const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
+  const filters: Filter[] = compact(inputFilters);
 
-  const spanIds = search
-    ? await searchSpanIds({
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
       projectId,
       traceId,
       searchQuery: search,
+      timeRange: getTimeRange(pastHours, startDate, endDate),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
+  let spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
     return [];
@@ -290,7 +317,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
-  return spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+  const transformedSpans = spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+
+  return aggregateSpanMetrics(transformedSpans);
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

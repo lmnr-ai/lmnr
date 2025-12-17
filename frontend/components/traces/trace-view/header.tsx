@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Expand } from "lucide-react";
+import {ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader} from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo } from "react";
@@ -8,8 +8,10 @@ import ShareTraceButton from "@/components/traces/share-trace-button";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +25,6 @@ const Header = ({ handleClose }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { toast } = useToast();
   const { navigateDown, navigateUp } = useTraceViewNavigation();
   const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
     useTraceViewStoreContext((state) => ({
@@ -35,6 +36,16 @@ const Header = ({ handleClose }: HeaderProps) => {
       getHasLangGraph: state.getHasLangGraph,
     }));
 
+  const { toast } = useToast();
+  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'trace', traceId: String(trace?.id) } });
+
+  const handleCopyTraceId = useCallback(async () => {
+    if (trace?.id) {
+      await navigator.clipboard.writeText(trace.id);
+      toast({ title: "Copied trace ID", duration: 1000 });
+    }
+  }, [trace?.id, toast]);
+
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
     if (params.evaluationId) {
@@ -44,17 +55,6 @@ const Header = ({ handleClose }: HeaderProps) => {
   }, [params.evaluationId, searchParams]);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
-
-  const copyTraceId = useCallback(() => {
-    if (trace) {
-      navigator.clipboard.writeText(trace.id);
-      toast({
-        title: "Copied trace ID",
-        description: "Trace ID has been copied to clipboard",
-        variant: "default",
-      });
-    }
-  }, [toast, trace]);
 
   return (
     <div className="h-10 min-h-10 flex items-center gap-x-2 px-2">
@@ -70,18 +70,26 @@ const Header = ({ handleClose }: HeaderProps) => {
               </Button>
             </Link>
           )}
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="cursor-pointer" onClick={copyTraceId}>
+          {trace && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
                   Trace
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Click to copy trace ID</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                  <ChevronDown className="ml-1 size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleCopyTraceId}>
+                  <Copy size={14} />
+                  Copy trace ID
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+                  {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
+                  Open in SQL editor
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </>
       )}
       {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}

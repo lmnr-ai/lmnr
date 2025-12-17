@@ -87,7 +87,13 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
         </div>
       )}
     >
-      <ColumnsMenu lockedColumns={["__row_selection"]} />
+      <ColumnsMenu
+        lockedColumns={["__row_selection"]}
+        columnLabels={columns.map((column) => ({
+          id: column.id!,
+          label: typeof column.header === "string" ? column.header : column.id!,
+        }))}
+      />
     </InfiniteDataTable>
   );
 }

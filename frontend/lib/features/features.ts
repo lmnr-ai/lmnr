@@ -5,7 +5,6 @@ export const enum Feature {
   AZURE_AUTH = "AZURE_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   WORKSPACE = "WORKSPACE",
-  SUPABASE = "SUPABASE",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
@@ -13,6 +12,7 @@ export const enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   PATTERNS = "PATTERNS",
+  SEMANTIC_EVENTS = "SEMANTIC_EVENTS",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -69,6 +69,10 @@ export const isFeatureEnabled = (feature: Feature) => {
       !!process.env.SLACK_SIGNING_SECRET &&
       !!process.env.SLACK_REDIRECT_URL
     );
+  }
+
+  if (feature === Feature.SEMANTIC_EVENTS) {
+    return process.env.ENVIRONMENT === "PRODUCTION";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

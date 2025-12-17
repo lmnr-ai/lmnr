@@ -2,16 +2,6 @@ use anyhow::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-pub async fn get_event_definition_names(pool: &PgPool, project_id: &Uuid) -> Result<Vec<String>> {
-    let event_definitions =
-        sqlx::query_scalar::<_, String>("SELECT name FROM event_definitions WHERE project_id = $1")
-            .bind(project_id)
-            .fetch_all(pool)
-            .await?;
-
-    Ok(event_definitions)
-}
-
 pub async fn insert_event_definition_names(
     pool: &PgPool,
     project_id: &Uuid,

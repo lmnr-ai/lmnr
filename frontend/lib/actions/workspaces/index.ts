@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { createProject } from "@/lib/actions/projects";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { apiKeys, membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
@@ -28,18 +28,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
   }
 
   const { name, projectName } = CreateWorkspaceSchema.parse(input);
-
-  const userId = await db
-    .select({ id: apiKeys.userId })
-    .from(apiKeys)
-    .where(eq(apiKeys.apiKey, session.user.apiKey))
-    .execute()
-    .then((res) => {
-      if (res.length === 0) {
-        throw new Error("User not found");
-      }
-      return res[0].id;
-    });
+  const userId = session.user.id;
 
   const [workspace] = await db
     .insert(workspaces)

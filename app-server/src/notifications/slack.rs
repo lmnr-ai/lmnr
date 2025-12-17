@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use anyhow::Result;
-use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,17 +11,6 @@ use uuid::Uuid;
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TraceAnalysisPayload {
-    pub summary: String,
-    pub analysis: String,
-    pub analysis_preview: String,
-    pub status: String,
-    pub span_ids_map: HashMap<String, String>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventIdentificationPayload {
     pub event_name: String,
     pub extracted_information: Option<serde_json::Value>,
@@ -34,7 +20,6 @@ pub struct EventIdentificationPayload {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SlackMessagePayload {
-    TraceAnalysis(TraceAnalysisPayload),
     EventIdentification(EventIdentificationPayload),
 }
 
@@ -74,119 +59,52 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
-fn replace_span_tags_with_links(
-    text: &str,
-    project_id: &str,
-    trace_id: &str,
-    span_ids_map: &HashMap<String, String>,
-) -> String {
-    // Regex to match <span id='X' name='Y' ... />
-    let re = Regex::new(r#"`<span\s+id='(\d+)'\s+name='([^']+)'[^>]*/?>`"#).unwrap();
-
-    re.replace_all(text, |caps: &regex::Captures| {
-        let index_id = &caps[1];
-        let name = &caps[2];
-
-        // Look up the actual span_id from the map
-        if let Some(actual_span_id) = span_ids_map.get(index_id) {
-            // Create Slack link: <url|text>
-            format!(
-                "[{}](https://laminar.sh/project/{}/traces/{}?spanId={})",
-                name, project_id, trace_id, actual_span_id
-            )
-        } else {
-            // If span_id not found in map, just return the name without a link (but don't replace)
-            name.to_string()
-        }
-    })
-    .to_string()
-}
-
-fn format_trace_analysis_blocks(
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
-    status: &str,
-    summary: &str,
-    analysis: &str,
-    span_ids_map: &HashMap<String, String>,
-) -> serde_json::Value {
-    let emoji = match status {
-        "error" => "🚨",
-        "warning" => "⚠️",
-        _ => "ℹ️",
-    };
-
-    let analysis_text = if analysis.is_empty() {
-        "No analysis available".to_string()
-    } else {
-        replace_span_tags_with_links(analysis, project_id, trace_id, span_ids_map)
-    };
-
-    let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}",
-        project_id, trace_id
-    );
-
-    json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("{} *Event: {}*\n{}", emoji, event_name, summary)
-            }
-        },
-        {
-            "type": "markdown",
-            "text": analysis_text
-        },
-        {
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
-        }
-    ])
-}
-
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
+    span_id: &str,
     event_name: &str,
     extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}",
-        project_id, trace_id
+        "https://laminar.sh/project/{}/traces/{}?spanId={}",
+        project_id, trace_id, span_id
     );
 
-    let extracted_information_text =
-        serde_json::to_string_pretty(&extracted_information).unwrap_or_default();
+    let extracted_information_text = if let Some(info) = extracted_information {
+        if let Some(obj) = info.as_object() {
+            obj.iter()
+                .map(|(key, value)| {
+                    let formatted_value = match value {
+                        serde_json::Value::String(s) => s.clone(),
+                        serde_json::Value::Number(n) => n.to_string(),
+                        serde_json::Value::Bool(b) => b.to_string(),
+                        serde_json::Value::Null => "".to_string(),
+                        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                    };
+                    format!("*{}*:\n{}", key, formatted_value)
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        } else {
+            serde_json::to_string_pretty(&info).unwrap_or_default()
+        }
+    } else {
+        String::new()
+    };
 
-    if !extracted_information_text.is_empty() && extracted_information_text != "null".to_string() {
+    if !extracted_information_text.is_empty() {
         return json!([
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!("✅ *Event Detected: {}*", event_name)
+                    "text": format!("*Event*: `{}`", event_name)
                 }
             },
             {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Payload:*\n{}", extracted_information_text)
-                }
+                "type": "markdown",
+                "text": extracted_information_text
             },
             {
                 "type": "actions",
@@ -236,22 +154,15 @@ pub fn format_message_blocks(
     payload: &SlackMessagePayload,
     project_id: &str,
     trace_id: &str,
+    span_id: &str,
     event_name: &str,
 ) -> serde_json::Value {
     match payload {
-        SlackMessagePayload::TraceAnalysis(trace_payload) => format_trace_analysis_blocks(
-            project_id,
-            trace_id,
-            event_name,
-            &trace_payload.status,
-            &trace_payload.summary,
-            &trace_payload.analysis,
-            &trace_payload.span_ids_map,
-        ),
         SlackMessagePayload::EventIdentification(event_payload) => {
             format_event_identification_blocks(
                 project_id,
                 trace_id,
+                span_id,
                 event_name,
                 event_payload.extracted_information.clone(),
             )
@@ -261,7 +172,6 @@ pub fn format_message_blocks(
 
 pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
     match payload {
-        SlackMessagePayload::TraceAnalysis(trace_payload) => &trace_payload.channel_id,
         SlackMessagePayload::EventIdentification(event_payload) => &event_payload.channel_id,
     }
 }
@@ -306,6 +216,7 @@ pub async fn send_message(
     })?;
 
     if !slack_response.ok {
+        log::error!("Slack API returned error: {}", body);
         return Err(anyhow::anyhow!(
             "Slack API returned error: {}",
             slack_response

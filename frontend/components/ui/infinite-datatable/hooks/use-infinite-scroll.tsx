@@ -7,7 +7,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useDataTableStore } from "../model/datatable-store.tsx";
 
 export interface InfiniteScrollOptions<TData> {
-  fetchFn: (pageParam: number) => Promise<{ items: TData[]; count: number }>;
+  fetchFn: (pageParam: number) => Promise<{ items: TData[]; count?: number }>;
   enabled?: boolean;
   deps?: DependencyList;
 }

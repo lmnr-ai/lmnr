@@ -14,17 +14,18 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
-import { flexRender, getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
+import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
+import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import { useDataTableStore } from "./model/datatable-store.tsx";
-import { InfiniteDataTableProps } from "./types.ts";
+import { InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";
@@ -61,6 +62,8 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowSelectionChange,
   getRowId,
   error,
+  getRowHref,
+  loadMoreButton,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -90,10 +93,11 @@ export function InfiniteDataTable<TData extends RowData>({
     }
   }
 
-  // reorder columns after drag & drop
+  // Reorder columns ONLY on drop (not during drag)
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setDraggingColumnId(null);
+
     if (active && over && active.id !== over.id) {
       const oldIndex = columnOrder.indexOf(active.id as string);
       const newIndex = columnOrder.indexOf(over.id as string);
@@ -170,7 +174,17 @@ export function InfiniteDataTable<TData extends RowData>({
     table.toggleAllRowsSelected(false);
   };
 
+  const draggingHeader = useMemo(() => {
+    if (!draggingColumnId) return null;
+
+    const header = table.getHeaderGroups()[0]?.headers.find((h) => h.column.id === draggingColumnId);
+
+    return header ?? null;
+  }, [draggingColumnId, table]);
+
   useEffect(() => {
+    if (loadMoreButton) return;
+
     const loadMoreElement = loadMoreRef.current;
     const scrollContainer = tableContainerRef.current;
 
@@ -195,7 +209,8 @@ export function InfiniteDataTable<TData extends RowData>({
     return () => {
       observer.disconnect();
     };
-  }, [fetchNextPage, hasMore, isFetching, isLoading]);
+  }, [fetchNextPage, hasMore, isFetching, isLoading, loadMoreButton]);
+
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
       <SelectionPanel
@@ -232,58 +247,37 @@ export function InfiniteDataTable<TData extends RowData>({
                 }}
                 lockedColumns={lockedColumns}
               />
-              <DragOverlay
-                dropAnimation={null}
-                adjustScale={false}
-                style={{
-                  top: `${headerTop}px`,
-                  position: "fixed",
-                  pointerEvents: "none",
-                }}
-              >
-                {draggingColumnId
-                  ? (() => {
-                    const column = table.getColumn(draggingColumnId);
-                    if (!column) return null;
-                    const headerGroups = table.getHeaderGroups();
-                    const header = headerGroups[0]?.headers.find((h) => h.column.id === draggingColumnId);
-                    if (!header) return null;
-                    return (
-                      <div
-                        className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
-                        style={{
-                          width: column.getSize(),
-                          height: 32,
-                        }}
-                      >
-                        <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
-                          <div className="truncate">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()
-                  : null}
-              </DragOverlay>
               <InfiniteDatatableBody
                 table={table}
                 rowVirtualizer={rowVirtualizer}
                 virtualItems={virtualItems}
                 isLoading={isLoading}
+                isFetching={isFetching}
                 hasMore={hasMore}
                 onRowClick={onRowClick}
                 focusedRowId={focusedRowId}
                 loadMoreRef={loadMoreRef}
                 emptyRow={emptyRow}
                 loadingRow={loadingRow}
-                error={error}
-                columnOrder={columnOrder}
+                getRowHref={getRowHref}
+                loadMoreButton={loadMoreButton}
+                fetchNextPage={fetchNextPage}
               />
             </Table>
+            <DragOverlay
+              dropAnimation={null}
+              adjustScale={false}
+              style={{
+                top: `${headerTop}px`,
+                position: "fixed",
+                pointerEvents: "none",
+              }}
+            >
+              <DraggingTableHeadOverlay header={draggingHeader} />
+            </DragOverlay>
           </DndContext>
 
-          {isFetching && !isLoading && (
+          {isFetching && !isLoading && !loadMoreButton && (
             <div className="flex justify-center p-2 bg-secondary">
               <Skeleton className="w-full h-8" />
             </div>
