@@ -11,7 +11,7 @@ pub struct ExportTraceServiceRequest {
         super::super::super::super::super::opentelemetry_proto_trace_v1::ResourceSpans,
     >,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExportTraceServiceResponse {
     /// The details of a partially successful export request.
     ///
@@ -25,13 +25,13 @@ pub struct ExportTraceServiceResponse {
     /// In such cases, the `rejected_<signal>` MUST have a value of `0` and
     /// the `error_message` MUST be non-empty.
     ///
-    /// A `partial_success` message with an empty value (rejected_<signal> = 0 and
+    /// A `partial_success` message with an empty value (rejected\_<signal> = 0 and
     /// `error_message` = "") is equivalent to it not being set/present. Senders
     /// SHOULD interpret it the same way as in the full success case.
     #[prost(message, optional, tag = "1")]
     pub partial_success: ::core::option::Option<ExportTracePartialSuccess>,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExportTracePartialSuccess {
     /// The number of rejected spans.
     ///
@@ -181,7 +181,7 @@ pub mod trace_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = ExportSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
+                        let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
                                 accept_compression_encodings,
