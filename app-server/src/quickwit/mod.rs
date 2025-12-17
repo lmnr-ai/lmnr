@@ -6,6 +6,7 @@ mod proto;
 mod utils;
 
 use chrono::{DateTime, Utc};
+use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -18,6 +19,8 @@ use utils::extract_text_from_json_value;
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
+pub const SPANS_INDEX_ID: &str = "spans";
+pub const EVENTS_INDEX_ID: &str = "events";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {
@@ -73,22 +76,14 @@ impl From<&Event> for QuickwitIndexedEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
-pub enum IndexerQueueMessage {
+pub enum IndexerQueuePayload {
     Spans(Vec<QuickwitIndexedSpan>),
     Events(Vec<QuickwitIndexedEvent>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum IndexerQueuePayload {
-    IndexerQueueMessage(IndexerQueueMessage),
-    // TODO: remove this once the change is merged and all items are removed
-    // from the queue, and send the inner struct from producer directly.
-    SpansOnly(Vec<QuickwitIndexedSpan>),
-}
-
 /// Flatten JSON values for searchability and indexing. Each implementation
 /// must serialize all respective JSON values to strings.
+#[enum_dispatch(QuickwitDocument)]
 pub trait FlattenJson {
     fn flatten_json(&mut self);
 }
@@ -113,42 +108,29 @@ impl FlattenJson for QuickwitIndexedEvent {
 /// Holds Serialize and FlattenJson traits for ingestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+#[enum_dispatch]
 pub enum QuickwitDocument {
     Span(QuickwitIndexedSpan),
     Event(QuickwitIndexedEvent),
-}
-
-impl FlattenJson for QuickwitDocument {
-    fn flatten_json(&mut self) {
-        match self {
-            QuickwitDocument::Span(span) => span.flatten_json(),
-            QuickwitDocument::Event(event) => event.flatten_json(),
-        }
-    }
 }
 
 impl IndexerQueuePayload {
     /// Get the index ID for this payload type
     pub fn index_id(&self) -> &'static str {
         match self {
-            IndexerQueuePayload::IndexerQueueMessage(IndexerQueueMessage::Spans(_)) => "spans",
-            IndexerQueuePayload::IndexerQueueMessage(IndexerQueueMessage::Events(_)) => "events",
-            IndexerQueuePayload::SpansOnly(_) => "spans",
+            IndexerQueuePayload::Spans(_) => SPANS_INDEX_ID,
+            IndexerQueuePayload::Events(_) => EVENTS_INDEX_ID,
         }
     }
 
     /// Convert the payload into a vector of documents for Quickwit ingestion
     pub fn into_documents(self) -> Vec<QuickwitDocument> {
         match self {
-            IndexerQueuePayload::IndexerQueueMessage(IndexerQueueMessage::Spans(spans)) => spans
-                .into_iter()
-                .map(|span| QuickwitDocument::Span(span))
-                .collect(),
-            IndexerQueuePayload::IndexerQueueMessage(IndexerQueueMessage::Events(events)) => {
-                events.into_iter().map(QuickwitDocument::Event).collect()
-            }
-            IndexerQueuePayload::SpansOnly(spans) => {
+            IndexerQueuePayload::Spans(spans) => {
                 spans.into_iter().map(QuickwitDocument::Span).collect()
+            }
+            IndexerQueuePayload::Events(events) => {
+                events.into_iter().map(QuickwitDocument::Event).collect()
             }
         }
     }
