@@ -81,7 +81,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
-            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded hidden group-hover/message:flex flex-shrink-0">
+            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded hidden group-hover/message:flex flex-shrink-0 animate-in fade-in duration-200">
               <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
                 <Clock3 size={12} className="min-w-3 min-h-3" />
                 <span>{getDurationString(span.startTime, span.endTime)}</span>
@@ -101,7 +101,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
             </div>
             <Button
               variant="ghost"
-              className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted"
+              className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenSettings(span);

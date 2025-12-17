@@ -98,22 +98,22 @@ const Markdown = ({ output, isLoadingOutput, defaultValue, className }: Markdown
           </h1>
         ),
         p: ({ children, className, ...props }) => (
-          <p {...props} className={cn(className, "text-xs")}>
+          <p {...props} className={cn(className, "text-sm")}>
             {children}
           </p>
         ),
         li: ({ children, className, ...props }) => (
-          <li {...props} className={cn(className, "text-xs")}>
+          <li {...props} className={cn(className, "text-sm")}>
             {children}
           </li>
         ),
         ul: ({ children, className, ...props }) => (
-          <ul {...props} className={cn(className, "text-xs")}>
+          <ul {...props} className={cn(className, "text-sm")}>
             {children}
           </ul>
         ),
-        code: ({ children, ...props }) => (
-          <code {...props} className="text-xs">
+        code: ({ children, className, ...props }) => (
+          <code {...props} className={cn(className, "text-sm")}>
             {children}
           </code>
         ),
