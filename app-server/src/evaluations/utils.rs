@@ -46,7 +46,6 @@ pub struct DatapointColumns {
     pub metadatas: Vec<HashMap<String, Value>>,
     pub executor_outputs: Vec<Option<Value>>,
     pub trace_ids: Vec<Uuid>,
-    pub scores: Vec<HashMap<String, Option<f64>>>,
     pub indices: Vec<i32>,
 }
 
@@ -77,11 +76,6 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         })
         .collect::<Vec<_>>();
 
-    let scores = points
-        .iter()
-        .map(|point| point.scores.clone())
-        .collect::<Vec<_>>();
-
     let trace_ids = points
         .iter()
         .map(|point| point.trace_id)
@@ -96,7 +90,6 @@ pub fn get_columns_from_points(points: &Vec<EvaluationDatapointResult>) -> Datap
         targets,
         executor_outputs,
         trace_ids,
-        scores,
         indices,
     }
 }

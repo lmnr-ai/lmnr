@@ -105,7 +105,6 @@ export const getEvaluationDatapoints = async (
   let filteredTraceIds: string[] = [];
   if (traceFilters.length > 0) {
     const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
-      projectId,
       evaluationId,
       traceIds: searchTraceIds, // Pass search results if any
       filters: traceFilters,
@@ -135,7 +134,6 @@ export const getEvaluationDatapoints = async (
 
   // Step 3: Query evaluation datapoints with datapoint filters and filtered trace IDs
   const { query: mainQuery, parameters: mainParams } = buildEvaluationDatapointsQueryWithParams({
-    projectId,
     evaluationId,
     traceIds: filteredTraceIds,
     filters: datapointFilters,
@@ -269,7 +267,6 @@ export const getEvaluationStatistics = async (
   let filteredTraceIds: string[] = [];
   if (traceFilters.length > 0) {
     const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
-      projectId,
       evaluationId,
       traceIds: searchTraceIds,
       filters: traceFilters,
@@ -297,7 +294,6 @@ export const getEvaluationStatistics = async (
 
   // Step 3: Query only scores from evaluation datapoints
   const { query: statsQuery, parameters: statsParams } = buildEvaluationStatisticsQueryWithParams({
-    projectId,
     evaluationId,
     traceIds: filteredTraceIds,
     filters: datapointFilters,

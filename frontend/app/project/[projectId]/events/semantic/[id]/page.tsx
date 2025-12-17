@@ -8,6 +8,7 @@ import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { getLastEvent } from "@/lib/actions/events";
 import { getSemanticEventDefinition, SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -34,9 +35,16 @@ export default async function SemanticEventPage(props: {
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
   const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
+  const isSemanticEventsEnabled = isFeatureEnabled(Feature.SEMANTIC_EVENTS);
 
   return (
-    <EventsStoreProvider eventDefinition={eventDefinition} traceId={traceId} spanId={spanId} clusterConfig={clusterConfig}>
+    <EventsStoreProvider
+      eventDefinition={eventDefinition}
+      traceId={traceId}
+      spanId={spanId}
+      clusterConfig={clusterConfig}
+      isSemanticEventsEnabled={isSemanticEventsEnabled}
+    >
       <Events eventType="SEMANTIC" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
     </EventsStoreProvider>
   );

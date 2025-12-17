@@ -31,7 +31,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   );
 
   const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
-    `/api/projects/${params?.projectId}/evaluation-groups/${groupId}/progression?${evaluationsSearchParams}`,
+    `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId ?? "")}/progression?${evaluationsSearchParams}`,
     swrFetcher
   );
 

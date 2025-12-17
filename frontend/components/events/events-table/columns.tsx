@@ -59,32 +59,40 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
   },
 ];
 
-export const defaultEventsColumnOrder = ["id", "attributes", "timestamp", "traceId", "spanId", "userId", "sessionId" ];
+export const defaultEventsColumnOrder = ["id", "attributes", "timestamp", "traceId", "spanId", "userId", "sessionId"];
 
-export const eventsTableFilters: ColumnFilter[] = [
-  {
-    name: "ID",
-    key: "id",
-    dataType: "string",
-  },
-  {
-    name: "User ID",
-    key: "user_id",
-    dataType: "string",
-  },
-  {
-    name: "Session ID",
-    key: "session_id",
-    dataType: "string",
-  },
-  {
-    name: "Cluster",
-    key: "cluster",
-    dataType: "string",
-  },
-  {
+export const getEventsTableFilters = (isSemanticEventsEnabled: boolean): ColumnFilter[] => {
+  const filters: ColumnFilter[] = [
+    {
+      name: "ID",
+      key: "id",
+      dataType: "string",
+    },
+    {
+      name: "User ID",
+      key: "user_id",
+      dataType: "string",
+    },
+    {
+      name: "Session ID",
+      key: "session_id",
+      dataType: "string",
+    },
+  ];
+
+  if (isSemanticEventsEnabled) {
+    filters.push({
+      name: "Cluster",
+      key: "cluster",
+      dataType: "string",
+    });
+  }
+
+  filters.push({
     name: "Attributes",
     key: "attributes",
     dataType: "json",
-  },
-];
+  });
+
+  return filters;
+};

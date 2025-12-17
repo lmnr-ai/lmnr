@@ -33,7 +33,6 @@ pub async fn save_evaluation_scores(
             &pool,
             evaluation_id,
             &ids_clone,
-            &columns.scores,
             &columns.datas,
             &columns.targets,
             &columns.metadatas,

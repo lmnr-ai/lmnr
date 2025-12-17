@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
@@ -71,7 +70,10 @@ const HumanEvaluationScore = ({
     }
   );
 
-  const { mutate: mutateGlobal } = useSWRConfig();
+  // TODO: LAM-1040 to track this and more globally a state issue
+  // Commenting out for now to fix a scary toast. Updating the score on table
+  // immediately is not the core functionality.
+  // const { mutate: mutateGlobal } = useSWRConfig();
 
   const {
     control,
@@ -137,35 +139,35 @@ const HumanEvaluationScore = ({
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
 
-        await mutateGlobal(
-          (key) => {
-            const keyString = Array.isArray(key) ? key[0] : key;
-            return (
-              typeof keyString === "string" &&
-              keyString.includes(`api/projects/${projectId}/evaluations/${evaluationId}`)
-            );
-          },
-          (currentData: EvaluationResultsInfo | undefined) => {
-            if (!currentData || !data?.name) return currentData;
+        // await mutateGlobal(
+        //   (key) => {
+        //     const keyString = Array.isArray(key) ? key[0] : key;
+        //     return (
+        //       typeof keyString === "string" &&
+        //       keyString.includes(`api/projects/${projectId}/evaluations/${evaluationId}`)
+        //     );
+        //   },
+        //   (currentData: EvaluationResultsInfo | undefined) => {
+        //     if (!currentData || !data?.name) return currentData;
 
-            return {
-              ...currentData,
-              results: currentData.results.map((result) => {
-                if (result.id === resultId) {
-                  return {
-                    ...result,
-                    scores: {
-                      ...result.scores,
-                      [data?.name]: scoreValue,
-                    },
-                  };
-                }
-                return result;
-              }),
-            };
-          },
-          { revalidate: true }
-        );
+        //     return {
+        //       ...currentData,
+        //       results: currentData.results.map((result) => {
+        //         if (result.id === resultId) {
+        //           return {
+        //             ...result,
+        //             scores: {
+        //               ...result.scores,
+        //               [data?.name]: scoreValue,
+        //             },
+        //           };
+        //         }
+        //         return result;
+        //       }),
+        //     };
+        //   },
+        //   { revalidate: true }
+        // );
 
         toast({
           description: "Score saved successfully",
@@ -178,7 +180,7 @@ const HumanEvaluationScore = ({
         });
       }
     },
-    [projectId, resultId, data?.name, spanId, mutate, mutateGlobal, toast, evaluationId]
+    [projectId, resultId, data?.name, spanId, mutate, toast, evaluationId]
   );
 
   if (isLoading || !data) {

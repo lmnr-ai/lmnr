@@ -71,7 +71,7 @@ const columns: ColumnDef<Datapoint>[] = [
   },
 ];
 
-export const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
+const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -153,16 +153,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   });
 
   const selectedDatapointIds = useMemo(() => Object.keys(rowSelection), [rowSelection]);
-  const handleDatapointSelect = useCallback(
-    (datapoint: Row<Datapoint> | null) => {
-      if (datapoint) {
-        setSelectedDatapoint(datapoint.original);
-      } else {
-        setSelectedDatapoint(null);
-      }
-    },
-    []
-  );
+  const handleDatapointSelect = useCallback((datapoint: Row<Datapoint> | null) => {
+    if (datapoint) {
+      setSelectedDatapoint(datapoint.original);
+    } else {
+      setSelectedDatapoint(null);
+    }
+  }, []);
 
   const getRowHref = useCallback(
     (row: Row<Datapoint>) => {

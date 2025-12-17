@@ -18,12 +18,12 @@ RENAME TABLE tags TO old_tags;
 RENAME TABLE new_tags TO tags;
 DROP TABLE IF EXISTS old_tags;
 
-ALTER TABLE tags ADD INDEX tags_created_at_minmax_idx created_at TYPE minmax;
+ALTER TABLE tags ADD INDEX IF NOT EXISTS tags_created_at_minmax_idx created_at TYPE minmax;
 ALTER TABLE tags MATERIALIZE INDEX tags_created_at_minmax_idx;
-ALTER TABLE spans ADD INDEX spans_parent_span_id_bf_idx parent_span_id TYPE bloom_filter;
+ALTER TABLE spans ADD INDEX IF NOT EXISTS spans_parent_span_id_bf_idx parent_span_id TYPE bloom_filter;
 ALTER TABLE spans MATERIALIZE INDEX spans_parent_span_id_bf_idx;
 
-ALTER TABLE tags ADD INDEX tags_span_id_bf_idx span_id TYPE bloom_filter;
+ALTER TABLE tags ADD INDEX IF NOT EXISTS tags_span_id_bf_idx span_id TYPE bloom_filter;
 ALTER TABLE tags MATERIALIZE INDEX tags_span_id_bf_idx;
 
 DROP VIEW IF EXISTS tags_v0;

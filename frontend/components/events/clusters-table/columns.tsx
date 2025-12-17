@@ -119,21 +119,3 @@ export const defaultClustersColumnOrder = [
   "created_at",
   "updated_at",
 ];
-
-// export const clustersTableFilters: ColumnFilter[] = [
-//   {
-//     name: "Cluster",
-//     key: "name",
-//     dataType: "string",
-//   },
-//   {
-//     name: "Children clusters",
-//     key: "numChildrenClusters",
-//     dataType: "number",
-//   },
-//   {
-//     name: "Events",
-//     key: "numEvents",
-//     dataType: "number",
-//   },
-// ];

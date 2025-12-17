@@ -103,7 +103,6 @@ pub async fn update_eval_datapoint(
 ) -> ResponseResult {
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
-    let scores_clone = req.scores.clone();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
     // Get evaluation info for ClickHouse
@@ -117,7 +116,6 @@ pub async fn update_eval_datapoint(
         eval_id,
         datapoint_id,
         &req.executor_output,
-        req.scores,
     )
     .await?;
 
@@ -149,7 +147,7 @@ pub async fn update_eval_datapoint(
         eval_id,
         datapoint_id,
         trace_id,
-        scores_clone,
+        req.scores,
     )
     .await?;
 

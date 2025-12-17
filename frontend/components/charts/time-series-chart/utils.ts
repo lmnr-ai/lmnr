@@ -8,7 +8,7 @@ export interface Interval {
   unit: IntervalUnit;
 }
 
-export const TICK_COUNT_BREAKPOINTS = [
+const TICK_COUNT_BREAKPOINTS = [
   { minWidth: 1536, ticks: 16 },
   { minWidth: 1280, ticks: 12 },
   { minWidth: 1024, ticks: 12 },
@@ -20,7 +20,7 @@ export const TICK_COUNT_BREAKPOINTS = [
 export const getTickCountForWidth = (width: number): number =>
   TICK_COUNT_BREAKPOINTS.find((bp) => width >= bp.minWidth)?.ticks ?? 4;
 
-export const BAR_COUNT_BREAKPOINTS = [
+const BAR_COUNT_BREAKPOINTS = [
   { minWidth: 1536, bars: 72 },
   { minWidth: 1280, bars: 64 },
   { minWidth: 1024, bars: 56 },

@@ -25,19 +25,19 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 import Header from "../ui/header";
 
-export default function SemanticEventDefinitions() {
+export default function SemanticEventDefinitions({ isSemanticEventsEnabled }: { isSemanticEventsEnabled: boolean }) {
   return (
     <DataTableStateProvider
       storageKey="semantic-event-definitions-table"
       uniqueKey="id"
       defaultColumnOrder={defaultSemanticEventDefinitionsColumnOrder}
     >
-      <SemanticEventDefinitionsContent />
+      <SemanticEventDefinitionsContent isSemanticEventsEnabled={isSemanticEventsEnabled} />
     </DataTableStateProvider>
   );
 }
 
-function SemanticEventDefinitionsContent() {
+function SemanticEventDefinitionsContent({ isSemanticEventsEnabled }: { isSemanticEventsEnabled: boolean }) {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { workspace } = useProjectContext();
@@ -139,68 +139,76 @@ function SemanticEventDefinitionsContent() {
     [projectId, toast, updateData, onRowSelectionChange]
   );
 
+  const tableContent = (
+    <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
+      {!isFreeTier && (
+        <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+          <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+            Event Definition
+          </Button>
+        </ManageEventDefinitionSheet>
+      )}
+      <InfiniteDataTable<SemanticEventDefinitionRow>
+        columns={semanticEventDefinitionsColumns}
+        data={eventDefinitions}
+        getRowId={(row) => row.id}
+        getRowHref={(row) => `/project/${projectId}/events/semantic/${row.original.id}`}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading}
+        fetchNextPage={fetchNextPage}
+        enableRowSelection
+        state={{
+          rowSelection,
+        }}
+        onRowSelectionChange={onRowSelectionChange}
+        lockedColumns={["__row_selection"]}
+        selectionPanel={(selectedRowIds) => (
+          <div className="flex flex-col space-y-2">
+            <DeleteSelectedRows
+              selectedRowIds={selectedRowIds}
+              onDelete={handleDelete}
+              entityName="event definitions"
+            />
+          </div>
+        )}
+      >
+        <div className="flex flex-1 w-full space-x-2 pt-1">
+          <DataTableFilter columns={eventsDefinitionsTableFilters} />
+          <ColumnsMenu
+            lockedColumns={["__row_selection"]}
+            columnLabels={semanticEventDefinitionsColumns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
+          <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
+        </div>
+        <DataTableFilterList />
+      </InfiniteDataTable>
+    </div>
+  );
+
   return (
     <>
       <Header path="event definitions" />
-      <Tabs className="flex flex-1 overflow-hidden gap-4" value="SEMANTIC">
-        <TabsList className="mx-4 h-8">
-          <TabsTrigger className="text-xs" value="SEMANTIC" asChild>
-            <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
-          </TabsTrigger>
-          <TabsTrigger className="text-xs" value="code" asChild>
-            <Link href={`/project/${projectId}/events/code`}>Code</Link>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="SEMANTIC" asChild>
-          <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-            {!isFreeTier && (
-              <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-                <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-                  Event Definition
-                </Button>
-              </ManageEventDefinitionSheet>
-            )}
-            <InfiniteDataTable<SemanticEventDefinitionRow>
-              columns={semanticEventDefinitionsColumns}
-              data={eventDefinitions}
-              getRowId={(row) => row.id}
-              getRowHref={(row) => `/project/${projectId}/events/semantic/${row.original.id}`}
-              hasMore={hasMore}
-              isFetching={isFetching}
-              isLoading={isLoading}
-              fetchNextPage={fetchNextPage}
-              enableRowSelection
-              state={{
-                rowSelection,
-              }}
-              onRowSelectionChange={onRowSelectionChange}
-              lockedColumns={["__row_selection"]}
-              selectionPanel={(selectedRowIds) => (
-                <div className="flex flex-col space-y-2">
-                  <DeleteSelectedRows
-                    selectedRowIds={selectedRowIds}
-                    onDelete={handleDelete}
-                    entityName="event definitions"
-                  />
-                </div>
-              )}
-            >
-              <div className="flex flex-1 w-full space-x-2 pt-1">
-                <DataTableFilter columns={eventsDefinitionsTableFilters} />
-                <ColumnsMenu
-                  lockedColumns={["__row_selection"]}
-                  columnLabels={semanticEventDefinitionsColumns.map((column) => ({
-                    id: column.id!,
-                    label: typeof column.header === "string" ? column.header : column.id!,
-                  }))}
-                />
-                <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
-              </div>
-              <DataTableFilterList />
-            </InfiniteDataTable>
-          </div>
-        </TabsContent>
-      </Tabs>
+      {isSemanticEventsEnabled ? (
+        <Tabs className="flex flex-1 overflow-hidden gap-4" value="SEMANTIC">
+          <TabsList className="mx-4 h-8">
+            <TabsTrigger className="text-xs" value="SEMANTIC" asChild>
+              <Link href={`/project/${projectId}/events/semantic`}>Semantic</Link>
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="code" asChild>
+              <Link href={`/project/${projectId}/events/code`}>Code</Link>
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="SEMANTIC" asChild>
+            {tableContent}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        tableContent
+      )}
     </>
   );
 }

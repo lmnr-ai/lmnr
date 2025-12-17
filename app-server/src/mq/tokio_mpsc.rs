@@ -122,4 +122,9 @@ impl MessageQueueTrait for TokioMpscQueue {
 
         Ok(tokio_mpsc_receiver.into())
     }
+
+    fn is_healthy(&self) -> bool {
+        // In-memory queue is always healthy
+        true
+    }
 }

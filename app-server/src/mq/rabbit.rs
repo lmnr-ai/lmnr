@@ -68,7 +68,8 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    consumer_connection: Arc<Connection>,
+    publisher_connection: Arc<Connection>,
+    consumer_connection: Option<Arc<Connection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
@@ -113,7 +114,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 impl RabbitMQ {
     pub fn new(
         publisher_connection: Arc<Connection>,
-        consumer_connection: Arc<Connection>,
+        consumer_connection: Option<Arc<Connection>>,
         max_channel_pool_size: usize,
     ) -> Self {
         let manager = RabbitChannelManager {
@@ -126,6 +127,7 @@ impl RabbitMQ {
             .unwrap();
 
         Self {
+            publisher_connection,
             consumer_connection,
             publisher_channel_pool: pool,
         }
@@ -217,7 +219,23 @@ impl MessageQueueTrait for RabbitMQ {
         exchange: &str,
         routing_key: &str,
     ) -> anyhow::Result<MessageQueueReceiver> {
-        let channel = self.consumer_connection.create_channel().await?;
+        let consumer_conn = self.consumer_connection.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Consumer connection not available - running in producer-only mode. \
+                 Cannot create receiver for queue '{}'",
+                queue_name
+            )
+        })?;
+
+        // Check connection health before attempting to create channel
+        if !consumer_conn.status().connected() {
+            return Err(anyhow::anyhow!(
+                "Consumer connection is not in connected state: {:?}",
+                consumer_conn.status().state()
+            ));
+        }
+
+        let channel = consumer_conn.create_channel().await?;
 
         channel
             .queue_bind(
@@ -239,5 +257,33 @@ impl MessageQueueTrait for RabbitMQ {
             .await?;
 
         Ok(RabbitMQReceiver { consumer }.into())
+    }
+
+    fn is_healthy(&self) -> bool {
+        // Check publisher connection (always exists)
+        let publisher_ok = self.publisher_connection.status().connected();
+        if !publisher_ok {
+            log::error!(
+                "RabbitMQ health check failed - publisher connection not connected. State: {:?}",
+                self.publisher_connection.status().state()
+            );
+        }
+
+        // Check consumer connection (only if it exists)
+        let consumer_ok = self.consumer_connection
+            .as_ref()
+            .map(|c| {
+                let connected = c.status().connected();
+                if !connected {
+                    log::error!(
+                        "RabbitMQ health check failed - consumer connection not connected. State: {:?}",
+                        c.status().state()
+                    );
+                }
+                connected
+            })
+            .unwrap_or(true); // No consumer connection = healthy (producer-only mode)
+
+        publisher_ok && consumer_ok
     }
 }
