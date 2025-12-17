@@ -3,9 +3,9 @@ use std::{env, sync::Arc};
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Endpoint};
+use tracing::instrument;
 
 use super::{
-    QuickwitIndexedSpan,
     doc_batch::build_json_doc_batch,
     proto::ingest_service::{
         CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
@@ -37,6 +37,65 @@ pub struct QuickwitClient {
     inner: Arc<QuickwitClientInner>,
 }
 
+pub struct QuickwitErrorInner {
+    message: String,
+    code: tonic::Code,
+}
+
+pub enum QuickwitError {
+    Transient(QuickwitErrorInner),
+    Permanent(QuickwitErrorInner),
+}
+
+impl QuickwitError {
+    pub fn from_status(status: tonic::Status) -> Self {
+        match status.code() {
+            tonic::Code::DeadlineExceeded
+            | tonic::Code::Unavailable
+            | tonic::Code::FailedPrecondition
+            | tonic::Code::ResourceExhausted => Self::Transient(QuickwitErrorInner {
+                message: status.message().to_string(),
+                code: status.code(),
+            }),
+            _ => Self::Permanent(QuickwitErrorInner {
+                message: status.message().to_string(),
+                code: status.code(),
+            }),
+        }
+    }
+
+    pub fn message(&self) -> String {
+        match self {
+            Self::Transient(inner) => inner.message.clone(),
+            Self::Permanent(inner) => inner.message.clone(),
+        }
+    }
+
+    pub fn status_code(&self) -> tonic::Code {
+        match self {
+            Self::Transient(inner) => inner.code,
+            Self::Permanent(inner) => inner.code,
+        }
+    }
+
+    pub fn to_handler_error(&self) -> crate::worker::HandlerError {
+        match self {
+            Self::Transient(inner) => {
+                crate::worker::HandlerError::transient(anyhow::anyhow!(format!(
+                    "Quickwit transient error: [{}] {}",
+                    inner.code, inner.message
+                )))
+            }
+            Self::Permanent(inner) => {
+                crate::worker::HandlerError::permanent(anyhow::anyhow!(format!(
+                    "Quickwit permanent error: [{}] {}",
+                    inner.code, inner.message
+                )))
+            }
+        }
+    }
+}
+
 struct QuickwitClientInner {
     ingest_endpoint: String,
     search_endpoint: String,
@@ -65,12 +124,18 @@ impl QuickwitClient {
         &self.inner.ingest_endpoint
     }
 
-    pub async fn ingest(
+    #[instrument(skip(self, docs))]
+    pub async fn ingest<T: serde::Serialize>(
         &self,
         index_id: &str,
-        spans: &[QuickwitIndexedSpan],
-    ) -> anyhow::Result<()> {
-        let doc_batch = build_doc_batch(index_id, spans)?;
+        docs: &[T],
+    ) -> Result<(), QuickwitError> {
+        let doc_batch = build_doc_batch(index_id, docs).map_err(|err| {
+            QuickwitError::Permanent(QuickwitErrorInner {
+                message: err.to_string(),
+                code: tonic::Code::Internal,
+            })
+        })?;
         let request = IngestRequest {
             doc_batches: vec![doc_batch],
             commit: CommitType::Auto as i32,
@@ -81,9 +146,10 @@ impl QuickwitClient {
             .ingest(request)
             .await
             .map(|_| ())
-            .map_err(|status| anyhow!("Quickwit ingest request failed: {status}"))
+            .map_err(|status| QuickwitError::from_status(status))
     }
 
+    #[instrument(skip(self, query_body))]
     pub async fn search_spans(
         &self,
         query_body: serde_json::Value,
@@ -115,11 +181,15 @@ impl QuickwitClient {
     }
 }
 
-pub fn build_doc_batch(index_id: &str, spans: &[QuickwitIndexedSpan]) -> anyhow::Result<DocBatch> {
-    build_json_doc_batch(index_id, spans).map_err(|err| {
+#[instrument(skip(docs))]
+pub fn build_doc_batch<T: serde::Serialize>(
+    index_id: &str,
+    docs: &[T],
+) -> anyhow::Result<DocBatch> {
+    build_json_doc_batch(index_id, docs).map_err(|err| {
         anyhow!(
-            "Failed to encode spans for Quickwit ingestion ({} docs): {}",
-            spans.len(),
+            "Failed to encode documents for Quickwit ingestion ({} docs): {}",
+            docs.len(),
             err
         )
     })
