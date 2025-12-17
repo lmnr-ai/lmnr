@@ -91,7 +91,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     () =>
       spans
         .filter((span) => span.spanType === SpanType.LLM)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
         .map((span) => span.spanId),
     [spans]
   );
