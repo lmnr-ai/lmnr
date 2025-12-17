@@ -32,7 +32,7 @@ pub async fn publish_for_indexing(
             SPANS_INDEXER_ROUTING_KEY,
         )
         .await
-        .context("Failed to publish spans to Quickwit indexer queue")?;
+        .context("Failed to publish spans/events to Quickwit indexer queue")?;
 
     Ok(())
 }
