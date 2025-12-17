@@ -1,7 +1,7 @@
 "use client";
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChartNoAxesGantt, CirclePlay, Minus, Plus } from "lucide-react";
+import { CirclePlay, Minus, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import fullLogo from "@/assets/logo/logo.svg";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
+import ViewDropdown from "@/components/shared/traces/view-dropdown";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -184,16 +185,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                   </div>
                 </div>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
-                  <Button
-                    onClick={() => setTab("timeline")}
-                    variant="outline"
-                    className={cn("h-6 text-xs px-1.5", {
-                      "border-primary text-primary": tab === "timeline",
-                    })}
-                  >
-                    <ChartNoAxesGantt size={14} className="mr-1" />
-                    <span>Timeline</span>
-                  </Button>
+                  <ViewDropdown />
                   {tab === "timeline" && (
                     <>
                       <Button

@@ -276,14 +276,7 @@ const createTraceViewStore = () =>
         setIsTraceLoading: (isTraceLoading) => set({ isTraceLoading }),
         setIsSpansLoading: (isSpansLoading) => set({ isSpansLoading }),
         setLangGraph: (langGraph: boolean) => set({ langGraph }),
-        setTab: (tab) => {
-          const storeTab = get().tab;
-          if (tab === storeTab) {
-            set({ tab: "tree" });
-          } else {
-            set({ tab });
-          }
-        },
+        setTab: (tab) => set({ tab }),
         incrementSessionTime: (increment: number, maxTime: number) => {
           const currentTime = get().sessionTime || 0;
           const newTime = Math.min(currentTime + increment, maxTime);
