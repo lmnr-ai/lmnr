@@ -38,7 +38,7 @@ pub mod filter {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TimeRange {
     #[prost(string, tag = "1")]
     pub column: ::prost::alloc::string::String,
@@ -55,7 +55,7 @@ pub struct TimeRange {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OrderBy {
     #[prost(string, tag = "1")]
     pub field: ::prost::alloc::string::String,
@@ -83,7 +83,7 @@ pub struct QueryStructure {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct QueryRequest {
     #[prost(string, tag = "1")]
     pub query: ::prost::alloc::string::String,
@@ -92,7 +92,7 @@ pub struct QueryRequest {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct QueryResponse {
     #[prost(oneof = "query_response::Result", tags = "1, 2")]
     pub result: ::core::option::Option<query_response::Result>,
@@ -100,7 +100,7 @@ pub struct QueryResponse {
 /// Nested message and enum types in `QueryResponse`.
 pub mod query_response {
     #[derive(serde::Serialize, serde::Deserialize)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
         Success(super::SuccessResponse),
@@ -110,14 +110,14 @@ pub mod query_response {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SuccessResponse {
     #[prost(string, tag = "1")]
     pub query: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ErrorResponse {
     #[prost(string, tag = "1")]
     pub error: ::prost::alloc::string::String,
@@ -131,14 +131,14 @@ pub struct JsonToSqlRequest {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JsonToSqlSuccessResponse {
     #[prost(string, tag = "1")]
     pub sql: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JsonToSqlResponse {
     #[prost(oneof = "json_to_sql_response::Result", tags = "1, 2")]
     pub result: ::core::option::Option<json_to_sql_response::Result>,
@@ -146,7 +146,7 @@ pub struct JsonToSqlResponse {
 /// Nested message and enum types in `JsonToSqlResponse`.
 pub mod json_to_sql_response {
     #[derive(serde::Serialize, serde::Deserialize)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
         Success(super::JsonToSqlSuccessResponse),
@@ -156,7 +156,7 @@ pub mod json_to_sql_response {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SqlToJsonRequest {
     #[prost(string, tag = "1")]
     pub sql: ::prost::alloc::string::String,
@@ -289,7 +289,7 @@ pub mod query_engine_service_client {
                         format!("Service was not ready: {}", e.into()),
                     )
                 })?;
-            let codec = tonic::codec::ProstCodec::default();
+            let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/query_engine.QueryEngineService/ValidateQuery",
             );
@@ -315,7 +315,7 @@ pub mod query_engine_service_client {
                         format!("Service was not ready: {}", e.into()),
                     )
                 })?;
-            let codec = tonic::codec::ProstCodec::default();
+            let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/query_engine.QueryEngineService/JsonToSql",
             );
@@ -339,7 +339,7 @@ pub mod query_engine_service_client {
                         format!("Service was not ready: {}", e.into()),
                     )
                 })?;
-            let codec = tonic::codec::ProstCodec::default();
+            let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/query_engine.QueryEngineService/SqlToJson",
             );
