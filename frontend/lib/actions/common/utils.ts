@@ -33,3 +33,26 @@ export const tryParseJson = (value: string) => {
     }
   }
 };
+
+export const deepParseJson = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return deepParseJson(parsed);
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(deepParseJson);
+  }
+
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, deepParseJson(v)])
+    );
+  }
+
+  return value;
+};

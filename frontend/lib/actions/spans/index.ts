@@ -234,11 +234,13 @@ const fetchTraceSpans = async ({
   traceId,
   spanIds,
   filters,
+  orderBy,
 }: {
   projectId: string;
   traceId: string;
   spanIds: string[];
   filters: Filter[];
+  orderBy?: Array<{ column: string; direction: "ASC" | "DESC" }>;
 }) => {
   const { query, parameters } = buildSpansQueryWithParams({
     columns: [
@@ -263,6 +265,7 @@ const fetchTraceSpans = async ({
     projectId,
     spanIds: spanIds.length > 0 ? spanIds : undefined,
     filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    orderBy,
   });
 
   return executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
@@ -299,6 +302,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       traceId,
       spanIds,
       filters,
+      orderBy: [{ column: "start_time", direction: "ASC" }],
     }),
     fetchTraceEvents(projectId, traceId),
     shouldApplyRewiring ? getTraceTreeStructure({ projectId, traceId }) : Promise.resolve([]),
