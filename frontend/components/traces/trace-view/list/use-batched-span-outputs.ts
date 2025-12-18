@@ -1,3 +1,4 @@
+import { get } from "lodash";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
@@ -56,10 +57,10 @@ export function useBatchedSpanOutputs(
           throw new Error(errorData.error || "Failed to fetch span outputs");
         }
 
-        const data = await response.json();
+        const data = (await response.json()) as { outputs: Record<string, any> };
 
         spanIds.forEach((id) => {
-          cache.current.set(id, data.outputs[id]);
+          cache.current.set(id, get(data.outputs, id, null));
           fetching.current.delete(id);
         });
 
