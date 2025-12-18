@@ -67,6 +67,23 @@ services:
       timeout: 6s
       retries: 3
 
+  quickwit:
+    image: quickwit/quickwit:v0.8.2
+    pull_policy: always
+    ports:
+      - "7280:7280" # REST API and UI
+      - "7281:7281" # OTLP / gRPC
+    environment:
+      QW_DATA_DIR: /quickwit/qwdata
+    command: ["run"]
+    volumes:
+      - quickwit-data:/quickwit/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   app-server:
     ports:
       - "${APP_SERVER_HOST_PORT:-8000}:8000"
@@ -83,6 +100,8 @@ services:
       clickhouse:
         condition: service_started
       query-engine:
+        condition: service_healthy
+      quickwit:
         condition: service_healthy
     environment:
       PORT: 8000
@@ -113,6 +132,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      quickwit:
+        condition: service_healthy
     environment:
       PORT: 3000
       BACKEND_URL: http://app-server:8000
@@ -126,18 +147,6 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
-
-  quickwit:
-    image: quickwit/quickwit:v0.8.2
-    pull_policy: always
-    ports:
-      - "7280:7280" # REST API and UI
-      - "7281:7281" # OTLP / gRPC
-    environment:
-      QW_DATA_DIR: /quickwit/qwdata
-    command: [ "run" ]
-    volumes:
-      - quickwit-data:/quickwit/qwdata
 
 volumes:
   clickhouse-data:
