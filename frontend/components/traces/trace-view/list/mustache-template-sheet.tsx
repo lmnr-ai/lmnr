@@ -70,7 +70,7 @@ function MustacheTemplateSheetContent({
         <div>
           <label className="text-sm font-medium mb-2 block">Output Data</label>
           {output ? (
-            <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
+            <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden max-h-64">
               <CodeMirror
                 className="w-full"
                 value={JSON.stringify(output, null, 2)}
@@ -80,7 +80,7 @@ function MustacheTemplateSheetContent({
               />
             </div>
           ) : (
-            <span className="text-muted-foreground">No output available</span>
+            <span className="text-muted-foreground text-sm">No output available</span>
           )}
         </div>
 
@@ -101,7 +101,7 @@ function MustacheTemplateSheetContent({
               </Button>
             )}
           </div>
-          <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64">
+          <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden max-h-64">
             <CodeMirror
               className="w-full"
               value={templateInput}
@@ -131,16 +131,16 @@ function MustacheTemplateSheetContent({
             </div>
           )}
         </div>
-        <div className="flex flex-col h-80 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
           <label className="text-sm font-medium mb-2 block">Result</label>
           {templateInput ? (
             <Markdown
-              className="flex-1 border rounded-md bg-muted/50 p-3"
+              className="flex-1 border rounded-md bg-muted/50 p-3 max-h-96"
               output={output}
               defaultValue={templateInput}
             />
           ) : (
-            <span className="h-full text-muted-foreground text-sm border rounded-md bg-muted/50 p-3">
+            <span className="text-muted-foreground text-sm border rounded-md bg-muted/50 p-3">
               Enter a template to see results...
             </span>
           )}
