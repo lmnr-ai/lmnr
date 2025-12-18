@@ -59,14 +59,13 @@ const formatOutput = (output: any): string => {
 
 interface MarkdownProps {
   output: any;
-  isLoadingOutput?: boolean;
   defaultValue?: string;
   className?: string;
 }
 
-const Markdown = ({ output, isLoadingOutput, defaultValue, className }: MarkdownProps) => {
+const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
   const formattedOutput = useMemo(() => {
-    if (!output || isLoadingOutput) return "";
+    if (!output) return "";
 
     if (defaultValue) {
       try {
@@ -82,14 +81,14 @@ const Markdown = ({ output, isLoadingOutput, defaultValue, className }: Markdown
     }
 
     return formatOutput(output);
-  }, [output, isLoadingOutput, defaultValue]);
+  }, [output, defaultValue]);
 
   return (
     <Streamdown
       mode="static"
       parseIncompleteMarkdown={false}
       isAnimating={false}
-      className={cn("max-h-60 h-full overflow-auto text-white/80 rounded text-wrap", className)}
+      className={cn("h-full overflow-auto text-white/80 rounded text-wrap", className)}
       rehypePlugins={[defaultRehypePlugins.harden]}
       components={{
         h1: ({ children, className, ...props }) => (
@@ -108,9 +107,14 @@ const Markdown = ({ output, isLoadingOutput, defaultValue, className }: Markdown
           </li>
         ),
         ul: ({ children, className, ...props }) => (
-          <ul {...props} className={cn(className, "text-sm")}>
+          <ul {...props} className={cn(className, "text-sm list-disc pl-4")}>
             {children}
           </ul>
+        ),
+        ol: ({ children, className, ...props }) => (
+          <ol {...props} className={cn(className, "text-sm list-decimal pl-4")}>
+            {children}
+          </ol>
         ),
         code: ({ children, className, ...props }) => (
           <code {...props} className={cn(className, "text-sm")}>

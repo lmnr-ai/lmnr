@@ -11,44 +11,41 @@ export const GetSpanOutputsSchema = TimeRangeSchema.omit({ pastHours: true }).ex
 });
 
 export async function getSpanOutputs(input: z.infer<typeof GetSpanOutputsSchema>): Promise<Record<string, any>> {
-  const { projectId, spanIds } = input;
+  const { projectId, traceId, spanIds, startDate, endDate } = GetSpanOutputsSchema.parse(input);
 
-  if (spanIds.length === 0) {
-    return {};
+  const whereConditions = ["trace_id = {traceId: UUID}", "span_id IN {spanIds: Array(UUID)}"];
+
+  if (startDate) {
+    whereConditions.push("start_time >= {startDate: String}");
   }
 
-  try {
-    const results = await executeQuery<{ spanId: string; output: string }>({
-      projectId,
-      query: `
+  if (endDate) {
+    whereConditions.push("start_time <= {endDate: String}");
+  }
+
+  const results = await executeQuery<{ spanId: string; output: string }>({
+    projectId,
+    query: `
         SELECT
           span_id as spanId,
           output
         FROM spans
-        WHERE span_id IN {spanIds: Array(UUID)}
+        WHERE ${whereConditions.join("\n          AND ")}
       `,
-      parameters: {
-        projectId,
-        spanIds,
-      },
-    });
+    parameters: {
+      traceId,
+      projectId,
+      spanIds,
+      startDate,
+      endDate,
+    },
+  });
 
-    const outputsMap: Record<string, any> = {};
+  const outputsMap: Record<string, any> = {};
 
-    for (const result of results) {
-      outputsMap[result.spanId] = deepParseJson(tryParseJson(result.output));
-    }
-
-    for (const spanId of spanIds) {
-      if (!(spanId in outputsMap)) {
-        outputsMap[spanId] = null;
-      }
-    }
-
-    return outputsMap;
-  } catch (error) {
-    console.error("Error fetching span outputs:", error);
-    throw new Error("Failed to fetch span outputs");
+  for (const result of results) {
+    outputsMap[result.spanId] = deepParseJson(tryParseJson(result.output));
   }
-}
 
+  return outputsMap;
+}

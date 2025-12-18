@@ -100,6 +100,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
               )}
             </div>
             <Button
+              disabled={isLoadingOutput}
               variant="ghost"
               className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
               onClick={(e) => {
@@ -147,7 +148,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           ) : isNil(output) ? (
             <div className="text-sm text-muted-foreground italic">No output available</div>
           ) : (
-            <Markdown output={output} isLoadingOutput={isLoadingOutput} defaultValue={savedTemplate} />
+            <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
           )}
         </div>
       )}
@@ -156,4 +157,3 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
 };
 
 export default ListItem;
-

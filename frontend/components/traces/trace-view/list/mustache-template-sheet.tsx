@@ -1,6 +1,6 @@
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, useMemo, useState } from "react";
 
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { extractKeys, generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
@@ -14,35 +14,28 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 interface MustacheTemplateSheetProps {
   output: any;
-  isLoadingOutput: boolean;
   span: TraceViewListSpan | null;
 }
 
 function MustacheTemplateSheetContent({
   output,
-  isLoadingOutput,
   span,
   setOpen,
 }: MustacheTemplateSheetProps & {
   setOpen: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [templateInput, setTemplateInput] = useState("");
 
   const spanPathKey = useMemo(() => (span ? generateSpanPathKey(span) : ""), [span]);
 
   const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
+  const [templateInput, setTemplateInput] = useState(savedTemplate || "");
+
   const { saveSpanTemplate, deleteSpanTemplate } = useTraceViewStoreContext((state) => ({
     saveSpanTemplate: state.saveSpanTemplate,
     deleteSpanTemplate: state.deleteSpanTemplate,
   }));
-
-  useEffect(() => {
-    if (savedTemplate) {
-      setTemplateInput(savedTemplate);
-    }
-  }, [savedTemplate]);
 
   const handleSaveTemplate = () => {
     if (templateInput.trim()) {
@@ -145,11 +138,10 @@ function MustacheTemplateSheetContent({
               <Markdown
                 className="flex-1 border rounded-md bg-muted/50 p-3"
                 output={output}
-                isLoadingOutput={isLoadingOutput}
                 defaultValue={templateInput}
               />
             ) : (
-              <span className="text-muted-foreground text-sm border rounded-md bg-muted/50 p-3">
+              <span className="h-full text-muted-foreground text-sm border rounded-md bg-muted/50 p-3">
                 Enter a template to see results...
               </span>
             )}
@@ -175,27 +167,21 @@ export default function MustacheTemplateSheet({
   open,
   onOpenChange,
   output,
-  isLoadingOutput,
   span,
 }: PropsWithChildren<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   output: any;
-  isLoadingOutput: boolean;
   span: TraceViewListSpan | null;
 }>) {
+  const spanPathKey = span ? generateSpanPathKey(span) : "";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
       <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
-        <MustacheTemplateSheetContent
-          output={output}
-          isLoadingOutput={isLoadingOutput}
-          span={span}
-          setOpen={onOpenChange}
-        />
+        <MustacheTemplateSheetContent key={spanPathKey} output={output} span={span} setOpen={onOpenChange} />
       </SheetContent>
     </Sheet>
   );
 }
-

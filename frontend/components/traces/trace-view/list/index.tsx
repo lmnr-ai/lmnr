@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty, pick, times } from "lodash";
+import { compact, isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -16,10 +16,11 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useScrollContext } from "../scroll-context.tsx";
 
 interface ListProps {
+  traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
-const List = ({ onSpanSelect }: ListProps) => {
+const List = ({ traceId, onSpanSelect }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useTraceViewStoreContext((state) => ({
@@ -65,11 +66,11 @@ const List = ({ onSpanSelect }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { getOutput } = useBatchedSpanOutputs(
-    projectId,
-    visibleSpanIds,
-    trace ? pick(trace, ["id", "startTime", "endTime"]) : undefined
-  );
+  const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
+    id: traceId,
+    startTime: trace?.startTime,
+    endTime: trace?.endTime,
+  });
 
   useEffect(() => {
     const currentIdsKey = visibleSpanIds.join(",");
@@ -198,7 +199,6 @@ const List = ({ onSpanSelect }: ListProps) => {
       <MustacheTemplateSheet
         span={settingsSpan}
         output={getOutput(settingsSpan?.spanId ?? "")}
-        isLoadingOutput={getOutput(settingsSpan?.spanId ?? "") === undefined}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />
@@ -207,4 +207,3 @@ const List = ({ onSpanSelect }: ListProps) => {
 };
 
 export default List;
-

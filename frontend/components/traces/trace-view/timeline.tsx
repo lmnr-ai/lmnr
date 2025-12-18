@@ -10,19 +10,30 @@ function Timeline() {
   const ref = useRef<HTMLDivElement>(null);
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
 
-  const { getTimelineData, zoom, selectedSpan, setSelectedSpan, isSpansLoading, browserSession } =
-    useTraceViewStoreContext((state) => ({
-      getTimelineData: state.getTimelineData,
-      zoom: state.zoom,
-      selectedSpan: state.selectedSpan,
-      setSelectedSpan: state.setSelectedSpan,
-      isSpansLoading: state.isSpansLoading,
-      browserSession: state.browserSession,
-    }));
+  const {
+    getTimelineData,
+    zoom,
+    spans: storeSpans,
+    selectedSpan,
+    setSelectedSpan,
+    isSpansLoading,
+    browserSession,
+  } = useTraceViewStoreContext((state) => ({
+    getTimelineData: state.getTimelineData,
+    spans: state.spans,
+    zoom: state.zoom,
+    selectedSpan: state.selectedSpan,
+    setSelectedSpan: state.setSelectedSpan,
+    isSpansLoading: state.isSpansLoading,
+    browserSession: state.browserSession,
+  }));
 
   const store = useTraceViewStore();
 
-  const { spans, timeIntervals, timelineWidthInMilliseconds } = useMemo(() => getTimelineData(), [getTimelineData]);
+  const { spans, timeIntervals, timelineWidthInMilliseconds } = useMemo(
+    () => getTimelineData(),
+    [getTimelineData, storeSpans]
+  );
 
   const virtualizer = useVirtualizer({
     count: spans.length,

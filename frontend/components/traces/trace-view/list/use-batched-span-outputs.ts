@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useToast } from "@/lib/hooks/use-toast.ts";
+import { convertToTimeParameters } from "@/lib/time.ts";
 
 import { SimpleLRU } from "./simple-lru";
 
@@ -17,11 +18,11 @@ interface UseBatchedSpanOutputsOptions {
 export function useBatchedSpanOutputs(
   projectId: string,
   visibleSpanIds: string[],
-  trace?: Pick<TraceViewTrace, "id" | "startTime" | "endTime">,
+  trace: { id: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanOutputsOptions = {}
 ): BatchedOutputsHook {
   const { debounceMs = 150, maxEntries = 100 } = options;
-
+  const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
@@ -34,12 +35,20 @@ export function useBatchedSpanOutputs(
       if (spanIds.length === 0 || !trace) return;
 
       try {
-        const startDate = new Date(new Date(trace.startTime).getTime() - 1000);
-        const endDate = new Date(new Date(trace.endTime).getTime() + 1000);
+        const body: Record<string, any> = { spanIds };
+
+        if (trace?.startTime && trace?.endTime) {
+          const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
+          const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
+
+          const params = convertToTimeParameters({ startTime, endTime });
+          body.startDate = params.start_time;
+          body.endDate = params.end_time;
+        }
 
         const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
           method: "POST",
-          body: JSON.stringify({ spanIds, startDate, endDate }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -56,7 +65,11 @@ export function useBatchedSpanOutputs(
 
         setUpdateTrigger((prev) => prev + 1);
       } catch (error) {
-        console.error("Error fetching batched span outputs:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to fetch span outputs. Please try again later.",
+        });
 
         spanIds.forEach((id) => {
           cache.current.set(id, null);
@@ -66,7 +79,7 @@ export function useBatchedSpanOutputs(
         setUpdateTrigger((prev) => prev + 1);
       }
     },
-    [projectId, trace]
+    [projectId, toast, trace]
   );
 
   const scheduleFetch = useCallback(async () => {
@@ -100,12 +113,6 @@ export function useBatchedSpanOutputs(
       }
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
-
-    return () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-    };
   }, [visibleSpanIds, scheduleFetch, debounceMs]);
 
   const getOutput = useCallback((spanId: string) => cache.current.get(spanId), []);

@@ -359,7 +359,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, []);
 
   useEffect(() => {
-
     fetchSpans(search, filters);
 
     return () => {
@@ -502,7 +501,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {tab === "timeline" && <Timeline />}
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List onSpanSelect={handleSpanSelect} />
+                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
                     <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
