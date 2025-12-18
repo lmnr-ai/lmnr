@@ -59,6 +59,23 @@ services:
       timeout: 6s
       retries: 3
 
+  quickwit:
+    image: quickwit/quickwit:v0.8.2
+    pull_policy: always
+    ports:
+      - "7280:7280" # REST API and UI
+      - "7281:7281" # OTLP / gRPC
+    environment:
+      QW_DATA_DIR: /quickwit/qwdata
+    command: ["run"]
+    volumes:
+      - quickwit-data:/quickwit/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   frontend:
     image: ghcr.io/lmnr-ai/frontend
     pull_policy: always
@@ -66,6 +83,8 @@ services:
       - "${FRONTEND_HOST_PORT:-5667}:5667"
     depends_on:
       postgres:
+        condition: service_healthy
+      quickwit:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -98,6 +117,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+      quickwit:
+        condition: service_healthy
     environment:
       PORT: 8000
       GRPC_PORT: 8001
@@ -114,18 +135,6 @@ services:
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans
-
-  quickwit:
-    image: quickwit/quickwit:v0.8.2
-    pull_policy: always
-    ports:
-      - "7280:7280" # REST API and UI
-      - "7281:7281" # OTLP / gRPC
-    environment:
-      QW_DATA_DIR: /quickwit/qwdata
-    command: [ "run" ]
-    volumes:
-      - quickwit-data:/quickwit/qwdata
 
 volumes:
   postgres-data:
