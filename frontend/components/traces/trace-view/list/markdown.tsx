@@ -107,12 +107,12 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
           </li>
         ),
         ul: ({ children, className, ...props }) => (
-          <ul {...props} className={cn(className, "text-sm list-disc pl-4")}>
+          <ul {...props} className={cn(className, "text-sm list-disc pl-6")}>
             {children}
           </ul>
         ),
         ol: ({ children, className, ...props }) => (
-          <ol {...props} className={cn(className, "text-sm list-decimal pl-4")}>
+          <ol {...props} className={cn(className, "text-sm list-decimal pl-6")}>
             {children}
           </ol>
         ),
