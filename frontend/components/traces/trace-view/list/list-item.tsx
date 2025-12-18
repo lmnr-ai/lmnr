@@ -58,26 +58,26 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
       )}
       onClick={() => onSpanSelect(span)}
     >
-      <div className="flex items-center gap-2 pl-1 pr-3 py-2">
-        <Button
-          variant="ghost"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded((prevState) => !prevState);
-          }}
-          className="h-5 py-0 px-0.5 hover:bg-muted rounded transition-colors"
-        >
-          <ChevronDown
-            className={cn(
-              "size-4 text-secondary-foreground transition-transform ease-in-out",
-              !isExpanded && "-rotate-90"
-            )}
-          />
-        </Button>
+      <div className="flex items-center gap-2 pl-2 pr-3 py-2">
         <div className="flex items-center gap-2 flex-1 justify-between overflow-hidden">
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
             <SpanTypeIcon spanType={span.spanType} />
             <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
+            <Button
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded((prevState) => !prevState);
+              }}
+              className="h-5 py-0 px-0.5 hover:bg-muted rounded transition-colors"
+            >
+              <ChevronDown
+                className={cn(
+                  "size-4 text-secondary-foreground transition-transform ease-in-out",
+                  !isExpanded && "-rotate-90"
+                )}
+              />
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
