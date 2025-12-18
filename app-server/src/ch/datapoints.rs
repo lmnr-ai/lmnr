@@ -76,7 +76,7 @@ pub async fn insert_datapoints(
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("dataset_datapoints");
+    let ch_insert = clickhouse.insert::<CHDatapoint>("dataset_datapoints").await;
     match ch_insert {
         Ok(mut ch_insert) => {
             for datapoint in datapoints {

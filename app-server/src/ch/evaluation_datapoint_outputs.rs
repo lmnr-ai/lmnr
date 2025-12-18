@@ -66,7 +66,9 @@ pub async fn insert_evaluation_datapoint_outputs(
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("evaluation_datapoint_executor_outputs");
+    let ch_insert = clickhouse
+        .insert::<CHEvaluationDatapointOutput>("evaluation_datapoint_executor_outputs")
+        .await;
     match ch_insert {
         Ok(mut ch_insert) => {
             for datapoint in evaluation_datapoint_outputs {

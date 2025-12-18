@@ -133,7 +133,9 @@ pub async fn insert_evaluation_datapoints(
     .await?;
 
     // For new datapoints, we need to insert them
-    let ch_insert = clickhouse.insert("evaluation_datapoints");
+    let ch_insert = clickhouse
+        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
+        .await;
     match ch_insert {
         Ok(mut ch_insert) => {
             for result in new_datapoints {

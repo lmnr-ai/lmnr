@@ -182,7 +182,7 @@ pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("spans");
+    let ch_insert = clickhouse.insert::<CHSpan>("spans").await;
     match ch_insert {
         Ok(mut ch_insert) => {
             // Write all spans to the batch
