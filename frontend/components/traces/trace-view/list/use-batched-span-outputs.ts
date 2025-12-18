@@ -2,9 +2,8 @@ import { get } from "lodash";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { SimpleLRU } from "@/lib/simple-lru.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
-
-import { SimpleLRU } from "./simple-lru";
 
 export interface BatchedOutputsHook {
   getOutput: (spanId: string) => any | undefined;
