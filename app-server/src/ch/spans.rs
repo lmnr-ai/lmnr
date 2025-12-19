@@ -63,7 +63,7 @@ impl Into<u8> for TraceType {
     }
 }
 
-#[derive(Row, Serialize, Deserialize, Debug, Clone)]
+#[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,

@@ -12,7 +12,7 @@ pub struct RolloutPlayground {
     pub id: Uuid,
     pub project_id: Uuid,
     pub trace_id: Uuid,
-    pub path_to_count: Json<HashMap<String, i32>>,
+    pub path_to_count: Json<HashMap<String, u32>>,
     pub cursor_timestamp: DateTime<Utc>,
 }
 
@@ -20,10 +20,9 @@ pub async fn get_rollout_playground(
     pool: &PgPool,
     session_id: &Uuid,
     project_id: &Uuid,
-) -> Result<RolloutPlayground> {
+) -> Result<Option<RolloutPlayground>> {
     let result = sqlx::query_as::<_, RolloutPlayground>(
-        "
-        SELECT
+        "SELECT
             rollout_playgrounds.id,
             rollout_playgrounds.project_id,
             rollout_playgrounds.trace_id,
@@ -37,7 +36,7 @@ pub async fn get_rollout_playground(
     )
     .bind(session_id)
     .bind(project_id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(result)
