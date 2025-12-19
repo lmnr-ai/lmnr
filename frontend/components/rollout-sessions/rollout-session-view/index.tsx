@@ -3,12 +3,20 @@ import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } fr
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
+// Copied local components
+import List from "@/components/rollout-sessions/rollout-session-view/list";
+import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.tsx";
+import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
+import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
+import SessionPlayer from "@/components/traces/session-player";
+import { SpanView } from "@/components/traces/span-view";
+import Chat from "@/components/traces/trace-view/chat";
+// Reused components from trace-view
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import List from "@/components/traces/trace-view/list";
 import Metadata from "@/components/traces/trace-view/metadata";
-import Minimap from "@/components/traces/trace-view/minimap.tsx";
+import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
@@ -22,7 +30,6 @@ import {
   enrichSpansWithPending,
   filterColumns,
   findSpanToSelect,
-  onRealtimeUpdateSpans,
 } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button.tsx";
@@ -35,14 +42,9 @@ import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
-import SessionPlayer from "../session-player";
-import { SpanView } from "../span-view";
-import Chat from "./chat";
-import { ScrollContextProvider } from "./scroll-context";
-import Timeline from "./timeline";
-import Tree from "./tree";
 
-interface TraceViewProps {
+interface RolloutSessionViewProps {
+  sessionId: string;
   traceId: string;
   // Span id here to control span selection by spans table
   spanId?: string;
@@ -50,7 +52,7 @@ interface TraceViewProps {
   onClose: () => void;
 }
 
-const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
+const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -72,6 +74,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError,
     spansError,
     setSpansError,
+    rebuildSpanPathCounts,
+    addSpanIfNew,
   } = useTraceViewStoreContext((state) => ({
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
@@ -87,6 +91,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError: state.setTraceError,
     spansError: state.spansError,
     setSpansError: state.setSpansError,
+    rebuildSpanPathCounts: state.rebuildSpanPathCounts,
+    addSpanIfNew: state.addSpanIfNew,
   }));
 
   // UI states
@@ -235,9 +241,21 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
 
         const results = (await response.json()) as TraceViewSpan[];
-        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
+        let spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
+
+        // Add rollout session_id to span attributes
+        spans = spans.map((span) => ({
+          ...span,
+          attributes: {
+            ...span.attributes,
+            "lmnr.rollout.session_id": sessionId,
+          },
+        }));
 
         setSpans(spans);
+
+        // Rebuild the span path counts map for efficient realtime updates
+        rebuildSpanPathCounts();
 
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
@@ -328,13 +346,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       span_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
-          for (const span of payload.spans) {
-            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
+          for (const incomingSpan of payload.spans) {
+            addSpanIfNew(incomingSpan);
           }
         }
       },
     }),
-    [setBrowserSession, setSpans, setTrace]
+    [addSpanIfNew]
   );
 
   useEffect(() => {
@@ -368,10 +386,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     };
   }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
 
+  // UPDATED REALTIME SUBSCRIPTION - using rollout_sessions_${sessionId}
   useRealtime({
-    key: `trace_${traceId}`,
+    key: `rollout_sessions_${sessionId}`,
     projectId: projectId as string,
-    enabled: !!traceId && !!projectId,
+    enabled: !!sessionId && !!projectId,
     eventHandlers,
   });
 
@@ -484,7 +503,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
           ) : (
-            <ResizablePanelGroup id="trace-view-panels" direction="vertical">
+            <ResizablePanelGroup id="rollout-session-view-panels" direction="vertical">
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
@@ -573,10 +592,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 };
 
-export default function TraceView(props: TraceViewProps) {
+export default function RolloutSessionView(props: RolloutSessionViewProps) {
   return (
-    <TraceViewStoreProvider trace={props.propsTrace}>
-      <PureTraceView {...props} />
+    <TraceViewStoreProvider trace={props.propsTrace} key="rollout-session-view-state">
+      <PureRolloutSessionView {...props} />
     </TraceViewStoreProvider>
   );
 }
