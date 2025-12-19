@@ -11,6 +11,8 @@ pub enum Error {
     MultipartError(#[from] actix_multipart::MultipartError),
     #[error("{0}")]
     SqlQueryError(#[from] SqlQueryError),
+    #[error("{0}")]
+    NotFound(String),
 }
 
 impl ResponseError for Error {
@@ -23,6 +25,7 @@ impl ResponseError for Error {
                 SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 SqlQueryError::BadResponseError(_) => StatusCode::BAD_REQUEST,
             },
+            Self::NotFound(_) => StatusCode::NOT_FOUND,
         }
     }
 
