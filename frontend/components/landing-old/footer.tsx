@@ -10,20 +10,13 @@ export default function Footer() {
             <a target="_blank" href="https://github.com/lmnr-ai/lmnr">
               GitHub
             </a>
-            <a
-              className="flex"
-              target="_blank"
-              href="https://discord.gg/nNFUUDAKub"
-            >
+            <a className="flex" target="_blank" href="https://discord.gg/nNFUUDAKub">
               Join Discord
             </a>
             <a target="_blank" href="/policies/privacy">
               Privacy policy
             </a>
-            <a
-              target="_blank"
-              href="/policies/terms"
-            >
+            <a target="_blank" href="/policies/terms">
               Terms of service
             </a>
             <a target="_blank" href="https://status.laminar.sh">
