@@ -1,5 +1,5 @@
-import { CompletionContext, completionKeymap, CompletionResult } from "@codemirror/autocomplete";
-import { schemaCompletionSource, sql, SQLConfig,SQLNamespace } from "@codemirror/lang-sql";
+import { autocompletion, CompletionContext, completionKeymap, CompletionResult } from "@codemirror/autocomplete";
+import { schemaCompletionSource, sql, SQLConfig, SQLNamespace } from "@codemirror/lang-sql";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { createTheme } from "@uiw/codemirror-themes";
@@ -323,6 +323,7 @@ export const extensions = [
   ClickHouseDialect.language.data.of({
     autocomplete: combinedCompletionSource,
   }),
+  autocompletion(),
   Prec.highest(
     keymap.of([
       ...completionKeymap,

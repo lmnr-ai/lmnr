@@ -145,8 +145,11 @@ export default function EditorPanel() {
       }
       setResults([]);
     } finally {
-      abortControllerRef.current = null;
-      setIsLoading(false);
+      if (abortControllerRef.current === controller) {
+
+        abortControllerRef.current = null;
+        setIsLoading(false);
+      }
     }
   }, [projectId, template?.query, toast, getFormattedParameters]);
 
@@ -250,7 +253,7 @@ export default function EditorPanel() {
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none" >
                   <Database className="size-3.5 mr-2" />
-                    Export
+                  Export
                   <ChevronDown className="size-3.5 ml-2" />
                 </Button>
               </ExportSqlDialog>
@@ -268,7 +271,7 @@ export default function EditorPanel() {
                       hasMore={false}
                       isFetching={false}
                       isLoading={false}
-                      fetchNextPage={() => {}}
+                      fetchNextPage={() => { }}
                     />
                   </DataTableStateProvider>
                 ),
