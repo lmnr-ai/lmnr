@@ -45,6 +45,7 @@ const UpdateRoleSchema = z.object({
 const RemoveUserSchema = z.object({
   workspaceId: z.string(),
   userId: z.string(),
+  currentUserId: z.string(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
@@ -314,9 +315,11 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 }
 
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
-  const { workspaceId, userId } = RemoveUserSchema.parse(input);
+  const { workspaceId, userId, currentUserId } = RemoveUserSchema.parse(input);
 
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+  if (currentUserId !== userId) {
+    await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+  }
 
   await db
     .delete(membersOfWorkspaces)

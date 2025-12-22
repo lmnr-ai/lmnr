@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
 
@@ -25,11 +26,12 @@ const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWork
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const currentUser = useUserContext();
   const handleRemoveUser = async () => {
     if (user) {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/workspaces/${workspace.id}/remove-user?id=${user.id}`, {
+        const res = await fetch(`/api/workspaces/${workspace.id}/remove-user?id=${user.id}&currentUserId=${currentUser.id}`, {
           method: "DELETE",
         });
 
