@@ -1,10 +1,12 @@
 import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
+import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
+import { authOptions } from "@/lib/auth";
 import {
   cache,
   PROJECT_MEMBER_CACHE_KEY,
@@ -45,7 +47,6 @@ const UpdateRoleSchema = z.object({
 const RemoveUserSchema = z.object({
   workspaceId: z.string(),
   userId: z.string(),
-  currentUserId: z.string(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
@@ -315,9 +316,16 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 }
 
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
-  const { workspaceId, userId, currentUserId } = RemoveUserSchema.parse(input);
+  const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  if (currentUserId !== userId) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized: User not authenticated");
+  }
+
+  const authenticatedUserId = session.user.id;
+
+  if (authenticatedUserId !== userId) {
     await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
   }
 

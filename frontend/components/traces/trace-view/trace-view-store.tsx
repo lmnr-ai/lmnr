@@ -167,7 +167,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
-        hasBrowserSession: false,
+        hasBrowserSession: initialTrace?.hasBrowserSession || false,
         spanTemplates: {},
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
@@ -376,7 +376,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
 
 const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
 
-const TraceViewStoreProvider = ({ children, initialSearch, initialTrace }: PropsWithChildren<{  initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
+const TraceViewStoreProvider = ({ children, initialSearch, initialTrace }: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
