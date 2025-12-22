@@ -94,6 +94,10 @@ export default function EditorPanel() {
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsLoading(true);
