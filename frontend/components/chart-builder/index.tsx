@@ -227,8 +227,8 @@ const ChartBuilderCore = () => {
   );
 };
 
-const ChartBuilder = ({ data, query }: ChartBuilderProps) => (
-  <ChartBuilderStoreProvider data={data} query={query}>
+const ChartBuilder = ({ data, query, storageKey }: ChartBuilderProps) => (
+  <ChartBuilderStoreProvider data={data} query={query} storageKey={storageKey}>
     <ChartBuilderCore />
   </ChartBuilderStoreProvider>
 );

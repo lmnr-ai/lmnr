@@ -1,10 +1,11 @@
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
-import { sql } from "@codemirror/lang-sql";
+import { CompletionContext, completionKeymap, CompletionResult } from "@codemirror/autocomplete";
+import { schemaCompletionSource, sql, SQLConfig,SQLNamespace } from "@codemirror/lang-sql";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { createTheme } from "@uiw/codemirror-themes";
 
-import { baseExtensions, defaultThemeSettings, githubDarkStyle } from "@/components/ui/content-renderer/utils";
+import { ClickHouseDialect, clickhouseFunctions } from "@/components/ui/content-renderer/lang-clickhouse.ts";
+import { defaultThemeSettings, githubDarkStyle } from "@/components/ui/content-renderer/utils";
 
 const tableSchemas = {
   spans: [
@@ -104,11 +105,21 @@ const enumValues = {
   tag_source: ["HUMAN", "CODE"],
 };
 
-const TABLE_NAMES = Object.keys(tableSchemas);
-const VIRTUAL_TABLES = new Set(["evaluator_scores", "evaluation_scores"]);
-
-const TABLE_COLUMN_PATTERN =
-  /\b(spans|traces|dataset_datapoints|evaluation_datapoints|events|tags)\.(\w*)$/;
+const sqlSchema: SQLNamespace = Object.fromEntries(
+  Object.entries(tableSchemas).map(([tableName, columns]) => [
+    tableName,
+    columns.map((col) =>
+      col.name !== '*'
+        ? {
+          label: col.name,
+          type: "property",
+          detail: col.type,
+          info: col.description,
+        }
+        : col.name
+    ),
+  ])
+);
 
 const matchesSearch = (text: string, search: string): boolean => text.toLowerCase().includes(search);
 const startsWithSearch = (text: string, search: string): boolean => text.toLowerCase().startsWith(search.toLowerCase());
@@ -124,33 +135,6 @@ const getEnumType = (textBefore: string): string | null => {
   return match ? match[1] : null;
 };
 
-const createColumnOption = (column: any, tableName?: string) => {
-  const prefix = tableName ? `${tableName}.` : "";
-  const info = tableName
-    ? `${prefix}${column.name} - ${column.type} - ${column.description}`
-    : `${column.type} - ${column.description}`;
-
-  return createOption(column.name, "property", info);
-};
-
-// Completion generators
-const generateTableColumnCompletions = (tableName: string, partialColumn: string) => {
-  const schema = tableSchemas[tableName as keyof typeof tableSchemas];
-  if (!schema) return [];
-
-  return schema
-    .filter((column) => {
-      if (column.name === "*") return true;
-      return startsWithSearch(column.name, partialColumn);
-    })
-    .map((column) => {
-      if (column.name === "*") {
-        return createOption('"Your Evaluator Name"', "property", column.description, '"Your Evaluator Name"');
-      }
-      return createColumnOption(column);
-    });
-};
-
 const generateEnumCompletions = (enumType: string, partialValue: string) => {
   const values = enumValues[enumType as keyof typeof enumValues];
   if (!values) return [];
@@ -160,15 +144,6 @@ const generateEnumCompletions = (enumType: string, partialValue: string) => {
     .map((value) => createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
 };
 
-const generateTableCompletions = (searchTerm: string) =>
-  TABLE_NAMES.filter((tableName) => matchesSearch(tableName, searchTerm)).map((tableName) => {
-    const isVirtual = VIRTUAL_TABLES.has(tableName);
-    return createOption(
-      tableName,
-      isVirtual ? "interface" : "class",
-      isVirtual ? `Virtual table: ${tableName}` : `Table containing ${tableName} data`
-    );
-  });
 
 const generateEnumValueCompletions = (searchTerm: string) =>
   Object.entries(enumValues).flatMap(([enumType, values]) =>
@@ -177,17 +152,15 @@ const generateEnumValueCompletions = (searchTerm: string) =>
       .map((value) => createOption(value, "enum", `${enumType} enum value`, `'${value}'`))
   );
 
-const generateColumnCompletions = (searchTerm: string) =>
-  Object.entries(tableSchemas).flatMap(([tableName, columns]) =>
-    columns
-      .filter((column) => column.name !== "*" && matchesSearch(column.name, searchTerm))
-      .map((column) => createColumnOption(column, tableName))
-  );
+const generateClickhouseFunctionCompletions = (searchTerm: string) =>
+  Object.values(clickhouseFunctions)
+    .flat()
+    .filter((fn) => matchesSearch(fn.name, searchTerm))
+    .map((fn) => createOption(fn.name, "function", `ClickHouse function: ${fn.description}`));
 
-const generateGeneralCompletions = (searchTerm: string) => [
-  ...generateTableCompletions(searchTerm),
+const generateCustomCompletions = (searchTerm: string) => [
   ...generateEnumValueCompletions(searchTerm),
-  ...generateColumnCompletions(searchTerm),
+  ...generateClickhouseFunctionCompletions(searchTerm),
 ];
 
 const getRelevanceScore = (label: string, searchTerm: string): number => {
@@ -208,12 +181,45 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
     return a.label.localeCompare(b.label);
   });
 
-const generateCompletions = (textBefore: string, searchTerm: string) => {
-  const tableColumnMatch = textBefore.match(TABLE_COLUMN_PATTERN);
-  if (tableColumnMatch) {
-    return generateTableColumnCompletions(tableColumnMatch[1], tableColumnMatch[2]);
-  }
+const generateAllColumnCompletions = (searchTerm: string) => {
+  const columnMap = new Map<string, { tables: string[], type: string, description: string }>();
 
+  Object.entries(tableSchemas).forEach(([tableName, columns]) => {
+    columns
+      .filter((col) => col.name !== '*' && startsWithSearch(col.name, searchTerm))
+      .forEach((col) => {
+        if (!columnMap.has(col.name)) {
+          columnMap.set(col.name, {
+            tables: [tableName],
+            type: col.type,
+            description: col.description,
+          });
+        } else {
+          // Column exists in multiple tables
+          const existing = columnMap.get(col.name)!;
+          if (!existing.tables.includes(tableName)) {
+            existing.tables.push(tableName);
+          }
+        }
+      });
+  });
+
+  const allColumns: any[] = [];
+  columnMap.forEach((data, columnName) => {
+    const tableList = data.tables.join(', ');
+    allColumns.push({
+      label: columnName,
+      type: "property",
+      detail: data.type,
+      info: `Found in: ${tableList}\n${data.type} - ${data.description}`,
+      boost: -1,
+    });
+  });
+
+  return allColumns;
+};
+
+const generateCompletions = (textBefore: string, searchTerm: string) => {
   if (isInEnumContext(textBefore)) {
     const enumType = getEnumType(textBefore);
     if (enumType) {
@@ -221,45 +227,102 @@ const generateCompletions = (textBefore: string, searchTerm: string) => {
     }
   }
 
-  return generateGeneralCompletions(searchTerm);
+  return generateCustomCompletions(searchTerm);
 };
 
-const sqlAutocomplete = autocompletion({
-  override: [
-    (context) => {
-      const word = context.matchBefore(/\w*/);
-      if (!word || (word.from === word.to && !context.explicit)) {
-        return null;
+const sqlConfig: SQLConfig = {
+  dialect: ClickHouseDialect,
+  schema: sqlSchema,
+  upperCaseKeywords: true
+};
+
+const sqlSchemaCompletions = schemaCompletionSource(sqlConfig);
+
+const combinedCompletionSource = (context: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
+  const word = context.matchBefore(/\w*/);
+  if (!word || (word.from === word.to && !context.explicit)) {
+    return null;
+  }
+
+  const textBefore = context.state.doc.sliceString(0, context.pos);
+  const searchTerm = word.text.toLowerCase();
+
+  const sqlCompletions = sqlSchemaCompletions(context);
+
+  const customOptions = generateCompletions(textBefore, searchTerm);
+  const sortedCustomOptions = sortByRelevance(customOptions, searchTerm);
+
+  const columnCompletions = generateAllColumnCompletions(searchTerm);
+
+  if (sqlCompletions instanceof Promise) {
+    return sqlCompletions.then((resolved) => {
+      const allOptions = [
+        ...(resolved?.options || []),
+        ...sortedCustomOptions.slice(0, 50),
+        ...columnCompletions,
+      ];
+
+      if (allOptions.length > 0) {
+        return {
+          from: word.from,
+          options: allOptions,
+          validFor: resolved?.validFor,
+        };
       }
+      return null;
+    });
+  } else {
+    const allOptions = [
+      ...(sqlCompletions?.options || []),
+      ...sortedCustomOptions.slice(0, 50),
+      ...columnCompletions,
+    ];
 
-      const textBefore = context.state.doc.sliceString(0, context.pos);
-      const searchTerm = word.text.toLowerCase();
-
-      const options = generateCompletions(textBefore, searchTerm);
-      const sortedOptions = sortByRelevance(options, searchTerm);
-
+    if (allOptions.length > 0) {
       return {
         from: word.from,
-        options: sortedOptions.slice(0, 50),
+        options: allOptions,
+        validFor: sqlCompletions?.validFor,
       };
-    },
-  ],
-});
+    }
+  }
+
+  return null;
+};
 
 export const theme = createTheme({
   theme: "dark",
-  settings: {
-    ...defaultThemeSettings,
-    fontSize: 14,
-  },
+  settings: defaultThemeSettings,
   styles: githubDarkStyle,
 });
 
 export const extensions = [
-  ...baseExtensions,
+  EditorView.theme({
+    "&.cm-focused": {
+      outline: "none !important",
+    },
+    "&": {
+      fontSize: "0.875rem !important",
+    },
+    "&.cm-editor": {
+      height: "100%",
+      width: "100%",
+      position: "relative",
+    },
+    ".cm-searchMatch-selected": {
+      backgroundColor: "hsl(var(--primary))",
+      color: "hsl(var(--primary-foreground))",
+      fontWeight: "600",
+    },
+  }),
   EditorView.lineWrapping,
-  sql(),
-  sqlAutocomplete,
+  sql({
+    dialect: ClickHouseDialect,
+    upperCaseKeywords: true
+  }),
+  ClickHouseDialect.language.data.of({
+    autocomplete: combinedCompletionSource,
+  }),
   Prec.highest(
     keymap.of([
       ...completionKeymap,

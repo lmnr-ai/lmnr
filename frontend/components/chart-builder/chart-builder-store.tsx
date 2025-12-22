@@ -1,5 +1,6 @@
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore, StoreApi, useStore } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { ChartConfig, ChartType } from "@/components/chart-builder/types";
 import {
@@ -51,6 +52,7 @@ type ChartBuilderStoreApi = ReturnType<typeof createChartBuilderStore>;
 export interface ChartBuilderProps {
   data: DataRow[];
   query: string;
+  storageKey?: string;
 }
 
 const createChartBuilderStore = (props: ChartBuilderProps) => {
@@ -62,10 +64,10 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     data: props?.data || [],
   };
 
-  return createStore<ChartBuilderStore>()((set, get) => ({
+  const storeConfig = (set: StoreApi<ChartBuilderStore>["setState"], get: StoreApi<ChartBuilderStore>["getState"]): ChartBuilderStore => ({
     ...chartState,
     setChartConfig: (config) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: { ...state.chartConfig, ...config },
       })),
 
@@ -75,7 +77,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
       })),
 
     setChartType: (type) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: {
           ...state.chartConfig,
           type,
@@ -86,22 +88,22 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
       })),
 
     setXColumn: (columnName) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: { ...state.chartConfig, x: columnName },
       })),
 
     setYColumn: (columnName) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: { ...state.chartConfig, y: columnName },
       })),
 
     setBreakdownColumn: (columnName) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: { ...state.chartConfig, breakdown: columnName },
       })),
 
     setShowTotal: (total) =>
-      set((state) => ({
+      set((state: ChartBuilderState) => ({
         chartConfig: { ...state.chartConfig, total },
       })),
 
@@ -136,7 +138,20 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
       const { chartConfig, columns } = get();
       return utilIsValidChartConfiguration(chartConfig, columns);
     },
-  }));
+  });
+
+  if (props.storageKey) {
+    return createStore<ChartBuilderStore>()(
+      persist(storeConfig, {
+        name: `sql-chart-builder-${props.storageKey}`,
+        partialize: (state) => ({
+          chartConfig: state.chartConfig,
+        }),
+      })
+    );
+  }
+
+  return createStore<ChartBuilderStore>()(storeConfig);
 };
 
 const ChartBuilderStoreContext = createContext<ChartBuilderStoreApi | null>(null);
