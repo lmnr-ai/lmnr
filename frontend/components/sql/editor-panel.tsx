@@ -33,7 +33,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
-  const [results, setResults] = useState<Record<string, any>[]>([]);
+  const [results, setResults] = useState<Record<string, any>[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -47,11 +47,11 @@ export default function EditorPanel() {
   }));
 
   const hasQuery = Boolean(template?.query?.trim());
-  const hasResults = results.length > 0;
+  const hasResults = results !== null && results.length > 0;
 
   const columns = useMemo<ColumnDef<any>[]>(() => {
-    if (!isEmpty(results)) {
-      return Object.keys(results?.[0]).map((column) => ({
+    if (results && !isEmpty(results)) {
+      return Object.keys(results[0]).map((column) => ({
         id: column,
         header: column,
         accessorFn: (row: any) => {
@@ -194,7 +194,7 @@ export default function EditorPanel() {
         return success;
       }
 
-      if (results && results.length === 0) {
+      if (results !== null && results.length === 0) {
         return (
           <div className="flex w-full items-center justify-center h-full text-muted-foreground">
             Query executed successfully but returned no results
