@@ -71,14 +71,11 @@ pub struct RunRequest {
 
 #[post("rollouts/{session_id}/run")]
 pub async fn run(
-    path: web::Path<String>,
+    path: web::Path<(Uuid, Uuid)>,
     body: web::Json<RunRequest>,
-    project_api_key: ProjectApiKey,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
-    let session_id =
-        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
-    let project_id = project_api_key.project_id;
+    let (project_id, session_id) = path.into_inner();
 
     let message = SseMessage {
         event_type: "run".to_string(),

@@ -1033,7 +1033,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::payloads::get_payload)
                                     .service(api::v1::rollouts::stream)
-                                    .service(api::v1::rollouts::run)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service(
@@ -1046,7 +1045,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
-                                    .service(routes::spans::search_spans),
+                                    .service(routes::spans::search_spans)
+                                    .service(api::v1::rollouts::run),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
