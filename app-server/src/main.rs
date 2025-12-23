@@ -994,6 +994,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
+                            .app_data(web::Data::new(pubsub.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1030,7 +1031,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::evaluators::create_evaluator_score)
                                     .service(api::v1::sql::execute_sql_query)
-                                    .service(api::v1::payloads::get_payload),
+                                    .service(api::v1::payloads::get_payload)
+                                    .service(api::v1::rollouts::stream)
+                                    .service(api::v1::rollouts::run)
+                                    .service(api::v1::rollouts::delete),
                             )
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
