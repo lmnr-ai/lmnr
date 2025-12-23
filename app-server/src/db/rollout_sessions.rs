@@ -50,20 +50,20 @@ pub async fn create_rollout_session(
     session_id: &Uuid,
     project_id: &Uuid,
     params: Value,
-) -> Result<Uuid> {
-    let session_id = sqlx::query_scalar(
+) -> Result<()> {
+    sqlx::query(
         "INSERT INTO rollout_playgrounds (id, project_id, trace_id, path_to_count, cursor_timestamp, params)
         VALUES ($1, $2, $3, '{}', now(), $4)
-        RETURNING id",
+        ON CONFLICT (id) DO NOTHING",
     )
     .bind(session_id)
     .bind(project_id)
     .bind(Uuid::nil())
     .bind(params)
-    .fetch_one(pool)
+    .execute(pool)
     .await?;
 
-    Ok(session_id)
+    Ok(())
 }
 
 pub async fn delete_rollout_session(
