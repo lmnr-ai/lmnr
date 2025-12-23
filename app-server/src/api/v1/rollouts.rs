@@ -15,10 +15,21 @@ use crate::{
     routes::types::ResponseResult,
 };
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct InputParam {
+    pub name: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct StreamRequest {
+    pub params: Vec<InputParam>,
+}
+
 #[post("rollouts/{session_id}")]
 pub async fn stream(
     path: web::Path<String>,
     project_api_key: ProjectApiKey,
+    body: web::Json<StreamRequest>,
     db: web::Data<DB>,
     connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
@@ -31,7 +42,8 @@ pub async fn stream(
         .await?
         .is_none()
     {
-        create_rollout_session(&db.pool, &session_id, &project_id).await?;
+        let params = serde_json::to_value(body.into_inner().params)?;
+        create_rollout_session(&db.pool, &session_id, &project_id, params).await?;
     }
 
     // Start stream
@@ -43,11 +55,17 @@ pub async fn stream(
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+pub struct SpanOverride {
+    pub system: String,
+    pub tools: Vec<Value>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct RunRequest {
     pub trace_id: Uuid,
     pub path_to_count: HashMap<String, u32>,
     pub args: HashMap<String, Value>,
-    pub prompts: HashMap<String, String>,
+    pub overrides: HashMap<String, SpanOverride>,
 }
 
 #[post("rollouts/{session_id}/run")]
