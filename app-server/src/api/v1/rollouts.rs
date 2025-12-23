@@ -34,7 +34,8 @@ pub async fn stream(
     connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
     let db = db.into_inner();
-    let session_id = Uuid::parse_str(&path.into_inner()).unwrap();
+    let session_id =
+        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
     // Create rollout session if not exists
@@ -75,7 +76,8 @@ pub async fn run(
     project_api_key: ProjectApiKey,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
-    let session_id = Uuid::parse_str(&path.into_inner()).unwrap();
+    let session_id =
+        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
     let message = SseMessage {
@@ -97,7 +99,8 @@ pub async fn delete(
     db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();
-    let session_id = Uuid::parse_str(&path.into_inner()).unwrap();
+    let session_id =
+        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
     delete_rollout_session(&db.pool, &session_id, &project_id).await?;
