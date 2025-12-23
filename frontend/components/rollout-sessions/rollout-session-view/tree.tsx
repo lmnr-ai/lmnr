@@ -3,7 +3,7 @@ import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 
 import { SpanCard } from "./span-card";
 
@@ -13,7 +13,7 @@ interface TreeProps {
 
 const Tree = ({ onSpanSelect }: TreeProps) => {
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans } = useTraceViewStoreContext((state) => ({
+  const { getTreeSpans, spans } = useRolloutSessionStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
   }));

@@ -5,9 +5,9 @@ import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import {
   TraceViewSpan,
-  useTraceViewStore,
-  useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+  useRolloutSessionStore,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
@@ -17,7 +17,7 @@ interface Props {
 function Minimap({ onSpanSelect }: Props) {
   const { state, scrollTo, createScrollHandler, visibleSpanIds } = useScrollContext();
   const { getMinimapSpans, getListMinimapSpans, trace, spans, setSessionTime, browserSession, tab } =
-    useTraceViewStoreContext((state) => ({
+    useRolloutSessionStoreContext((state) => ({
       getMinimapSpans: state.getMinimapSpans,
       getListMinimapSpans: state.getListMinimapSpans,
       trace: state.trace,
@@ -27,7 +27,7 @@ function Minimap({ onSpanSelect }: Props) {
       tab: state.tab,
     }));
 
-  const store = useTraceViewStore();
+  const store = useRolloutSessionStore();
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
   const hoverTimeNeedleRef = useRef<HTMLDivElement>(null);
   const spansContainerRef = useRef<HTMLDivElement>(null);

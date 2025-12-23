@@ -1,14 +1,14 @@
 import {
-  Database,
-  FlaskConical,
-  Layers,
-  LayoutGrid,
-  Pen,
-  PlayCircle,
-  Rows4,
-  Settings,
-  SquareFunction,
-  SquareTerminal,
+    Database,
+    FlaskConical, GitFork,
+    Layers,
+    LayoutGrid,
+    Pen,
+    PlayCircle,
+    Rows4,
+    Settings,
+    SquareFunction,
+    SquareTerminal,
 } from "lucide-react";
 
 export const getSidebarMenus = (projectId: string) => [
@@ -56,6 +56,11 @@ export const getSidebarMenus = (projectId: string) => [
     name: "playgrounds",
     href: `/project/${projectId}/playgrounds`,
     icon: PlayCircle,
+  },
+  {
+    name: "rollout sessions",
+    href: `/project/${projectId}/rollout-sessions`,
+    icon: GitFork,
   },
   {
     name: "settings",

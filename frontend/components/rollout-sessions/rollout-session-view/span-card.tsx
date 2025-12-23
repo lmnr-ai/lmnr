@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -40,13 +40,13 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse } = useTraceViewStoreContext((state) => ({
+  const { selectedSpan, spans, toggleCollapse } = useRolloutSessionStoreContext((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
   }));
 
-  const getSpanAttribute = useTraceViewStoreContext((state) => state.getSpanAttribute);
+  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
 

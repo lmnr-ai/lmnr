@@ -33,6 +33,18 @@ const UpdateRolloutSessionSchema = z.object({
   cursorTimestamp: z.string(),
 });
 
+const GetRolloutSessionsSchema = z.object({
+    projectId: z.string(),
+});
+
+export const getRolloutSessions = async (input: z.infer<typeof GetRolloutSessionsSchema>) => {
+    const { projectId } = GetRolloutSessionsSchema.parse(input);
+
+    const result = await db.select().from(rolloutPlaygrounds).where(eq(rolloutPlaygrounds.projectId, projectId));
+
+    return result;
+};
+
 export async function getRolloutSession(input: z.infer<typeof GetRolloutSessionSchema>) {
   const { projectId, traceId, id } = GetRolloutSessionSchema.parse(input);
 

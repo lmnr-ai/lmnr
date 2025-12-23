@@ -14,5 +14,5 @@ export default async function RolloutSessionPage(props: { params: Promise<{ proj
 
   if (!trace) return notFound();
 
-  return <RolloutSession sessionId={session.id} trace={{ ...trace, endTime: session.cursorTimestamp }} />;
+  return <RolloutSession sessionId={session.id} trace={trace} />;
 }

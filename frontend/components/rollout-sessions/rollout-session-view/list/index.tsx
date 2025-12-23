@@ -10,19 +10,21 @@ import { useScrollContext } from "@/components/traces/trace-view/scroll-context.
 import {
   TraceViewListSpan,
   TraceViewSpan,
-  useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
+  onSetCachePoint?: (span: TraceViewSpan) => void;
+  isSpanCached?: (span: TraceViewSpan) => boolean;
 }
 
-const List = ({ traceId, onSpanSelect }: ListProps) => {
+const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace } = useTraceViewStoreContext((state) => ({
+  const { getListData, spans, isSpansLoading, selectedSpan, trace } = useRolloutSessionStoreContext((state) => ({
     getListData: state.getListData,
     spans: state.spans,
     isSpansLoading: state.isSpansLoading,
@@ -125,6 +127,19 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     [spans, onSpanSelect]
   );
 
+  const handleSetCachePoint = useCallback((listSpan: TraceViewListSpan) => {
+    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
+    if (fullSpan && onSetCachePoint) {
+      onSetCachePoint(fullSpan);
+    }
+  }, [spans, onSetCachePoint]);
+
+  const isListSpanCached = useCallback((listSpan: TraceViewListSpan): boolean => {
+    if (!isSpanCached) return false;
+    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
+    return fullSpan ? isSpanCached(fullSpan) : false;
+  }, [spans, isSpanCached]);
+
   const handleOpenSettings = useCallback((span: TraceViewListSpan) => {
     setSettingsSpan(span);
   }, []);
@@ -188,6 +203,8 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
                     getOutput={getOutput}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={handleOpenSettings}
+                    onSetCachePoint={onSetCachePoint ? handleSetCachePoint : undefined}
+                    isCached={isListSpanCached(listSpan)}
                   />
                 </div>
               );

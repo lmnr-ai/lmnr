@@ -3,7 +3,7 @@ import { isEmpty } from "lodash";
 import React, { memo, useEffect, useMemo, useRef } from "react";
 
 import TimelineElement from "@/components/rollout-sessions/rollout-session-view/timeline-element";
-import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useRolloutSessionStore, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 function Timeline() {
@@ -18,7 +18,7 @@ function Timeline() {
     setSelectedSpan,
     isSpansLoading,
     browserSession,
-  } = useTraceViewStoreContext((state) => ({
+  } = useRolloutSessionStoreContext((state) => ({
     getTimelineData: state.getTimelineData,
     spans: state.spans,
     zoom: state.zoom,
@@ -28,7 +28,7 @@ function Timeline() {
     browserSession: state.browserSession,
   }));
 
-  const store = useTraceViewStore();
+  const store = useRolloutSessionStore();
 
   const { spans, timeIntervals, timelineWidthInMilliseconds } = useMemo(
     () => getTimelineData(),

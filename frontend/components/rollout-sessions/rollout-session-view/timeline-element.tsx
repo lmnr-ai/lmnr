@@ -2,8 +2,8 @@ import { VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { TimelineData } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -34,7 +34,7 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
-  const getSpanAttribute = useTraceViewStoreContext((state) => state.getSpanAttribute);
+  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
   const rolloutSessionId = getSpanAttribute(span.span.spanId, "lmnr.rollout.session_id");
 
