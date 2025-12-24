@@ -2,6 +2,7 @@ pub mod error;
 pub mod evaluations;
 pub mod probes;
 pub mod realtime;
+pub mod rollouts;
 pub mod spans;
 pub mod sql;
 pub mod types;

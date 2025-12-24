@@ -1,7 +1,4 @@
 use actix_web::{HttpResponse, delete, post, web};
-use serde_json::Value;
-use std::collections::HashMap;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
@@ -10,8 +7,7 @@ use crate::{
         project_api_keys::ProjectApiKey,
         rollout_sessions::{create_rollout_session, delete_rollout_session, get_rollout_session},
     },
-    pubsub::PubSub,
-    realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
+    realtime::{SseConnectionMap, SseMessage, create_sse_response},
     routes::types::ResponseResult,
 };
 
@@ -47,46 +43,26 @@ pub async fn stream(
         create_rollout_session(&db.pool, &session_id, &project_id, params).await?;
     }
 
-    // Start stream
-    let key = format!("rollout_{}", session_id);
-    let sse_response = create_sse_response(project_id, key, connections.get_ref().clone())
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-    Ok(sse_response)
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct SpanOverride {
-    pub system: String,
-    pub tools: Vec<Value>,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct RunRequest {
-    pub trace_id: Option<Uuid>,
-    pub path_to_count: HashMap<String, u32>,
-    pub args: HashMap<String, Value>,
-    pub overrides: HashMap<String, SpanOverride>,
-}
-
-#[post("rollouts/{session_id}/run")]
-pub async fn run(
-    path: web::Path<(Uuid, Uuid)>,
-    body: web::Json<RunRequest>,
-    pubsub: web::Data<Arc<PubSub>>,
-) -> ResponseResult {
-    let (project_id, session_id) = path.into_inner();
-
-    let message = SseMessage {
-        event_type: "run".to_string(),
-        data: serde_json::to_value(body.into_inner())?,
+    // Prepare handshake message
+    let handshake = SseMessage {
+        event_type: "handshake".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+            "project_id": project_id,
+        }),
     };
 
-    // Send to specific rollout session subscription key
+    // Start stream with initial handshake
     let key = format!("rollout_{}", session_id);
-    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+    let sse_response = create_sse_response(
+        project_id,
+        key.clone(),
+        connections.get_ref().clone(),
+        Some(handshake),
+    )
+    .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    Ok(HttpResponse::Ok().finish())
+    Ok(sse_response)
 }
 
 #[delete("rollouts/{session_id}")]
