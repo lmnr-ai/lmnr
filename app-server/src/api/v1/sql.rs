@@ -6,6 +6,7 @@ use opentelemetry::{
     trace::{Tracer, mark_span_as_active},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     db::project_api_keys::ProjectApiKey,
@@ -19,6 +20,8 @@ use crate::routes::types::ResponseResult;
 #[serde(rename_all = "camelCase")]
 pub struct SqlQueryRequest {
     pub query: String,
+    #[serde(default)]
+    pub parameters: HashMap<String, Value>,
 }
 
 #[derive(Serialize)]
@@ -35,7 +38,7 @@ pub async fn execute_sql_query(
     query_engine: web::Data<Arc<QueryEngine>>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
-    let SqlQueryRequest { query } = req.into_inner();
+    let SqlQueryRequest { query, parameters } = req.into_inner();
 
     let tracer = global::tracer("tracer");
     let span = tracer.start("api_sql_query");
@@ -46,7 +49,7 @@ pub async fn execute_sql_query(
             match sql::execute_sql_query(
                 query,
                 project_id,
-                HashMap::new(),
+                parameters,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
             )
