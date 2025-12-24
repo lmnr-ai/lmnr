@@ -63,7 +63,7 @@ pub struct SpanOverride {
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct RunRequest {
-    pub trace_id: Uuid,
+    pub trace_id: Option<Uuid>,
     pub path_to_count: HashMap<String, u32>,
     pub args: HashMap<String, Value>,
     pub overrides: HashMap<String, SpanOverride>,
