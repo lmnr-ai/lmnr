@@ -12,6 +12,7 @@ pub mod events;
 pub mod prices;
 pub mod project_api_keys;
 pub mod projects;
+pub mod rollout_playgrounds;
 pub mod rollout_sessions;
 pub mod semantic_event_definitions;
 pub mod semantic_event_trigger_spans;

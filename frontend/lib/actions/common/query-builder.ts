@@ -61,14 +61,20 @@ const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult =>
     };
   }
 
-  if (startTime) {
-    const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
-    const params: QueryParams = { startTime: startTime.replace("Z", "") };
+  if (startTime || endTime) {
+    const conditions: string[] = [];
+    const params: QueryParams = {};
+
+    if (startTime) {
+      conditions.push(`${timeColumn} >= {startTime:String}`);
+      params.startTime = startTime.replace("Z", "");
+    }
 
     if (endTime) {
       conditions.push(`${timeColumn} <= {endTime:String}`);
       params.endTime = endTime.replace("Z", "");
-    } else {
+    } else if (startTime) {
+      // Only add "now()" upper bound if we have startTime but no endTime
       conditions.push(`${timeColumn} <= now()`);
     }
 

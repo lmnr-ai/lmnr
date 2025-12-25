@@ -1,8 +1,8 @@
 import { get } from "lodash";
 import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import React, { PropsWithChildren, useCallback, useMemo, useState } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RolloutSession } from "@/lib/actions/rollout-sessions";
 import { Event } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { Span, SpanType } from "@/lib/traces/types";
@@ -35,6 +36,8 @@ interface SpanControlsProps {
 
 export function SpanControls({ children, span, events }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
+  const router = useRouter();
+  const [isCreatingRollout, setIsCreatingRollout] = useState(false);
 
   const errorEventAttributes = useMemo(
     () => events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -53,6 +56,36 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
       toast({ title: "Copied span ID", duration: 1000 });
     }
   }, [span?.spanId, toast]);
+
+  const handleExperimentInRollout = useCallback(async () => {
+    setIsCreatingRollout(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/traces/${span.traceId}/spans/rollout-sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pathToCount: {},
+          cursorTimestamp: span.startTime,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error: string };
+        throw new Error(error.error || "Failed to create rollout session");
+      }
+
+      const result = (await response.json()) as RolloutSession;
+      router.push(`/project/${projectId}/rollout-sessions/${result.id}`);
+    } catch (error) {
+      toast({
+        title: "Failed to create rollout session",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingRollout(false);
+    }
+  }, [projectId, span.traceId, span.startTime, router, toast]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
@@ -81,15 +114,30 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </DropdownMenuContent>
           </DropdownMenu>
           {span.spanType === SpanType.LLM && (
-            <Link
-              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-              passHref
-            >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                <PlayCircle className="mr-1" size={14} />
-                Experiment in playground
+            <>
+              <Link
+                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                passHref
+              >
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                  <PlayCircle className="mr-1" size={14} />
+                  Experiment in playground
+                </Button>
+              </Link>
+              <Button
+                variant="outlinePrimary"
+                className="px-1.5 text-xs h-6 font-mono bg-primary/10"
+                onClick={handleExperimentInRollout}
+                disabled={isCreatingRollout}
+              >
+                {isCreatingRollout ? (
+                  <Loader className="mr-1 size-3.5 animate-spin" />
+                ) : (
+                  <PlayCircle className="mr-1" size={14} />
+                )}
+                Experiment in rollout playground
               </Button>
-            </Link>
+            </>
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
