@@ -1,13 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
+import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
+import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
-import { MiniTree } from "@/components/traces/trace-view/list/mini-tree.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
-import { TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
@@ -19,18 +19,26 @@ interface ListItemProps {
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
   isLast: boolean;
+  onSetCachePoint?: (span: TraceViewListSpan) => void;
+  isCached?: boolean;
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
-  const selectedSpan = useTraceViewStoreContext((state) => state.selectedSpan);
+const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false, onSetCachePoint, isCached = false }: ListItemProps) => {
+  const selectedSpan = useRolloutSessionStoreContext((state) => state.selectedSpan);
+  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
-  const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
+  const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
+
+  const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
+
+  // Span is disabled if it has rollout session ID or is cached
+  const isDisabled = !!rolloutSessionId || isCached;
 
   const [isExpanded, setIsExpanded] = useState(
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
@@ -54,6 +62,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
         {
           "border-t pt-1": span.spanType === "LLM",
           "pb-1": isLast,
+          "opacity-50": isDisabled,
         }
       )}
       onClick={() => onSpanSelect(span)}
@@ -63,6 +72,9 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
             <SpanTypeIcon spanType={span.spanType} />
             <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
+            {isCached && (
+              <Lock size={12} className="text-muted-foreground flex-shrink-0" title="Cached span" />
+            )}
             <Button
               variant="ghost"
               onClick={(e) => {
@@ -99,6 +111,19 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 </div>
               )}
             </div>
+            {onSetCachePoint && !isDisabled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden py-0 px-2 h-6 text-xs group-hover/message:flex hover:bg-blue-500/10 hover:text-blue-600 animate-in fade-in duration-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetCachePoint(span);
+                }}
+              >
+                Cache to here
+              </Button>
+            )}
             <Button
               disabled={isLoadingOutput}
               variant="ghost"
@@ -157,5 +182,3 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
 };
 
 export default ListItem;
-
-

@@ -20,6 +20,8 @@ import { Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
 
+import { SystemMessage } from "./system-messages-utils";
+
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
@@ -87,7 +89,7 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
 };
 
-interface TraceViewStoreState {
+interface RolloutSessionStoreState {
   trace?: TraceViewTrace;
   isTraceLoading: boolean;
   traceError?: string;
@@ -106,10 +108,17 @@ interface TraceViewStoreState {
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
-  spanPathCounts: Map<string, number>; // Track count per span path for rollout sessions
+  spanPathCounts: Map<string, number>;
+
+  // Rollout-specific state
+  systemMessagesMap: Map<string, SystemMessage>;
+  pathToCount: Record<string, number>;
+  pathSystemMessageOverrides: Map<string, string>;
+  isRolloutRunning: boolean;
+  rolloutError?: string;
 }
 
-interface TraceViewStoreActions {
+interface RolloutSessionStoreActions {
   setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void;
   setTraceError: (error?: string) => void;
   setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void;
@@ -123,7 +132,7 @@ interface TraceViewStoreActions {
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
-  setTab: (tab: TraceViewStoreState["tab"]) => void;
+  setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSearch: (search: string) => void;
   setTreeWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
@@ -132,8 +141,8 @@ interface TraceViewStoreActions {
   updateTraceVisibility: (visibility: "private" | "public") => void;
   saveSpanTemplate: (spanPathKey: string, template: string) => void;
   deleteSpanTemplate: (spanPathKey: string) => void;
-
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
+
   // Selectors
   getTreeSpans: () => TreeSpan[];
   getTimelineData: () => TimelineData;
@@ -147,12 +156,22 @@ interface TraceViewStoreActions {
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
   addSpanIfNew: (span: TraceViewSpan) => boolean;
+
+  // Rollout-specific actions
+  setSystemMessagesMap: (messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)) => void;
+  setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
+  setPathSystemMessageOverrides: (overrides: Map<string, string> | ((prev: Map<string, string>) => Map<string, string>)) => void;
+  setCachePoint: (span: TraceViewSpan) => void;
+  isSpanCached: (span: TraceViewSpan) => boolean;
+  getLlmPathCounts: () => Record<string, number>;
+  setIsRolloutRunning: (isRunning: boolean) => void;
+  setRolloutError: (error?: string) => void;
 }
 
-type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
+type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions;
 
-const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: TraceViewTrace; key?: string }) =>
-  createStore<TraceViewStore>()(
+const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { trace?: TraceViewTrace; key?: string }) =>
+  createStore<RolloutSessionStore>()(
     persist(
       (set, get) => ({
         trace: trace,
@@ -174,6 +193,13 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
         hasBrowserSession: false,
         spanTemplates: {},
         spanPathCounts: new Map(),
+
+        // Rollout-specific state
+        systemMessagesMap: new Map(),
+        pathToCount: {},
+        pathSystemMessageOverrides: new Map(),
+        isRolloutRunning: false,
+        rolloutError: undefined,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -387,7 +413,6 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
         addSpanIfNew: (incomingSpan: TraceViewSpan): boolean => {
           const spanPath = incomingSpan.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) {
-            // No span path, check by spanId
             const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
             if (!exists) {
               get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
@@ -399,11 +424,107 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
           const pathKey = spanPath.join("/");
           const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
 
-          // This is a new occurrence of this path
           get().spanPathCounts.set(pathKey, currentCount + 1);
           get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
           return true;
         },
+
+        // Rollout-specific actions
+        setSystemMessagesMap: (messages) => {
+          if (typeof messages === "function") {
+            const prevMessages = get().systemMessagesMap;
+            const newMessages = messages(prevMessages);
+            set({ systemMessagesMap: newMessages });
+          } else {
+            set({ systemMessagesMap: messages });
+          }
+        },
+
+        setPathToCount: (pathToCount) => {
+          if (typeof pathToCount === "function") {
+            const prevPathToCount = get().pathToCount;
+            const newPathToCount = pathToCount(prevPathToCount);
+            set({ pathToCount: newPathToCount });
+          } else {
+            set({ pathToCount });
+          }
+        },
+
+        setPathSystemMessageOverrides: (overrides) => {
+          if (typeof overrides === "function") {
+            const prevOverrides = get().pathSystemMessageOverrides;
+            const newOverrides = overrides(prevOverrides);
+            set({ pathSystemMessageOverrides: newOverrides });
+          } else {
+            set({ pathSystemMessageOverrides: overrides });
+          }
+        },
+
+        setCachePoint: (span: TraceViewSpan) => {
+          const spans = get().spans;
+          const clickedSpanTime = new Date(span.startTime).getTime();
+
+          const spansBeforeOrAt = spans
+            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          const newPathToCount: Record<string, number> = {};
+
+          spansBeforeOrAt.forEach((s) => {
+            const sPath = s.attributes?.["lmnr.span.path"];
+            if (sPath && Array.isArray(sPath)) {
+              const pathKey = sPath.join(".");
+              newPathToCount[pathKey] = (newPathToCount[pathKey] || 0) + 1;
+            }
+          });
+
+          set({ pathToCount: newPathToCount });
+        },
+
+        isSpanCached: (span: TraceViewSpan): boolean => {
+          if (span.spanType !== SpanType.LLM) return false;
+
+          const spanPath = span.attributes?.["lmnr.span.path"];
+          if (!spanPath || !Array.isArray(spanPath)) return false;
+
+          const spanPathKey = spanPath.join(".");
+          const cacheCount = get().pathToCount[spanPathKey];
+
+          if (!cacheCount) return false;
+
+          const spans = get().spans;
+          const spansWithSamePath = spans
+            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => {
+              const sPath = s.attributes?.["lmnr.span.path"];
+              return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
+            })
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
+
+          return spanIndex !== -1 && spanIndex < cacheCount;
+        },
+
+        getLlmPathCounts: (): Record<string, number> => {
+          const pathMap: Record<string, number> = {};
+
+          get().spans
+            .filter((span) => span.spanType === SpanType.LLM)
+            .forEach((span) => {
+              const spanPath = span.attributes?.["lmnr.span.path"];
+              if (spanPath && Array.isArray(spanPath)) {
+                const pathKey = spanPath.join(".");
+                pathMap[pathKey] = (pathMap[pathKey] || 0) + 1;
+              }
+            });
+
+          return pathMap;
+        },
+
+        setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
+        setRolloutError: (rolloutError?: string) => set({ rolloutError }),
       }),
       {
         name: key,
@@ -417,37 +538,39 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
     )
   );
 
-const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
+const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> | undefined>(undefined);
 
-const TraceViewStoreProvider = ({
+const RolloutSessionStoreProvider = ({
   trace,
   key,
   children,
 }: PropsWithChildren<{ trace?: TraceViewTrace; key?: string }>) => {
-  const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
+  const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore({ trace, key });
+    storeRef.current = createRolloutSessionStore({ trace, key });
   }
 
-  return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;
+  return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;
 };
 
-export const useTraceViewStoreContext = <T,>(selector: (store: TraceViewStore) => T): T => {
-  const store = useContext(TraceViewStoreContext);
+export const useRolloutSessionStoreContext = <T,>(selector: (store: RolloutSessionStore) => T): T => {
+  const store = useContext(RolloutSessionStoreContext);
   if (!store) {
-    throw new Error("useTraceViewStoreContext must be used within a TraceViewStoreContext");
+    throw new Error("useRolloutSessionStoreContext must be used within a RolloutSessionStoreContext");
   }
 
   return useStore(store, selector);
 };
 
-export const useTraceViewStore = () => {
-  const store = useContext(TraceViewStoreContext);
+export const useRolloutSessionStore = () => {
+  const store = useContext(RolloutSessionStoreContext);
   if (!store) {
-    throw new Error("useTraceViewStore must be used within a TraceViewStoreContext");
+    throw new Error("useRolloutSessionStore must be used within a RolloutSessionStoreContext");
   }
   return store;
 };
 
-export default TraceViewStoreProvider;
+export default RolloutSessionStoreProvider;
+
+

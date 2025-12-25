@@ -144,7 +144,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setTraceError(undefined);
 
       if (propsTrace) {
-        setTrace(propsTrace);
+        return;
       } else {
         const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
 
@@ -575,7 +575,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider>
+    <TraceViewStoreProvider trace={props.propsTrace}>
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );
