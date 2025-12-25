@@ -109,11 +109,13 @@ interface RolloutSessionStoreState {
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
-  
+
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
   pathToCount: Record<string, number>;
   pathSystemMessageOverrides: Map<string, string>;
+  isRolloutRunning: boolean;
+  rolloutError?: string;
 }
 
 interface RolloutSessionStoreActions {
@@ -140,7 +142,7 @@ interface RolloutSessionStoreActions {
   saveSpanTemplate: (spanPathKey: string, template: string) => void;
   deleteSpanTemplate: (spanPathKey: string) => void;
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
-  
+
   // Selectors
   getTreeSpans: () => TreeSpan[];
   getTimelineData: () => TimelineData;
@@ -154,7 +156,7 @@ interface RolloutSessionStoreActions {
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
   addSpanIfNew: (span: TraceViewSpan) => boolean;
-  
+
   // Rollout-specific actions
   setSystemMessagesMap: (messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)) => void;
   setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
@@ -162,6 +164,8 @@ interface RolloutSessionStoreActions {
   setCachePoint: (span: TraceViewSpan) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
   getLlmPathCounts: () => Record<string, number>;
+  setIsRolloutRunning: (isRunning: boolean) => void;
+  setRolloutError: (error?: string) => void;
 }
 
 type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions;
@@ -189,11 +193,13 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
         hasBrowserSession: false,
         spanTemplates: {},
         spanPathCounts: new Map(),
-        
+
         // Rollout-specific state
         systemMessagesMap: new Map(),
         pathToCount: {},
         pathSystemMessageOverrides: new Map(),
+        isRolloutRunning: false,
+        rolloutError: undefined,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -422,7 +428,7 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
           return true;
         },
-        
+
         // Rollout-specific actions
         setSystemMessagesMap: (messages) => {
           if (typeof messages === "function") {
@@ -433,7 +439,7 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
             set({ systemMessagesMap: messages });
           }
         },
-        
+
         setPathToCount: (pathToCount) => {
           if (typeof pathToCount === "function") {
             const prevPathToCount = get().pathToCount;
@@ -443,7 +449,7 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
             set({ pathToCount });
           }
         },
-        
+
         setPathSystemMessageOverrides: (overrides) => {
           if (typeof overrides === "function") {
             const prevOverrides = get().pathSystemMessageOverrides;
@@ -453,18 +459,18 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
             set({ pathSystemMessageOverrides: overrides });
           }
         },
-        
+
         setCachePoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
-          
+
           const spansBeforeOrAt = spans
             .filter((s) => s.spanType === SpanType.LLM)
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-          
+
           const newPathToCount: Record<string, number> = {};
-          
+
           spansBeforeOrAt.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
@@ -475,18 +481,18 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
 
           set({ pathToCount: newPathToCount });
         },
-        
+
         isSpanCached: (span: TraceViewSpan): boolean => {
           if (span.spanType !== SpanType.LLM) return false;
-          
+
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
-          
+
           const spanPathKey = spanPath.join(".");
           const cacheCount = get().pathToCount[spanPathKey];
-          
+
           if (!cacheCount) return false;
-          
+
           const spans = get().spans;
           const spansWithSamePath = spans
             .filter((s) => s.spanType === SpanType.LLM)
@@ -495,15 +501,15 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
               return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
             })
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-          
+
           const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
-          
+
           return spanIndex !== -1 && spanIndex < cacheCount;
         },
-        
+
         getLlmPathCounts: (): Record<string, number> => {
           const pathMap: Record<string, number> = {};
-          
+
           get().spans
             .filter((span) => span.spanType === SpanType.LLM)
             .forEach((span) => {
@@ -513,9 +519,12 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
                 pathMap[pathKey] = (pathMap[pathKey] || 0) + 1;
               }
             });
-          
+
           return pathMap;
         },
+
+        setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
+        setRolloutError: (rolloutError?: string) => set({ rolloutError }),
       }),
       {
         name: key,
@@ -563,4 +572,5 @@ export const useRolloutSessionStore = () => {
 };
 
 export default RolloutSessionStoreProvider;
+
 

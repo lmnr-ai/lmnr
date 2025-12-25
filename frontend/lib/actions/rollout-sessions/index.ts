@@ -11,6 +11,7 @@ export type RolloutSession = {
   traceId: string;
   pathToCount: Record<string, number>;
   cursorTimestamp: string;
+  params: Record<string, any>;
 };
 
 const GetRolloutSessionSchema = z.object({
@@ -34,15 +35,15 @@ const UpdateRolloutSessionSchema = z.object({
 });
 
 const GetRolloutSessionsSchema = z.object({
-    projectId: z.string(),
+  projectId: z.string(),
 });
 
 export const getRolloutSessions = async (input: z.infer<typeof GetRolloutSessionsSchema>) => {
-    const { projectId } = GetRolloutSessionsSchema.parse(input);
+  const { projectId } = GetRolloutSessionsSchema.parse(input);
 
-    const result = await db.select().from(rolloutPlaygrounds).where(eq(rolloutPlaygrounds.projectId, projectId));
+  const result = await db.select().from(rolloutPlaygrounds).where(eq(rolloutPlaygrounds.projectId, projectId));
 
-    return result;
+  return result;
 };
 
 export async function getRolloutSession(input: z.infer<typeof GetRolloutSessionSchema>) {
@@ -71,6 +72,7 @@ export async function createRolloutSession(input: z.infer<typeof CreateRolloutSe
       traceId,
       pathToCount,
       cursorTimestamp,
+      params: []
     })
     .returning();
 

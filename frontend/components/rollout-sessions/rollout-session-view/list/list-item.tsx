@@ -3,11 +3,11 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
+import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
+import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
-import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
-import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
@@ -36,7 +36,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
-  
+
   // Span is disabled if it has rollout session ID or is cached
   const isDisabled = !!rolloutSessionId || isCached;
 

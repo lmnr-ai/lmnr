@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Copy, Edit2, Play, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, Loader2, Play, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,8 @@ interface SystemMessagesSidebarProps {
   onDeleteVariant: (variantId: string) => void;
   onRollout: () => void;
   pathToCount: Record<string, number>;
+  isRolloutRunning?: boolean;
+  rolloutError?: string;
 }
 
 const SystemMessageCard = ({
@@ -68,14 +71,14 @@ const SystemMessageCard = ({
           )}
         </div>
         {!message.isOriginal && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDeleteVariant?.(); }}
-            >
-              <Trash2 size={14} />
-            </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={(e) => { e.stopPropagation(); onDeleteVariant?.(); }}
+          >
+            <Trash2 size={14} />
+          </Button>
         )}
       </div>
 
@@ -118,6 +121,8 @@ export default function SystemMessagesSidebar({
   onDeleteVariant,
   onRollout,
   pathToCount,
+  isRolloutRunning = false,
+  rolloutError,
 }: SystemMessagesSidebarProps) {
   const messagesArray = Array.from(systemMessages.values());
   const originalMessages = messagesArray.filter((m) => m.isOriginal);
@@ -125,11 +130,32 @@ export default function SystemMessagesSidebar({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3">
-        <Button onClick={onRollout}>
-          <Play size={14} className="mr-2" />
-          Run Rollout
+      <div className="p-3 space-y-2">
+        <Button
+          onClick={() => {
+            onRollout();
+          }}
+          disabled={isRolloutRunning}
+          className="w-full"
+        >
+          {isRolloutRunning ? (
+            <>
+              <Loader2 size={14} className="mr-2 animate-spin" />
+              Running...
+            </>
+          ) : (
+            <>
+              <Play size={14} className="mr-2" />
+              Run Rollout
+            </>
+          )}
         </Button>
+        {rolloutError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">{rolloutError}</AlertDescription>
+          </Alert>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto styled-scrollbar p-3 space-y-4">
@@ -142,9 +168,9 @@ export default function SystemMessagesSidebar({
           ) : (
             <div className="space-y-2">
               {originalMessages.map((message) => (
-                <SystemMessageCard 
+                <SystemMessageCard
                   key={message.id}
-                  message={message} 
+                  message={message}
                   onCreateVariant={(content) => onCreateVariant(message.id, content)}
                 />
               ))}
@@ -157,7 +183,7 @@ export default function SystemMessagesSidebar({
             <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Variants</h4>
             <div className="space-y-2">
               {variantMessages.map((message) => (
-                <SystemMessageCard 
+                <SystemMessageCard
                   key={message.id}
                   message={message}
                   onUpdateVariant={(content) => onUpdateVariant(message.id, content)}

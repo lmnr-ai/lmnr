@@ -7,14 +7,14 @@ import RolloutSessionStoreProvider, { TraceViewTrace } from "@/components/rollou
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 
-const RolloutSession = ({ sessionId, trace }: { sessionId: string; trace: TraceViewTrace }) => (
+const RolloutSession = ({ params, sessionId, trace }: { params: Array<any>; sessionId: string; trace: TraceViewTrace }) => (
   <>
     <Header path={`rollout-sessions/${sessionId}`} childrenContainerClassName="flex-none mr-2 h-12" />
     <div className="flex-none border-t" />
     <div className="flex-1 min-h-0 flex">
       <RolloutSessionStoreProvider trace={trace} key={`rollout-session-${sessionId}`}>
         <FiltersContextProvider>
-          <RolloutSessionView sessionId={sessionId} propsTrace={trace} onClose={() => {}} traceId={trace.id} />
+          <RolloutSessionView params={params} sessionId={sessionId} propsTrace={trace} onClose={() => {}} traceId={trace.id} />
         </FiltersContextProvider>
       </RolloutSessionStoreProvider>
     </div>

@@ -15,7 +15,7 @@ export async function fetchSystemMessages(
   traceId: string
 ): Promise<Map<string, SystemMessage>> {
   const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/spans/system-messages`);
-  
+
   if (!response.ok) {
     throw new Error("Failed to fetch system messages");
   }
@@ -51,16 +51,16 @@ export function createMessageVariant(
   newContent: string
 ): { updatedMap: Map<string, SystemMessage>; variantId: string } {
   const newMap = new Map(systemMessagesMap);
-  
+
   // Generate new variant ID and name
   const variantCount = Array.from(newMap.values()).filter(
     (m) => !m.isOriginal
   ).length;
   const variantId = `variant_${Date.now()}_${variantCount}`;
   const variantName = `variant_${variantCount + 1}`;
-  
+
   const original = newMap.get(originalId);
-  
+
   newMap.set(variantId, {
     id: variantId,
     name: variantName,
@@ -83,7 +83,7 @@ export function updateMessageVariant(
 ): Map<string, SystemMessage> {
   const newMap = new Map(systemMessagesMap);
   const variant = newMap.get(variantId);
-  
+
   if (variant && !variant.isOriginal) {
     variant.content = newContent;
   }
@@ -100,7 +100,7 @@ export function deleteMessageVariant(
 ): Map<string, SystemMessage> {
   const newMap = new Map(systemMessagesMap);
   const message = newMap.get(variantId);
-  
+
   // Only allow deleting variants, not originals
   if (message && !message.isOriginal) {
     newMap.delete(variantId);

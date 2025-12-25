@@ -1,34 +1,31 @@
 import { get } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
-// Copied local components
+import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
 import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.tsx";
-import { 
-  useRolloutSessionStoreContext,
+import {
+  MAX_ZOOM,
+  MIN_ZOOM,
   TraceViewSpan,
   TraceViewTrace,
-  MAX_ZOOM,
-  MIN_TREE_VIEW_WIDTH,
-  MIN_ZOOM,
+  useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SystemMessagesSidebar from "@/components/rollout-sessions/rollout-session-view/system-messages-sidebar";
-import { 
-  createMessageVariant, 
+import {
+  createMessageVariant,
   deleteMessageVariant,
-  fetchSystemMessages, 
-  updateMessageVariant 
+  fetchSystemMessages,
+  updateMessageVariant
 } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
+import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import SessionPlayer from "@/components/traces/session-player";
 import { SpanView } from "@/components/traces/span-view";
 import Chat from "@/components/traces/trace-view/chat";
-// Reused components from trace-view
-import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
@@ -37,15 +34,15 @@ import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import {
   enrichSpansWithPending,
   filterColumns,
-  findSpanToSelect,
 } from "@/components/traces/trace-view/utils";
-import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { useToast } from "@/lib/hooks/use-toast";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -54,17 +51,19 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 interface RolloutSessionViewProps {
   sessionId: string;
   traceId: string;
+  params: Array<{ name: string; [key: string]: any }>;
   // Span id here to control span selection by spans table
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
 }
 
-const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
+const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const { toast } = useToast();
 
   // Data states
   const {
@@ -163,6 +162,10 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     setCachePoint,
     isSpanCached,
     getLlmPathCounts,
+    isRolloutRunning,
+    setIsRolloutRunning,
+    rolloutError,
+    setRolloutError,
   } = useRolloutSessionStoreContext((state) => ({
     systemMessagesMap: state.systemMessagesMap,
     setSystemMessagesMap: state.setSystemMessagesMap,
@@ -173,6 +176,10 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     setCachePoint: state.setCachePoint,
     isSpanCached: state.isSpanCached,
     getLlmPathCounts: state.getLlmPathCounts,
+    isRolloutRunning: state.isRolloutRunning,
+    setIsRolloutRunning: state.setIsRolloutRunning,
+    rolloutError: state.rolloutError,
+    setRolloutError: state.setRolloutError,
   }));
 
   const handleFetchTrace = useCallback(async () => {
@@ -220,11 +227,11 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
       if (!span) {
-          setSelectedSpan(undefined);
-          const params = new URLSearchParams(searchParams);
-          params.delete("spanId");
-          router.replace(`${pathName}?${params.toString()}`);
-          return;
+        setSelectedSpan(undefined);
+        const params = new URLSearchParams(searchParams);
+        params.delete("spanId");
+        router.replace(`${pathName}?${params.toString()}`);
+        return;
       }
 
       setSelectedSpan(span);
@@ -279,15 +286,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
 
         const results = (await response.json()) as TraceViewSpan[];
         let spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
-
-        // Add rollout session_id to span attributes
-        // spans = spans.map((span) => ({
-        //   ...span,
-        //   attributes: {
-        //     ...span.attributes,
-        //     "lmnr.rollout.session_id": sessionId,
-        //   },
-        // }));
 
         setSpans(spans);
 
@@ -375,38 +373,62 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
   }, []);
 
   const handleRollout = useCallback(async () => {
-    // Build the overrides object with path -> { system: "content" } structure
-    const overrides: Record<string, { system: string; tools?: any[] }> = {};
-    
-    for (const [path, messageId] of pathSystemMessageOverrides.entries()) {
-      const message = systemMessagesMap.get(messageId);
-      if (message) {
-        overrides[path] = {
-          system: message.content,
-          // tools can be added here if needed
-        };
+    try {
+      setIsRolloutRunning(true);
+      setRolloutError(undefined);
+
+      const overrides: Record<string, { system: string; tools?: any[] }> = {};
+
+      for (const [path, messageId] of pathSystemMessageOverrides.entries()) {
+        const message = systemMessagesMap.get(messageId);
+        if (message) {
+          overrides[path] = {
+            system: message.content,
+            // tools can be added here if needed
+          };
+        }
       }
+
+      const rolloutPayload = {
+        trace_id: traceId,
+        path_to_count: pathToCount,
+        args: {
+        },
+        overrides,
+      };
+
+
+      // Call the Next.js API route which will proxy to the backend
+      const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rolloutPayload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to run rollout");
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Rollout started successfully",
+        description: "The rollout is now running with your configuration.",
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to run rollout";
+      setRolloutError(errorMessage);
+      toast({
+        title: "Failed to run rollout",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      console.error("Rollout error:", error);
+    } finally {
+      setIsRolloutRunning(false);
     }
-
-    const rolloutPayload = {
-      trace_id: traceId,
-      path_to_count: pathToCount,
-      args: {
-        // These will be filled by user in the future
-        // instruction: "...",
-        // temperature: 0.7,
-      },
-      overrides,
-    };
-
-    console.log("Rollout payload:", JSON.stringify(rolloutPayload, null, 2));
-    // TODO: Send to backend API
-    // const response = await fetch(`/api/projects/${projectId}/rollout`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(rolloutPayload),
-    // });
-  }, [pathToCount, systemMessagesMap, pathSystemMessageOverrides, traceId]);
+  }, [pathToCount, systemMessagesMap, pathSystemMessageOverrides, traceId, sessionId, setIsRolloutRunning, setRolloutError, toast]);
 
   const handleSystemMessageOverride = useCallback((spanPath: string, messageId: string) => {
     setPathSystemMessageOverrides((prev) => {
@@ -473,7 +495,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
 
     const loadSystemMessages = async () => {
       try {
-        const messages = await fetchSystemMessages(projectId, traceId);
+        const messages = await fetchSystemMessages(projectId as string, traceId);
         setSystemMessagesMap(messages);
       } catch (error) {
         console.error("Failed to fetch system messages:", error);
@@ -483,9 +505,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     loadSystemMessages();
   }, [trace, projectId, traceId]);
 
-  // UPDATED REALTIME SUBSCRIPTION - using rollout_sessions_${sessionId}
   useRealtime({
-    key: `rollout_sessions_${sessionId}`,
+    key: `rollout_session_${sessionId}`,
     projectId: projectId as string,
     enabled: !!sessionId && !!projectId,
     eventHandlers,
@@ -526,11 +547,23 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
       <div className="flex flex-col h-full w-full">
         {/* Header at the top */}
         <Header handleClose={handleClose} />
-        
+
         {/* Main content area */}
         <div className="flex h-full w-full min-h-0">
-          {/* Left sidebar - System messages and rollout controls */}
-          <div className="flex-none w-96 border-r bg-background">
+          <div className="flex-none w-96 border-r bg-background flex flex-col">
+            {/* Render params if they exist */}
+            {params && params.length > 0 && (
+              <div className="border-b bg-muted/30 px-3 py-2">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Parameters</div>
+                <div className="flex flex-col gap-1">
+                  {params.map((param, index) => (
+                    <div key={index} className="text-xs px-2 py-1 bg-background border rounded">
+                      {param.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <SystemMessagesSidebar
               systemMessages={systemMessagesMap}
               onCreateVariant={handleCreateVariant}
@@ -538,6 +571,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
               onDeleteVariant={handleDeleteVariant}
               onRollout={handleRollout}
               pathToCount={pathToCount}
+              isRolloutRunning={isRolloutRunning}
+              rolloutError={rolloutError}
             />
           </div>
 
@@ -636,17 +671,17 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
                     />
                   )}
                   {tab === "timeline" && <Timeline />}
-                {tab === "reader" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List 
-                      traceId={traceId} 
-                      onSpanSelect={handleSpanSelect}
-                      onSetCachePoint={setCachePoint}
-                      isSpanCached={isSpanCached}
-                    />
-                    <Minimap onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
+                  {tab === "reader" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <List
+                        traceId={traceId}
+                        onSpanSelect={handleSpanSelect}
+                        onSetCachePoint={setCachePoint}
+                        isSpanCached={isSpanCached}
+                      />
+                      <Minimap onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
                   {tab === "tree" &&
                     (isSpansLoading ? (
                       <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
@@ -693,7 +728,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
                   <label className="text-xs font-medium text-muted-foreground">
                     Override System Message (applies to all spans on this path)
                   </label>
-                  <select 
+                  <select
                     className="text-sm border rounded px-2 py-1.5 bg-background"
                     value={(() => {
                       const spanPath = selectedSpan.attributes?.["lmnr.span.path"];

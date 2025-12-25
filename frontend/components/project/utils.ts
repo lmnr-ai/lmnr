@@ -1,14 +1,14 @@
 import {
-    Database,
-    FlaskConical, GitFork,
-    Layers,
-    LayoutGrid,
-    Pen,
-    PlayCircle,
-    Rows4,
-    Settings,
-    SquareFunction,
-    SquareTerminal,
+  Database,
+  FlaskConical, GitFork,
+  Layers,
+  LayoutGrid,
+  Pen,
+  PlayCircle,
+  Rows4,
+  Settings,
+  SquareFunction,
+  SquareTerminal,
 } from "lucide-react";
 
 export const getSidebarMenus = (projectId: string) => [

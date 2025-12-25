@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
-import { tryParseJson } from "@/lib/utils";
 import { LangChainMessagesSchema, LangChainSystemMessageSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessagesSchema, OpenAISystemMessageSchema } from "@/lib/spans/types/openai";
+import { tryParseJson } from "@/lib/utils";
 
 export const GetSystemMessagesSchema = z.object({
   projectId: z.string(),
@@ -149,4 +149,6 @@ export async function getTraceSystemMessages(
     spanIds: data.spanIds,
   }));
 }
+
+
 

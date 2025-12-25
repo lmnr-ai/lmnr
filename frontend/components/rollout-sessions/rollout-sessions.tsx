@@ -2,7 +2,7 @@
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { useParams, useRouter } from "next/navigation";
-import {useCallback, useEffect, useState} from "react";
+import { useEffect, useState} from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";

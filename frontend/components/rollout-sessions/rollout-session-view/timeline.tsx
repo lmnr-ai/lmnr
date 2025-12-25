@@ -2,8 +2,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import React, { memo, useEffect, useMemo, useRef } from "react";
 
-import TimelineElement from "@/components/rollout-sessions/rollout-session-view/timeline-element";
 import { useRolloutSessionStore, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import TimelineElement from "@/components/rollout-sessions/rollout-session-view/timeline-element";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 function Timeline() {

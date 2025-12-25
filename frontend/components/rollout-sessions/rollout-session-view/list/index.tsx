@@ -4,14 +4,14 @@ import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ListItem from "@/components/rollout-sessions/rollout-session-view/list/list-item.tsx";
-import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
-import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
-import { useScrollContext } from "@/components/traces/trace-view/scroll-context.tsx";
 import {
   TraceViewListSpan,
   TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
+import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
+import { useScrollContext } from "@/components/traces/trace-view/scroll-context.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {

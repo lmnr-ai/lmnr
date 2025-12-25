@@ -2,12 +2,12 @@
 
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import {
   TraceViewSpan,
   useRolloutSessionStore,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
