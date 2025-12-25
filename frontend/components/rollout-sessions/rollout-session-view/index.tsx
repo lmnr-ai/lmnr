@@ -65,6 +65,9 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
   const { projectId } = useParams();
   const { toast } = useToast();
 
+  // Local state for the current traceId (can be updated from realtime)
+  const [currentTraceId, setCurrentTraceId] = React.useState(traceId);
+
   // Data states
   const {
     selectedSpan,
@@ -390,7 +393,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
       }
 
       const rolloutPayload = {
-        trace_id: traceId,
+        trace_id: currentTraceId, // Use the current traceId from state
         path_to_count: pathToCount,
         args: {
         },
@@ -428,7 +431,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     } finally {
       setIsRolloutRunning(false);
     }
-  }, [pathToCount, systemMessagesMap, pathSystemMessageOverrides, traceId, sessionId, setIsRolloutRunning, setRolloutError, toast]);
+  }, [pathToCount, systemMessagesMap, pathSystemMessageOverrides, currentTraceId, sessionId, setIsRolloutRunning, setRolloutError, toast, projectId]);
 
   const handleSystemMessageOverride = useCallback((spanPath: string, messageId: string) => {
     setPathSystemMessageOverrides((prev) => {
@@ -451,6 +454,10 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
         if (payload.spans && Array.isArray(payload.spans)) {
           for (const incomingSpan of payload.spans) {
             addSpanIfNew(incomingSpan);
+            // Update the current traceId from the incoming span
+            if (incomingSpan.traceId) {
+              setCurrentTraceId(incomingSpan.traceId);
+            }
           }
         }
       },
