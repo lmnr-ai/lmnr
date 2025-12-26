@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const params = await props.params;
-    const { sessionId } = params;
+    const { sessionId, projectId } = params;
     const body = await req.json();
 
     // Validate required fields
@@ -28,7 +28,7 @@ export async function POST(
     }
 
     // Call the backend API
-    const result = await fetcherJSON(`/rollouts/${sessionId}/run`, {
+    const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

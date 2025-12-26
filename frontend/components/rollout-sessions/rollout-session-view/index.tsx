@@ -51,7 +51,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 interface RolloutSessionViewProps {
   sessionId: string;
   traceId: string;
-  params: Array<{ name: string; [key: string]: any }>;
+  params: Array<{ name: string;[key: string]: any }>;
   // Span id here to control span selection by spans table
   spanId?: string;
   propsTrace?: TraceViewTrace;
