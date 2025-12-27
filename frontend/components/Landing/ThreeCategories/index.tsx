@@ -3,7 +3,9 @@ import { cn } from "@/lib/utils";
 import DocsButton from "../DocsButton";
 import PlaceholderImage from "../PlaceholderImage";
 import SectionName from "../SectionName";
-import SQLImage from "../SQLImage";
+import SQLImage from "./SQLImage";
+import IntegrateInMinutes from "./IntegrateInMinutes";
+import PlaygroundImage from "./PlaygroundImage";
 import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../classNames";
 
 interface Props {
@@ -36,16 +38,7 @@ const ThreeCategories = ({ className }: Props) => {
         {/* TRACING Section */}
         <SectionName label="TRACING" index={1} />
 
-        {/* Integrate in minutes */}
-        <div className="flex flex-col gap-[54px] items-start w-full">
-          <div className="flex flex-col gap-1 items-start w-full">
-            <p className={subsectionTitle}>Integrate in minutes</p>
-            <p className={bodyLarge}>Compatible with all your favorites</p>
-          </div>
-          {/* Logo grid would go here */}
-          <div className="flex flex-wrap gap-3 items-start w-full">{/* Placeholder for logo grid */}</div>
-          <DocsButton />
-        </div>
+        <IntegrateInMinutes />
 
         {/* Understand traces easily */}
         <div className="flex flex-col gap-[54px] items-start w-full">
@@ -95,9 +88,7 @@ const ThreeCategories = ({ className }: Props) => {
             </div>
             <DocsButton />
           </div>
-          <div className="relative shrink-0 w-[720px] h-[415px]">
-            <PlaceholderImage className="absolute inset-0 pb-0 pl-[100px] pr-0 pt-20 rounded-sm" />
-          </div>
+          <PlaygroundImage className="relative shrink-0 w-[720px] h-[450px]" />
         </div>
 
         {/* ANALYSIS Section */}

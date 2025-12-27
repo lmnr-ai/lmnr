@@ -15,7 +15,7 @@ interface Props {
 const Footer = ({ className }: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
-  const offset = useTransform(scrollYProgress, [0, 1], [-140, 0]);
+  const offset = useTransform(scrollYProgress, [0, 1], [-200, 0]);
   const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
