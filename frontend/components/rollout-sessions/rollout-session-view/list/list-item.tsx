@@ -73,7 +73,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
             <SpanTypeIcon spanType={span.spanType} />
             <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
             {isCached && (
-              <Lock size={12} className="text-muted-foreground flex-shrink-0" title="Cached span" />
+              <Lock size={12} className="text-muted-foreground flex-shrink-0" />
             )}
             <Button
               variant="ghost"

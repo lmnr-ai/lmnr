@@ -68,6 +68,12 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
   // Local state for the current traceId (can be updated from realtime)
   const [currentTraceId, setCurrentTraceId] = React.useState(traceId);
 
+  // Local state for parameter values
+  const [paramValues, setParamValues] = React.useState<Record<string, string>>(() => params.reduce((acc, param) => {
+    acc[param.name] = "";
+    return acc;
+  }, {} as Record<string, string>));
+
   // Data states
   const {
     selectedSpan,
@@ -159,12 +165,10 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     systemMessagesMap,
     setSystemMessagesMap,
     pathToCount,
-    setPathToCount,
     pathSystemMessageOverrides,
     setPathSystemMessageOverrides,
     setCachePoint,
     isSpanCached,
-    getLlmPathCounts,
     isRolloutRunning,
     setIsRolloutRunning,
     rolloutError,
@@ -173,12 +177,10 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     systemMessagesMap: state.systemMessagesMap,
     setSystemMessagesMap: state.setSystemMessagesMap,
     pathToCount: state.pathToCount,
-    setPathToCount: state.setPathToCount,
     pathSystemMessageOverrides: state.pathSystemMessageOverrides,
     setPathSystemMessageOverrides: state.setPathSystemMessageOverrides,
     setCachePoint: state.setCachePoint,
     isSpanCached: state.isSpanCached,
-    getLlmPathCounts: state.getLlmPathCounts,
     isRolloutRunning: state.isRolloutRunning,
     setIsRolloutRunning: state.setIsRolloutRunning,
     rolloutError: state.rolloutError,
@@ -395,8 +397,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
       const rolloutPayload = {
         trace_id: currentTraceId, // Use the current traceId from state
         path_to_count: pathToCount,
-        args: {
-        },
+        args: paramValues,
         overrides,
       };
 
@@ -562,10 +563,24 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
             {params && params.length > 0 && (
               <div className="border-b bg-muted/30 px-3 py-2">
                 <div className="text-xs font-medium text-muted-foreground mb-2">Parameters</div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
                   {params.map((param, index) => (
-                    <div key={index} className="text-xs px-2 py-1 bg-background border rounded">
-                      {param.name}
+                    <div key={index} className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {param.name}
+                      </label>
+                      <input
+                        type="text"
+                        className="text-xs px-2 py-1.5 bg-background border rounded"
+                        placeholder={`Enter ${param.name}`}
+                        value={paramValues[param.name] || ""}
+                        onChange={(e) => {
+                          setParamValues((prev) => ({
+                            ...prev,
+                            [param.name]: e.target.value,
+                          }));
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
