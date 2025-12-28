@@ -9,7 +9,7 @@ import { useTraceViewNavigation } from "@/components/traces/trace-view/navigatio
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
-import SearchTracesInput from "@/components/traces/traces-table/search";
+import AdvancedFilterInput from "@/components/traces/traces-table/advanced-filter-input";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -314,7 +314,15 @@ function TracesTableContent() {
             <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
             <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
           </div>
-          <SearchTracesInput />
+          <AdvancedFilterInput
+            availableFilters={filters}
+            resource="traces"
+            placeholder="Search in traces..."
+            posthogEventName="traces_list_searched"
+            additionalSearchParams={{
+              searchIn: ["input", "output"],
+            }}
+          />
         </div>
         <DataTableFilterList />
         <TracesChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
