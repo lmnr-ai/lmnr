@@ -5,26 +5,22 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
+import { FilterSearchInput } from "@/components/common/filter-search-input";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { columns, defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
-import AdvancedFilterInput from "@/components/traces/traces-table/advanced-filter-input";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { TraceRow } from "@/lib/traces/types";
-
-const presetFilters: Filter[] = [];
 
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
@@ -247,14 +243,6 @@ function TracesTableContent() {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
       sp.set("pastHours", "24");
-
-      const currentFilters = searchParams.getAll("filter");
-      if (currentFilters.length === 0 && presetFilters.length > 0) {
-        presetFilters.forEach((filter) => {
-          sp.append("filter", JSON.stringify(filter));
-        });
-      }
-
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
@@ -300,7 +288,15 @@ function TracesTableContent() {
         lockedColumns={["status"]}
       >
         <div className="flex flex-1 pt-1 w-full h-full gap-2">
-          <DataTableFilter presetFilters={presetFilters} columns={filters} />
+          <FilterSearchInput
+            filters={filters}
+            resource="traces"
+            placeholder="Search in traces..."
+            className="flex-1"
+            additionalSearchParams={{
+              searchIn: ["input", "output"],
+            }}
+          />
           <ColumnsMenu
             lockedColumns={["status"]}
             columnLabels={columns.map((column) => ({
@@ -314,17 +310,7 @@ function TracesTableContent() {
             <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
             <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
           </div>
-          <AdvancedFilterInput
-            availableFilters={filters}
-            resource="traces"
-            placeholder="Search in traces..."
-            posthogEventName="traces_list_searched"
-            additionalSearchParams={{
-              searchIn: ["input", "output"],
-            }}
-          />
         </div>
-        <DataTableFilterList />
         <TracesChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
       </InfiniteDataTable>
     </div>
