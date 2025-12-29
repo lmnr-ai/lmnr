@@ -312,7 +312,7 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
         </Select>
 
         {/* Value Input */}
-        <div className="relative">
+        <div className="relative flex items-center justify-center">
           <input
             ref={inputRef}
             type="text"
