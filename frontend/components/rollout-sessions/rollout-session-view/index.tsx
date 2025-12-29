@@ -13,13 +13,8 @@ import {
   TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import SystemMessagesSidebar from "@/components/rollout-sessions/rollout-session-view/system-messages-sidebar";
-import {
-  createMessageVariant,
-  deleteMessageVariant,
-  fetchSystemMessages,
-  updateMessageVariant
-} from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
+import RolloutSidebar from "@/components/rollout-sessions/rollout-session-view/sidebar";
+import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
@@ -51,14 +46,12 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 interface RolloutSessionViewProps {
   sessionId: string;
   traceId: string;
-  params: Array<{ name: string;[key: string]: any }>;
-  // Span id here to control span selection by spans table
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
 }
 
-const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
+const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -67,12 +60,6 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
 
   // Local state for the current traceId (can be updated from realtime)
   const [currentTraceId, setCurrentTraceId] = React.useState(traceId);
-
-  // Local state for parameter values
-  const [paramValues, setParamValues] = React.useState<Record<string, string>>(() => params.reduce((acc, param) => {
-    acc[param.name] = "";
-    return acc;
-  }, {} as Record<string, string>));
 
   // Data states
   const {
@@ -145,11 +132,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     setHasBrowserSession: state.setHasBrowserSession,
   }));
 
-  // Local storage states
-  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useRolloutSessionStoreContext((state) => ({
-    treeWidth: state.treeWidth,
-    setTreeWidth: state.setTreeWidth,
-    spanPath: state.spanPath,
+  const { setSpanPath } = useRolloutSessionStoreContext((state) => ({
     setSpanPath: state.setSpanPath,
   }));
 
@@ -160,31 +143,26 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     [spans]
   );
 
-  // Rollout-specific state from store
   const {
-    systemMessagesMap,
     setSystemMessagesMap,
     pathToCount,
-    pathSystemMessageOverrides,
-    setPathSystemMessageOverrides,
+    getOverridesForRollout,
     setCachePoint,
+    unlockFromSpan,
     isSpanCached,
-    isRolloutRunning,
     setIsRolloutRunning,
-    rolloutError,
     setRolloutError,
+    paramValues,
   } = useRolloutSessionStoreContext((state) => ({
-    systemMessagesMap: state.systemMessagesMap,
     setSystemMessagesMap: state.setSystemMessagesMap,
     pathToCount: state.pathToCount,
-    pathSystemMessageOverrides: state.pathSystemMessageOverrides,
-    setPathSystemMessageOverrides: state.setPathSystemMessageOverrides,
+    getOverridesForRollout: state.getOverridesForRollout,
     setCachePoint: state.setCachePoint,
+    unlockFromSpan: state.unlockFromSpan,
     isSpanCached: state.isSpanCached,
-    isRolloutRunning: state.isRolloutRunning,
     setIsRolloutRunning: state.setIsRolloutRunning,
-    rolloutError: state.rolloutError,
     setRolloutError: state.setRolloutError,
+    paramValues: state.paramValues,
   }));
 
   const handleFetchTrace = useCallback(async () => {
@@ -325,13 +303,6 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     ]
   );
 
-  const handleClose = useCallback(() => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("spanId");
-    router.push(`${pathName}?${params.toString()}`);
-    onClose();
-  }, [onClose, pathName, router, searchParams]);
-
   const handleToggleSearch = useCallback(async () => {
     if (searchEnabled) {
       setSearchEnabled(false);
@@ -351,58 +322,20 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     [setFilters]
   );
 
-  // Rollout handlers
-  const handleCreateVariant = useCallback((originalId: string, newContent: string) => {
-    setSystemMessagesMap((prevMap) => {
-      const { updatedMap } = createMessageVariant(prevMap, originalId, newContent);
-      return updatedMap;
-    });
-  }, []);
-
-  const handleUpdateVariant = useCallback((variantId: string, newContent: string) => {
-    setSystemMessagesMap((prevMap) => updateMessageVariant(prevMap, variantId, newContent));
-  }, []);
-
-  const handleDeleteVariant = useCallback((variantId: string) => {
-    setSystemMessagesMap((prevMap) => deleteMessageVariant(prevMap, variantId));
-    // Also remove any path overrides using this variant
-    setPathSystemMessageOverrides((prev) => {
-      const newMap = new Map(prev);
-      for (const [path, messageId] of newMap.entries()) {
-        if (messageId === variantId) {
-          newMap.delete(path);
-        }
-      }
-      return newMap;
-    });
-  }, []);
-
   const handleRollout = useCallback(async () => {
     try {
       setIsRolloutRunning(true);
       setRolloutError(undefined);
 
-      const overrides: Record<string, { system: string; tools?: any[] }> = {};
-
-      for (const [path, messageId] of pathSystemMessageOverrides.entries()) {
-        const message = systemMessagesMap.get(messageId);
-        if (message) {
-          overrides[path] = {
-            system: message.content,
-            // tools can be added here if needed
-          };
-        }
-      }
+      const overrides = getOverridesForRollout();
 
       const rolloutPayload = {
-        trace_id: currentTraceId, // Use the current traceId from state
+        trace_id: currentTraceId,
         path_to_count: pathToCount,
         args: paramValues,
         overrides,
       };
 
-
-      // Call the Next.js API route which will proxy to the backend
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -414,7 +347,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
         throw new Error(errorData.error || "Failed to run rollout");
       }
 
-      const result = await response.json();
+      await response.json();
 
       toast({
         title: "Rollout started successfully",
@@ -432,19 +365,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     } finally {
       setIsRolloutRunning(false);
     }
-  }, [pathToCount, systemMessagesMap, pathSystemMessageOverrides, currentTraceId, sessionId, setIsRolloutRunning, setRolloutError, toast, projectId]);
-
-  const handleSystemMessageOverride = useCallback((spanPath: string, messageId: string) => {
-    setPathSystemMessageOverrides((prev) => {
-      const newMap = new Map(prev);
-      if (messageId === "") {
-        newMap.delete(spanPath);
-      } else {
-        newMap.set(spanPath, messageId);
-      }
-      return newMap;
-    });
-  }, [setPathSystemMessageOverrides]);
+  }, [pathToCount, getOverridesForRollout, currentTraceId, sessionId, setIsRolloutRunning, setRolloutError, toast, projectId, paramValues]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -497,13 +418,26 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     };
   }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
 
-  // Fetch system messages when trace is loaded
   useEffect(() => {
-    if (!trace || !projectId || !traceId) return;
+    if (!projectId || !traceId || spans.length === 0) return;
+
+    // Calculate unique LLM span paths
+    const llmPaths = new Set<string>();
+    for (const span of spans) {
+      if (span.spanType === SpanType.LLM && span.path) {
+        llmPaths.add(span.path);
+      }
+    }
+
+    if (llmPaths.size === 0) return;
 
     const loadSystemMessages = async () => {
       try {
-        const messages = await fetchSystemMessages(projectId as string, traceId);
+        const messages = await fetchSystemMessages(
+          projectId as string,
+          traceId,
+          Array.from(llmPaths)
+        );
         setSystemMessagesMap(messages);
       } catch (error) {
         console.error("Failed to fetch system messages:", error);
@@ -511,7 +445,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
     };
 
     loadSystemMessages();
-  }, [trace, projectId, traceId]);
+  }, [spans, projectId, traceId, setSystemMessagesMap]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
@@ -538,7 +472,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header handleClose={handleClose} />
+        <Header />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -553,54 +487,14 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
   return (
     <ScrollContextProvider>
       <div className="flex flex-col h-full w-full">
-        {/* Header at the top */}
-        <Header handleClose={handleClose} />
-
-        {/* Main content area */}
+        <Header />
         <div className="flex h-full w-full min-h-0">
           <div className="flex-none w-96 border-r bg-background flex flex-col">
-            {/* Render params if they exist */}
-            {params && params.length > 0 && (
-              <div className="border-b bg-muted/30 px-3 py-2">
-                <div className="text-xs font-medium text-muted-foreground mb-2">Parameters</div>
-                <div className="flex flex-col gap-2">
-                  {params.map((param, index) => (
-                    <div key={index} className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        {param.name}
-                      </label>
-                      <input
-                        type="text"
-                        className="text-xs px-2 py-1.5 bg-background border rounded"
-                        placeholder={`Enter ${param.name}`}
-                        value={paramValues[param.name] || ""}
-                        onChange={(e) => {
-                          setParamValues((prev) => ({
-                            ...prev,
-                            [param.name]: e.target.value,
-                          }));
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <SystemMessagesSidebar
-              systemMessages={systemMessagesMap}
-              onCreateVariant={handleCreateVariant}
-              onUpdateVariant={handleUpdateVariant}
-              onDeleteVariant={handleDeleteVariant}
-              onRollout={handleRollout}
-              pathToCount={pathToCount}
-              isRolloutRunning={isRolloutRunning}
-              rolloutError={rolloutError}
-            />
+            <RolloutSidebar onRollout={handleRollout} />
           </div>
 
-          {/* Right area - Full span list with all tabs */}
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
+            <div className="flex flex-col gap-2 p-2 border-b box-border">
               <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
                 <ViewDropdown />
                 <StatefulFilter columns={filterColumns}>
@@ -665,12 +559,10 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
               <StatefulFilterList className="py-[3px] text-xs px-1" />
             </div>
 
-            {/* Search input */}
             {(search || searchEnabled) && (
               <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
             )}
 
-            {/* Span list views */}
             {spansError ? (
               <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
                 <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
@@ -699,6 +591,7 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
                         traceId={traceId}
                         onSpanSelect={handleSpanSelect}
                         onSetCachePoint={setCachePoint}
+                        onUnlock={unlockFromSpan}
                         isSpanCached={isSpanCached}
                       />
                       <Minimap onSpanSelect={handleSpanSelect} />
@@ -741,50 +634,8 @@ const PureRolloutSessionView = ({ params, sessionId, traceId, spanId, onClose, p
 
         <Sheet open={!!selectedSpan} onOpenChange={(open) => !open && handleSpanSelect(undefined)}>
           <SheetContent side="right" className="min-w-[50vw] w-[50vw] flex flex-col p-0">
-            <SheetHeader className="px-6 py-4 border-b space-y-3">
-              <div className="flex items-center justify-between">
-                <SheetTitle>Span Details</SheetTitle>
-              </div>
-              {selectedSpan && selectedSpan.spanType === SpanType.LLM && systemMessagesMap.size > 0 && (
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Override System Message (applies to all spans on this path)
-                  </label>
-                  <select
-                    className="text-sm border rounded px-2 py-1.5 bg-background"
-                    value={(() => {
-                      const spanPath = selectedSpan.attributes?.["lmnr.span.path"];
-                      if (!spanPath || !Array.isArray(spanPath)) return "";
-                      return pathSystemMessageOverrides.get(spanPath.join(".")) || "";
-                    })()}
-                    onChange={(e) => {
-                      const spanPath = selectedSpan.attributes?.["lmnr.span.path"];
-                      if (spanPath && Array.isArray(spanPath)) {
-                        handleSystemMessageOverride(spanPath.join("."), e.target.value);
-                      }
-                    }}
-                  >
-                    <option value="">Keep original</option>
-                    {Array.from(systemMessagesMap.values()).map((msg) => (
-                      <option key={msg.id} value={msg.id}>
-                        {msg.name} {!msg.isOriginal && "(variant)"}
-                      </option>
-                    ))}
-                  </select>
-                  {(() => {
-                    const spanPath = selectedSpan.attributes?.["lmnr.span.path"];
-                    if (spanPath && Array.isArray(spanPath)) {
-                      const pathKey = spanPath.join(".");
-                      return (
-                        <p className="text-xs text-muted-foreground">
-                          Path: <code className="bg-muted px-1 py-0.5 rounded text-xs">{pathKey}</code>
-                        </p>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-              )}
+            <SheetHeader className="px-6 py-4 border-b">
+              <SheetTitle>Span Details</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-hidden">
               {selectedSpan && (

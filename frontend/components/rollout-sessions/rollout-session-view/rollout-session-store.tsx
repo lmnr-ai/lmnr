@@ -1,4 +1,4 @@
-import { has } from "lodash";
+import { get, has } from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -21,6 +21,76 @@ import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
 
 import { SystemMessage } from "./system-messages-utils";
+
+// Incoming realtime span (may be missing some TraceViewSpan fields)
+export type RealtimeSpanInput = {
+  spanId: string;
+  parentSpanId?: string;
+  traceId: string;
+  spanType: SpanType;
+  name: string;
+  startTime: string;
+  endTime: string;
+  attributes: Record<string, any>;
+  status?: string;
+  // Optional fields that TraceViewSpan requires but RealtimeSpan may not have
+  path?: string;
+  events?: Event[];
+  model?: string;
+  pending?: boolean;
+  collapsed?: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
+  aggregatedMetrics?: TraceViewSpan["aggregatedMetrics"];
+};
+
+// Helper to convert incoming span to TraceViewSpan format
+function toTraceViewSpan(incoming: TraceViewSpan | RealtimeSpanInput): TraceViewSpan {
+  const attrs = incoming.attributes || {};
+
+  // Derive path from attributes if not present
+  const spanPath = attrs["lmnr.span.path"];
+  const path = incoming.path ?? (Array.isArray(spanPath) ? spanPath.join(".") : "");
+
+  // Derive model from attributes
+  const model = incoming.model ?? get(attrs, "gen_ai.response.model") ?? get(attrs, "gen_ai.request.model") ?? "";
+
+  // Derive token/cost metrics from attributes
+  const inputTokens = incoming.inputTokens ?? get(attrs, "gen_ai.usage.input_tokens", 0);
+  const outputTokens = incoming.outputTokens ?? get(attrs, "gen_ai.usage.output_tokens", 0);
+  const totalTokens = incoming.totalTokens ?? get(attrs, "llm.usage.total_tokens", inputTokens + outputTokens);
+  const inputCost = incoming.inputCost ?? get(attrs, "gen_ai.usage.input_cost", 0);
+  const outputCost = incoming.outputCost ?? get(attrs, "gen_ai.usage.output_cost", 0);
+  const totalCost = incoming.totalCost ?? get(attrs, "gen_ai.usage.cost", inputCost + outputCost);
+
+  return {
+    spanId: incoming.spanId,
+    parentSpanId: incoming.parentSpanId,
+    traceId: incoming.traceId,
+    name: incoming.name,
+    startTime: incoming.startTime,
+    endTime: incoming.endTime,
+    attributes: attrs,
+    spanType: incoming.spanType,
+    path,
+    events: incoming.events ?? [],
+    status: incoming.status,
+    model,
+    pending: incoming.pending ?? false,
+    collapsed: incoming.collapsed ?? false,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    inputCost,
+    outputCost,
+    totalCost,
+    aggregatedMetrics: incoming.aggregatedMetrics,
+  };
+}
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
@@ -109,13 +179,19 @@ interface RolloutSessionStoreState {
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
+  // Tracks how many realtime spans per path have been processed (for replacement ordering)
+  realtimePathIndex: Map<string, number>;
 
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
   pathToCount: Record<string, number>;
-  pathSystemMessageOverrides: Map<string, string>;
+  editedMessages: Map<string, string>; // messageId -> edited content
   isRolloutRunning: boolean;
   rolloutError?: string;
+
+  // Params state
+  params: Array<{ name: string; [key: string]: any }>;
+  paramValues: Record<string, string>;
 }
 
 interface RolloutSessionStoreActions {
@@ -155,23 +231,46 @@ interface RolloutSessionStoreActions {
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
-  addSpanIfNew: (span: TraceViewSpan) => boolean;
+  resetRealtimePathIndex: () => void;
+  addSpanIfNew: (span: TraceViewSpan | RealtimeSpanInput) => boolean;
 
   // Rollout-specific actions
   setSystemMessagesMap: (messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)) => void;
   setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
-  setPathSystemMessageOverrides: (overrides: Map<string, string> | ((prev: Map<string, string>) => Map<string, string>)) => void;
+  setEditedMessage: (messageId: string, content: string) => void;
+  resetEditedMessage: (messageId: string) => void;
+  resetAllEditedMessages: () => void;
+  getEditedContent: (messageId: string) => string | undefined;
+  hasEdits: () => boolean;
+  getOverridesForRollout: () => Record<string, { system: string }>;
   setCachePoint: (span: TraceViewSpan) => void;
+  unlockFromSpan: (span: TraceViewSpan) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
   getLlmPathCounts: () => Record<string, number>;
   setIsRolloutRunning: (isRunning: boolean) => void;
   setRolloutError: (error?: string) => void;
+
+  setParamValue: (name: string, value: string) => void;
 }
 
 type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions;
 
-const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { trace?: TraceViewTrace; key?: string }) =>
-  createStore<RolloutSessionStore>()(
+const createRolloutSessionStore = ({
+  trace,
+  params = [],
+  storeKey = "rollout-session-state"
+}: {
+  trace?: TraceViewTrace;
+  params?: Array<{ name: string; [key: string]: any }>;
+  storeKey?: string;
+}) => {
+  // Initialize paramValues from params
+  const initialParamValues = params.reduce((acc, param) => {
+    acc[param.name] = "";
+    return acc;
+  }, {} as Record<string, string>);
+
+  return createStore<RolloutSessionStore>()(
     persist(
       (set, get) => ({
         trace: trace,
@@ -193,13 +292,18 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
         hasBrowserSession: false,
         spanTemplates: {},
         spanPathCounts: new Map(),
+        realtimePathIndex: new Map(),
 
         // Rollout-specific state
         systemMessagesMap: new Map(),
         pathToCount: {},
-        pathSystemMessageOverrides: new Map(),
+        editedMessages: new Map(),
         isRolloutRunning: false,
         rolloutError: undefined,
+
+        // Params state (initialized from props)
+        params,
+        paramValues: initialParamValues,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -408,11 +512,19 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
             }
           });
 
-          set({ spanPathCounts: pathCounts });
+          // Reset realtime index when rebuilding counts (e.g., after initial fetch)
+          set({ spanPathCounts: pathCounts, realtimePathIndex: new Map() });
         },
-        addSpanIfNew: (incomingSpan: TraceViewSpan): boolean => {
-          const spanPath = incomingSpan.attributes?.["lmnr.span.path"];
-          if (!spanPath || !Array.isArray(spanPath)) {
+        resetRealtimePathIndex: () => {
+          set({ realtimePathIndex: new Map() });
+        },
+        addSpanIfNew: (rawSpan: TraceViewSpan | RealtimeSpanInput): boolean => {
+          // Convert incoming span to TraceViewSpan format
+          const incomingSpan = toTraceViewSpan(rawSpan);
+          const incomingPath = incomingSpan.attributes?.["lmnr.span.path"];
+
+          if (!incomingPath || !Array.isArray(incomingPath)) {
+            // No path - fallback to spanId matching
             const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
             if (!exists) {
               get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
@@ -421,11 +533,43 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
             return false;
           }
 
-          const pathKey = spanPath.join("/");
-          const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
+          const pathKey = incomingPath.join("/");
+          const realtimeIndex = get().realtimePathIndex.get(pathKey) ?? 0;
 
-          get().spanPathCounts.set(pathKey, currentCount + 1);
-          get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
+          // Find all existing spans with the same path that DON'T have rollout session id
+          // (these are "original" spans that can be replaced)
+          const originalSpansWithPath = get().spans
+            .map((s, idx) => ({ span: s, originalIndex: idx }))
+            .filter(({ span }) => {
+              const sPath = span.attributes?.["lmnr.span.path"];
+              if (!sPath || !Array.isArray(sPath)) return false;
+              if (sPath.join("/") !== pathKey) return false;
+              // Only consider spans without rollout session id as "original"
+              return !span.attributes?.["lmnr.rollout.session_id"];
+            })
+            .sort((a, b) => new Date(a.span.startTime).getTime() - new Date(b.span.startTime).getTime());
+
+          if (originalSpansWithPath.length > realtimeIndex) {
+            // Replace the Nth original span with matching path
+            const { span: spanToReplace } = originalSpansWithPath[realtimeIndex];
+
+            get().setSpans((prevSpans) =>
+              prevSpans.map((s) =>
+                s.spanId === spanToReplace.spanId
+                  ? { ...incomingSpan, collapsed: s.collapsed }
+                  : s
+              )
+            );
+          } else {
+            // No more original spans to replace - add as new
+            get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
+            // Update span path counts for the new span
+            const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
+            get().spanPathCounts.set(pathKey, currentCount + 1);
+          }
+
+          // Increment realtime index for this path
+          get().realtimePathIndex.set(pathKey, realtimeIndex + 1);
           return true;
         },
 
@@ -450,20 +594,53 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           }
         },
 
-        setPathSystemMessageOverrides: (overrides) => {
-          if (typeof overrides === "function") {
-            const prevOverrides = get().pathSystemMessageOverrides;
-            const newOverrides = overrides(prevOverrides);
-            set({ pathSystemMessageOverrides: newOverrides });
+        setEditedMessage: (messageId: string, content: string) => {
+          const newMap = new Map(get().editedMessages);
+          const originalMessage = get().systemMessagesMap.get(messageId);
+          // Only store if different from original
+          if (originalMessage && content !== originalMessage.content) {
+            newMap.set(messageId, content);
           } else {
-            set({ pathSystemMessageOverrides: overrides });
+            newMap.delete(messageId);
           }
+          set({ editedMessages: newMap });
+        },
+
+        resetEditedMessage: (messageId: string) => {
+          const newMap = new Map(get().editedMessages);
+          newMap.delete(messageId);
+          set({ editedMessages: newMap });
+        },
+
+        resetAllEditedMessages: () => {
+          set({ editedMessages: new Map() });
+        },
+
+        getEditedContent: (messageId: string) => get().editedMessages.get(messageId),
+
+        hasEdits: () => get().editedMessages.size > 0,
+
+        getOverridesForRollout: () => {
+          const overrides: Record<string, { system: string }> = {};
+          const systemMessages = get().systemMessagesMap;
+          const editedMessages = get().editedMessages;
+
+          // For each edited message, use its path to create the override
+          for (const [messageId, editedContent] of editedMessages.entries()) {
+            const message = systemMessages.get(messageId);
+            if (message && message.path) {
+              overrides[message.path] = { system: editedContent };
+            }
+          }
+
+          return overrides;
         },
 
         setCachePoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
+          // Include all LLM spans up to and including the clicked span
           const spansBeforeOrAt = spans
             .filter((s) => s.spanType === SpanType.LLM)
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
@@ -472,6 +649,28 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           const newPathToCount: Record<string, number> = {};
 
           spansBeforeOrAt.forEach((s) => {
+            const sPath = s.attributes?.["lmnr.span.path"];
+            if (sPath && Array.isArray(sPath)) {
+              const pathKey = sPath.join(".");
+              newPathToCount[pathKey] = (newPathToCount[pathKey] || 0) + 1;
+            }
+          });
+
+          set({ pathToCount: newPathToCount });
+        },
+
+        unlockFromSpan: (span: TraceViewSpan) => {
+          const spans = get().spans;
+          const clickedSpanTime = new Date(span.startTime).getTime();
+
+          const spansBefore = spans
+            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          const newPathToCount: Record<string, number> = {};
+
+          spansBefore.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
@@ -525,9 +724,15 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
 
         setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
+
+        setParamValue: (name, value) => {
+          set((state) => ({
+            paramValues: { ...state.paramValues, [name]: value },
+          }));
+        },
       }),
       {
-        name: key,
+        name: storeKey,
         partialize: (state) => ({
           treeWidth: state.treeWidth,
           spanPath: state.spanPath,
@@ -537,18 +742,24 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
       }
     )
   );
+};
 
 const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> | undefined>(undefined);
 
 const RolloutSessionStoreProvider = ({
   trace,
-  key,
+  params,
+  storeKey,
   children,
-}: PropsWithChildren<{ trace?: TraceViewTrace; key?: string }>) => {
+}: PropsWithChildren<{
+  trace?: TraceViewTrace;
+  params?: Array<{ name: string; [key: string]: any }>;
+    storeKey?: string;
+}>) => {
   const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createRolloutSessionStore({ trace, key });
+    storeRef.current = createRolloutSessionStore({ trace, params, storeKey });
   }
 
   return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;

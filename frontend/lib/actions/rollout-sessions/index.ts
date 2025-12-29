@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import {and, desc, eq} from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -41,7 +41,7 @@ const GetRolloutSessionsSchema = z.object({
 export const getRolloutSessions = async (input: z.infer<typeof GetRolloutSessionsSchema>) => {
   const { projectId } = GetRolloutSessionsSchema.parse(input);
 
-  const result = await db.select().from(rolloutPlaygrounds).where(eq(rolloutPlaygrounds.projectId, projectId));
+  const result = await db.select().from(rolloutPlaygrounds).where(eq(rolloutPlaygrounds.projectId, projectId)).orderBy(desc(rolloutPlaygrounds.createdAt));
 
   return result;
 };

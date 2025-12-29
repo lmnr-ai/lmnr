@@ -1,12 +1,9 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import {ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader} from "lucide-react";
-import Link from "next/link";
+import { ChevronDown, CirclePlay, Copy, Database, Loader} from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -20,11 +17,10 @@ interface HeaderProps {
   handleClose: () => void;
 }
 
-const Header = ({ handleClose }: HeaderProps) => {
+const Header = () => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { navigateDown, navigateUp } = useTraceViewNavigation();
   const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
     useRolloutSessionStoreContext((state) => ({
       trace: state.trace,
@@ -45,107 +41,44 @@ const Header = ({ handleClose }: HeaderProps) => {
     }
   }, [trace?.id, toast]);
 
-  const fullScreenParams = useMemo(() => {
-    const ps = new URLSearchParams(searchParams);
-    if (params.evaluationId) {
-      ps.set("evaluationId", params.evaluationId as string);
-    }
-    return ps;
-  }, [params.evaluationId, searchParams]);
-
-  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
-
   return (
-    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2">
-      {!params?.traceId && (
-        <>
-          <Button variant={"ghost"} className="px-0" onClick={handleClose}>
-            <ChevronsRight />
-          </Button>
-          {trace && (
-            <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-              <Button variant="ghost" className="px-0 mr-1">
-                <Expand className="w-4 h-4" size={16} />
-              </Button>
-            </Link>
-          )}
-          {trace && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
-                  Trace
-                  <ChevronDown className="ml-1 size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={handleCopyTraceId}>
-                  <Copy size={14} />
-                  Copy trace ID
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
-                  {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
-                  Open in SQL editor
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </>
+    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2 border-b">
+      {trace && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
+                        Trace
+              <ChevronDown className="ml-1 size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={handleCopyTraceId}>
+              <Copy size={14} />
+                        Copy trace ID
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+              {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
+                        Open in SQL editor
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
       {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
-      <div className="flex items-center ml-auto">
-        {!params?.traceId && (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button disabled={!trace} onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent className="flex items-center">
-                  Navigate down (
-                  <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                    j
-                  </kbd>
-                  )
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button disabled={!trace} onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
-                  <ChevronUp className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent className="flex items-center">
-                  Navigate up (
-                  <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                    k
-                  </kbd>
-                  )
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </>
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              disabled={!trace}
-              className="hover:bg-secondary px-1.5"
-              variant="ghost"
-              onClick={() => setBrowserSession(!browserSession)}
-            >
-              <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-        {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            disabled={!trace}
+            className="hover:bg-secondary px-1.5"
+            variant="ghost"
+            onClick={() => setBrowserSession(!browserSession)}
+          >
+            <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
     </div>
   );
 };

@@ -800,6 +800,7 @@ export const rolloutPlaygrounds = pgTable("rollout_playgrounds", {
   pathToCount: jsonb("path_to_count").notNull(),
   cursorTimestamp: timestamp("cursor_timestamp", { withTimezone: true, mode: 'string' }).notNull(),
   params: jsonb().notNull(),
+  status: text().default('PENDING').notNull(),
 });
 
 export const tagClasses = pgTable("tag_classes", {

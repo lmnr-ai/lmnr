@@ -18,10 +18,11 @@ interface ListProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
   onSetCachePoint?: (span: TraceViewSpan) => void;
+  onUnlock?: (span: TraceViewSpan) => void;
   isSpanCached?: (span: TraceViewSpan) => boolean;
 }
 
-const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProps) => {
+const List = ({ traceId, onSpanSelect, onSetCachePoint, onUnlock, isSpanCached }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useRolloutSessionStoreContext((state) => ({
@@ -134,6 +135,13 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProp
     }
   }, [spans, onSetCachePoint]);
 
+  const handleUnlock = useCallback((listSpan: TraceViewListSpan) => {
+    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
+    if (fullSpan && onUnlock) {
+      onUnlock(fullSpan);
+    }
+  }, [spans, onUnlock]);
+
   const isListSpanCached = useCallback((listSpan: TraceViewListSpan): boolean => {
     if (!isSpanCached) return false;
     const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
@@ -204,6 +212,7 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProp
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={handleOpenSettings}
                     onSetCachePoint={onSetCachePoint ? handleSetCachePoint : undefined}
+                    onUnlock={onUnlock ? handleUnlock : undefined}
                     isCached={isListSpanCached(listSpan)}
                   />
                 </div>

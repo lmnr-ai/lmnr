@@ -23,7 +23,6 @@ impl ResponseError for Error {
                 SqlQueryError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 SqlQueryError::BadResponseError(_) => StatusCode::BAD_REQUEST,
             },
-            Self::NotFound(_) => StatusCode::NOT_FOUND,
         }
     }
 

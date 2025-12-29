@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, LockOpen, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
@@ -20,6 +20,7 @@ interface ListItemProps {
   onOpenSettings: (span: TraceViewListSpan) => void;
   isLast: boolean;
   onSetCachePoint?: (span: TraceViewListSpan) => void;
+  onUnlock?: (span: TraceViewListSpan) => void;
   isCached?: boolean;
 }
 
@@ -27,7 +28,7 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false, onSetCachePoint, isCached = false }: ListItemProps) => {
+const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false, onSetCachePoint, onUnlock, isCached = false }: ListItemProps) => {
   const selectedSpan = useRolloutSessionStoreContext((state) => state.selectedSpan);
   const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
@@ -37,8 +38,9 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
 
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
 
-  // Span is disabled if it has rollout session ID or is cached
-  const isDisabled = !!rolloutSessionId || isCached;
+  const isLockedByAttribute = !!rolloutSessionId;
+  const isLocked = isLockedByAttribute || isCached;
+  const canToggleLock = !isLockedByAttribute;
 
   const [isExpanded, setIsExpanded] = useState(
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
@@ -62,7 +64,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
         {
           "border-t pt-1": span.spanType === "LLM",
           "pb-1": isLast,
-          "opacity-50": isDisabled,
+          "opacity-50": isLocked,
         }
       )}
       onClick={() => onSpanSelect(span)}
@@ -72,9 +74,6 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
             <SpanTypeIcon spanType={span.spanType} />
             <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
-            {isCached && (
-              <Lock size={12} className="text-muted-foreground flex-shrink-0" />
-            )}
             <Button
               variant="ghost"
               onClick={(e) => {
@@ -111,18 +110,44 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 </div>
               )}
             </div>
-            {onSetCachePoint && !isDisabled && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hidden py-0 px-2 h-6 text-xs group-hover/message:flex hover:bg-blue-500/10 hover:text-blue-600 animate-in fade-in duration-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSetCachePoint(span);
-                }}
-              >
-                Cache to here
-              </Button>
+            {span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    disabled={!canToggleLock && isLocked}
+                    className={cn(
+                      "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200",
+                      isLocked ? "block" : "hidden group-hover/message:block",
+                      !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!canToggleLock) return;
+                      if (isLocked && onUnlock) {
+                        onUnlock(span);
+                      } else if (!isLocked && onSetCachePoint) {
+                        onSetCachePoint(span);
+                      }
+                    }}
+                  >
+                    {isLocked ? (
+                      <Lock className="size-3.5 text-secondary-foreground" />
+                    ) : (
+                      <LockOpen className="size-3.5 text-secondary-foreground" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipPortal>
+                  <TooltipContent side="top" className="text-xs">
+                    {!canToggleLock && isLocked
+                      ? "Locked by rollout session"
+                      : isLocked
+                        ? "Unlock from here"
+                        : "Lock to here"}
+                  </TooltipContent>
+                </TooltipPortal>
+              </Tooltip>
             )}
             <Button
               disabled={isLoadingOutput}
