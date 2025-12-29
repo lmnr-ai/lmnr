@@ -1,19 +1,29 @@
-use actix_web::{HttpResponse, delete, post, web};
+use actix_web::{HttpResponse, delete, patch, post, web};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     db::{
         DB,
         project_api_keys::ProjectApiKey,
-        rollout_sessions::{create_rollout_session, delete_rollout_session, get_rollout_session},
+        rollout_sessions::{
+            RolloutSessionStatus, create_rollout_session, delete_rollout_session,
+            get_rollout_session, update_session_status,
+        },
     },
-    realtime::{SseConnectionMap, SseMessage, create_sse_response},
+    pubsub::PubSub,
+    realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
     routes::types::ResponseResult,
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct InputParam {
     pub name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct UpdateStatusRequest {
+    pub status: RolloutSessionStatus,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -63,6 +73,37 @@ pub async fn stream(
     .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     Ok(sse_response)
+}
+
+#[patch("rollouts/{session_id}/status")]
+pub async fn update_status(
+    path: web::Path<String>,
+    body: web::Json<UpdateStatusRequest>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let db = db.into_inner();
+    let session_id =
+        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
+    let project_id = project_api_key.project_id;
+    let new_status = body.into_inner().status;
+
+    // Update status in database
+    update_session_status(&db.pool, &session_id, &project_id, new_status).await?;
+
+    // Send status update to frontend via SSE
+    let message = SseMessage {
+        event_type: "status_update".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+            "status": new_status,
+        }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[delete("rollouts/{session_id}")]

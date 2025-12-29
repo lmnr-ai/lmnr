@@ -7,6 +7,26 @@ use uuid::Uuid;
 
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RolloutSessionStatus {
+    Pending,
+    Running,
+    Finished,
+    Stopped,
+}
+
+impl RolloutSessionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "PENDING",
+            Self::Running => "RUNNING",
+            Self::Finished => "FINISHED",
+            Self::Stopped => "STOPPED",
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RolloutSession {
@@ -15,6 +35,7 @@ pub struct RolloutSession {
     pub trace_id: Uuid,
     pub path_to_count: Json<HashMap<String, u32>>,
     pub params: Value,
+    pub status: String,
     pub cursor_timestamp: DateTime<Utc>,
 }
 
@@ -25,17 +46,17 @@ pub async fn get_rollout_session(
 ) -> Result<Option<RolloutSession>> {
     let result = sqlx::query_as::<_, RolloutSession>(
         "SELECT
-            rollout_playgrounds.id,
-            rollout_playgrounds.project_id,
-            rollout_playgrounds.trace_id,
-            rollout_playgrounds.path_to_count,
-            rollout_playgrounds.params,
-            rollout_playgrounds.cursor_timestamp
+            id,
+            project_id,
+            trace_id,
+            path_to_count,
+            params,
+            status,
+            cursor_timestamp
         FROM
             rollout_playgrounds
         WHERE
-            rollout_playgrounds.id = $1
-            and rollout_playgrounds.project_id = $2",
+            id = $1 AND project_id = $2",
     )
     .bind(session_id)
     .bind(project_id)
@@ -75,6 +96,26 @@ pub async fn delete_rollout_session(
         "DELETE FROM rollout_playgrounds
         WHERE id = $1 AND project_id = $2",
     )
+    .bind(session_id)
+    .bind(project_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn update_session_status(
+    pool: &PgPool,
+    session_id: &Uuid,
+    project_id: &Uuid,
+    status: RolloutSessionStatus,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE rollout_playgrounds
+        SET status = $1
+        WHERE id = $2 AND project_id = $3",
+    )
+    .bind(status.as_str())
     .bind(session_id)
     .bind(project_id)
     .execute(pool)
