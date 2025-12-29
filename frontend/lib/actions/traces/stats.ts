@@ -51,7 +51,7 @@ export async function getTraceStats(
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
     const timeRange = getTimeRange(pastHours, startTime, endTime);

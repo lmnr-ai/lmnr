@@ -40,7 +40,9 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
       if (options) {
         return JSON.parse(options) as { value: number; label: string }[];
       }
-    } catch { }
+    } catch {
+      // Invalid JSON, ignore
+    }
   }, [span?.attributes]);
 
   if (isLoading || !span) {

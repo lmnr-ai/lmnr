@@ -117,7 +117,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = spanHits.map((span) => span.span_id);
 
   if (search) {
     if (spanIds?.length === 0) {
@@ -288,7 +288,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
     return [];

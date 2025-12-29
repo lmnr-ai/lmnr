@@ -76,7 +76,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
             },
           },
         };
-      case "gemini":
+      case "gemini": {
         const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
         return {
           google: {
@@ -86,6 +86,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
             },
           },
         };
+      }
       case "openai":
         return {
           openai: {

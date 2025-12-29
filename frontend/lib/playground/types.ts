@@ -86,7 +86,7 @@ export type ProviderOptions =
   | { anthropic: AnthropicProviderOptions }
   | OpenAIProviderOptions
   | { google: GoogleGenerativeAIProviderOptions }
-  | {};
+  | Record<string, never>;
 
 export interface PlaygroundForm<T extends ToolSet = ToolSet> {
   model: `${Provider}:${string}`;

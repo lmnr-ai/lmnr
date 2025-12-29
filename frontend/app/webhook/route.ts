@@ -126,7 +126,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Handle the event
   console.log(event.type);
   switch (event.type) {
-    case 'invoice.payment_succeeded':
+    case 'invoice.payment_succeeded': {
       const invoice = event.data.object;
       const itemDescriptions = invoice.lines.data.map((line) => {
         const productDescription = line.description ?? '';
@@ -146,6 +146,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         );
       }
       break;
+    }
     case 'customer.subscription.deleted':
       await handleSubscriptionChange(event, true);
       break;

@@ -80,7 +80,7 @@ export async function GET(
   if (format === DownloadFormat.JSON) {
     const json = JSON.stringify(flattenedResults);
     const contentType = 'application/json';
-    const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.json`;
+    const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, '_')}-${evaluationId}.json`;
     return new Response(json, {
       headers: { 'Content-Type': contentType, 'Content-Disposition': `attachment; filename="${filename}"` }
     });
@@ -92,7 +92,7 @@ export async function GET(
     expandNestedObjects: false
   });
   const contentType = 'text/csv';
-  const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${evaluationId}.csv`;
+  const filename = `${evaluation.name.replace(/[^a-zA-Z0-9-_.]/g, '_')}-${evaluationId}.csv`;
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);

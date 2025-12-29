@@ -56,7 +56,7 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 };
 
 export default async function InvitationsPage(props: {
-  params: Promise<{}>;
+  params: Promise<Record<string, never>>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;

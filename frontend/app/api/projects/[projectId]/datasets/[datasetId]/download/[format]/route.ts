@@ -54,7 +54,7 @@ export async function GET(
       expandNestedObjects: false
     });
     const contentType = 'text/csv';
-    const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.csv`;
+    const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_.]/g, '_')}-${datasetId}.csv`;
     const headers = new Headers();
     headers.set('Content-Type', contentType);
     headers.set('Content-Disposition', `attachment; filename="${filename}"`);
@@ -65,7 +65,7 @@ export async function GET(
   }
   // if the format is json, return the datapoints as json
   const contentType = 'application/json';
-  const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, '_')}-${datasetId}.json`;
+  const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_.]/g, '_')}-${datasetId}.json`;
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);

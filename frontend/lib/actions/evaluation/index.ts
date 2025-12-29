@@ -75,7 +75,7 @@ export const getEvaluationDatapoints = async (
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
       traceId: undefined,
@@ -84,7 +84,7 @@ export const getEvaluationDatapoints = async (
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search) {
     if (searchTraceIds.length === 0) {
@@ -243,7 +243,7 @@ export const getEvaluationStatistics = async (
   const { traceFilters, datapointFilters } = separateFilters(allFilters);
 
   // Step 1: Get trace IDs from search if provided
-  let spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
       traceId: undefined,
@@ -252,7 +252,7 @@ export const getEvaluationStatistics = async (
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && searchTraceIds.length === 0) {
     return {

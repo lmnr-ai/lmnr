@@ -64,7 +64,7 @@ export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchem
 // for now, we only support one chat per trace and we create a new one if it doesn't exist
 export async function findOrCreateChatSession(traceId: string, projectId: string): Promise<string> {
   // Find the latest chat record for this trace
-  let chatRecord = await db
+  const chatRecord = await db
     .select()
     .from(tracesAgentChats)
     .where(and(

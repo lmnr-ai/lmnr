@@ -41,7 +41,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
 
   const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
     try {
-      if (Boolean(checked)) {
+      if (checked) {
         const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
           method: "POST",
           body: JSON.stringify({

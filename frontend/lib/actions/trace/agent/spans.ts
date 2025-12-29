@@ -43,10 +43,14 @@ const ClickHouseToSpanSchema = z
     let output = span.output;
     try {
       input = JSON.parse(input);
-    } catch {}
+    } catch {
+      // Not JSON, keep as string
+    }
     try {
       output = JSON.parse(output);
-    } catch {}
+    } catch {
+      // Not JSON, keep as string
+    }
     return {
       spanId: span.span_id,
       type: span.span_type,

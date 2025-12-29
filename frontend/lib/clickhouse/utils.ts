@@ -4,7 +4,7 @@ const NANOS_PER_MILLISECOND = 1e6;
 
 export const dateToNanoseconds = (date: Date): number => date.getTime() * NANOS_PER_MILLISECOND;
 
-const validateSqlString = (str: string): boolean => /^[a-zA-Z0-9_\.]+$/.test(str);
+const validateSqlString = (str: string): boolean => /^[a-zA-Z0-9_.]+$/.test(str);
 
 type AbsoluteTimeRange = {
   start: Date;

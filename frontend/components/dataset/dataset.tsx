@@ -255,7 +255,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           <DownloadButton
             uri={`/api/projects/${projectId}/datasets/${dataset.id}/download`}
             supportedFormats={["csv", "json"]}
-            filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_\.]/g, "_")}-${dataset.id}`}
+            filenameFallback={`${dataset.name.replace(/[^a-zA-Z0-9-_.]/g, "_")}-${dataset.id}`}
             variant="outline"
           />
           <AddDatapointsDialog datasetId={dataset.id} onUpdate={revalidateDatapoints} />

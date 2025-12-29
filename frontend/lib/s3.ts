@@ -104,7 +104,7 @@ export const urlToBase64 = async (url: string): Promise<string> => {
     }
 
     // Extract projectId and payloadId from URL
-    const matches = url.match(/\/api\/projects\/([^\/]+)\/payloads\/([^\/]+)/);
+    const matches = url.match(/\/api\/projects\/([^/]+)\/payloads\/([^/]+)/);
     if (!matches) {
       throw new Error("Invalid URL format");
     }

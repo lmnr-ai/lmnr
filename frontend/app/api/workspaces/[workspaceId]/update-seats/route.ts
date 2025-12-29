@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ workspac
     lookup_keys: [SEAT_PRICE_LOOKUP_KEY]
   });
   const priceId =
-    prices.data.find(p => p.lookup_key === SEAT_PRICE_LOOKUP_KEY)?.id!;
+    prices.data.find(p => p.lookup_key === SEAT_PRICE_LOOKUP_KEY)?.id ?? '';
 
   const subscriptionItems = await s.subscriptionItems.list({
     subscription: workspace.subscriptionId

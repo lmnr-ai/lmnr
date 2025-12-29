@@ -48,7 +48,7 @@ export const PlaygroundParamsSchema = z.object({
 });
 
 export interface ChatGenerationResult {
-  result: GenerateTextResult<ToolSet, {}>;
+  result: GenerateTextResult<ToolSet, object>;
   startTime: Date;
   endTime: Date;
 }
@@ -147,14 +147,14 @@ export async function generateChatResponse(
 
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<GenerateTextResult<ToolSet, {}>> {
+): Promise<GenerateTextResult<ToolSet, object>> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
   const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
   const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  const safeResult: GenerateTextResult<ToolSet, {}> = {
+  const safeResult: GenerateTextResult<ToolSet, object> = {
     ...result,
     text: result.text || "",
     reasoning: result.reasoning || [],

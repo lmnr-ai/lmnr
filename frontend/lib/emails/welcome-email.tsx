@@ -1,6 +1,6 @@
 import { Html, Link, Preview, Text } from '@react-email/components';
 
-export default function WelcomeEmail({ }: {}) {
+export default function WelcomeEmail() {
   return (
     <Html lang="en">
       <Preview>Welcome to Laminar - start tracing, evaluating, and analyzing your LLM app in minutes</Preview>

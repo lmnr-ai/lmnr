@@ -67,7 +67,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       searchType: searchIn as SpanSearchType[],
     })
     : [];
-  let traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search) {
     if (traceIds?.length === 0) {

@@ -22,7 +22,7 @@ export const filtersToSql = (
   allowPatterns?: RegExp[],
   additionalColumnDefinitions?: Record<string, SQL<any>>
 ): SQL[] => {
-  let result = [];
+  const result = [];
   for (const filter of filters) {
     if (filter.column && filter.operator && filter.value != null) {
       const value = filter.value;

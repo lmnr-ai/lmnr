@@ -111,7 +111,7 @@ export default function PlaygroundPanel({
           return;
         }
 
-        const result = (await response.json()) as GenerateTextResult<ToolSet, {}>;
+        const result = (await response.json()) as GenerateTextResult<ToolSet, object>;
 
         setText(result.text);
         setToolCalls(result.toolCalls);

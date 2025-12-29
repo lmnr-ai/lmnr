@@ -15,9 +15,7 @@ type UserContextProviderProps = {
   user: User;
 };
 
-export const UserContextProvider = ({ user, children }: PropsWithChildren<UserContextProviderProps>) => {
-  return <UserContext.Provider value={user}>{children}</UserContext.Provider>;
-};
+export const UserContextProvider = ({ user, children }: PropsWithChildren<UserContextProviderProps>) => <UserContext.Provider value={user}>{children}</UserContext.Provider>;
 
 export function useUserContext() {
   const context = useContext(UserContext);

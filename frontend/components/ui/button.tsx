@@ -158,7 +158,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
 
     const handleKeysUp = React.useMemo(() => {
-      let handleKeysUp = new Set<HandledKey>();
+      const handleKeysUp = new Set<HandledKey>();
       if (handleEnter !== undefined) {
         handleKeysUp.add({ key: "Enter" });
       }

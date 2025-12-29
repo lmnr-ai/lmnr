@@ -96,12 +96,13 @@ const processContentPart = (
         image: part.url,
       };
 
-    case "image":
+    case "image": {
       const dataUrl = part.data.startsWith("data:") ? part.data : `data:${part.mediaType};base64,${part.data}`;
       return {
         type: "image" as const,
         image: dataUrl,
       };
+    }
 
     case "document_url":
       return {
@@ -110,7 +111,7 @@ const processContentPart = (
         mimeType: part.mediaType,
       };
 
-    case "tool_call":
+    case "tool_call": {
       const toolCallId = part.id;
       const toolName = part.name;
       if (toolCallId) {
@@ -122,6 +123,7 @@ const processContentPart = (
         toolName,
         input: part.arguments,
       };
+    }
 
     default:
       if (role === "tool") {

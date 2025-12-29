@@ -244,7 +244,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
           ],
         };
 
-      case "tool":
+      case "tool": {
         const toolCallId = message.tool_call_id;
         return {
           role: message.role,
@@ -260,6 +260,7 @@ const convertLangChainToChatMessages = (messages: z.infer<typeof LangChainMessag
             },
           ],
         };
+      }
     }
   });
 };
