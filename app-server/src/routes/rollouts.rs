@@ -22,6 +22,7 @@ struct RunRequest {
 #[derive(Deserialize, Serialize)]
 struct SpanOverride {
     pub system: String,
+    #[serde(default)]
     pub tools: Vec<Value>,
 }
 
@@ -42,5 +43,5 @@ pub async fn run(
     let key = format!("rollout_{}", session_id);
     send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
-    Ok(HttpResponse::Ok().finish())
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "Rollout started successfully" })))
 }
