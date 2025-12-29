@@ -40,7 +40,7 @@ pub async fn run(
     };
 
     // Send to specific rollout session subscription key
-    let key = format!("rollout_{}", session_id);
+    let key = format!("rollout_sdk_{}", session_id);
     send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "Rollout started successfully" })))

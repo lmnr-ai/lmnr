@@ -63,7 +63,7 @@ pub async fn stream(
     };
 
     // Start stream with initial handshake
-    let key = format!("rollout_{}", session_id);
+    let key = format!("rollout_sdk_{}", session_id);
     let sse_response = create_sse_response(
         project_id,
         key.clone(),

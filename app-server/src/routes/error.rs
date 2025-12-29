@@ -11,8 +11,6 @@ pub enum Error {
     MultipartError(#[from] actix_multipart::MultipartError),
     #[error("{0}")]
     SqlQueryError(#[from] SqlQueryError),
-    #[error("{0}")]
-    NotFound(String),
 }
 
 impl ResponseError for Error {
