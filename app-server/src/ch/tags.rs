@@ -22,7 +22,7 @@ impl Into<u8> for TagSource {
 }
 
 #[derive(Row, Serialize, Deserialize)]
-struct CHTag {
+pub struct CHTag {
     #[serde(with = "clickhouse::serde::uuid")]
     project_id: Uuid,
     created_at: i64, // unix timestamp in nanoseconds

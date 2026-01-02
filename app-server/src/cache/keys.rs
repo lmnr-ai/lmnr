@@ -12,3 +12,4 @@ pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
+pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";

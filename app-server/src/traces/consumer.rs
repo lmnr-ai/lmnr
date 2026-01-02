@@ -18,10 +18,10 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{
-        self,
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation, upsert_traces_batch},
+        traces::{CHTrace, TraceAggregation},
     },
+    data_processor::write::{write_spans, write_tags, write_traces},
     db::{
         DB,
         events::Event,
@@ -61,6 +61,7 @@ pub struct SpanHandler {
     pub clickhouse: clickhouse::Client,
     pub storage: Arc<Storage>,
     pub pubsub: Arc<PubSub>,
+    pub http_client: Arc<reqwest::Client>,
 }
 
 #[async_trait]
@@ -76,6 +77,7 @@ impl MessageHandler for SpanHandler {
             self.storage.clone(),
             self.queue.clone(),
             self.pubsub.clone(),
+            self.http_client.clone(),
         )
         .await
     }
@@ -90,6 +92,7 @@ async fn process_spans_and_events_batch(
     storage: Arc<Storage>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) -> Result<(), HandlerError> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -153,6 +156,7 @@ async fn process_spans_and_events_batch(
         cache,
         queue,
         pubsub,
+        http_client,
     )
     .with_current_context()
     .await
@@ -185,6 +189,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    http_client: Arc<reqwest::Client>,
 ) -> Result<(), HandlerError> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
@@ -245,7 +250,16 @@ async fn process_batch(
                 .map(|trace| CHTrace::from_db_trace(trace))
                 .collect();
 
-            if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+            if let Err(e) = write_traces(
+                &db.pool,
+                cache.clone(),
+                &clickhouse,
+                &http_client,
+                project_id,
+                &ch_traces,
+            )
+            .await
+            {
                 log::error!(
                     "Failed to upsert {} traces to ClickHouse: {:?}",
                     ch_traces.len(),
@@ -282,7 +296,16 @@ async fn process_batch(
         .collect();
 
     // Record spans to clickhouse
-    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+    if let Err(e) = write_spans(
+        &db.pool,
+        cache.clone(),
+        &clickhouse,
+        &http_client,
+        project_id,
+        &ch_spans,
+    )
+    .await
+    {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
@@ -414,7 +437,16 @@ async fn process_batch(
 
     // Record all tags in a single batch
     if !tags_batch.is_empty() {
-        if let Err(e) = crate::ch::tags::insert_tags_batch(clickhouse.clone(), &tags_batch).await {
+        if let Err(e) = write_tags(
+            &db.pool,
+            cache.clone(),
+            &clickhouse,
+            &http_client,
+            project_id,
+            &tags_batch,
+        )
+        .await
+        {
             log::error!(
                 "Failed to record tags to DB for batch of {} tags: {:?}",
                 tags_batch.len(),
