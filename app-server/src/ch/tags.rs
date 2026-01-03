@@ -1,13 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
-use clickhouse::Row;
+use clickhouse::{Row, insert::Insert};
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::db::tags::{SpanTag, TagSource};
 
 use super::utils::chrono_to_nanoseconds;
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 
 /// for inserting into clickhouse.
 /// Don't change the order of the fields or their values
@@ -21,7 +21,7 @@ impl Into<u8> for TagSource {
     }
 }
 
-#[derive(Row, Serialize, Deserialize)]
+#[derive(Row, Serialize, Deserialize, Clone, Debug)]
 pub struct CHTag {
     #[serde(with = "clickhouse::serde::uuid")]
     project_id: Uuid,
@@ -44,6 +44,30 @@ impl CHTag {
             source: source.into(),
             span_id,
         }
+    }
+}
+
+impl From<&SpanTag> for CHTag {
+    fn from(tag: &SpanTag) -> Self {
+        Self::new(
+            tag.project_id,
+            Uuid::new_v4(),
+            tag.name.clone(),
+            tag.source.clone(),
+            tag.span_id,
+        )
+    }
+}
+
+impl ClickhouseInsertable for CHTag {
+    const TABLE: Table = Table::Tags;
+
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_option("wait_for_async_insert", "0")
+    }
+
+    fn into_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+        DataPlaneBatch::Tags(items)
     }
 }
 
@@ -71,48 +95,6 @@ pub async fn insert_tag(
         Err(e) => {
             return Err(anyhow::anyhow!(
                 "Failed to insert tag into Clickhouse: {:?}",
-                e
-            ));
-        }
-    }
-}
-
-#[instrument(skip(client, tags))]
-pub async fn insert_tags_batch(client: clickhouse::Client, tags: &[SpanTag]) -> Result<()> {
-    if tags.is_empty() {
-        return Ok(());
-    }
-
-    let ch_insert = client.insert::<CHTag>("tags").await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            ch_insert = ch_insert.with_option("wait_for_async_insert", "0");
-            for span_tag in tags {
-                let id = Uuid::new_v4();
-                let tag = CHTag::new(
-                    span_tag.project_id,
-                    id,
-                    span_tag.name.clone(),
-                    span_tag.source.clone(),
-                    span_tag.span_id,
-                );
-                ch_insert.write(&tag).await?;
-            }
-
-            let ch_insert_end_res = ch_insert.end().await;
-            match ch_insert_end_res {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    return Err(anyhow::anyhow!(
-                        "Clickhouse batch tag insertion failed: {:?}",
-                        e
-                    ));
-                }
-            }
-        }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "Failed to insert tags batch into Clickhouse: {:?}",
                 e
             ));
         }

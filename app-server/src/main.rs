@@ -73,7 +73,7 @@ mod auth;
 mod browser_events;
 mod cache;
 mod ch;
-mod data_processor;
+mod data_plane_client;
 mod datasets;
 mod db;
 mod evaluations;

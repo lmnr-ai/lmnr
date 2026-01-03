@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    data_processor::read::read,
+    data_plane_client::read::read,
     db::DB,
     query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
 };

@@ -18,10 +18,11 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{
+        ClickhouseManager,
         spans::CHSpan,
+        tags::CHTag,
         traces::{CHTrace, TraceAggregation},
     },
-    data_processor::write::{write_spans, write_tags, write_traces},
     db::{
         DB,
         events::Event,
@@ -201,6 +202,14 @@ async fn process_batch(
     // but we do unwrap_or_default to avoid Option<Uuid> in the rest of the code
     let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
 
+    // Create ClickhouseManager for batch operations
+    let ch_manager = ClickhouseManager::new(
+        clickhouse.clone(),
+        db.pool.clone(),
+        cache.clone(),
+        (*http_client).clone(),
+    );
+
     for span in &mut spans {
         let span_usage =
             get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
@@ -250,16 +259,7 @@ async fn process_batch(
                 .map(|trace| CHTrace::from_db_trace(trace))
                 .collect();
 
-            if let Err(e) = write_traces(
-                &db.pool,
-                cache.clone(),
-                &clickhouse,
-                &http_client,
-                project_id,
-                &ch_traces,
-            )
-            .await
-            {
+            if let Err(e) = ch_manager.insert_batch(project_id, &ch_traces).await {
                 log::error!(
                     "Failed to upsert {} traces to ClickHouse: {:?}",
                     ch_traces.len(),
@@ -296,16 +296,7 @@ async fn process_batch(
         .collect();
 
     // Record spans to clickhouse
-    if let Err(e) = write_spans(
-        &db.pool,
-        cache.clone(),
-        &clickhouse,
-        &http_client,
-        project_id,
-        &ch_spans,
-    )
-    .await
-    {
+    if let Err(e) = ch_manager.insert_batch(project_id, &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
@@ -437,19 +428,11 @@ async fn process_batch(
 
     // Record all tags in a single batch
     if !tags_batch.is_empty() {
-        if let Err(e) = write_tags(
-            &db.pool,
-            cache.clone(),
-            &clickhouse,
-            &http_client,
-            project_id,
-            &tags_batch,
-        )
-        .await
-        {
+        let ch_tags: Vec<CHTag> = tags_batch.iter().map(CHTag::from).collect();
+        if let Err(e) = ch_manager.insert_batch(project_id, &ch_tags).await {
             log::error!(
                 "Failed to record tags to DB for batch of {} tags: {:?}",
-                tags_batch.len(),
+                ch_tags.len(),
                 e
             );
         }

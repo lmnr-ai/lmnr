@@ -12,10 +12,11 @@ use std::env;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::ch::get_workspace_deployment;
 use crate::db::workspaces::DeploymentMode;
+use crate::db::workspaces::WorkspaceDeployment;
 use crate::sql::{ClickhouseBadResponseError, ClickhouseReadonlyClient, SqlQueryError};
-use crate::{cache::Cache, data_processor::auth::generate_auth_token};
-use crate::{data_processor::get_workspace_deployment, db::workspaces::WorkspaceDeployment};
+use crate::{cache::Cache, data_plane_client::auth::generate_auth_token};
 
 use super::crypto;
 
