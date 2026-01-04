@@ -24,7 +24,7 @@ use crate::{
     },
     mq::utils::mq_max_payload,
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
-    storage::{Storage, StorageTrait},
+    storage::StorageService,
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
         utils::{convert_any_value_to_json_value, serialize_indexmap},
@@ -766,7 +766,11 @@ impl Span {
         }
     }
 
-    pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
+    pub async fn store_payloads(
+        &mut self,
+        project_id: &Uuid,
+        storage: Arc<StorageService>,
+    ) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
             .and_then(|s: String| s.parse::<usize>().ok())
@@ -820,7 +824,7 @@ impl Span {
                             data.len()
                         );
                     } else {
-                        let url = storage.store(&bucket, &key, data).await?;
+                        let url = storage.store(*project_id, &bucket, &key, data).await?;
                         self.input_url = Some(url);
                         self.input = Some(serde_json::Value::String(preview));
                     }
@@ -847,7 +851,7 @@ impl Span {
                         data.len()
                     );
                 } else {
-                    let url = storage.store(&bucket, &key, data).await?;
+                    let url = storage.store(*project_id, &bucket, &key, data).await?;
                     self.output_url = Some(url);
                     self.output = Some(serde_json::Value::String(
                         output_str.chars().take(100).collect(),

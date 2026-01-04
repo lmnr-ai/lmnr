@@ -11,6 +11,9 @@ use crate::worker::MessageHandler;
 
 pub mod mock;
 pub mod s3;
+mod service;
+
+pub use service::StorageService;
 
 pub const PAYLOADS_QUEUE: &str = "payloads_queue";
 pub const PAYLOADS_EXCHANGE: &str = "payloads_exchange";

@@ -38,7 +38,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    storage::Storage,
+    storage::StorageService,
     traces::{
         IngestedBytes,
         events::record_span_events,
@@ -60,7 +60,7 @@ pub struct SpanHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub storage: Arc<Storage>,
+    pub storage: Arc<StorageService>,
     pub pubsub: Arc<PubSub>,
     pub http_client: Arc<reqwest::Client>,
 }
@@ -90,7 +90,7 @@ async fn process_spans_and_events_batch(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    storage: Arc<Storage>,
+    storage: Arc<StorageService>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     http_client: Arc<reqwest::Client>,
