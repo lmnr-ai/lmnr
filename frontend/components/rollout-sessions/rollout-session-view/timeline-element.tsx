@@ -1,10 +1,13 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { VirtualItem } from "@tanstack/react-virtual";
-import { CircleDollarSign, Coins } from "lucide-react";
+import { CircleDollarSign, Coins, Lock, LockOpen } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -22,11 +25,17 @@ const TimelineElement = ({
   span,
   virtualRow,
   selectedSpan,
+  onSetCachePoint,
+  onUnlock,
+  isCached = false,
 }: {
   span: TimelineData["spans"]["0"];
   virtualRow: VirtualItem;
   selectedSpan?: TraceViewSpan;
   setSelectedSpan: (span?: TraceViewSpan) => void;
+  onSetCachePoint?: (span: TraceViewSpan) => void;
+  onUnlock?: (span: TraceViewSpan) => void;
+  isCached?: boolean;
 }) => {
   const textRef = useRef<HTMLSpanElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -37,6 +46,10 @@ const TimelineElement = ({
   const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
   const rolloutSessionId = getSpanAttribute(span.span.spanId, "lmnr.rollout.session_id");
+
+  const isLockedByAttribute = !!rolloutSessionId;
+  const isLocked = isLockedByAttribute || isCached;
+  const canToggleLock = !isLockedByAttribute;
 
   const handleSpanSelect = () => {
     if (!span.span.pending) {
@@ -139,9 +152,9 @@ const TimelineElement = ({
       data-index={virtualRow.index}
       onClick={handleSpanSelect}
       className={cn(
-        "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200",
+        "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200 group",
         {
-          "opacity-60": rolloutSessionId,
+          "opacity-60": isLocked,
         }
       )}
       style={{
@@ -174,6 +187,45 @@ const TimelineElement = ({
         {textPosition === "inside" && spanTextElement}
       </div>
       {textPosition === "outside" && spanTextElement}
+      {span.span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              disabled={!canToggleLock && isLocked}
+              className={cn(
+                "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200 ml-2 z-30",
+                isLocked ? "block" : "hidden group-hover:block",
+                !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!canToggleLock) return;
+                if (isLocked && onUnlock) {
+                  onUnlock(span.span);
+                } else if (!isLocked && onSetCachePoint) {
+                  onSetCachePoint(span.span);
+                }
+              }}
+            >
+              {isLocked ? (
+                <Lock className="size-3.5 text-secondary-foreground" />
+              ) : (
+                <LockOpen className="size-3.5 text-secondary-foreground" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent side="top" className="text-xs">
+              {!canToggleLock && isLocked
+                ? "Locked by rollout session"
+                : isLocked
+                  ? "Unlock from here"
+                  : "Lock to here"}
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+      )}
     </div>
   );
 };

@@ -12,7 +12,6 @@ export const GetSystemMessagesSchema = z.object({
 });
 
 export interface SystemMessageResponse {
-  id: string;
   content: string;
   path: string;
 }
@@ -96,12 +95,11 @@ export async function getTraceSystemMessages(
     projectId,
   });
 
-  // Group by path - just need the first system message content per path
   const systemMessagesByPath = new Map<string, string>();
 
   for (const span of spans) {
     if (!span.input || !span.path) continue;
-    if (systemMessagesByPath.has(span.path)) continue; // Already have this path
+    if (systemMessagesByPath.has(span.path)) continue;
 
     const systemContent = parseSystemMessageFromInput(span.input);
     if (!systemContent) continue;
@@ -109,8 +107,7 @@ export async function getTraceSystemMessages(
     systemMessagesByPath.set(span.path, systemContent);
   }
 
-  return Array.from(systemMessagesByPath.entries()).map(([path, content], index) => ({
-    id: `sysmsg_${index}_${path.replace(/\./g, "_")}`,
+  return Array.from(systemMessagesByPath.entries()).map(([path, content]) => ({
     content,
     path,
   }));

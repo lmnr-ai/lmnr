@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { ChevronDown, ChevronRight, CircleDollarSign, Coins, Lock, LockOpen, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
@@ -6,6 +7,8 @@ import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -30,13 +33,16 @@ interface SpanCardProps {
   depth: number;
   yOffset: number;
   onSpanSelect?: (span?: TraceViewSpan) => void;
+  onSetCachePoint?: (span: TraceViewSpan) => void;
+  onUnlock?: (span: TraceViewSpan) => void;
+  isCached?: boolean;
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
+export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth, onSetCachePoint, onUnlock, isCached = false }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,6 +55,10 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
   const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
+
+  const isLockedByAttribute = !!rolloutSessionId;
+  const isLocked = isLockedByAttribute || isCached;
+  const canToggleLock = !isLockedByAttribute;
 
   const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
@@ -68,11 +78,11 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
     <div className="text-md flex w-full flex-col" ref={ref}>
       <div
         className={cn(
-          "flex flex-col cursor-pointer transition-all w-full min-w-full border-l-2",
+          "flex flex-col cursor-pointer transition-all w-full min-w-full border-l-2 group",
           "hover:bg-red-100/10",
           isSelected ? "bg-primary/25 border-l-primary" : "border-l-transparent",
           {
-            "opacity-60": rolloutSessionId,
+            "opacity-60": isLocked,
           }
         )}
         style={{
@@ -168,6 +178,45 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
             </button>
           )}
           <div className="grow" />
+          {span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  disabled={!canToggleLock && isLocked}
+                  className={cn(
+                    "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200",
+                    isLocked ? "block" : "hidden group-hover:block",
+                    !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!canToggleLock) return;
+                    if (isLocked && onUnlock) {
+                      onUnlock(span);
+                    } else if (!isLocked && onSetCachePoint) {
+                      onSetCachePoint(span);
+                    }
+                  }}
+                >
+                  {isLocked ? (
+                    <Lock className="size-3.5 text-secondary-foreground" />
+                  ) : (
+                    <LockOpen className="size-3.5 text-secondary-foreground" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="top" className="text-xs">
+                  {!canToggleLock && isLocked
+                    ? "Locked by rollout session"
+                    : isLocked
+                      ? "Unlock from here"
+                      : "Lock to here"}
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          )}
         </div>
       </div>
     </div>

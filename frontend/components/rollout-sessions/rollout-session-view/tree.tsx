@@ -9,9 +9,12 @@ import { SpanCard } from "./span-card";
 
 interface TreeProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
+  onSetCachePoint?: (span: TraceViewSpan) => void;
+  onUnlock?: (span: TraceViewSpan) => void;
+  isSpanCached?: (span: TraceViewSpan) => boolean;
 }
 
-const Tree = ({ onSpanSelect }: TreeProps) => {
+const Tree = ({ onSpanSelect, onSetCachePoint, onUnlock, isSpanCached }: TreeProps) => {
   const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, spans } = useRolloutSessionStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
@@ -92,6 +95,9 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
                     yOffset={spanItem.yOffset}
                     depth={spanItem.depth}
                     onSpanSelect={onSpanSelect}
+                    onSetCachePoint={onSetCachePoint}
+                    onUnlock={onUnlock}
+                    isCached={isSpanCached?.(spanItem.span)}
                   />
                 </div>
               );

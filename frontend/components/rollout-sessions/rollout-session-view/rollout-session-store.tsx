@@ -48,15 +48,12 @@ export type RealtimeSpanInput = {
   aggregatedMetrics?: TraceViewSpan["aggregatedMetrics"];
 };
 
-// Helper to convert incoming span to TraceViewSpan format
 function toTraceViewSpan(incoming: TraceViewSpan | RealtimeSpanInput): TraceViewSpan {
   const attrs = incoming.attributes || {};
 
-  // Derive path from attributes if not present
   const spanPath = attrs["lmnr.span.path"];
   const path = incoming.path ?? (Array.isArray(spanPath) ? spanPath.join(".") : "");
 
-  // Derive model from attributes
   const model = incoming.model ?? get(attrs, "gen_ai.response.model") ?? get(attrs, "gen_ai.request.model") ?? "";
 
   // Derive token/cost metrics from attributes
@@ -239,9 +236,7 @@ interface RolloutSessionStoreActions {
   setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
   setEditedMessage: (messageId: string, content: string) => void;
   resetEditedMessage: (messageId: string) => void;
-  resetAllEditedMessages: () => void;
   getEditedContent: (messageId: string) => string | undefined;
-  hasEdits: () => boolean;
   getOverridesForRollout: () => Record<string, { system: string }>;
   setCachePoint: (span: TraceViewSpan) => void;
   unlockFromSpan: (span: TraceViewSpan) => void;
@@ -612,13 +607,8 @@ const createRolloutSessionStore = ({
           set({ editedMessages: newMap });
         },
 
-        resetAllEditedMessages: () => {
-          set({ editedMessages: new Map() });
-        },
-
         getEditedContent: (messageId: string) => get().editedMessages.get(messageId),
 
-        hasEdits: () => get().editedMessages.size > 0,
 
         getOverridesForRollout: () => {
           const overrides: Record<string, { system: string }> = {};

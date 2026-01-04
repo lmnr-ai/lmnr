@@ -584,7 +584,13 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
                       }}
                     />
                   )}
-                  {tab === "timeline" && <Timeline />}
+                  {tab === "timeline" && (
+                    <Timeline
+                      onSetCachePoint={setCachePoint}
+                      onUnlock={unlockFromSpan}
+                      isSpanCached={isSpanCached}
+                    />
+                  )}
                   {tab === "reader" && (
                     <div className="flex flex-1 h-full overflow-hidden relative">
                       <List
@@ -606,7 +612,12 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
                       </div>
                     ) : (
                       <div className="flex flex-1 h-full overflow-hidden relative">
-                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Tree
+                          onSpanSelect={handleSpanSelect}
+                          onSetCachePoint={setCachePoint}
+                          onUnlock={unlockFromSpan}
+                          isSpanCached={isSpanCached}
+                        />
                         <Minimap onSpanSelect={handleSpanSelect} />
                       </div>
                     ))}

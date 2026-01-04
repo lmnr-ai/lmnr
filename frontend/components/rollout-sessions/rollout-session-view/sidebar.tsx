@@ -29,12 +29,12 @@ const SystemMessageEditor = ({
 
   return (
     <div className={cn(
-      "rounded-lg border bg-card transition-all",
+      "flex flex-col rounded-lg border bg-card transition-all overflow-hidden",
       isEdited && "border-primary/50 ring-1 ring-primary/20"
     )}>
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium font-mono truncate" title={message.path}>{message.path}</span>
+      <div className="flex items-center justify-between p-2 border-b bg-muted/30">
+        <div className="flex items-center gap-2 truncate overflow-x-auto no-scrollbar">
+          <span className="text-sm font-medium font-mono" title={message.path}>{message.path}</span>
           {isEdited && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
               Modified
@@ -53,16 +53,14 @@ const SystemMessageEditor = ({
           </Button>
         )}
       </div>
-      <div className="p-3">
-        <Textarea
-          value={currentContent}
-          onChange={(e) => onEdit(e.target.value)}
-          className={cn(
-            "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent p-0 focus-visible:ring-0 shadow-none",
-          )}
-          placeholder="Enter system message..."
-        />
-      </div>
+      <Textarea
+        value={currentContent}
+        onChange={(e) => onEdit(e.target.value)}
+        className={cn(
+          "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none",
+        )}
+        placeholder="Enter system message..."
+      />
     </div>
   );
 };
@@ -77,8 +75,6 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
     editedMessages,
     setEditedMessage,
     resetEditedMessage,
-    resetAllEditedMessages,
-    hasEdits,
     isRolloutRunning,
     rolloutError,
     params,
@@ -89,8 +85,6 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
     editedMessages: state.editedMessages,
     setEditedMessage: state.setEditedMessage,
     resetEditedMessage: state.resetEditedMessage,
-    resetAllEditedMessages: state.resetAllEditedMessages,
-    hasEdits: state.hasEdits,
     isRolloutRunning: state.isRolloutRunning,
     rolloutError: state.rolloutError,
     params: state.params,
@@ -99,47 +93,27 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
   }));
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
-  const hasUnsavedEdits = hasEdits();
-  const editCount = editedMessages.size;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b bg-muted/20 space-y-3">
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={onRollout}
-            disabled={isRolloutRunning}
-          >
-            {isRolloutRunning ? (
-              <>
-                <Loader2 size={14} className="mr-2 animate-spin" />
+      <div className="flex flex-col gap-2 p-2 border-b">
+        <Button
+          className="w-fit"
+          onClick={onRollout}
+          disabled={isRolloutRunning}
+        >
+          {isRolloutRunning ? (
+            <>
+              <Loader2 size={14} className="mr-2 animate-spin" />
                 Running...
-              </>
-            ) : (
-              <>
-                <Play size={14} className="mr-2" />
+            </>
+          ) : (
+            <>
+              <Play size={14} className="mr-2" />
                 Run Rollout
-              </>
-            )}
-          </Button>
-        </div>
-
-        {hasUnsavedEdits && (
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-md bg-primary/5 border border-primary/20">
-            <span className="text-xs text-primary font-medium">
-              {editCount} prompt{editCount !== 1 ? "s" : ""} modified
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={resetAllEditedMessages}
-            >
-              Reset all
-            </Button>
-          </div>
-        )}
-
+            </>
+          )}
+        </Button>
         {rolloutError && (
           <Alert variant="destructive">
             <AlertTriangle className="w-4 h-4" />
@@ -151,7 +125,6 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
         )}
       </div>
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto styled-scrollbar">
         <div className="flex flex-col gap-4 p-4">
           {params && params.length > 0 && (
