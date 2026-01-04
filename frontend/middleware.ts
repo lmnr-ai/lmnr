@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { NextRequestWithAuth, withAuth } from "next-auth/middleware";
+import { type NextRequestWithAuth, withAuth } from "next-auth/middleware";
 
 import { isTracePublic } from "@/lib/actions/trace";
 import { isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorization";

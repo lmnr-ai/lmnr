@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 import { SlackSlashCommandSchema } from "@/lib/actions/slack/types";
 import { db } from "@/lib/db/drizzle";

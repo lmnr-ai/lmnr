@@ -1,13 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { compact, get, isNil, pick, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
-import { memo, PropsWithChildren } from "react";
+import { memo, type PropsWithChildren } from "react";
 
-import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Span } from "@/lib/traces/types.ts";
+import { type Span } from "@/lib/traces/types.ts";
 import { cn, getDurationString, pluralize } from "@/lib/utils";
 
 import ContentRenderer from "../ui/content-renderer/index";

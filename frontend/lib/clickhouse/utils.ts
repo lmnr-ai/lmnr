@@ -1,4 +1,4 @@
-import { AggregationFunction } from "@/lib/clickhouse/types";
+import { type AggregationFunction } from "@/lib/clickhouse/types";
 
 const NANOS_PER_MILLISECOND = 1e6;
 

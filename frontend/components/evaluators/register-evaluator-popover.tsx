@@ -1,7 +1,7 @@
 import { includes, isEmpty, map, partition } from "lodash";
 import { ChevronDown } from "lucide-react";
 import { useParams } from "next/navigation";
-import { ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button.tsx";
@@ -15,9 +15,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Evaluator } from "@/lib/evaluators/types";
+import { type Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface RegisterEvaluatorPopoverProps {
@@ -78,39 +78,39 @@ const RegisterEvaluatorPopover = ({ spanPath, children }: RegisterEvaluatorPopov
 
           return spanPathEvaluators
             ? [
-              ...spanPathEvaluators,
-              {
-                id: newEvaluator.id,
-                name: newEvaluator.name,
-                evaluatorType: newEvaluator.evaluatorType,
-              },
-            ]
-            : [
-              {
-                id: newEvaluator.id,
-                name: newEvaluator.name,
-                evaluatorType: newEvaluator.evaluatorType,
-              },
-            ];
-        },
-        {
-          optimisticData: (current) =>
-            current
-              ? [
-                ...current,
+                ...spanPathEvaluators,
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
               ]
-              : [
+            : [
                 {
                   id: newEvaluator.id,
                   name: newEvaluator.name,
                   evaluatorType: newEvaluator.evaluatorType,
                 },
-              ],
+              ];
+        },
+        {
+          optimisticData: (current) =>
+            current
+              ? [
+                  ...current,
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ]
+              : [
+                  {
+                    id: newEvaluator.id,
+                    name: newEvaluator.name,
+                    evaluatorType: newEvaluator.evaluatorType,
+                  },
+                ],
           rollbackOnError: true,
           revalidate: false,
         }

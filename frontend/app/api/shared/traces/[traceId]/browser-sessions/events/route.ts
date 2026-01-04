@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getSharedBrowserSessionEvents } from "@/lib/actions/shared/browser-session-events";
@@ -43,8 +43,11 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ trac
     if (e instanceof ZodError) {
       return new Response(JSON.stringify({ error: prettifyError(e) }), { status: 400 });
     }
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Failed to fetch browser session events." }), {
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Failed to fetch browser session events." }),
+      {
+        status: 500,
+      }
+    );
   }
 }

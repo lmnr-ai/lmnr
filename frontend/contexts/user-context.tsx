@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, PropsWithChildren, useContext } from "react";
+import React, { createContext, type PropsWithChildren, useContext } from "react";
 
 export type User = {
   id: string;
@@ -15,7 +15,9 @@ type UserContextProviderProps = {
   user: User;
 };
 
-export const UserContextProvider = ({ user, children }: PropsWithChildren<UserContextProviderProps>) => <UserContext.Provider value={user}>{children}</UserContext.Provider>;
+export const UserContextProvider = ({ user, children }: PropsWithChildren<UserContextProviderProps>) => (
+  <UserContext.Provider value={user}>{children}</UserContext.Provider>
+);
 
 export function useUserContext() {
   const context = useContext(UserContext);

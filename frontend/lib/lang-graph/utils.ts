@@ -1,8 +1,14 @@
-import { Edge, InternalNode, MarkerType, Node, Position, XYPosition } from "@xyflow/react";
+import { type Edge, type InternalNode, MarkerType, type Node, Position, type XYPosition } from "@xyflow/react";
 import dagre from "dagre";
 import { attempt, flow, get, has, isEmpty, isError, isObject, isString, map, reduce } from "lodash";
 
-import { LangGraphEdge, LangGraphNode, LangGraphStructure, NODE_DIMENSIONS, SPAN_KEYS } from "@/lib/lang-graph/types";
+import {
+  type LangGraphEdge,
+  type LangGraphNode,
+  type LangGraphStructure,
+  NODE_DIMENSIONS,
+  SPAN_KEYS,
+} from "@/lib/lang-graph/types";
 
 const START_ID = "__start__";
 const END_ID = "__end__";

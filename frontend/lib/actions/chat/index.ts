@@ -1,8 +1,15 @@
-import { generateObject, generateText, GenerateTextResult, jsonSchema, modelMessageSchema, ToolSet } from "ai";
+import {
+  generateObject,
+  generateText,
+  type GenerateTextResult,
+  jsonSchema,
+  modelMessageSchema,
+  type ToolSet,
+} from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { Provider, providerToApiKey } from "@/components/playground/types";
+import { type Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
 import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";

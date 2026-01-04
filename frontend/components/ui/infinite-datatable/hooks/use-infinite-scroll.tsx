@@ -1,6 +1,6 @@
 "use client";
 
-import { DependencyList, useCallback, useEffect } from "react";
+import { type DependencyList, useCallback, useEffect } from "react";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 

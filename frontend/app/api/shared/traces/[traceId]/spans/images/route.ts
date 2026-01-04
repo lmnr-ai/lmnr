@@ -1,12 +1,9 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getSharedSpanImages } from "@/lib/actions/shared/spans/images";
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ traceId: string }> }
-): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ traceId: string }> }): Promise<Response> {
   const params = await props.params;
   const { traceId } = params;
 

@@ -1,8 +1,8 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { flexRender, Header, RowData } from "@tanstack/react-table";
+import { flexRender, type Header, type RowData } from "@tanstack/react-table";
 import { ChevronDown, EyeOff } from "lucide-react";
-import React, { CSSProperties } from "react";
+import React, { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
 import { TableHead } from "@/components/ui/table.tsx";

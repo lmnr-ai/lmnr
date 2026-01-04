@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import ChartBuilder from "components/chart-builder";
 import { isEmpty, isNil, isObject } from "lodash";
 import {
@@ -16,7 +16,7 @@ import {
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { ReactNode, useCallback, useMemo, useState } from "react";
+import React, { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import SQLEditor from "@/components/sql/editor";

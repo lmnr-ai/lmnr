@@ -1,18 +1,18 @@
 import { isNil } from "lodash";
 
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
-  ColumnFilterConfig,
+  type ColumnFilterConfig,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
-  QueryParams,
-  QueryResult,
-  SelectQueryOptions,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import { tryParseJson } from "@/lib/utils.ts";
 
@@ -129,11 +129,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : []),
   ];
 
@@ -159,11 +159,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-      pagination: {
-        limit,
-        offset,
-      },
-    }),
+        pagination: {
+          limit,
+          offset,
+        },
+      }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -181,11 +181,11 @@ export const buildSpansCountQueryWithParams = (
     ...additionalConditions,
     ...(spanIds?.length > 0
       ? [
-        {
-          condition: `span_id IN ({spanIds:Array(UUID)})`,
-          params: { spanIds },
-        },
-      ]
+          {
+            condition: `span_id IN ({spanIds:Array(UUID)})`,
+            params: { spanIds },
+          },
+        ]
       : []),
   ];
 

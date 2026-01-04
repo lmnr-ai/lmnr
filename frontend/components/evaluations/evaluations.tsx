@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useState } from "react";
@@ -13,11 +13,11 @@ import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datata
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
-import { Evaluation } from "@/lib/evaluation/types";
+import { type Evaluation } from "@/lib/evaluation/types";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 

@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 
-import { PlaygroundOutputStore } from "./playground-output";
+import { type PlaygroundOutputStore } from "./playground-output";
 
 const tokenLabels: Record<keyof PlaygroundOutputStore["usage"], string> = {
   inputTokens: "Input Tokens",

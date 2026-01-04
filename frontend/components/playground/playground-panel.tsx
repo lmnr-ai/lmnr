@@ -1,10 +1,10 @@
 "use client";
-import { GenerateTextResult, ToolSet } from "ai";
+import { type GenerateTextResult, type ToolSet } from "ai";
 import { isEmpty } from "lodash";
 import { Bolt, ChevronRight, Loader, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useRef } from "react";
-import { Controller, ControllerRenderProps, SubmitHandler, useFormContext } from "react-hook-form";
+import { Controller, type ControllerRenderProps, type SubmitHandler, useFormContext } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 import { prettifyError } from "zod/v4";
 
@@ -16,7 +16,7 @@ import ToolsSheet from "@/components/playground/messages/tools-sheet";
 import PlaygroundHistoryTable from "@/components/playground/playground-history-table";
 import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import ProvidersAlert from "@/components/playground/providers-alert";
-import { Provider } from "@/components/playground/types";
+import { type Provider } from "@/components/playground/types";
 import Usage from "@/components/playground/usage";
 import { getDefaultThinkingModelProviderOptions } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm } from "@/lib/playground/types";
 import { parseSystemMessages } from "@/lib/playground/utils";
-import { ProviderApiKey } from "@/lib/settings/types";
+import { type ProviderApiKey } from "@/lib/settings/types";
 
 export default function PlaygroundPanel({
   id,

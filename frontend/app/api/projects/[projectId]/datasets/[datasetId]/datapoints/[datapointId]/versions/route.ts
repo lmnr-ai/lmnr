@@ -1,10 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import {
-  createDatapointVersionFromExisting,
-  listDatapointVersions,
-} from "@/lib/actions/datapoints/versions";
+import { createDatapointVersionFromExisting, listDatapointVersions } from "@/lib/actions/datapoints/versions";
 
 /**
  * GET - List all versions of a specific datapoint
@@ -61,4 +58,3 @@ export async function POST(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

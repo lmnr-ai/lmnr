@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
-import { Project } from "@/lib/workspaces/types";
+import { type Project } from "@/lib/workspaces/types";
 
 interface ProjectsProps {
   workspaceId: string;

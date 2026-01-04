@@ -14,8 +14,8 @@ import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
-  TraceViewSpan,
-  TraceViewTrace,
+  type TraceViewSpan,
+  type TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";

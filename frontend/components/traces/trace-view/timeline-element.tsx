@@ -1,9 +1,9 @@
-import { VirtualItem } from "@tanstack/react-virtual";
+import { type VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";

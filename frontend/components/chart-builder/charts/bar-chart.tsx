@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import RoundedBar from "@/components/charts/time-series-chart/bar";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
 

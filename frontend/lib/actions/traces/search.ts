@@ -1,5 +1,5 @@
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { TimeRange } from "@/lib/clickhouse/utils";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
+import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
 
 export const searchSpans = async ({

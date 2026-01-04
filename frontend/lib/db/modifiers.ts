@@ -1,6 +1,6 @@
-import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL, sql } from "drizzle-orm";
+import { type BinaryOperator, eq, gt, gte, lt, lte, ne, type SQL, sql } from "drizzle-orm";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 
 const filterOperators: Record<string, BinaryOperator> = {
   eq: eq,

@@ -1,7 +1,7 @@
 import "@/app/globals.css";
 import "@/app/scroll.css";
 
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { Suspense } from "react";
 
 import { Toaster } from "@/components/ui/toaster";

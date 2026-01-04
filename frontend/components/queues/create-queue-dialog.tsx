@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelingQueue } from "@/lib/queue/types";
-import { PaginatedResponse } from "@/lib/types";
+import { type LabelingQueue } from "@/lib/queue/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export default function CreateQueueDialog({

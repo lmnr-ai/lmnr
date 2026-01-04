@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Evaluation as EvaluationType } from "@/lib/evaluation/types";
+import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
 const EvaluationHeader = ({

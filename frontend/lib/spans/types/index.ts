@@ -1,9 +1,9 @@
-import { ModelMessage } from "ai";
+import { type ModelMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
-import { Message } from "@/lib/playground/types";
+import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
-import { ChatMessage, ChatMessageContentPart, ChatMessageImage } from "@/lib/types";
+import { type ChatMessage, type ChatMessageContentPart, type ChatMessageImage } from "@/lib/types";
 
 /**
  * Downloads images of internal messages format

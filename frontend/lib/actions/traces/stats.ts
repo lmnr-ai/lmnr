@@ -1,13 +1,13 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import {buildTracesStatsWhereConditions, generateEmptyTimeBuckets} from "@/lib/actions/traces/utils";
-import { SpanSearchType } from "@/lib/clickhouse/types";
+import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
 export const GetTraceStatsSchema = GetTracesSchema.omit({
@@ -44,12 +44,12 @@ export async function getTraceStats(
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 

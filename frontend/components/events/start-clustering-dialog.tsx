@@ -4,7 +4,7 @@ import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { useEventsStoreContext } from "@/components/events/events-store";
@@ -13,7 +13,7 @@ import { mustache } from "@/components/ui/content-renderer/lang-mustache";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { EventClusterConfig } from "@/lib/actions/cluster-configs";
+import { type EventClusterConfig } from "@/lib/actions/cluster-configs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,11 @@ interface StartClusteringDialogProps {
   eventType: "SEMANTIC" | "CODE";
 }
 
-export default function StartClusteringDialog({ children, eventName, eventType }: PropsWithChildren<StartClusteringDialogProps>) {
+export default function StartClusteringDialog({
+  children,
+  eventName,
+  eventType,
+}: PropsWithChildren<StartClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
@@ -114,7 +118,7 @@ export default function StartClusteringDialog({ children, eventName, eventType }
                   onChange={field.onChange}
                   theme={theme}
                   basicSetup={false}
-                  extensions={[mustache, ...baseExtensions.filter(ext => ext !== EditorView.lineWrapping)]}
+                  extensions={[mustache, ...baseExtensions.filter((ext) => ext !== EditorView.lineWrapping)]}
                   placeholder="{{input}}"
                   className="rounded-md border p-0.5 text-sm focus-within:border-primary"
                 />

@@ -1,16 +1,15 @@
-
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { SpanSearchType } from "@/lib/clickhouse/types";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { TraceRow } from "@/lib/traces/types.ts";
+import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
@@ -60,12 +59,12 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 

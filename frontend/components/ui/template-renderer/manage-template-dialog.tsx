@@ -4,7 +4,7 @@ import { DialogTrigger } from "@radix-ui/react-dialog";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { ManageTemplateForm, Template } from "./index";
+import { type ManageTemplateForm, type Template } from "./index";
 import JsxRenderer from "./jsx-renderer";
 
 const ManageTemplateDialog = ({

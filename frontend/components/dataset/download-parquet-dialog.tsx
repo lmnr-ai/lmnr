@@ -4,7 +4,7 @@ import React, { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
-import { ExportJob } from "@/lib/actions/dataset-export-jobs";
+import { type ExportJob } from "@/lib/actions/dataset-export-jobs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 

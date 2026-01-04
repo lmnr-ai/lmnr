@@ -1,6 +1,6 @@
 import { differenceInMinutes } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";

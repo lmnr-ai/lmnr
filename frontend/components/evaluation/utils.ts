@@ -1,6 +1,6 @@
 import { flow, isNumber, mean, round } from "lodash";
 
-import { getOptimalTextColor, interpolateColor, normalizeValue, RGBColor, ScoreRange } from "@/lib/colors";
+import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
 
 export type ScoreRanges = Record<string, ScoreRange>;
 export type ScoreValue = number | undefined;

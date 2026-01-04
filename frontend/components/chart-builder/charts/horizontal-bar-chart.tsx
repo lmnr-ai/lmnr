@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
 

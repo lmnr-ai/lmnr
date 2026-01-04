@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { executeQuery } from "@/lib/actions/sql";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
-import { GetTraceStructureSchema } from "./index";
+import { type GetTraceStructureSchema } from "./index";
 
 const ClickHouseToSpanSchema = z
   .object({

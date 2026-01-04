@@ -7,7 +7,7 @@ import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { swrFetcher } from "@/lib/utils";
-import { Project, ProjectStats } from "@/lib/workspaces/types";
+import { type Project, type ProjectStats } from "@/lib/workspaces/types";
 
 interface ProjectCardProps {
   project: Project;

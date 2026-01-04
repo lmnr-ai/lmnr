@@ -1,8 +1,8 @@
-import { ModelMessage } from "ai";
+import { type ModelMessage } from "ai";
 import { map } from "lodash";
 import { z } from "zod/v4";
 
-import { Message } from "@/lib/playground/types";
+import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
 /** Complex Content Block **/

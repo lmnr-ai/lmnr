@@ -1,4 +1,4 @@
-import { Row, RowData } from "@tanstack/react-table";
+import { type Row, type RowData } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table.tsx";
 
-import { InfiniteDataTableBodyProps } from "../model/types.ts";
+import { type InfiniteDataTableBodyProps } from "../model/types.ts";
 import { InfiniteDatatableRow } from "./row.tsx";
 
 export function InfiniteDatatableBody<TData extends RowData>({

@@ -12,9 +12,9 @@ import { getDefaultThinkingModelProviderOptions } from "@/components/playground/
 import TraceView from "@/components/traces/trace-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Message, Playground as PlaygroundType, PlaygroundForm } from "@/lib/playground/types";
+import { type Message, type Playground as PlaygroundType, type PlaygroundForm } from "@/lib/playground/types";
 import { transformFromLegacy } from "@/lib/playground/utils.ts";
-import { ProviderApiKey } from "@/lib/settings/types";
+import { type ProviderApiKey } from "@/lib/settings/types";
 import { swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";

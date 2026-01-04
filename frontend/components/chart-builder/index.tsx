@@ -1,15 +1,15 @@
 import { ChartBar, ChartColumn, ChartLine, Upload } from "lucide-react";
-import React, { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 import {
-  ChartBuilderProps,
+  type ChartBuilderProps,
   ChartBuilderStoreProvider,
   useChartBuilderStoreContext,
 } from "@/components/chart-builder/chart-builder-store";
 import ChartRenderer from "@/components/chart-builder/charts";
 import ExportChartDialog from "@/components/chart-builder/export-chart-dialog";
 import { ChartType } from "@/components/chart-builder/types";
-import { ColumnInfo } from "@/components/chart-builder/utils";
+import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";

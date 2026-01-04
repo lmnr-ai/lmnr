@@ -1,5 +1,5 @@
 import { ChartType } from "@/components/chart-builder/types";
-import { DashboardChart } from "@/components/dashboard/types";
+import { type DashboardChart } from "@/components/dashboard/types";
 
 const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
   {

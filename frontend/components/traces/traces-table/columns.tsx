@@ -1,16 +1,16 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SpanType, TraceRow } from "@/lib/traces/types";
+import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 

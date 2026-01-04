@@ -10,7 +10,7 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
 import {
   createDatapoints as createClickHouseDatapoints,
-  DatapointResult,
+  type DatapointResult,
   deleteDatapoints as deleteClickHouseDatapoints,
 } from "@/lib/clickhouse/datapoints";
 import { generateSequentialUuidsV7 } from "@/lib/utils";
@@ -91,12 +91,11 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
     offset,
   });
 
-  const datapointsData = await executeQuery<Record<string, unknown>>({
+  const datapointsData = (await executeQuery<Record<string, unknown>>({
     query: datapointsQuery,
     parameters: datapointsParams,
     projectId,
-  }) as unknown as DatapointResult[];
-
+  })) as unknown as DatapointResult[];
 
   return {
     items: datapointsData,
@@ -118,11 +117,11 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
     datasetId,
   });
 
-  const datapoints = await executeQuery<Record<string, unknown>>({
+  const datapoints = (await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
-  }) as unknown as DatapointResult[];
+  })) as unknown as DatapointResult[];
 
   const queueItems = datapoints.map((datapoint) => ({
     payload: {
@@ -162,11 +161,7 @@ export async function createDatapoints(input: z.infer<typeof CreateDatapointsInp
   }));
 
   // Insert into ClickHouse
-  await createClickHouseDatapoints(
-    projectId,
-    datasetId,
-    datapointsWithIds,
-  );
+  await createClickHouseDatapoints(projectId, datasetId, datapointsWithIds);
 
   return datapointsWithIds;
 }
@@ -185,11 +180,11 @@ export async function getAllDatapointsForDataset(projectId: string, datasetId: s
     datasetId,
   });
 
-  const datapoints = await executeQuery<Record<string, unknown>>({
+  const datapoints = (await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
-  }) as unknown as DatapointResult[];
+  })) as unknown as DatapointResult[];
 
   return datapoints;
 }

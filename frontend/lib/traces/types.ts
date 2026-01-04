@@ -1,5 +1,5 @@
-import { tagClasses, traces } from "../db/migrations/schema";
-import { Event } from "../events/types";
+import { type tagClasses, type traces } from "../db/migrations/schema";
+import { type Event } from "../events/types";
 
 export type TagClass = typeof tagClasses.$inferSelect;
 

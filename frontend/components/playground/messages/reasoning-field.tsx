@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm } from "@/lib/playground/types";
 
 const ReasoningField = () => {
   const { watch, control } = useFormContext<PlaygroundForm>();

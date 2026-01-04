@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QueryStructure } from "@/lib/actions/sql/types";
+import { type QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
 
 const DimensionsField = () => {

@@ -10,8 +10,8 @@ import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluatio
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Event } from "@/lib/events/types";
-import { Span } from "@/lib/traces/types";
+import { type Event } from "@/lib/events/types";
+import { type Span } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface HumanEvaluatorSpanViewProps {
@@ -83,8 +83,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
           <div className="flex-1 flex overflow-hidden">
             <TabsContent value="span" className="w-full h-full">
               <div className="flex flex-col h-full">
-                <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}>
-                </SpanMessages>
+                <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
                 {datapointId && evaluationId && (
                   <div className="flex flex-col p-2 pt-0">
                     <HumanEvaluationScore

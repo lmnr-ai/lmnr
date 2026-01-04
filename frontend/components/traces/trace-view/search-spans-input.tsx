@@ -1,6 +1,6 @@
 import { Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import React, { KeyboardEventHandler, memo, PropsWithChildren, useCallback, useRef, useState } from "react";
+import React, { type KeyboardEventHandler, memo, type PropsWithChildren, useCallback, useRef, useState } from "react";
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { cn } from "@/lib/utils";
 
 const SearchSpansInput = ({

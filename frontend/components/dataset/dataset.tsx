@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef, Row, RowSelectionState } from "@tanstack/react-table";
+import { type ColumnDef, type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,7 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { Datapoint, Dataset as DatasetType } from "@/lib/dataset/types";
+import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 

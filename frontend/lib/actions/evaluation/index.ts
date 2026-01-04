@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
 import {
   buildEvaluationDatapointsQueryWithParams,
@@ -15,17 +15,17 @@ import {
 import { executeQuery } from "@/lib/actions/sql";
 import { getTracesByIds } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { TimeRange } from "@/lib/clickhouse/utils";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
+import { type TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import {
-  Evaluation,
-  EvaluationDatapointPreview,
-  EvaluationDatapointRow,
-  EvaluationResultsInfo,
-  EvaluationScoreDistributionBucket,
-  EvaluationScoreStatistics,
+  type Evaluation,
+  type EvaluationDatapointPreview,
+  type EvaluationDatapointRow,
+  type EvaluationResultsInfo,
+  type EvaluationScoreDistributionBucket,
+  type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
@@ -77,12 +77,12 @@ export const getEvaluationDatapoints = async (
   // Step 1: Get trace IDs from search if provided
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
@@ -245,12 +245,12 @@ export const getEvaluationStatistics = async (
   // Step 1: Get trace IDs from search if provided
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 

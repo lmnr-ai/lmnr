@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { Datapoint } from "@/lib/dataset/types";
+import { type Datapoint } from "@/lib/dataset/types";
 import { formatTimestampWithSeconds } from "@/lib/utils";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -51,7 +51,7 @@ export default function DatapointVersionSelector({
   // Get currently selected version
   const selectedVersion = useMemo(() => {
     if (!selectedVersionCreatedAt || numberedVersions.length === 0) return latestVersion;
-    return numberedVersions.find(v => v.createdAt === selectedVersionCreatedAt) || latestVersion;
+    return numberedVersions.find((v) => v.createdAt === selectedVersionCreatedAt) || latestVersion;
   }, [selectedVersionCreatedAt, numberedVersions, latestVersion]);
 
   if (isLoading || numberedVersions.length === 0) {
@@ -59,14 +59,9 @@ export default function DatapointVersionSelector({
   }
 
   return (
-    <Select
-      value={selectedVersionCreatedAt || latestVersion?.createdAt || ""}
-      onValueChange={onVersionChange}
-    >
+    <Select value={selectedVersionCreatedAt || latestVersion?.createdAt || ""} onValueChange={onVersionChange}>
       <SelectTrigger className="w-[200px]">
-        <SelectValue>
-          {selectedVersion ? selectedVersion.label : "Select version"}
-        </SelectValue>
+        <SelectValue>{selectedVersion ? selectedVersion.label : "Select version"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {numberedVersions.toReversed().map((version) => (

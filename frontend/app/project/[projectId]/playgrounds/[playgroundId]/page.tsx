@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Playground from "@/components/playground/playground";
@@ -7,9 +7,9 @@ import { getPlaygroundConfig } from "@/components/playground/utils";
 import { getSpan } from "@/lib/actions/span";
 import { db } from "@/lib/db/drizzle";
 import { playgrounds } from "@/lib/db/migrations/schema";
-import { Playground as PlaygroundType } from "@/lib/playground/types";
+import { type Playground as PlaygroundType } from "@/lib/playground/types";
 import { convertSpanToPlayground } from "@/lib/spans/utils";
-import { Span } from "@/lib/traces/types";
+import { type Span } from "@/lib/traces/types";
 
 export const metadata: Metadata = {
   title: "Playground",

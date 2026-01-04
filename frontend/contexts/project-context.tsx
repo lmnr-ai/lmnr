@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, PropsWithChildren, use } from "react";
+import React, { createContext, type PropsWithChildren, use } from "react";
 
-import { Project, Workspace } from "@/lib/workspaces/types";
+import { type Project, type Workspace } from "@/lib/workspaces/types";
 
 type ProjectContextType = {
   workspace?: Workspace;

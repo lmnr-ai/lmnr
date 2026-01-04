@@ -4,7 +4,7 @@ import { isEmpty } from "lodash";
 import { Edit, EllipsisVertical, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import React, { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { type KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
@@ -20,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { SQLTemplate, useSqlEditorStore } from "./sql-editor-store";
+import { type SQLTemplate, useSqlEditorStore } from "./sql-editor-store";
 
 const updateTemplate = async (projectId: string, template: SQLTemplate) => {
   await fetch(`/api/projects/${projectId}/sql/templates/${template.id}`, {

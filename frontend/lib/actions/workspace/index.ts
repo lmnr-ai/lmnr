@@ -14,7 +14,7 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
-import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
 const MAX_AGE = 60 * 60 * 24 * 30;

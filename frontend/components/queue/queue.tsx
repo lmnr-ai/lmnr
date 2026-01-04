@@ -4,7 +4,7 @@ import { get, isEmpty } from "lodash";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { KeyboardEvent, useCallback, useEffect, useMemo } from "react";
+import React, { type KeyboardEvent, useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { ResizableWrapper } from "@/components/traces/span-view/common";
@@ -14,7 +14,7 @@ import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
+import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";

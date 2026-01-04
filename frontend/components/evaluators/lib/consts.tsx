@@ -1,7 +1,7 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { Evaluator } from "@/lib/evaluators/types";
+import { type Evaluator } from "@/lib/evaluators/types";
 
 export const columns: ColumnDef<Evaluator>[] = [
   {

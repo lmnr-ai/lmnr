@@ -1,9 +1,9 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export type PatternRow = {

@@ -1,11 +1,11 @@
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, type ChartType } from "@/components/chart-builder/types";
 import {
   canSelectForYAxis as utilCanSelectForYAxis,
-  ColumnInfo,
-  DataRow,
+  type ColumnInfo,
+  type DataRow,
   getAvailableBreakdownColumns as utilGetAvailableBreakdownColumns,
   isValidChartConfiguration as utilIsValidChartConfiguration,
   transformDataToColumns,

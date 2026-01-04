@@ -6,8 +6,8 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 
 import { envVarsToIconMap } from "@/components/playground/utils";
-import { EnvVars } from "@/lib/env/utils";
-import { ProviderApiKey } from "@/lib/settings/types";
+import { type EnvVars } from "@/lib/env/utils";
+import { type ProviderApiKey } from "@/lib/settings/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
