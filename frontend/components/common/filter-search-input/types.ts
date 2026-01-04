@@ -16,19 +16,14 @@ export interface FilterTag {
 // Focus position within a tag: field -> operator -> value -> remove
 export type TagFocusPosition = "field" | "operator" | "value" | "remove";
 
-export interface FocusedTag {
-  tagId: string;
-  position: TagFocusPosition;
-}
-
 export interface FilterSearchState {
   tags: FilterTag[];
   inputValue: string;
   activeTagId: string | null;
   isOpen: boolean;
   activeIndex: number; // For keyboard navigation in suggestions
-  focusedTag: FocusedTag | null; // For keyboard navigation between tags
-  isAddingTag: boolean; // Prevent submit when adding a tag
+  isAddingTag: boolean;
+  selectedTagIds: Set<string>; // For bulk selection with Cmd+A
 }
 
 export interface FilterSearchContextValue {
@@ -39,6 +34,7 @@ export interface FilterSearchContextValue {
   // Tag operations
   addTag: (field: string) => void;
   removeTag: (tagId: string) => void;
+  updateTagField: (tagId: string, field: string) => void;
   updateTagOperator: (tagId: string, operator: Operator) => void;
   updateTagValue: (tagId: string, value: string) => void;
 
@@ -47,19 +43,21 @@ export interface FilterSearchContextValue {
   setActiveTagId: (tagId: string | null) => void;
   setIsOpen: (isOpen: boolean) => void;
   setActiveIndex: (index: number) => void;
-  setFocusedTag: (focusedTag: FocusedTag | null) => void;
   setIsAddingTag: (isAdding: boolean) => void;
 
   // Refs
   mainInputRef: RefObject<HTMLInputElement | null>;
-  tagRefs: RefObject<Map<string, HTMLDivElement>>;
 
   // Submit
   submit: () => void;
 
   // Navigation
   focusMainInput: () => void;
-  focusTagAtPosition: (tagId: string, position: TagFocusPosition) => void;
+
+  // Selection
+  selectAllTags: () => void;
+  clearSelection: () => void;
+  removeSelectedTags: () => void;
 }
 
 export function createFilterFromTag(tag: FilterTag): Filter {

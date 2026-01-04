@@ -97,7 +97,7 @@ const SuggestionsDropdown = ({ className }: SuggestionsDropdownProps) => {
       <div className="px-3 pt-2 pb-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
         {state.inputValue.trim() ? "Suggestions" : "Filter by"}
       </div>
-      <ScrollArea className="max-h-64">
+      <ScrollArea className="max-h-64 [&>div]:max-h-64">
         <div className="pb-1">
           {suggestions.map((suggestion, idx) => {
             const isActive = idx === state.activeIndex;

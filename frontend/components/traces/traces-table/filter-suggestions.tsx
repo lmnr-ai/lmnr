@@ -117,3 +117,4 @@ const FilterSuggestions = ({
 
 export default memo(FilterSuggestions);
 
+

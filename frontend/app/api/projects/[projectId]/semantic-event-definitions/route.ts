@@ -74,3 +74,4 @@ export async function DELETE(request: NextRequest, props: { params: Promise<{ pr
     );
   }
 }
+

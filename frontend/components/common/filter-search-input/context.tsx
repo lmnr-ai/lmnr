@@ -23,9 +23,7 @@ import {
   FilterSearchContextValue,
   FilterSearchState,
   FilterTag,
-  FocusedTag,
   generateTagId,
-  TagFocusPosition,
 } from "./types";
 
 interface StatefulFilterContextValue {
@@ -67,7 +65,6 @@ export const useFilterSearch = () => {
 interface FilterSearchProviderProps {
   filters: ColumnFilter[];
   mode: "url" | "stateful";
-  resource?: "traces" | "spans";
   additionalSearchParams?: Record<string, string | string[]>;
   onSubmit?: (filters: Filter[], search: string) => void;
 }
@@ -75,7 +72,6 @@ interface FilterSearchProviderProps {
 export const FilterSearchProvider = ({
   filters,
   mode,
-  resource,
   additionalSearchParams = {},
   onSubmit,
   children,
@@ -84,9 +80,10 @@ export const FilterSearchProvider = ({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const mainInputRef = useRef<HTMLInputElement>(null);
-  const tagRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const statefulCtx = mode === "stateful" ? useContext(StatefulFilterContext) : null;
+  // Always call useContext unconditionally (React hooks rule)
+  const statefulCtxValue = useContext(StatefulFilterContext);
+  const statefulCtx = mode === "stateful" ? statefulCtxValue : null;
 
   const initialState = useMemo((): FilterSearchState => {
     if (mode === "url") {
@@ -111,8 +108,8 @@ export const FilterSearchProvider = ({
         activeTagId: null,
         isOpen: false,
         activeIndex: 0,
-        focusedTag: null,
         isAddingTag: false,
+        selectedTagIds: new Set<string>(),
       };
     }
 
@@ -125,8 +122,8 @@ export const FilterSearchProvider = ({
       activeTagId: null,
       isOpen: false,
       activeIndex: 0,
-      focusedTag: null,
       isAddingTag: false,
+      selectedTagIds: new Set<string>(),
     };
   }, []);
 
@@ -158,11 +155,22 @@ export const FilterSearchProvider = ({
   );
 
   const removeTag = useCallback((tagId: string) => {
+    setState((prev) => {
+      const newSelectedTagIds = new Set(prev.selectedTagIds);
+      newSelectedTagIds.delete(tagId);
+      return {
+        ...prev,
+        tags: prev.tags.filter((t) => t.id !== tagId),
+        activeTagId: prev.activeTagId === tagId ? null : prev.activeTagId,
+        selectedTagIds: newSelectedTagIds,
+      };
+    });
+  }, []);
+
+  const updateTagField = useCallback((tagId: string, field: string) => {
     setState((prev) => ({
       ...prev,
-      tags: prev.tags.filter((t) => t.id !== tagId),
-      activeTagId: prev.activeTagId === tagId ? null : prev.activeTagId,
-      focusedTag: prev.focusedTag?.tagId === tagId ? null : prev.focusedTag,
+      tags: prev.tags.map((t) => (t.id === tagId ? { ...t, field } : t)),
     }));
   }, []);
 
@@ -196,24 +204,35 @@ export const FilterSearchProvider = ({
     setState((prev) => ({ ...prev, activeIndex: index }));
   }, []);
 
-  const setFocusedTag = useCallback((focusedTag: FocusedTag | null) => {
-    setState((prev) => ({ ...prev, focusedTag }));
-  }, []);
-
   const setIsAddingTag = useCallback((isAdding: boolean) => {
     setState((prev) => ({ ...prev, isAddingTag: isAdding }));
   }, []);
 
   const focusMainInput = useCallback(() => {
-    setState((prev) => ({ ...prev, focusedTag: null, activeTagId: null }));
-    setTimeout(() => mainInputRef.current?.focus(), 0);
+    setState((prev) => ({ ...prev, activeTagId: null }));
+    mainInputRef.current?.focus();
   }, []);
 
-  const focusTagAtPosition = useCallback((tagId: string, position: TagFocusPosition) => {
+  const selectAllTags = useCallback(() => {
     setState((prev) => ({
       ...prev,
-      focusedTag: { tagId, position },
-      activeTagId: position === "value" ? tagId : prev.activeTagId,
+      selectedTagIds: new Set(prev.tags.map((t) => t.id)),
+    }));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      selectedTagIds: new Set<string>(),
+    }));
+  }, []);
+
+  const removeSelectedTags = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      tags: prev.tags.filter((t) => !prev.selectedTagIds.has(t.id)),
+      selectedTagIds: new Set<string>(),
+      activeTagId: null,
     }));
   }, []);
 
@@ -264,36 +283,39 @@ export const FilterSearchProvider = ({
       filters,
       addTag,
       removeTag,
+      updateTagField,
       updateTagOperator,
       updateTagValue,
       setInputValue,
       setActiveTagId,
       setIsOpen,
       setActiveIndex,
-      setFocusedTag,
       setIsAddingTag,
       mainInputRef,
-      tagRefs,
       submit,
       focusMainInput,
-      focusTagAtPosition,
+      selectAllTags,
+      clearSelection,
+      removeSelectedTags,
     }),
     [
       state,
       filters,
       addTag,
       removeTag,
+      updateTagField,
       updateTagOperator,
       updateTagValue,
       setInputValue,
       setActiveTagId,
       setIsOpen,
       setActiveIndex,
-      setFocusedTag,
       setIsAddingTag,
       submit,
       focusMainInput,
-      focusTagAtPosition,
+      selectAllTags,
+      clearSelection,
+      removeSelectedTags,
     ]
   );
 
