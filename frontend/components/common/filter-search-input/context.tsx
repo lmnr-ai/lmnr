@@ -110,6 +110,7 @@ export const FilterSearchProvider = ({
         activeIndex: 0,
         isAddingTag: false,
         selectedTagIds: new Set<string>(),
+        openSelectId: null,
       };
     }
 
@@ -124,6 +125,7 @@ export const FilterSearchProvider = ({
       activeIndex: 0,
       isAddingTag: false,
       selectedTagIds: new Set<string>(),
+      openSelectId: null,
     };
   }, []);
 
@@ -236,6 +238,10 @@ export const FilterSearchProvider = ({
     }));
   }, []);
 
+  const setOpenSelectId = useCallback((id: string | null) => {
+    setState((prev) => ({ ...prev, openSelectId: id }));
+  }, []);
+
   const submit = useCallback(() => {
     const filterObjects = state.tags.map(createFilterFromTag);
     const searchValue = state.inputValue.trim();
@@ -297,6 +303,7 @@ export const FilterSearchProvider = ({
       selectAllTags,
       clearSelection,
       removeSelectedTags,
+      setOpenSelectId,
     }),
     [
       state,
@@ -316,6 +323,7 @@ export const FilterSearchProvider = ({
       selectAllTags,
       clearSelection,
       removeSelectedTags,
+      setOpenSelectId,
     ]
   );
 

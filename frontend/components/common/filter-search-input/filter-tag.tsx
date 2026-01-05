@@ -13,20 +13,26 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { Operator } from "@/lib/actions/common/operators";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { useFilterSearch } from "./context";
-import { ColumnFilter, FilterTag as FilterTagType, getColumnFilter, getOperationsForField, TagFocusPosition } from "./types";
+import SimpleSelect, { SimpleSelectHandle, SimpleSelectOption } from "./simple-select";
+import {
+  ColumnFilter,
+  FilterTag as FilterTagType,
+  getColumnFilter,
+  getOperationsForField,
+  TagFocusPosition,
+} from "./types";
 
 interface FilterTagProps {
   tag: FilterTagType;
@@ -44,7 +50,10 @@ export interface FilterTagHandle {
 }
 
 const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
-  ({ tag, resource = "traces", projectId, isFirst, isLast, isSelected = false, onNavigateLeft, onNavigateRight }, ref) => {
+  (
+    { tag, resource = "traces", projectId, isFirst, isLast, isSelected = false, onNavigateLeft, onNavigateRight },
+    ref
+  ) => {
     const {
       filters,
       updateTagField,
@@ -56,13 +65,14 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
       state,
       focusMainInput,
       setIsAddingTag,
+      setOpenSelectId,
     } = useFilterSearch();
 
     const containerRef = useRef<HTMLDivElement>(null);
-    const fieldSelectRef = useRef<HTMLButtonElement>(null);
-    const operatorRef = useRef<HTMLButtonElement>(null);
+    const fieldSelectRef = useRef<SimpleSelectHandle>(null);
+    const operatorSelectRef = useRef<SimpleSelectHandle>(null);
+    const valueSelectRef = useRef<SimpleSelectHandle>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const valueSelectRef = useRef<HTMLButtonElement>(null);
     const removeRef = useRef<HTMLButtonElement>(null);
 
     const [showValueSuggestions, setShowValueSuggestions] = useState(false);
@@ -73,18 +83,48 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
     const operations = getOperationsForField(filters, tag.field);
     const dataType = columnFilter?.dataType || "string";
 
-    const getValueInputRef = useCallback(() => dataType === "enum" || dataType === "boolean" ? valueSelectRef : inputRef, [dataType]);
+    const fieldSelectId = `${tag.id}-field`;
+    const operatorSelectId = `${tag.id}-operator`;
+    const valueSelectId = `${tag.id}-value`;
+    const isFieldSelectOpen = state.openSelectId === fieldSelectId;
+    const isOperatorSelectOpen = state.openSelectId === operatorSelectId;
+    const isValueSelectOpen = state.openSelectId === valueSelectId;
+
+    const fieldOptions: SimpleSelectOption[] = useMemo(
+      () => filters.map((f) => ({ value: f.key, label: f.name })),
+      [filters]
+    );
+
+    const operatorOptions: SimpleSelectOption[] = useMemo(
+      () => operations.map((op) => ({ value: op.key, label: op.label })),
+      [operations]
+    );
+
+    const focusValueInput = useCallback(() => {
+      if (dataType === "enum" || dataType === "boolean") {
+        valueSelectRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
+    }, [dataType]);
 
     // Expose focus control to parent
     useImperativeHandle(ref, () => ({
       focusPosition: (position: TagFocusPosition) => {
-        const refs: Record<TagFocusPosition, RefObject<HTMLElement | null>> = {
-          field: fieldSelectRef,
-          operator: operatorRef,
-          value: getValueInputRef(),
-          remove: removeRef,
-        };
-        refs[position].current?.focus();
+        switch (position) {
+          case "field":
+            fieldSelectRef.current?.focus();
+            break;
+          case "operator":
+            operatorSelectRef.current?.focus();
+            break;
+          case "value":
+            focusValueInput();
+            break;
+          case "remove":
+            removeRef.current?.focus();
+            break;
+        }
       },
     }));
 
@@ -108,10 +148,10 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
     // Auto-focus when tag becomes active (after adding)
     useEffect(() => {
       if (isActive && state.isAddingTag) {
-        getValueInputRef().current?.focus();
+        focusValueInput();
         setIsAddingTag(false);
       }
-    }, [isActive, state.isAddingTag, setIsAddingTag, getValueInputRef]);
+    }, [isActive, state.isAddingTag, setIsAddingTag, focusValueInput]);
 
     const handleFieldChange = useCallback(
       (field: string) => {
@@ -121,8 +161,15 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
       [tag.id, updateTagField, updateTagValue]
     );
 
+    const handleOperatorChange = useCallback(
+      (operator: string) => {
+        updateTagOperator(tag.id, operator as Operator);
+      },
+      [tag.id, updateTagOperator]
+    );
+
     const handleValueChange = useCallback(
-      (e: React.ChangeEvent<HTMLInputElement>) => {
+      (e: ChangeEvent<HTMLInputElement>) => {
         updateTagValue(tag.id, e.target.value);
         setShowValueSuggestions(true);
       },
@@ -139,18 +186,16 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
 
     const handleValueBlur = useCallback(() => {
       const isWithinTag = containerRef.current?.contains(document.activeElement);
-      if (!isWithinTag && !state.isAddingTag) {
+      if (!isWithinTag && !state.isAddingTag && !state.openSelectId) {
         setShowValueSuggestions(false);
         setActiveTagId(null);
         submit();
       }
-    }, [setActiveTagId, submit, state.isAddingTag]);
+    }, [setActiveTagId, submit, state.isAddingTag, state.openSelectId]);
 
-    // Consolidated keyboard handler for navigation and actions within the tag
-    const handleTagKeyDown = useCallback(
-      (e: React.KeyboardEvent, position: TagFocusPosition) => {
-        // Enter: finish editing and submit (only for value inputs)
-        if (e.key === "Enter" && position === "value") {
+    const handleInputKeyDown = useCallback(
+      (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
           e.preventDefault();
           setShowValueSuggestions(false);
           submit();
@@ -158,51 +203,42 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
           return;
         }
 
-        // Escape: cancel and return to main input
         if (e.key === "Escape") {
           e.preventDefault();
           setShowValueSuggestions(false);
+          setOpenSelectId(null);
           focusMainInput();
           return;
         }
 
-        // Arrow left navigation
         if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          e.stopPropagation();
-          const leftNav: Record<TagFocusPosition, () => void> = {
-            remove: () => getValueInputRef().current?.focus(),
-            value: () => operatorRef.current?.focus(),
-            operator: () => fieldSelectRef.current?.focus(),
-            field: () => !isFirst && onNavigateLeft(),
-          };
-          leftNav[position]();
+          const input = e.target as HTMLInputElement;
+          // selectionStart is null for number inputs, so always allow navigation
+          if (input.selectionStart === null || input.selectionStart === 0) {
+            e.preventDefault();
+            operatorSelectRef.current?.focus();
+          }
           return;
         }
 
-        // Arrow right navigation
         if (e.key === "ArrowRight") {
-          e.preventDefault();
-          e.stopPropagation();
-          const rightNav: Record<TagFocusPosition, () => void> = {
-            field: () => operatorRef.current?.focus(),
-            operator: () => getValueInputRef().current?.focus(),
-            value: () => removeRef.current?.focus(),
-            remove: () => (isLast ? focusMainInput() : onNavigateRight()),
-          };
-          rightNav[position]();
+          const input = e.target as HTMLInputElement;
+          // selectionStart is null for number inputs, so always allow navigation
+          if (input.selectionStart === null || input.selectionStart === input.value.length) {
+            e.preventDefault();
+            removeRef.current?.focus();
+          }
           return;
         }
 
-        // Backspace on empty value removes the tag
-        if (e.key === "Backspace" && position === "value" && tag.value === "") {
+        if (e.key === "Backspace" && tag.value === "") {
           e.preventDefault();
           removeTag(tag.id);
           focusMainInput();
           return;
         }
       },
-      [isFirst, isLast, onNavigateLeft, onNavigateRight, focusMainInput, tag.id, tag.value, removeTag, getValueInputRef, submit]
+      [focusMainInput, tag.id, tag.value, removeTag, submit, setOpenSelectId]
     );
 
     const handleValueSuggestionSelect = useCallback(
@@ -226,84 +262,85 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
       [tag.id, removeTag, focusMainInput]
     );
 
+    const handleRemoveKeyDown = useCallback(
+      (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          handleRemove(e);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          focusValueInput();
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          if (isLast) {
+            focusMainInput();
+          } else {
+            onNavigateRight();
+          }
+        } else if (e.key === "Escape") {
+          focusMainInput();
+        }
+      },
+      [handleRemove, isLast, focusMainInput, onNavigateRight, focusValueInput]
+    );
+
     const handleActivate = useCallback(
       (e: MouseEvent) => {
         e.stopPropagation();
         setActiveTagId(tag.id);
-        getValueInputRef().current?.focus();
       },
-      [tag.id, setActiveTagId, getValueInputRef]
+      [tag.id, setActiveTagId]
     );
 
-    const handleFocus = useCallback(
-      (position: TagFocusPosition) => {
-        setActiveTagId(tag.id);
-        if (position === "value" && dataType === "string") {
-          setShowValueSuggestions(true);
-        }
-      },
-      [tag.id, setActiveTagId, dataType]
-    );
+    const handleInputFocus = useCallback(() => {
+      setActiveTagId(tag.id);
+      if (dataType === "string") {
+        setShowValueSuggestions(true);
+      }
+    }, [tag.id, setActiveTagId, dataType]);
 
     if (!columnFilter) return null;
 
     const selectTriggerClassName = cn(
-      "h-6 w-fit min-w-[28px] px-1.5 border-0 rounded-none bg-transparent text-secondary-foreground font-medium text-xs",
-      "focus:ring-0 focus:ring-offset-0 focus:bg-accent/50"
+      "h-6 w-fit min-w-[28px] px-1.5 bg-transparent text-secondary-foreground font-medium text-xs"
     );
 
     return (
       <div
         ref={containerRef}
         className={cn(
-          "inline-flex items-center rounded-md border bg-secondary overflow-hidden h-6",
+          "inline-flex items-center rounded-md border bg-secondary h-6",
           "divide-x divide-input transition-all",
           isSelected ? "border-primary ring-2 ring-primary/30" : "border-input"
         )}
         onClick={handleActivate}
       >
         {/* Field Select */}
-        <Select value={tag.field} onValueChange={handleFieldChange}>
-          <SelectTrigger
-            ref={fieldSelectRef}
-            className={selectTriggerClassName}
-            onClick={(e) => e.stopPropagation()}
-            onFocus={() => handleFocus("field")}
-            onKeyDown={(e) => handleTagKeyDown(e, "field")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-64">
-            <ScrollArea className="max-h-64">
-              {filters.map((filter) => (
-                <SelectItem key={filter.key} value={filter.key}>
-                  {filter.name}
-                </SelectItem>
-              ))}
-            </ScrollArea>
-          </SelectContent>
-        </Select>
+        <SimpleSelect
+          ref={fieldSelectRef}
+          value={tag.field}
+          options={fieldOptions}
+          onChange={handleFieldChange}
+          open={isFieldSelectOpen}
+          onOpenChange={(open) => setOpenSelectId(open ? fieldSelectId : null)}
+          triggerClassName={selectTriggerClassName}
+          onNavigateLeft={() => !isFirst && onNavigateLeft()}
+          onNavigateRight={() => operatorSelectRef.current?.focus()}
+        />
 
         {/* Operator Select */}
-        <Select value={tag.operator} onValueChange={(v) => updateTagOperator(tag.id, v as Operator)}>
-          <SelectTrigger
-            ref={operatorRef}
-            className={selectTriggerClassName}
-            onClick={(e) => e.stopPropagation()}
-            onFocus={() => handleFocus("operator")}
-            onKeyDown={(e) => handleTagKeyDown(e, "operator")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {operations.map(({ key, label }) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SimpleSelect
+          ref={operatorSelectRef}
+          value={tag.operator}
+          options={operatorOptions}
+          onChange={handleOperatorChange}
+          open={isOperatorSelectOpen}
+          onOpenChange={(open) => setOpenSelectId(open ? operatorSelectId : null)}
+          triggerClassName={selectTriggerClassName}
+          onNavigateLeft={() => fieldSelectRef.current?.focus()}
+          onNavigateRight={() => focusValueInput()}
+        />
 
+        {/* Value Input */}
         <ValueInput
           dataType={dataType}
           columnFilter={columnFilter}
@@ -315,23 +352,20 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
           onValueChange={handleValueChange}
           onSelectValueChange={handleSelectValueChange}
           onBlur={handleValueBlur}
-          onKeyDown={(e) => handleTagKeyDown(e, "value")}
-          onFocus={() => handleFocus("value")}
+          onKeyDown={handleInputKeyDown}
+          onFocus={handleInputFocus}
           onSuggestionSelect={handleValueSuggestionSelect}
+          isSelectOpen={isValueSelectOpen}
+          onSelectOpenChange={(open) => setOpenSelectId(open ? valueSelectId : null)}
+          onNavigateLeft={() => operatorSelectRef.current?.focus()}
+          onNavigateRight={() => removeRef.current?.focus()}
         />
 
         <Button
           variant="ghost"
           ref={removeRef}
           onClick={handleRemove}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              handleRemove(e);
-            } else {
-              handleTagKeyDown(e, "remove");
-            }
-          }}
-          onFocus={() => handleFocus("remove")}
+          onKeyDown={handleRemoveKeyDown}
           className={cn(
             "h-6 w-6 p-0 rounded-none hover:bg-accent transition-colors outline-none border-0",
             "focus:bg-accent"
@@ -355,195 +389,193 @@ interface ValueInputProps {
   showValueSuggestions: boolean;
   filteredValueSuggestions: string[];
   inputRef: RefObject<HTMLInputElement | null>;
-  selectRef: RefObject<HTMLButtonElement | null>;
+  selectRef: RefObject<SimpleSelectHandle | null>;
   onValueChange: (e: ChangeEvent<HTMLInputElement>) => void;
   onSelectValueChange: (value: string) => void;
   onBlur: () => void;
   onKeyDown: (e: KeyboardEvent) => void;
   onFocus: () => void;
   onSuggestionSelect: (value: string) => void;
+  isSelectOpen: boolean;
+  onSelectOpenChange: (open: boolean) => void;
+  onNavigateLeft: () => void;
+  onNavigateRight: () => void;
 }
 
-const ValueInput = memo(({
-  dataType,
-  columnFilter,
-  value,
-  showValueSuggestions,
-  filteredValueSuggestions,
-  inputRef,
-  selectRef,
-  onValueChange,
-  onSelectValueChange,
-  onBlur,
-  onKeyDown,
-  onFocus,
-  onSuggestionSelect,
-}: ValueInputProps) => {
-  const inputClassName = cn(
-    "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
-    "placeholder:text-muted-foreground min-w-fit max-w-60",
-    "focus:bg-accent/50",
-    "[field-sizing:content]"
-  );
+const ValueInput = memo(
+  ({
+    dataType,
+    columnFilter,
+    value,
+    showValueSuggestions,
+    filteredValueSuggestions,
+    inputRef,
+    selectRef,
+    onValueChange,
+    onSelectValueChange,
+    onBlur,
+    onKeyDown,
+    onFocus,
+    onSuggestionSelect,
+    isSelectOpen,
+    onSelectOpenChange,
+    onNavigateLeft,
+    onNavigateRight,
+  }: ValueInputProps) => {
+    const inputClassName = cn(
+      "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
+      "placeholder:text-muted-foreground min-w-fit max-w-60",
+      "focus:bg-accent/50",
+      "[field-sizing:content]"
+    );
 
-  const selectTriggerClassName = cn(
-    "h-6 w-fit min-w-10 max-w-52 px-2 border-0 rounded-none bg-transparent text-secondary-foreground text-xs",
-    "focus:ring-0 focus:ring-offset-0 focus:bg-accent/50"
-  );
+    const selectTriggerClassName = cn(
+      "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-secondary-foreground text-xs"
+    );
 
-  // Handle keyboard events - pass through to parent handler
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      // Always pass through these keys to the parent handler
-      if (
-        e.key === "ArrowLeft" ||
-        e.key === "ArrowRight" ||
-        e.key === "Backspace" ||
-        e.key === "Enter" ||
-        e.key === "Escape"
-      ) {
-        onKeyDown(e);
-      }
-    },
-    [onKeyDown]
-  );
+    // Parse JSON key=value format
+    const [jsonKey, jsonValue] = useMemo(() => {
+      const idx = value.indexOf("=");
+      return idx === -1 ? [value, ""] : [value.substring(0, idx), value.substring(idx + 1)];
+    }, [value]);
 
-  // Parse JSON key=value format (called unconditionally to satisfy React hooks rules)
-  const [jsonKey, jsonValue] = useMemo(() => {
-    const idx = value.indexOf("=");
-    return idx === -1 ? [value, ""] : [value.substring(0, idx), value.substring(idx + 1)];
-  }, [value]);
+    const enumOptions: SimpleSelectOption[] = useMemo(() => {
+      if (columnFilter.dataType !== "enum") return [];
+      return columnFilter.options.map((opt) => ({
+        value: opt.value,
+        label: opt.label,
+      }));
+    }, [columnFilter]);
 
-  switch (dataType) {
-    case "enum":
-      return (
-        <Select value={value} onValueChange={onSelectValueChange}>
-          <SelectTrigger
+    const booleanOptions: SimpleSelectOption[] = [
+      { value: "true", label: "true" },
+      { value: "false", label: "false" },
+    ];
+
+    switch (dataType) {
+      case "enum":
+        return (
+          <SimpleSelect
             ref={selectRef}
-            className={selectTriggerClassName}
-            onClick={(e) => e.stopPropagation()}
-            onFocus={onFocus}
-            onKeyDown={handleKeyDown}
-          >
-            <SelectValue placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent className="max-h-64">
-            <ScrollArea className="max-h-64">
-              {columnFilter.dataType === "enum" &&
-                columnFilter.options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <div className="flex items-center gap-2">
-                      {option.icon && option.icon}
-                      {option.label}
-                    </div>
-                  </SelectItem>
-                ))}
-            </ScrollArea>
-          </SelectContent>
-        </Select>
-      );
+            value={value}
+            options={enumOptions}
+            onChange={onSelectValueChange}
+            open={isSelectOpen}
+            onOpenChange={onSelectOpenChange}
+            placeholder="Select..."
+            triggerClassName={selectTriggerClassName}
+            onNavigateLeft={onNavigateLeft}
+            onNavigateRight={onNavigateRight}
+          />
+        );
 
-    case "boolean":
-      return (
-        <Select value={value} onValueChange={onSelectValueChange}>
-          <SelectTrigger
+      case "boolean":
+        return (
+          <SimpleSelect
             ref={selectRef}
-            className={selectTriggerClassName}
-            onClick={(e) => e.stopPropagation()}
-            onFocus={onFocus}
-            onKeyDown={handleKeyDown}
-          >
-            <SelectValue placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="true">true</SelectItem>
-            <SelectItem value="false">false</SelectItem>
-          </SelectContent>
-        </Select>
-      );
-
-    case "number":
-      return (
-        <div className="relative flex items-center">
-          <input
-            ref={inputRef}
-            type="number"
             value={value}
-            onChange={onValueChange}
-            onBlur={onBlur}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            placeholder="0"
-            className={cn(inputClassName, "hide-arrow")}
+            options={booleanOptions}
+            onChange={onSelectValueChange}
+            open={isSelectOpen}
+            onOpenChange={onSelectOpenChange}
+            placeholder="Select..."
+            triggerClassName={selectTriggerClassName}
+            onNavigateLeft={onNavigateLeft}
+            onNavigateRight={onNavigateRight}
           />
-        </div>
-      );
+        );
 
-    case "json":
-      return (
-        <div className="flex items-center divide-x divide-input">
-          <input
-            ref={inputRef}
-            type="text"
-            value={jsonKey}
-            onChange={(e) => onValueChange({ target: { value: `${e.target.value}=${jsonValue}` } } as React.ChangeEvent<HTMLInputElement>)}
-            onBlur={onBlur}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            placeholder="key"
-            className={cn(inputClassName, "min-w-10 max-w-32")}
-          />
-          <input
-            type="text"
-            value={jsonValue}
-            onChange={(e) => onValueChange({ target: { value: `${jsonKey}=${e.target.value}` } } as React.ChangeEvent<HTMLInputElement>)}
-            onBlur={onBlur}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            placeholder="value"
-            className={cn(inputClassName, "min-w-10 max-w-32")}
-          />
-        </div>
-      );
+      case "number":
+        return (
+          <div className="relative flex items-center">
+            <input
+              ref={inputRef}
+              type="number"
+              value={value}
+              onChange={onValueChange}
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              onFocus={onFocus}
+              placeholder="0"
+              className={cn(inputClassName, "hide-arrow")}
+            />
+          </div>
+        );
 
-    default: // string
-      return (
-        <div className="relative flex items-center">
-          <input
-            ref={inputRef}
-            type="text"
-            value={value}
-            onChange={onValueChange}
-            onBlur={onBlur}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            placeholder="..."
-            className={inputClassName}
-          />
-          {showValueSuggestions && filteredValueSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 mt-1 z-50 min-w-[120px] max-w-[200px] bg-secondary border rounded-md shadow-md overflow-hidden">
-              <ScrollArea className="max-h-36 [&>div]:max-h-36">
-                <div className="py-1">
-                  {filteredValueSuggestions.map((suggestion, idx) => (
-                    <div
-                      key={idx}
-                      className="px-3 py-1.5 text-xs hover:bg-accent cursor-pointer text-secondary-foreground truncate"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onSuggestionSelect(suggestion);
-                      }}
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-        </div>
-      );
+      case "json":
+        return (
+          <div className="flex items-center divide-x divide-input">
+            <input
+              ref={inputRef}
+              type="text"
+              value={jsonKey}
+              onChange={(e) =>
+                onValueChange({
+                  target: { value: `${e.target.value}=${jsonValue}` },
+                } as ChangeEvent<HTMLInputElement>)
+              }
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              onFocus={onFocus}
+              placeholder="key"
+              className={cn(inputClassName, "min-w-10 max-w-32")}
+            />
+            <input
+              type="text"
+              value={jsonValue}
+              onChange={(e) =>
+                onValueChange({
+                  target: { value: `${jsonKey}=${e.target.value}` },
+                } as ChangeEvent<HTMLInputElement>)
+              }
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              onFocus={onFocus}
+              placeholder="value"
+              className={cn(inputClassName, "min-w-10 max-w-32")}
+            />
+          </div>
+        );
+
+      default: // string
+        return (
+          <div className="relative flex items-center">
+            <input
+              ref={inputRef}
+              type="text"
+              value={value}
+              onChange={onValueChange}
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              onFocus={onFocus}
+              placeholder="..."
+              className={inputClassName}
+            />
+            {showValueSuggestions && filteredValueSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 z-50 min-w-[120px] max-w-[200px] bg-secondary border rounded-md shadow-md overflow-hidden">
+                <ScrollArea className="max-h-36 [&>div]:max-h-36">
+                  <div className="py-1">
+                    {filteredValueSuggestions.map((suggestion, idx) => (
+                      <div
+                        key={idx}
+                        className="px-3 py-1.5 text-xs hover:bg-accent cursor-pointer text-secondary-foreground truncate"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          onSuggestionSelect(suggestion);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+        );
+    }
   }
-});
+);
 
 ValueInput.displayName = "ValueInput";
 

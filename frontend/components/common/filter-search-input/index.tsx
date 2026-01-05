@@ -62,9 +62,11 @@ const FilterSearchInputInner = ({
     // Don't submit if a filter tag is being edited
     if (state.activeTagId) return;
     if (state.isAddingTag) return;
+    // Don't submit if a select dropdown is open (focus moved to dropdown)
+    if (state.openSelectId) return;
     setIsOpen(false);
     submit();
-  }, [setIsOpen, submit, state.isAddingTag, state.activeTagId]);
+  }, [setIsOpen, submit, state.isAddingTag, state.activeTagId, state.openSelectId]);
 
   // Consolidated keyboard handler for main input
   const handleKeyDown = useCallback(

@@ -24,6 +24,7 @@ export interface FilterSearchState {
   activeIndex: number; // For keyboard navigation in suggestions
   isAddingTag: boolean;
   selectedTagIds: Set<string>; // For bulk selection with Cmd+A
+  openSelectId: string | null;
 }
 
 export interface FilterSearchContextValue {
@@ -58,6 +59,8 @@ export interface FilterSearchContextValue {
   selectAllTags: () => void;
   clearSelection: () => void;
   removeSelectedTags: () => void;
+
+  setOpenSelectId: (id: string | null) => void;
 }
 
 export function createFilterFromTag(tag: FilterTag): Filter {
