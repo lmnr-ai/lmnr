@@ -8,32 +8,34 @@ use uuid::Uuid;
 
 use crate::traces::spans::SpanAttributes;
 
-#[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
-#[sqlx(type_name = "span_type")]
+#[derive(Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpanType {
     #[default]
-    DEFAULT,
+    Default,
     LLM,
-    PIPELINE,
-    EXECUTOR,
-    EVALUATOR,
+    Pipeline,
+    Executor,
+    Evaluator,
     #[allow(non_camel_case_types)]
-    HUMAN_EVALUATOR,
-    EVALUATION,
-    TOOL,
+    HumanEvaluator,
+    Evaluation,
+    Tool,
+    Cached,
 }
 
 impl std::fmt::Display for SpanType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SpanType::DEFAULT => write!(f, "DEFAULT"),
+            SpanType::Default => write!(f, "DEFAULT"),
             SpanType::LLM => write!(f, "LLM"),
-            SpanType::PIPELINE => write!(f, "PIPELINE"),
-            SpanType::EXECUTOR => write!(f, "EXECUTOR"),
-            SpanType::EVALUATOR => write!(f, "EVALUATOR"),
-            SpanType::HUMAN_EVALUATOR => write!(f, "HUMAN_EVALUATOR"),
-            SpanType::EVALUATION => write!(f, "EVALUATION"),
-            SpanType::TOOL => write!(f, "TOOL"),
+            SpanType::Pipeline => write!(f, "PIPELINE"),
+            SpanType::Executor => write!(f, "EXECUTOR"),
+            SpanType::Evaluator => write!(f, "EVALUATOR"),
+            SpanType::HumanEvaluator => write!(f, "HUMAN_EVALUATOR"),
+            SpanType::Evaluation => write!(f, "EVALUATION"),
+            SpanType::Tool => write!(f, "TOOL"),
+            SpanType::Cached => write!(f, "CACHED"),
         }
     }
 }
@@ -43,14 +45,15 @@ impl FromStr for SpanType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().trim() {
-            "DEFAULT" | "SPAN" => Ok(SpanType::DEFAULT),
+            "DEFAULT" | "SPAN" => Ok(SpanType::Default),
             "LLM" => Ok(SpanType::LLM),
-            "PIPELINE" => Ok(SpanType::PIPELINE),
-            "EXECUTOR" => Ok(SpanType::EXECUTOR),
-            "EVALUATOR" => Ok(SpanType::EVALUATOR),
-            "HUMAN_EVALUATOR" => Ok(SpanType::HUMAN_EVALUATOR),
-            "EVALUATION" => Ok(SpanType::EVALUATION),
-            "TOOL" => Ok(SpanType::TOOL),
+            "PIPELINE" => Ok(SpanType::Pipeline),
+            "EXECUTOR" => Ok(SpanType::Executor),
+            "EVALUATOR" => Ok(SpanType::Evaluator),
+            "HUMAN_EVALUATOR" => Ok(SpanType::HumanEvaluator),
+            "EVALUATION" => Ok(SpanType::Evaluation),
+            "TOOL" => Ok(SpanType::Tool),
+            "CACHED" => Ok(SpanType::Cached),
             _ => Err(anyhow::anyhow!("Invalid span type: {}", s)),
         }
     }

@@ -77,15 +77,14 @@ pub async fn stream(
 
 #[patch("rollouts/{session_id}/status")]
 pub async fn update_status(
-    path: web::Path<String>,
+    path: web::Path<Uuid>,
     body: web::Json<UpdateStatusRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
-    let session_id =
-        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
+    let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
     let new_status = body.into_inner().status;
 
