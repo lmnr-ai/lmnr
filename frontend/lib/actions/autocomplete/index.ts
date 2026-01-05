@@ -1,12 +1,14 @@
 import { z } from "zod/v4";
 
 import { getTopSuggestions, isAutocompleteCacheExists, searchSuggestions } from "@/lib/actions/autocomplete/cache.ts";
+import { FIELD_TO_CACHE_KEY } from "@/lib/actions/autocomplete/fields";
 import { executeQuery } from "@/lib/actions/sql";
 
 const GetAutocompleteSuggestionsSchema = z.object({
   projectId: z.string(),
   entity: z.enum(["traces", "spans"]),
   prefix: z.string().trim().default(""),
+  field: z.string().optional(),
 });
 
 export type AutocompleteSuggestion = {
@@ -62,11 +64,32 @@ const getTracesSuggestions = async (projectId: string, prefix: string): Promise<
   ];
 };
 
+const getFieldSuggestions = async (
+  entity: "traces" | "spans",
+  projectId: string,
+  field: string,
+  prefix: string
+): Promise<AutocompleteSuggestion[]> => {
+  const cacheKey = FIELD_TO_CACHE_KEY[entity]?.[field];
+  if (!cacheKey) {
+    return [];
+  }
+
+  const values = await getSuggestions("spans", projectId, cacheKey, prefix);
+  return values.map((value) => ({ field, value }));
+};
+
 export async function getAutocompleteSuggestions(
   input: z.infer<typeof GetAutocompleteSuggestionsSchema>
 ): Promise<AutocompleteSuggestion[]> {
-  const { projectId, entity, prefix } = GetAutocompleteSuggestionsSchema.parse(input);
+  const { projectId, entity, prefix, field } = GetAutocompleteSuggestionsSchema.parse(input);
 
+  // If a specific field is requested, only fetch for that field
+  if (field) {
+    return await getFieldSuggestions(entity, projectId, field, prefix);
+  }
+
+  // Otherwise, fetch all suggestions (legacy behavior)
   if (entity === "spans") {
     return await getSpansSuggestions(projectId, prefix);
   } else {

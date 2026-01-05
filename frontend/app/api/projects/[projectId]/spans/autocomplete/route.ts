@@ -11,6 +11,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
       projectId: params.projectId,
       entity: "spans",
       prefix: searchParams.get("prefix") || "",
+      field: searchParams.get("field") || undefined,
     });
 
     return Response.json({ suggestions });

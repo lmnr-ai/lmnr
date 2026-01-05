@@ -18,8 +18,9 @@ import {
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { Operator } from "@/lib/actions/common/operators";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -128,11 +129,22 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
       },
     }));
 
-    // Fetch value suggestions (only for string type)
+    // Check if field supports autocomplete
+    const supportsAutocomplete = useMemo(
+      () => AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field) ?? false,
+      [resource, tag.field]
+    );
+
+    // Fetch value suggestions (only for string type fields that support autocomplete)
+    // Fetch immediately on focus (empty prefix returns top suggestions)
     const fetchUrl = useMemo(() => {
-      if (!debouncedValue || !isActive || dataType !== "string") return null;
-      return `/api/projects/${projectId}/${resource}/autocomplete?prefix=${encodeURIComponent(debouncedValue)}`;
-    }, [debouncedValue, isActive, projectId, resource, dataType]);
+      if (!isActive || dataType !== "string" || !supportsAutocomplete) return null;
+      const params = new URLSearchParams({ field: tag.field });
+      if (debouncedValue) {
+        params.set("prefix", debouncedValue);
+      }
+      return `/api/projects/${projectId}/${resource}/autocomplete?${params.toString()}`;
+    }, [debouncedValue, isActive, projectId, resource, dataType, supportsAutocomplete, tag.field]);
 
     const { data: suggestions = { suggestions: [] } } = useSWR<{ suggestions: AutocompleteSuggestion[] }>(
       fetchUrl,
@@ -140,9 +152,10 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
       { fallbackData: { suggestions: [] }, keepPreviousData: true }
     );
 
+    // Map suggestions to values (API now returns only the requested field's suggestions)
     const filteredValueSuggestions = useMemo(
-      () => suggestions.suggestions.filter((s) => s.field === tag.field).map((s) => s.value),
-      [suggestions.suggestions, tag.field]
+      () => suggestions.suggestions.map((s) => s.value),
+      [suggestions.suggestions]
     );
 
     // Auto-focus when tag becomes active (after adding)
@@ -195,11 +208,23 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
 
     const handleInputKeyDown = useCallback(
       (e: KeyboardEvent) => {
+        // Let Command handle arrow keys when suggestions are open
+        if (showValueSuggestions && filteredValueSuggestions.length > 0) {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            // Don't prevent default - let the event bubble to Command
+            return;
+          }
+        }
+
         if (e.key === "Enter") {
-          e.preventDefault();
-          setShowValueSuggestions(false);
-          submit();
-          focusMainInput();
+          // If suggestions are open, Command will handle Enter for selection
+          // Only submit if no suggestions or empty
+          if (!showValueSuggestions || filteredValueSuggestions.length === 0) {
+            e.preventDefault();
+            setShowValueSuggestions(false);
+            submit();
+            focusMainInput();
+          }
           return;
         }
 
@@ -238,7 +263,16 @@ const FilterTag = forwardRef<FilterTagHandle, FilterTagProps>(
           return;
         }
       },
-      [focusMainInput, tag.id, tag.value, removeTag, submit, setOpenSelectId]
+      [
+        focusMainInput,
+        tag.id,
+        tag.value,
+        removeTag,
+        submit,
+        setOpenSelectId,
+        showValueSuggestions,
+        filteredValueSuggestions,
+      ]
     );
 
     const handleValueSuggestionSelect = useCallback(
@@ -539,7 +573,10 @@ const ValueInput = memo(
 
       default: // string
         return (
-          <div className="relative flex items-center">
+          <Command
+            className="relative flex items-center overflow-visible bg-transparent w-fit rounded-none"
+            shouldFilter={false}
+          >
             <input
               ref={inputRef}
               type="text"
@@ -552,26 +589,25 @@ const ValueInput = memo(
               className={inputClassName}
             />
             {showValueSuggestions && filteredValueSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 mt-1 z-50 min-w-[120px] max-w-[200px] bg-secondary border rounded-md shadow-md overflow-hidden">
-                <ScrollArea className="max-h-36 [&>div]:max-h-36">
-                  <div className="py-1">
-                    {filteredValueSuggestions.map((suggestion, idx) => (
-                      <div
-                        key={idx}
-                        className="px-3 py-1.5 text-xs hover:bg-accent cursor-pointer text-secondary-foreground truncate"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          onSuggestionSelect(suggestion);
-                        }}
+              <div className="absolute top-full left-0 mt-1 z-50 w-[200px] bg-popover border shadow-md overflow-hidden">
+                <CommandList className="max-h-[200px]">
+                  <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">No suggestions</CommandEmpty>
+                  <CommandGroup>
+                    {filteredValueSuggestions.map((suggestion) => (
+                      <CommandItem
+                        key={suggestion}
+                        value={suggestion}
+                        onSelect={() => onSuggestionSelect(suggestion)}
+                        className="text-xs cursor-pointer"
                       >
-                        {suggestion}
-                      </div>
+                        <span className="truncate">{suggestion}</span>
+                      </CommandItem>
                     ))}
-                  </div>
-                </ScrollArea>
+                  </CommandGroup>
+                </CommandList>
               </div>
             )}
-          </div>
+          </Command>
         );
     }
   }
