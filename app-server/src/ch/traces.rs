@@ -84,7 +84,7 @@ impl CHTrace {
 impl ClickhouseInsertable for CHTrace {
     const TABLE: Table = Table::Traces;
 
-    fn into_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Traces(items)
     }
 }

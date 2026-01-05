@@ -18,7 +18,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{
-        ClickhouseManager,
+        ClickhouseService,
         spans::CHSpan,
         tags::CHTag,
         traces::{CHTrace, TraceAggregation},
@@ -203,7 +203,7 @@ async fn process_batch(
     let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
 
     // Create ClickhouseManager for batch operations
-    let ch_manager = ClickhouseManager::new(
+    let ch_manager = ClickhouseService::new(
         clickhouse.clone(),
         db.pool.clone(),
         cache.clone(),

@@ -12,11 +12,11 @@ use std::env;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::ch::get_workspace_deployment;
+use super::get_workspace_deployment;
 use crate::db::workspaces::DeploymentMode;
 use crate::db::workspaces::WorkspaceDeployment;
 use crate::sql::{ClickhouseBadResponseError, ClickhouseReadonlyClient, SqlQueryError};
-use crate::{cache::Cache, data_plane_client::auth::generate_auth_token};
+use crate::{cache::Cache, data_plane::auth::generate_auth_token};
 
 use super::crypto;
 
@@ -29,6 +29,8 @@ struct DataPlaneReadRequest {
     project_id: Uuid,
     parameters: HashMap<String, Value>,
 }
+
+// TODO: move read() and read_from_clickhouse() to sql module, keep only data plane interactions here
 
 pub async fn read(
     pool: &PgPool,

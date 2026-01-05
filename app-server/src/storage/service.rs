@@ -1,6 +1,6 @@
 //! Routing types for storage operations.
 //!
-//! Contains the StorageManager abstraction for routing storage operations
+//! Contains the StorageService abstraction for routing storage operations
 //! to either direct S3 or via the data plane based on deployment configuration.
 
 use anyhow::Result;
@@ -10,13 +10,13 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::ch::get_workspace_deployment;
-use crate::data_plane_client::write::data_plane_storage_upload;
+use crate::data_plane::get_workspace_deployment;
 use crate::db::workspaces::DeploymentMode;
 
+use super::data_plane::DataPlaneStorage;
 use super::{Storage, StorageTrait};
 
-/// Manager for storage operations that handles routing between direct
+/// Service for storage operations that handles routing between direct
 /// S3 writes and data plane writes based on deployment mode.
 pub struct StorageService {
     storage: Arc<Storage>,
@@ -54,7 +54,9 @@ impl StorageService {
         match config.mode {
             DeploymentMode::CLOUD => (*self.storage).store(bucket, key, data).await,
             DeploymentMode::HYBRID => {
-                data_plane_storage_upload(&self.http_client, &config, bucket, key, data).await
+                // Create DataPlaneStorage with workspace-specific config
+                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                data_plane.store_direct(bucket, key, data).await
             }
         }
     }

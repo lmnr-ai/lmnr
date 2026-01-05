@@ -178,7 +178,7 @@ impl CHSpan {
 impl ClickhouseInsertable for CHSpan {
     const TABLE: Table = Table::Spans;
 
-    fn into_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Spans(items)
     }
 }

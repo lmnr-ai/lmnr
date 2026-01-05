@@ -66,7 +66,7 @@ impl ClickhouseInsertable for CHTag {
         insert.with_option("wait_for_async_insert", "0")
     }
 
-    fn into_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Tags(items)
     }
 }

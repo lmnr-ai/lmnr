@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::worker::MessageHandler;
 
+pub mod data_plane;
 pub mod mock;
 pub mod s3;
 mod service;
