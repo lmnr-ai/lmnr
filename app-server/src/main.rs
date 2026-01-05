@@ -652,6 +652,7 @@ fn main() -> anyhow::Result<()> {
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
+    let storage_service_for_http = storage_manager.clone();
     let sse_connections_for_http = sse_connections.clone();
     let http_client_for_http = http_client.clone();
 
@@ -1008,6 +1009,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(web::Data::new(storage_service_for_http.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
@@ -1060,7 +1062,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
-                                    .service(routes::spans::search_spans),
+                                    .service(routes::spans::search_spans)
+                                    .service(routes::payloads::get_payload),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

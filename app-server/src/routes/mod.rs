@@ -1,5 +1,6 @@
 pub mod error;
 pub mod evaluations;
+pub mod payloads;
 pub mod probes;
 pub mod realtime;
 pub mod spans;

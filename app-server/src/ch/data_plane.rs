@@ -67,7 +67,7 @@ impl ClickhouseTrait for DataPlaneClickhouse {
 
         let response = self
             .http_client
-            .post(format!("{}/api/v1/write", data_plane_url))
+            .post(format!("{}/api/v1/ch/write", data_plane_url))
             .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
             .json(&batch)

@@ -3,9 +3,11 @@
 //! Contains the StorageService abstraction for routing storage operations
 //! to either direct S3 or via the data plane based on deployment configuration.
 
+use std::pin::Pin;
+use std::sync::Arc;
+
 use anyhow::Result;
 use sqlx::PgPool;
-use std::sync::Arc;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -54,9 +56,42 @@ impl StorageService {
         match config.mode {
             DeploymentMode::CLOUD => (*self.storage).store(bucket, key, data).await,
             DeploymentMode::HYBRID => {
-                // Create DataPlaneStorage with workspace-specific config
                 let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
                 data_plane.store_direct(bucket, key, data).await
+            }
+        }
+    }
+
+    /// Get a stream of bytes, routing to S3 or data plane based on deployment mode.
+    #[instrument(skip(self))]
+    pub async fn get_stream(
+        &self,
+        project_id: Uuid,
+        bucket: &str,
+        key: &str,
+    ) -> Result<Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>>
+    {
+        let config = get_workspace_deployment(&self.pool, self.cache.clone(), project_id).await?;
+
+        match config.mode {
+            DeploymentMode::CLOUD => (*self.storage).get_stream(bucket, key).await,
+            DeploymentMode::HYBRID => {
+                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                data_plane.get_stream(bucket, key).await
+            }
+        }
+    }
+
+    /// Get the size of an object, routing to S3 or data plane based on deployment mode.
+    #[instrument(skip(self))]
+    pub async fn get_size(&self, project_id: Uuid, bucket: &str, key: &str) -> Result<u64> {
+        let config = get_workspace_deployment(&self.pool, self.cache.clone(), project_id).await?;
+
+        match config.mode {
+            DeploymentMode::CLOUD => (*self.storage).get_size(bucket, key).await,
+            DeploymentMode::HYBRID => {
+                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                data_plane.get_size(bucket, key).await
             }
         }
     }

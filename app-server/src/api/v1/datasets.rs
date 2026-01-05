@@ -15,7 +15,7 @@ use crate::{
     query_engine::QueryEngine,
     routes::{PaginatedResponse, types::ResponseResult},
     sql::{self, ClickhouseReadonlyClient},
-    storage::{Storage, StorageTrait},
+    storage::StorageService,
 };
 
 #[derive(Deserialize)]
@@ -327,7 +327,7 @@ async fn create_datapoints(
 async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
-    storage: web::Data<Arc<Storage>>,
+    storage: web::Data<Arc<StorageService>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
@@ -351,9 +351,11 @@ async fn get_parquet(
             "error": "exports storage is not configured"
         })));
     };
-    let content_length = storage.get_size(&bucket, &parquet_path).await?;
+    let content_length = storage.get_size(project_id, &bucket, &parquet_path).await?;
 
-    let get_response = storage.get_stream(&bucket, &parquet_path).await?;
+    let get_response = storage
+        .get_stream(project_id, &bucket, &parquet_path)
+        .await?;
 
     let filename = parquet_path.split('/').last().unwrap_or(&name);
 

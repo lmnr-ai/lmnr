@@ -181,7 +181,7 @@ async fn read_from_data_plane(
     };
 
     let response = http_client
-        .post(format!("{}/api/v1/read", data_plane_url))
+        .post(format!("{}/api/v1/ch/read", data_plane_url))
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
         .json(&request)

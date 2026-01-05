@@ -3,30 +3,26 @@ use std::sync::Arc;
 use actix_web::{HttpResponse, get, web};
 use futures_util::StreamExt;
 use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
-    routes::types::ResponseResult,
-    storage::{Storage, StorageTrait},
+    db::project_api_keys::ProjectApiKey, routes::types::ResponseResult, storage::StorageService,
 };
 
 #[derive(Deserialize)]
 pub struct PayloadQuery {
     #[serde(rename = "payloadType")]
-    payload_type: Option<String>,
+    pub payload_type: Option<String>,
 }
 
-#[get("payloads/{payload_id}")]
-pub async fn get_payload(
-    path: web::Path<String>,
-    query: web::Query<PayloadQuery>,
-    storage: web::Data<Arc<Storage>>,
-    project_api_key: ProjectApiKey,
+/// Core logic for fetching a payload from storage.
+/// This is shared between the API key-authenticated endpoint and the project-scoped endpoint.
+pub async fn get_payload_response(
+    project_id: Uuid,
+    payload_id: &str,
+    payload_type: Option<&str>,
+    storage: &StorageService,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
-    let payload_id = path.into_inner();
-    let query = query.into_inner();
-
     // Construct the S3 key following the same pattern as the storage module
     let key = format!("project/{}/{}", project_id, payload_id);
 
@@ -36,7 +32,7 @@ pub async fn get_payload(
             "error": "payloads storage is not configured"
         })));
     };
-    let mut stream = match storage.as_ref().get_stream(&bucket, &key).await {
+    let mut stream = match storage.get_stream(project_id, &bucket, &key).await {
         Ok(stream) => stream,
         Err(e) => {
             log::error!("Failed to retrieve payload from storage: {:?}", e);
@@ -51,10 +47,10 @@ pub async fn get_payload(
         Some(chunk) => chunk,
         None => {
             // Empty stream
-            let content_type = get_content_type_from_filename(&payload_id)
+            let content_type = get_content_type_from_filename(payload_id)
                 .unwrap_or_else(|| "application/octet-stream".to_string());
 
-            let response = match query.payload_type.as_deref() {
+            let response = match payload_type {
                 Some("image") => HttpResponse::Ok()
                     .content_type(content_type)
                     .insert_header(("Content-Disposition", "inline"))
@@ -80,7 +76,7 @@ pub async fn get_payload(
 
     // Determine content type from first chunk and filename
     let content_type = infer_content_type_from_bytes(&first_chunk)
-        .or_else(|| get_content_type_from_filename(&payload_id))
+        .or_else(|| get_content_type_from_filename(payload_id))
         .unwrap_or_else(|| "application/octet-stream".to_string());
 
     // Create a stream that starts with the first chunk and continues with the rest
@@ -89,7 +85,7 @@ pub async fn get_payload(
             .chain(stream.map(|chunk| Ok::<_, actix_web::Error>(chunk)));
 
     // Build response with appropriate headers based on payload_type
-    let response = match query.payload_type.as_deref() {
+    let response = match payload_type {
         Some("image") => HttpResponse::Ok()
             .content_type(content_type)
             .insert_header(("Content-Disposition", "inline"))
@@ -108,6 +104,20 @@ pub async fn get_payload(
     };
 
     Ok(response)
+}
+
+#[get("payloads/{payload_id}")]
+pub async fn get_payload(
+    path: web::Path<String>,
+    query: web::Query<PayloadQuery>,
+    storage: web::Data<Arc<StorageService>>,
+    project_api_key: ProjectApiKey,
+) -> ResponseResult {
+    let project_id = project_api_key.project_id;
+    let payload_id = path.into_inner();
+    let payload_type = query.payload_type.as_deref();
+
+    get_payload_response(project_id, &payload_id, payload_type, &storage).await
 }
 
 fn infer_content_type_from_bytes(bytes: &[u8]) -> Option<String> {

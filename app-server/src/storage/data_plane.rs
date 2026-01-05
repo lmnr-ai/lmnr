@@ -6,6 +6,7 @@ use std::pin::Pin;
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use serde::Serialize;
 
 use crate::data_plane::{auth::generate_auth_token, crypto};
@@ -42,19 +43,9 @@ impl DataPlaneStorage {
             config,
         }
     }
-}
 
-#[async_trait]
-impl super::StorageTrait for DataPlaneStorage {
-    type StorageBytesStream =
-        Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-
-    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
-        // For data plane, store and store_direct are the same - no queue
-        self.store_direct(bucket, key, data).await
-    }
-
-    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+    /// Get decrypted data plane URL and auth token.
+    fn get_url_and_token(&self) -> Result<(String, String)> {
         if self.config.data_plane_url.is_empty() {
             return Err(anyhow!("Data plane URL is empty"));
         }
@@ -68,6 +59,23 @@ impl super::StorageTrait for DataPlaneStorage {
 
         let auth_token = generate_auth_token(&self.config)
             .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
+
+        Ok((data_plane_url, auth_token))
+    }
+}
+
+#[async_trait]
+impl super::StorageTrait for DataPlaneStorage {
+    type StorageBytesStream =
+        Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
+
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+        // For data plane, store and store_direct are the same - no queue
+        self.store_direct(bucket, key, data).await
+    }
+
+    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+        let (data_plane_url, auth_token) = self.get_url_and_token()?;
 
         let payload = StorageUploadPayload {
             bucket,
@@ -96,13 +104,56 @@ impl super::StorageTrait for DataPlaneStorage {
         }
     }
 
-    async fn get_stream(&self, _bucket: &str, _key: &str) -> Result<Self::StorageBytesStream> {
-        // TODO: Implement data plane read - for now return error
-        Err(anyhow!("Data plane storage read not yet implemented"))
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {
+        let (data_plane_url, auth_token) = self.get_url_and_token()?;
+
+        let response = self
+            .http_client
+            .get(format!("{}/api/v1/storage/object", data_plane_url))
+            .query(&[("bucket", bucket), ("key", key)])
+            .header("Authorization", format!("Bearer {}", auth_token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "Data plane storage get_stream returned {}: {}",
+                response.status(),
+                response.text().await.unwrap_or_default()
+            ));
+        }
+
+        // Convert the response body stream to our expected stream type
+        let stream = response
+            .bytes_stream()
+            .map(|result| result.unwrap_or_else(|_| bytes::Bytes::new()));
+
+        Ok(Box::pin(stream))
     }
 
-    async fn get_size(&self, _bucket: &str, _key: &str) -> Result<u64> {
-        // TODO: Implement data plane size check - for now return error
-        Err(anyhow!("Data plane storage get_size not yet implemented"))
+    async fn get_size(&self, bucket: &str, key: &str) -> Result<u64> {
+        let (data_plane_url, auth_token) = self.get_url_and_token()?;
+
+        let response = self
+            .http_client
+            .get(format!("{}/api/v1/storage/object/size", data_plane_url))
+            .query(&[("bucket", bucket), ("key", key)])
+            .header("Authorization", format!("Bearer {}", auth_token))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "Data plane storage get_size returned {}: {}",
+                response.status(),
+                response.text().await.unwrap_or_default()
+            ));
+        }
+
+        let size_str = response.text().await?;
+        size_str
+            .trim()
+            .parse::<u64>()
+            .map_err(|e| anyhow!("Failed to parse size response: {}", e))
     }
 }
