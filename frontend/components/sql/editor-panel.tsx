@@ -150,7 +150,6 @@ export default function EditorPanel() {
       setResults([]);
     } finally {
       if (abortControllerRef.current === controller) {
-
         abortControllerRef.current = null;
         setIsLoading(false);
       }
@@ -184,8 +183,10 @@ export default function EditorPanel() {
       if (error) {
         return (
           <div className="flex flex-1 items-center justify-center h-full space-x-2 text-destructive">
-            <AlertCircle className="size-5" />
-            <div className="whitespace-pre-wrap">{error}</div>
+            <div className="flex gap-2">
+              <AlertCircle className="size-5" />
+              <div className="whitespace-pre-wrap text-sm">{error}</div>
+            </div>
           </div>
         );
       }
@@ -236,10 +237,7 @@ export default function EditorPanel() {
             </TabsList>
             <div className="ml-auto">
               {isLoading ? (
-                <Button
-                  onClick={cancelQuery}
-                  className="rounded-tr-none rounded-br-none border-r-0"
-                >
+                <Button onClick={cancelQuery} className="rounded-tr-none rounded-br-none border-r-0">
                   <Square size={14} className="mr-1" fill="currentColor" />
                   <span className="mr-2">Cancel</span>
                 </Button>
@@ -255,7 +253,7 @@ export default function EditorPanel() {
                 </Button>
               )}
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
-                <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none" >
+                <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none">
                   <Database className="size-3.5 mr-2" />
                   Export
                   <ChevronDown className="size-3.5 ml-2" />
@@ -275,7 +273,7 @@ export default function EditorPanel() {
                       hasMore={false}
                       isFetching={false}
                       isLoading={false}
-                      fetchNextPage={() => { }}
+                      fetchNextPage={() => {}}
                     />
                   </DataTableStateProvider>
                 ),
@@ -315,13 +313,7 @@ export default function EditorPanel() {
           <TabsContent asChild value="chart">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: (
-                  <ChartBuilder
-                    query={template?.query || ""}
-                    data={results || []}
-                    storageKey={template?.id}
-                  />
-                ),
+                success: <ChartBuilder query={template?.query || ""} data={results || []} storageKey={template?.id} />,
                 loadingText: "Generating chart...",
                 default: (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">
