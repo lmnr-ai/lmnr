@@ -1,38 +1,37 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, CirclePlay, Copy, Database, Loader} from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { ChevronDown, CirclePlay, Copy, Database, Loader } from "lucide-react";
+import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../../traces/stats-shields";
 
-interface HeaderProps {
-  handleClose: () => void;
-}
-
 const Header = () => {
   const params = useParams();
-  const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
-    useRolloutSessionStoreContext((state) => ({
-      trace: state.trace,
-      browserSession: state.browserSession,
-      setBrowserSession: state.setBrowserSession,
-      langGraph: state.langGraph,
-      setLangGraph: state.setLangGraph,
-      getHasLangGraph: state.getHasLangGraph,
-    }));
+  const { trace, browserSession, setBrowserSession } = useRolloutSessionStoreContext((state) => ({
+    trace: state.trace,
+    browserSession: state.browserSession,
+    setBrowserSession: state.setBrowserSession,
+  }));
 
   const { toast } = useToast();
-  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'trace', traceId: String(trace?.id) } });
+  const { openInSql, isLoading } = useOpenInSql({
+    projectId: projectId as string,
+    params: { type: "trace", traceId: String(trace?.id) },
+  });
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -47,18 +46,18 @@ const Header = () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
-                        Trace
+              Trace
               <ChevronDown className="ml-1 size-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuItem onClick={handleCopyTraceId}>
               <Copy size={14} />
-                        Copy trace ID
+              Copy trace ID
             </DropdownMenuItem>
             <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
               {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
-                        Open in SQL editor
+              Open in SQL editor
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -84,4 +83,3 @@ const Header = () => {
 };
 
 export default memo(Header);
-

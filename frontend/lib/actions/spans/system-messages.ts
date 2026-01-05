@@ -12,6 +12,7 @@ export const GetSystemMessagesSchema = z.object({
 });
 
 export interface SystemMessageResponse {
+  id: string;
   content: string;
   path: string;
 }
@@ -25,9 +26,7 @@ function extractSystemMessageContent(message: any): string | null {
   }
 
   if (Array.isArray(message.content)) {
-    const textParts = message.content
-      .filter((part: any) => part.type === "text")
-      .map((part: any) => part.text);
+    const textParts = message.content.filter((part: any) => part.type === "text").map((part: any) => part.text);
     return textParts.join("\n");
   }
 
@@ -49,8 +48,7 @@ function parseSystemMessageFromInput(input: string): string | null {
         }
       }
     }
-  } catch (e) {
-  }
+  } catch (e) {}
 
   try {
     const langChainResult = LangChainMessagesSchema.safeParse(parsed);
@@ -63,8 +61,7 @@ function parseSystemMessageFromInput(input: string): string | null {
         }
       }
     }
-  } catch (e) {
-  }
+  } catch (e) {}
 
   return null;
 }
@@ -107,7 +104,8 @@ export async function getTraceSystemMessages(
     systemMessagesByPath.set(span.path, systemContent);
   }
 
-  return Array.from(systemMessagesByPath.entries()).map(([path, content]) => ({
+  return Array.from(systemMessagesByPath.entries()).map(([path, content], index) => ({
+    id: `${path}_${index}`,
     content,
     path,
   }));

@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangle, Loader2, Play, RotateCcw, Save } from "lucide-react";
-import React, {Fragment, useMemo} from "react";
+import { AlertTriangle, Loader2, Play, RotateCcw, Save, Square } from "lucide-react";
+import React, { Fragment, useMemo } from "react";
 
-import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -18,23 +18,22 @@ interface SystemMessageEditorProps {
   onReset: () => void;
 }
 
-const SystemMessageEditor = ({
-  message,
-  editedContent,
-  onEdit,
-  onReset,
-}: SystemMessageEditorProps) => {
+const SystemMessageEditor = ({ message, editedContent, onEdit, onReset }: SystemMessageEditorProps) => {
   const isEdited = editedContent !== undefined;
   const currentContent = editedContent ?? message.content;
 
   return (
-    <div className={cn(
-      "flex flex-col rounded-lg border bg-card transition-all overflow-hidden",
-      isEdited && "border-primary/50 ring-1 ring-primary/20"
-    )}>
+    <div
+      className={cn(
+        "flex flex-col rounded-lg border bg-card transition-all overflow-hidden",
+        isEdited && "border-primary/50 ring-1 ring-primary/20"
+      )}
+    >
       <div className="flex items-center justify-between p-2 border-b bg-muted/30">
         <div className="flex items-center gap-2 truncate overflow-x-auto no-scrollbar">
-          <span className="text-sm font-medium font-mono" title={message.path}>{message.path}</span>
+          <span className="text-sm font-medium font-mono" title={message.path}>
+            {message.path}
+          </span>
           {isEdited && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
               Modified
@@ -57,7 +56,7 @@ const SystemMessageEditor = ({
         value={currentContent}
         onChange={(e) => onEdit(e.target.value)}
         className={cn(
-          "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none",
+          "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none"
         )}
         placeholder="Enter system message..."
       />
@@ -67,11 +66,13 @@ const SystemMessageEditor = ({
 
 interface RolloutSidebarProps {
   onRollout: () => void;
+  onCancel: () => void;
 }
 
-export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
+export default function RolloutSidebar({ onRollout, onCancel }: RolloutSidebarProps) {
   const {
     systemMessagesMap,
+    isSystemMessagesLoading,
     editedMessages,
     setEditedMessage,
     resetEditedMessage,
@@ -80,8 +81,10 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
     params,
     paramValues,
     setParamValue,
+    sessionStatus,
   } = useRolloutSessionStoreContext((state) => ({
     systemMessagesMap: state.systemMessagesMap,
+    isSystemMessagesLoading: state.isSystemMessagesLoading,
     editedMessages: state.editedMessages,
     setEditedMessage: state.setEditedMessage,
     resetEditedMessage: state.resetEditedMessage,
@@ -90,36 +93,41 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
     params: state.params,
     paramValues: state.paramValues,
     setParamValue: state.setParamValue,
+    sessionStatus: state.sessionStatus,
   }));
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
 
+  const isRunning = sessionStatus === "RUNNING";
+  const canRun = sessionStatus === "PENDING" || sessionStatus === "FINISHED" || sessionStatus === "STOPPED";
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col gap-2 p-2 border-b">
-        <Button
-          className="w-fit"
-          onClick={onRollout}
-          disabled={isRolloutRunning}
-        >
-          {isRolloutRunning ? (
-            <>
-              <Loader2 size={14} className="mr-2 animate-spin" />
-                Running...
-            </>
-          ) : (
-            <>
-              <Play size={14} className="mr-2" />
+      <div className="flex flex-col gap-2 p-2">
+        {isRunning ? (
+          <Button className="w-fit" variant="destructive" onClick={onCancel}>
+            <Square size={14} className="mr-2" />
+            Cancel
+          </Button>
+        ) : (
+          <Button className="w-fit" onClick={onRollout} disabled={isRolloutRunning || !canRun}>
+            {isRolloutRunning ? (
+              <>
+                <Loader2 size={14} className="mr-2 animate-spin" />
+                Starting...
+              </>
+            ) : (
+              <>
+                <Play size={14} className="mr-2" />
                 Run Rollout
-            </>
-          )}
-        </Button>
+              </>
+            )}
+          </Button>
+        )}
         {rolloutError && (
           <Alert variant="destructive">
             <AlertTriangle className="w-4 h-4" />
-            <AlertTitle>
-                  Error
-            </AlertTitle>
+            <AlertTitle>Error</AlertTitle>
             <AlertDescription>{rolloutError}</AlertDescription>
           </Alert>
         )}
@@ -129,15 +137,11 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
         <div className="flex flex-col gap-4 p-4">
           {params && params.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h4 className="text-xs font-semibold text-muted-foreground">
-                Parameters
-              </h4>
+              <h4 className="text-xs font-semibold text-muted-foreground">Parameters</h4>
               <div className="flex flex-col gap-2">
                 {params.map((param, index) => (
                   <Fragment key={param.name}>
-                    <label className="text-xs font-medium text-foreground">
-                      {param.name}
-                    </label>
+                    <label className="text-xs font-medium text-foreground">{param.name}</label>
                     <Textarea
                       className="text-sm min-h-20 resize-y"
                       placeholder={`Enter ${param.name}...`}
@@ -151,18 +155,19 @@ export default function RolloutSidebar({ onRollout }: RolloutSidebarProps) {
           )}
 
           <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-semibold text-muted-foreground">
-              System Prompts
-            </h4>
-            {messages.length === 0 ? (
+            <h4 className="text-xs font-semibold text-muted-foreground">System Prompts</h4>
+            {isSystemMessagesLoading ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Loader2 size={24} className="text-muted-foreground animate-spin mb-3" />
+                <p className="text-sm text-muted-foreground">Loading system prompts...</p>
+              </div>
+            ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
                   <Save size={18} className="text-muted-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground">No system prompts found</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
-                  System prompts will appear here once detected
-                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1">System prompts will appear here once detected</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">

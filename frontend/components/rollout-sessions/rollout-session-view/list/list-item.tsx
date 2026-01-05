@@ -4,7 +4,10 @@ import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, LockO
 import React, { useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
-import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import {
+  TraceViewListSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
@@ -28,7 +31,16 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false, onSetCachePoint, onUnlock, isCached = false }: ListItemProps) => {
+const ListItem = ({
+  span,
+  getOutput,
+  onSpanSelect,
+  onOpenSettings,
+  isLast = false,
+  onSetCachePoint,
+  onUnlock,
+  isCached = false,
+}: ListItemProps) => {
   const selectedSpan = useRolloutSessionStoreContext((state) => state.selectedSpan);
   const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
 
@@ -110,6 +122,17 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 </div>
               )}
             </div>
+            <Button
+              disabled={isLoadingOutput}
+              variant="ghost"
+              className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSettings(span);
+              }}
+            >
+              <Settings className="size-3.5 text-secondary-foreground" />
+            </Button>
             {span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -149,17 +172,6 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 </TooltipPortal>
               </Tooltip>
             )}
-            <Button
-              disabled={isLoadingOutput}
-              variant="ghost"
-              className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSettings(span);
-              }}
-            >
-              <Settings className="size-3.5 text-secondary-foreground" />
-            </Button>
 
             {span.pathInfo && (
               <Tooltip>

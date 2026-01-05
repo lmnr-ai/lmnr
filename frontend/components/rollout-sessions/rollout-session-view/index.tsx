@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
@@ -13,12 +13,12 @@ import {
   TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import RolloutSidebar from "@/components/rollout-sessions/rollout-session-view/sidebar";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
-import SessionPlayer from "@/components/traces/session-player";
 import { SpanView } from "@/components/traces/span-view";
 import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -26,10 +26,7 @@ import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
-import {
-  enrichSpansWithPending,
-  filterColumns,
-} from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
@@ -48,18 +45,16 @@ interface RolloutSessionViewProps {
   traceId: string;
   spanId?: string;
   propsTrace?: TraceViewTrace;
-  onClose: () => void;
 }
 
-const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrace }: RolloutSessionViewProps) => {
+const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: RolloutSessionViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  // Local state for the current traceId (can be updated from realtime)
-  const [currentTraceId, setCurrentTraceId] = React.useState(traceId);
+  const [currentTraceId, setCurrentTraceId] = useState(traceId);
 
   // Data states
   const {
@@ -145,6 +140,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
 
   const {
     setSystemMessagesMap,
+    setIsSystemMessagesLoading,
     pathToCount,
     getOverridesForRollout,
     setCachePoint,
@@ -153,8 +149,10 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     setIsRolloutRunning,
     setRolloutError,
     paramValues,
+    setSessionStatus,
   } = useRolloutSessionStoreContext((state) => ({
     setSystemMessagesMap: state.setSystemMessagesMap,
+    setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
     pathToCount: state.pathToCount,
     getOverridesForRollout: state.getOverridesForRollout,
     setCachePoint: state.setCachePoint,
@@ -163,6 +161,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     setIsRolloutRunning: state.setIsRolloutRunning,
     setRolloutError: state.setRolloutError,
     paramValues: state.paramValues,
+    setSessionStatus: state.setSessionStatus,
   }));
 
   const handleFetchTrace = useCallback(async () => {
@@ -279,7 +278,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
           setHasBrowserSession(true);
           setBrowserSession(true);
         }
-
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
         setSpansError(errorMessage);
@@ -337,8 +335,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
       };
 
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(rolloutPayload),
       });
 
@@ -348,6 +346,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
       }
 
       await response.json();
+
+      setSessionStatus("RUNNING");
 
       toast({
         title: "Rollout started successfully",
@@ -365,7 +365,48 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     } finally {
       setIsRolloutRunning(false);
     }
-  }, [pathToCount, getOverridesForRollout, currentTraceId, sessionId, setIsRolloutRunning, setRolloutError, toast, projectId, paramValues]);
+  }, [
+    pathToCount,
+    getOverridesForRollout,
+    currentTraceId,
+    sessionId,
+    setIsRolloutRunning,
+    setRolloutError,
+    setSessionStatus,
+    toast,
+    projectId,
+    paramValues,
+  ]);
+
+  const handleCancel = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "STOPPED" }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to cancel rollout");
+      }
+
+      setSessionStatus("STOPPED");
+
+      toast({
+        title: "Rollout cancelled",
+        description: "The rollout session has been stopped.",
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to cancel rollout";
+      toast({
+        title: "Failed to cancel rollout",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      console.error("Cancel error:", error);
+    }
+  }, [projectId, sessionId, setSessionStatus, toast]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -383,8 +424,14 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
           }
         }
       },
+      status_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.status) {
+          setSessionStatus(payload.status);
+        }
+      },
     }),
-    [addSpanIfNew]
+    [addSpanIfNew, setSessionStatus]
   );
 
   useEffect(() => {
@@ -421,7 +468,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
   useEffect(() => {
     if (!projectId || !traceId || spans.length === 0) return;
 
-    // Calculate unique LLM span paths
     const llmPaths = new Set<string>();
     for (const span of spans) {
       if (span.spanType === SpanType.LLM && span.path) {
@@ -432,20 +478,19 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
     if (llmPaths.size === 0) return;
 
     const loadSystemMessages = async () => {
+      setIsSystemMessagesLoading(true);
       try {
-        const messages = await fetchSystemMessages(
-          projectId as string,
-          traceId,
-          Array.from(llmPaths)
-        );
+        const messages = await fetchSystemMessages(projectId as string, traceId, Array.from(llmPaths));
         setSystemMessagesMap(messages);
       } catch (error) {
         console.error("Failed to fetch system messages:", error);
+      } finally {
+        setIsSystemMessagesLoading(false);
       }
     };
 
     loadSystemMessages();
-  }, [spans, projectId, traceId, setSystemMessagesMap]);
+  }, [spans, projectId, traceId, setSystemMessagesMap, setIsSystemMessagesLoading]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
@@ -490,7 +535,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
         <Header />
         <div className="flex h-full w-full min-h-0">
           <div className="flex-none w-96 border-r bg-background flex flex-col">
-            <RolloutSidebar onRollout={handleRollout} />
+            <RolloutSidebar onRollout={handleRollout} onCancel={handleCancel} />
           </div>
 
           <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -560,7 +605,12 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
             </div>
 
             {(search || searchEnabled) && (
-              <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
+              <SearchTraceSpansInput
+                spans={spans}
+                submit={fetchSpans}
+                filters={filters}
+                onAddFilter={handleAddFilter}
+              />
             )}
 
             {spansError ? (
@@ -585,11 +635,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
                     />
                   )}
                   {tab === "timeline" && (
-                    <Timeline
-                      onSetCachePoint={setCachePoint}
-                      onUnlock={unlockFromSpan}
-                      isSpanCached={isSpanCached}
-                    />
+                    <Timeline onSetCachePoint={setCachePoint} onUnlock={unlockFromSpan} isSpanCached={isSpanCached} />
                   )}
                   {tab === "reader" && (
                     <div className="flex flex-1 h-full overflow-hidden relative">
@@ -644,22 +690,21 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, onClose, propsTrac
         </div>
 
         <Sheet open={!!selectedSpan} onOpenChange={(open) => !open && handleSpanSelect(undefined)}>
-          <SheetContent side="right" className="min-w-[50vw] w-[50vw] flex flex-col p-0">
-            <SheetHeader className="px-6 py-4 border-b">
-              <SheetTitle>Span Details</SheetTitle>
+          <SheetContent side="right" className="min-w-[50vw] w-[50vw] flex flex-col p-0 gap-0">
+            <SheetHeader className="hidden">
+              <SheetTitle />
             </SheetHeader>
             <div className="flex-1 overflow-hidden">
-              {selectedSpan && (
-                selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+              {selectedSpan &&
+                (selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
                   <HumanEvaluatorSpanView
                     traceId={selectedSpan.traceId}
                     spanId={selectedSpan.spanId}
                     key={selectedSpan.spanId}
                   />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
-                )
-              )}
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={currentTraceId} />
+                ))}
             </div>
           </SheetContent>
         </Sheet>

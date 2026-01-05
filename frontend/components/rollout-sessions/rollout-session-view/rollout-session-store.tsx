@@ -16,6 +16,7 @@ import {
   transformSpansToTree,
   TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
@@ -176,15 +177,15 @@ interface RolloutSessionStoreState {
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
-  // Tracks how many realtime spans per path have been processed (for replacement ordering)
-  realtimePathIndex: Map<string, number>;
 
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
+  isSystemMessagesLoading: boolean;
   pathToCount: Record<string, number>;
   editedMessages: Map<string, string>; // messageId -> edited content
   isRolloutRunning: boolean;
   rolloutError?: string;
+  sessionStatus: RolloutSessionStatus;
 
   // Params state
   params: Array<{ name: string; [key: string]: any }>;
@@ -228,12 +229,16 @@ interface RolloutSessionStoreActions {
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
-  resetRealtimePathIndex: () => void;
   addSpanIfNew: (span: TraceViewSpan | RealtimeSpanInput) => boolean;
 
   // Rollout-specific actions
-  setSystemMessagesMap: (messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)) => void;
-  setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
+  setSystemMessagesMap: (
+    messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
+  ) => void;
+  setIsSystemMessagesLoading: (isLoading: boolean) => void;
+  setPathToCount: (
+    pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
+  ) => void;
   setEditedMessage: (messageId: string, content: string) => void;
   resetEditedMessage: (messageId: string) => void;
   getEditedContent: (messageId: string) => string | undefined;
@@ -244,6 +249,7 @@ interface RolloutSessionStoreActions {
   getLlmPathCounts: () => Record<string, number>;
   setIsRolloutRunning: (isRunning: boolean) => void;
   setRolloutError: (error?: string) => void;
+  setSessionStatus: (status: RolloutSessionStatus) => void;
 
   setParamValue: (name: string, value: string) => void;
 }
@@ -253,17 +259,22 @@ type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions
 const createRolloutSessionStore = ({
   trace,
   params = [],
-  storeKey = "rollout-session-state"
+  storeKey = "rollout-session-state",
+  initialStatus = "PENDING",
 }: {
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
+  initialStatus?: RolloutSessionStatus;
 }) => {
   // Initialize paramValues from params
-  const initialParamValues = params.reduce((acc, param) => {
-    acc[param.name] = "";
-    return acc;
-  }, {} as Record<string, string>);
+  const initialParamValues = params.reduce(
+    (acc, param) => {
+      acc[param.name] = "";
+      return acc;
+    },
+    {} as Record<string, string>
+  );
 
   return createStore<RolloutSessionStore>()(
     persist(
@@ -287,14 +298,15 @@ const createRolloutSessionStore = ({
         hasBrowserSession: false,
         spanTemplates: {},
         spanPathCounts: new Map(),
-        realtimePathIndex: new Map(),
 
         // Rollout-specific state
         systemMessagesMap: new Map(),
+        isSystemMessagesLoading: false,
         pathToCount: {},
         editedMessages: new Map(),
         isRolloutRunning: false,
         rolloutError: undefined,
+        sessionStatus: initialStatus,
 
         // Params state (initialized from props)
         params,
@@ -502,16 +514,12 @@ const createRolloutSessionStore = ({
           spans.forEach((span) => {
             const spanPath = span.attributes?.["lmnr.span.path"];
             if (spanPath && Array.isArray(spanPath)) {
-              const pathKey = spanPath.join("/");
+              const pathKey = spanPath.join(".");
               pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1);
             }
           });
 
-          // Reset realtime index when rebuilding counts (e.g., after initial fetch)
-          set({ spanPathCounts: pathCounts, realtimePathIndex: new Map() });
-        },
-        resetRealtimePathIndex: () => {
-          set({ realtimePathIndex: new Map() });
+          set({ spanPathCounts: pathCounts });
         },
         addSpanIfNew: (rawSpan: TraceViewSpan | RealtimeSpanInput): boolean => {
           // Convert incoming span to TraceViewSpan format
@@ -519,7 +527,6 @@ const createRolloutSessionStore = ({
           const incomingPath = incomingSpan.attributes?.["lmnr.span.path"];
 
           if (!incomingPath || !Array.isArray(incomingPath)) {
-            // No path - fallback to spanId matching
             const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
             if (!exists) {
               get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
@@ -528,43 +535,64 @@ const createRolloutSessionStore = ({
             return false;
           }
 
-          const pathKey = incomingPath.join("/");
-          const realtimeIndex = get().realtimePathIndex.get(pathKey) ?? 0;
+          const pathKey = incomingPath.join(".");
+          const incomingPathCount = incomingSpan.attributes?.["lmnr.rollout.path.index"];
 
-          // Find all existing spans with the same path that DON'T have rollout session id
-          // (these are "original" spans that can be replaced)
-          const originalSpansWithPath = get().spans
-            .map((s, idx) => ({ span: s, originalIndex: idx }))
-            .filter(({ span }) => {
-              const sPath = span.attributes?.["lmnr.span.path"];
-              if (!sPath || !Array.isArray(sPath)) return false;
-              if (sPath.join("/") !== pathKey) return false;
-              // Only consider spans without rollout session id as "original"
-              return !span.attributes?.["lmnr.rollout.session_id"];
-            })
-            .sort((a, b) => new Date(a.span.startTime).getTime() - new Date(b.span.startTime).getTime());
-
-          if (originalSpansWithPath.length > realtimeIndex) {
-            // Replace the Nth original span with matching path
-            const { span: spanToReplace } = originalSpansWithPath[realtimeIndex];
-
-            get().setSpans((prevSpans) =>
-              prevSpans.map((s) =>
-                s.spanId === spanToReplace.spanId
-                  ? { ...incomingSpan, collapsed: s.collapsed }
-                  : s
-              )
-            );
-          } else {
-            // No more original spans to replace - add as new
+          // If no path count attribute, just add as new span
+          if (incomingPathCount === undefined || incomingPathCount === null) {
             get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
             // Update span path counts for the new span
             const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
             get().spanPathCounts.set(pathKey, currentCount + 1);
+            return true;
           }
 
-          // Increment realtime index for this path
-          get().realtimePathIndex.set(pathKey, realtimeIndex + 1);
+          // Find existing span with same path AND same path count
+          const existingSpanWithSameCount = get().spans.find((s) => {
+            const sPath = s.attributes?.["lmnr.span.path"];
+            if (!sPath || !Array.isArray(sPath)) return false;
+            if (sPath.join(".") !== pathKey) return false;
+            const sPathCount = s.attributes?.["lmnr.rollout.path.index"];
+            return sPathCount === incomingPathCount;
+          });
+
+          if (existingSpanWithSameCount) {
+            // Replace the existing span with same path and count
+            get().setSpans((prevSpans) =>
+              prevSpans.map((s) =>
+                s.spanId === existingSpanWithSameCount.spanId ? { ...incomingSpan, collapsed: s.collapsed } : s
+              )
+            );
+            return true;
+          }
+
+          const originalSpansWithPath = get()
+            .spans.filter((span) => {
+              const sPath = span.attributes?.["lmnr.span.path"];
+              if (!sPath || !Array.isArray(sPath)) return false;
+              if (sPath.join(".") !== pathKey) return false;
+              // Only consider spans without path count as "original"
+              return span.attributes?.["lmnr.rollout.path.index"] === undefined;
+            })
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          // path count is 1-indexed, so we need to get the (pathCount - 1)th original span
+          const targetIndex = incomingPathCount - 1;
+          if (targetIndex >= 0 && targetIndex < originalSpansWithPath.length) {
+            const spanToReplace = originalSpansWithPath[targetIndex];
+            get().setSpans((prevSpans) =>
+              prevSpans.map((s) =>
+                s.spanId === spanToReplace.spanId ? { ...incomingSpan, collapsed: s.collapsed } : s
+              )
+            );
+            return true;
+          }
+
+          // No original span to replace at this index - add as new
+          get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
+          // Update span path counts for the new span
+          const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
+          get().spanPathCounts.set(pathKey, currentCount + 1);
           return true;
         },
 
@@ -578,6 +606,8 @@ const createRolloutSessionStore = ({
             set({ systemMessagesMap: messages });
           }
         },
+
+        setIsSystemMessagesLoading: (isLoading) => set({ isSystemMessagesLoading: isLoading }),
 
         setPathToCount: (pathToCount) => {
           if (typeof pathToCount === "function") {
@@ -608,7 +638,6 @@ const createRolloutSessionStore = ({
         },
 
         getEditedContent: (messageId: string) => get().editedMessages.get(messageId),
-
 
         getOverridesForRollout: () => {
           const overrides: Record<string, { system: string }> = {};
@@ -699,8 +728,8 @@ const createRolloutSessionStore = ({
         getLlmPathCounts: (): Record<string, number> => {
           const pathMap: Record<string, number> = {};
 
-          get().spans
-            .filter((span) => span.spanType === SpanType.LLM)
+          get()
+            .spans.filter((span) => span.spanType === SpanType.LLM)
             .forEach((span) => {
               const spanPath = span.attributes?.["lmnr.span.path"];
               if (spanPath && Array.isArray(spanPath)) {
@@ -714,6 +743,7 @@ const createRolloutSessionStore = ({
 
         setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
+        setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
 
         setParamValue: (name, value) => {
           set((state) => ({
@@ -740,16 +770,18 @@ const RolloutSessionStoreProvider = ({
   trace,
   params,
   storeKey,
+  initialStatus,
   children,
 }: PropsWithChildren<{
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
-    storeKey?: string;
+  storeKey?: string;
+  initialStatus?: RolloutSessionStatus;
 }>) => {
   const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createRolloutSessionStore({ trace, params, storeKey });
+    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus });
   }
 
   return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;
@@ -773,5 +805,3 @@ export const useRolloutSessionStore = () => {
 };
 
 export default RolloutSessionStoreProvider;
-
-
