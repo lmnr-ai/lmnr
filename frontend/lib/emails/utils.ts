@@ -15,7 +15,7 @@ export async function sendWelcomeEmail(email: string) {
     from,
     to: [email],
     subject,
-    react: WelcomeEmail({}),
+    react: WelcomeEmail(),
   });
 
   if (error) console.log(error);
