@@ -13,11 +13,11 @@ use crate::traces::spans::SpanAttributes;
 pub enum SpanType {
     #[default]
     Default,
+    #[serde(rename = "LLM")]
     LLM,
     Pipeline,
     Executor,
     Evaluator,
-    #[allow(non_camel_case_types)]
     HumanEvaluator,
     Evaluation,
     Tool,

@@ -75,15 +75,17 @@ pub async fn update_status(
     // Update status in database
     update_session_status(&db.pool, &session_id, &project_id, new_status).await?;
 
-    // Send status update to frontend via SSE
-    let message: SseMessage = SseMessage {
-        event_type: "stop".to_string(),
-        data: serde_json::json!({
-            "session_id": session_id,
-        }),
-    };
-    let key = format!("rollout_sdk_{}", session_id);
-    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+    if new_status == RolloutSessionStatus::Stopped {
+        // Send status update to frontend via SSE
+        let message: SseMessage = SseMessage {
+            event_type: "stop".to_string(),
+            data: serde_json::json!({
+                "session_id": session_id,
+            }),
+        };
+        let key = format!("rollout_sdk_{}", session_id);
+        send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+    }
 
     Ok(HttpResponse::Ok().finish())
 }
