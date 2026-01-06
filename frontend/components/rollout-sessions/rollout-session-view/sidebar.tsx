@@ -67,9 +67,10 @@ const SystemMessageEditor = ({ message, editedContent, onEdit, onReset }: System
 interface RolloutSidebarProps {
   onRollout: () => void;
   onCancel: () => void;
+  isCancelling?: boolean;
 }
 
-export default function RolloutSidebar({ onRollout, onCancel }: RolloutSidebarProps) {
+export default function RolloutSidebar({ onRollout, onCancel, isCancelling }: RolloutSidebarProps) {
   const {
     systemMessagesMap,
     isSystemMessagesLoading,
@@ -105,9 +106,18 @@ export default function RolloutSidebar({ onRollout, onCancel }: RolloutSidebarPr
     <div className="flex flex-col h-full">
       <div className="flex flex-col gap-2 p-2">
         {isRunning ? (
-          <Button className="w-fit" variant="destructive" onClick={onCancel}>
-            <Square size={14} className="mr-2" />
-            Cancel
+          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isCancelling}>
+            {isCancelling ? (
+              <>
+                <Loader2 size={14} className="mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <Square size={14} className="mr-2" />
+                Cancel
+              </>
+            )}
           </Button>
         ) : (
           <Button className="w-fit" onClick={onRollout} disabled={isRolloutRunning || !canRun}>

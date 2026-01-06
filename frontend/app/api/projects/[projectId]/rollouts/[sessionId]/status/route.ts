@@ -1,33 +1,13 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/utils";
-
-export async function PATCH(
-  req: Request,
-  props: { params: Promise<{ projectId: string; sessionId: string }> }
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ projectId: string; sessionId: string }> }) {
   try {
     const params = await props.params;
     const { sessionId, projectId } = params;
     const body = await req.json();
 
-    // Validate required fields
-    if (!body.status) {
-      return NextResponse.json({ error: "status is required" }, { status: 400 });
-    }
-
-    // Validate status value
-    const validStatuses = ["PENDING", "RUNNING", "FINISHED", "STOPPED"];
-    if (!validStatuses.includes(body.status)) {
-      return NextResponse.json(
-        { error: `status must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    // Call the backend API
-    const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/status`, {
+    const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${sessionId}/status`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -37,13 +17,20 @@ export async function PATCH(
       }),
     });
 
+    if (!res.ok) {
+      const text = await res.text();
+      return NextResponse.json({ error: text || "Failed to update status" }, { status: res.status });
+    }
+
+    // Handle empty response body from backend
+    const text = await res.text();
+    const result = text ? JSON.parse(text) : { success: true };
+
     return NextResponse.json(result);
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
-
-    console.error("Rollout status update error:", error);
 
     return NextResponse.json(
       {
@@ -53,4 +40,3 @@ export async function PATCH(
     );
   }
 }
-

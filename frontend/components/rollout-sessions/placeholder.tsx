@@ -2,11 +2,12 @@
 
 import { AlertTriangle, Loader2, Play, Radio, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback } from "react";
+import React, { Fragment, useCallback, useState } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface PlaceholderProps {
@@ -16,6 +17,7 @@ interface PlaceholderProps {
 export default function Placeholder({ sessionId }: PlaceholderProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const {
     isRolloutRunning,
@@ -26,6 +28,8 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
     setSessionStatus,
     paramValues,
     getOverridesForRollout,
+    params,
+    setParamValue,
   } = useRolloutSessionStoreContext((state) => ({
     isRolloutRunning: state.isRolloutRunning,
     setIsRolloutRunning: state.setIsRolloutRunning,
@@ -35,6 +39,8 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
     setSessionStatus: state.setSessionStatus,
     paramValues: state.paramValues,
     getOverridesForRollout: state.getOverridesForRollout,
+    params: state.params,
+    setParamValue: state.setParamValue,
   }));
 
   const isRunning = sessionStatus === "RUNNING";
@@ -93,6 +99,7 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
 
   const handleCancel = useCallback(async () => {
     try {
+      setIsCancelling(true);
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -117,53 +124,93 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Cancel error:", error);
+    } finally {
+      setIsCancelling(false);
     }
   }, [projectId, sessionId, setSessionStatus, toast]);
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
-        <div className="flex items-center gap-2">
-          <Radio className="w-4 h-4 text-primary animate-pulse" />
-          <span className="text-sm text-muted-foreground">
-            {isRunning ? "Running rollout..." : "Waiting for traces..."}
-          </span>
-        </div>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          {isRunning
-            ? "The rollout is running. Traces will appear here once they arrive."
-            : "Run the rollout to start, or traces will appear here when your code runs."}
-        </p>
-
-        {rolloutError && (
-          <Alert variant="destructive" className="max-w-sm">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{rolloutError}</AlertDescription>
-          </Alert>
-        )}
-
-        {isRunning ? (
-          <Button variant="destructive" onClick={handleCancel}>
-            <Square size={14} className="mr-2" />
-            Cancel
-          </Button>
-        ) : (
-          <Button onClick={handleRollout} disabled={isRolloutRunning || !canRun}>
-            {isRolloutRunning ? (
-              <>
-                <Loader2 size={14} className="mr-2 animate-spin" />
-                Starting...
-              </>
+    <div className="flex h-full w-full">
+      <div className="flex-none w-96 border-r bg-background flex flex-col">
+        <div className="flex flex-col h-full">
+          <div className="flex flex-col gap-2 p-2">
+            {isRunning ? (
+              <Button className="w-fit" variant="destructive" onClick={handleCancel} disabled={isCancelling}>
+                {isCancelling ? (
+                  <>
+                    <Loader2 size={14} className="mr-2 animate-spin" />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <Square size={14} className="mr-2" />
+                    Cancel
+                  </>
+                )}
+              </Button>
             ) : (
-              <>
-                <Play size={14} className="mr-2" />
-                Run Rollout
-              </>
+              <Button className="w-fit" onClick={handleRollout} disabled={isRolloutRunning || !canRun}>
+                {isRolloutRunning ? (
+                  <>
+                    <Loader2 size={14} className="mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} className="mr-2" />
+                    Run Rollout
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
-        )}
+            {rolloutError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{rolloutError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto styled-scrollbar">
+            <div className="flex flex-col gap-4 p-4">
+              {params && params.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground">Parameters</h4>
+                  <div className="flex flex-col gap-2">
+                    {params.map((param) => (
+                      <Fragment key={param.name}>
+                        <label className="text-xs font-medium text-foreground">{param.name}</label>
+                        <Textarea
+                          className="text-sm min-h-20 resize-y"
+                          placeholder={`Enter ${param.name}...`}
+                          value={paramValues[param.name] || ""}
+                          onChange={(e) => setParamValue(param.name, e.target.value)}
+                        />
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
+          <div className="flex items-center gap-2">
+            <Radio className="w-4 h-4 text-primary animate-pulse" />
+            <span className="text-sm text-muted-foreground">
+              {isRunning ? "Running rollout..." : "Waiting for traces..."}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground text-center max-w-sm">
+            {isRunning
+              ? "The rollout is running. Traces will appear here once they arrive."
+              : "Run the rollout to start, or traces will appear here when your code runs."}
+          </p>
+        </div>
       </div>
     </div>
   );

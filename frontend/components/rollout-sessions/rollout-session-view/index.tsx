@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
@@ -20,7 +20,6 @@ import Timeline from "@/components/rollout-sessions/rollout-session-view/timelin
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { SpanView } from "@/components/traces/span-view";
-import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
@@ -55,6 +54,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   const { toast } = useToast();
 
   const [currentTraceId, setCurrentTraceId] = useState(traceId);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Data states
   const {
@@ -394,6 +394,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
 
   const handleCancel = useCallback(async () => {
     try {
+      setIsCancelling(true);
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -418,7 +419,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Cancel error:", error);
+    } finally {
+      setIsCancelling(false);
     }
   }, [projectId, sessionId, setSessionStatus, toast]);
 
@@ -505,7 +507,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     };
 
     loadSystemMessages();
-  }, []);
+  }, [traceId, spans]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
@@ -550,7 +552,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         <Header />
         <div className="flex h-full w-full min-h-0">
           <div className="flex-none w-96 border-r bg-background flex flex-col">
-            <RolloutSidebar onRollout={handleRollout} onCancel={handleCancel} />
+            <RolloutSidebar onRollout={handleRollout} onCancel={handleCancel} isCancelling={isCancelling} />
           </div>
 
           <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -582,16 +584,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
                 >
                   <FileText size={14} className="mr-1" />
                   <span>Metadata</span>
-                </Button>
-                <Button
-                  onClick={() => setTab("chat")}
-                  variant="outline"
-                  className={cn("h-6 text-xs px-1.5", {
-                    "border-primary text-primary": tab === "chat",
-                  })}
-                >
-                  <Sparkles size={14} className="mr-1" />
-                  <span>Ask AI</span>
                 </Button>
                 {tab === "timeline" && (
                   <>
@@ -638,17 +630,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
               <ResizablePanelGroup id="rollout-session-view-panels" direction="vertical">
                 <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                   {tab === "metadata" && trace && <Metadata trace={trace} />}
-                  {tab === "chat" && trace && (
-                    <Chat
-                      trace={trace}
-                      onSetSpanId={(spanId) => {
-                        const span = spans.find((span) => span.spanId === spanId);
-                        if (span) {
-                          handleSpanSelect(span);
-                        }
-                      }}
-                    />
-                  )}
                   {tab === "timeline" && (
                     <Timeline onSetCachePoint={setCachePoint} onUnlock={unlockFromSpan} isSpanCached={isSpanCached} />
                   )}
