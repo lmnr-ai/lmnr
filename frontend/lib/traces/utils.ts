@@ -9,8 +9,8 @@ export const SPAN_TYPE_TO_COLOR = {
   [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
   [SpanType.TOOL]: "rgba(227, 160, 8, 0.9)",
   [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
+  [SpanType.CACHED]: "hsl(var(--llm))",
 };
-
 
 // If the span hadn't arrived in one hour, it's probably not going to arrive.
 const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour

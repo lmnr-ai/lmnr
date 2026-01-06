@@ -82,6 +82,7 @@ export async function getTraceSystemMessages(
       path
     FROM spans
     WHERE trace_id = {traceId: UUID}
+      AND span_type = 'LLM'
       AND path IN ({paths: Array(String)})
     ORDER BY start_time ASC
   `;

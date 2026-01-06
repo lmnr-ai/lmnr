@@ -23,6 +23,18 @@ import { SpanType } from "@/lib/traces/types";
 
 import { SystemMessage } from "./system-messages-utils";
 
+/**
+ * Helper to check if a span is an LLM span (either directly LLM type, or CACHED with original type LLM)
+ */
+function isLlmOrCachedLlmSpan(span: { spanType: SpanType; attributes?: Record<string, any> }): boolean {
+  if (span.spanType === SpanType.LLM) return true;
+  if (span.spanType === SpanType.CACHED) {
+    const originalType = span.attributes?.["lmnr.span.original_type"];
+    return originalType === SpanType.LLM || originalType === "LLM";
+  }
+  return false;
+}
+
 // Incoming realtime span (may be missing some TraceViewSpan fields)
 export type RealtimeSpanInput = {
   spanId: string;
@@ -250,6 +262,7 @@ interface RolloutSessionStoreActions {
   setIsRolloutRunning: (isRunning: boolean) => void;
   setRolloutError: (error?: string) => void;
   setSessionStatus: (status: RolloutSessionStatus) => void;
+  removeNonCachedSpans: () => void;
 
   setParamValue: (name: string, value: string) => void;
 }
@@ -338,7 +351,27 @@ const createRolloutSessionStore = ({
             const newSpans = spans(prevSpans);
             set({ spans: newSpans });
           } else {
-            set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
+            const newSpans = spans.map((s) => ({ ...s, collapsed: false }));
+            set({ spans: newSpans });
+
+            const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
+            if (cachedSpans.length > 0) {
+              const initialPathToCount: Record<string, number> = {};
+              cachedSpans.forEach((s) => {
+                const sPath = s.attributes?.["lmnr.span.path"];
+                if (sPath && Array.isArray(sPath)) {
+                  const pathKey = sPath.join(".");
+                  initialPathToCount[pathKey] = (initialPathToCount[pathKey] || 0) + 1;
+                }
+              });
+              // Merge with existing pathToCount (UI-set cache points take precedence)
+              const existingPathToCount = get().pathToCount;
+              const mergedPathToCount = { ...initialPathToCount };
+              for (const [path, count] of Object.entries(existingPathToCount)) {
+                mergedPathToCount[path] = Math.max(mergedPathToCount[path] || 0, count);
+              }
+              set({ pathToCount: mergedPathToCount });
+            }
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
@@ -659,9 +692,8 @@ const createRolloutSessionStore = ({
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
-          // Include all LLM spans up to and including the clicked span
           const spansBeforeOrAt = spans
-            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -683,7 +715,7 @@ const createRolloutSessionStore = ({
           const clickedSpanTime = new Date(span.startTime).getTime();
 
           const spansBefore = spans
-            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -701,7 +733,7 @@ const createRolloutSessionStore = ({
         },
 
         isSpanCached: (span: TraceViewSpan): boolean => {
-          if (span.spanType !== SpanType.LLM) return false;
+          if (span.spanType === SpanType.CACHED) return true;
 
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
@@ -713,7 +745,7 @@ const createRolloutSessionStore = ({
 
           const spans = get().spans;
           const spansWithSamePath = spans
-            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .filter((s) => {
               const sPath = s.attributes?.["lmnr.span.path"];
               return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
@@ -729,7 +761,7 @@ const createRolloutSessionStore = ({
           const pathMap: Record<string, number> = {};
 
           get()
-            .spans.filter((span) => span.spanType === SpanType.LLM)
+            .spans.filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .forEach((span) => {
               const spanPath = span.attributes?.["lmnr.span.path"];
               if (spanPath && Array.isArray(spanPath)) {
@@ -744,6 +776,39 @@ const createRolloutSessionStore = ({
         setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
         setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
+
+        removeNonCachedSpans: () => {
+          const spans = get().spans;
+          const pathToCount = get().pathToCount;
+
+          if (Object.keys(pathToCount).length === 0) {
+            return;
+          }
+
+          let cutoffTime = 0;
+          for (const [pathKey, count] of Object.entries(pathToCount)) {
+            if (count <= 0) continue;
+
+            const spansWithPath = spans
+              .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
+              .filter((s) => {
+                const sPath = s.attributes?.["lmnr.span.path"];
+                return sPath && Array.isArray(sPath) && sPath.join(".") === pathKey;
+              })
+              .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+            const lastCachedIndex = Math.min(count - 1, spansWithPath.length - 1);
+            if (lastCachedIndex >= 0 && spansWithPath[lastCachedIndex]) {
+              const spanEndTime = new Date(spansWithPath[lastCachedIndex].endTime).getTime();
+              cutoffTime = Math.max(cutoffTime, spanEndTime);
+            }
+          }
+
+          if (cutoffTime > 0) {
+            const filteredSpans = spans.filter((s) => new Date(s.startTime).getTime() <= cutoffTime);
+            set({ spans: filteredSpans });
+          }
+        },
 
         setParamValue: (name, value) => {
           set((state) => ({

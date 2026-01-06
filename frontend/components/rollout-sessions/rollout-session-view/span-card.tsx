@@ -2,7 +2,10 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronRight, CircleDollarSign, Coins, Lock, LockOpen, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import {
+  TraceViewSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
@@ -42,7 +45,16 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth, onSetCachePoint, onUnlock, isCached = false }: SpanCardProps) {
+export function SpanCard({
+  span,
+  yOffset,
+  parentY,
+  onSpanSelect,
+  depth,
+  onSetCachePoint,
+  onUnlock,
+  isCached = false,
+}: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -178,7 +190,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth, onSetCac
             </button>
           )}
           <div className="grow" />
-          {span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
+          {(span.spanType === "LLM" || span.spanType === "CACHED") && (onSetCachePoint || onUnlock) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

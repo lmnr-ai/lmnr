@@ -133,7 +133,7 @@ const ListItem = ({
             >
               <Settings className="size-3.5 text-secondary-foreground" />
             </Button>
-            {span.spanType === "LLM" && (onSetCachePoint || onUnlock) && (
+            {(span.spanType === "LLM" || span.spanType === "CACHED") && (onSetCachePoint || onUnlock) && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

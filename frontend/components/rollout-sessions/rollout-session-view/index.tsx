@@ -134,7 +134,17 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
-    () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
+    () =>
+      spans
+        .filter((span) => {
+          if (span.spanType === SpanType.LLM) return true;
+          if (span.spanType === SpanType.CACHED) {
+            const originalType = span.attributes?.["lmnr.span.original_type"];
+            return originalType === SpanType.LLM || originalType === "LLM";
+          }
+          return false;
+        })
+        .map((span) => span.spanId),
     [spans]
   );
 
@@ -150,6 +160,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     setRolloutError,
     paramValues,
     setSessionStatus,
+    removeNonCachedSpans,
   } = useRolloutSessionStoreContext((state) => ({
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
@@ -162,6 +173,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     setRolloutError: state.setRolloutError,
     paramValues: state.paramValues,
     setSessionStatus: state.setSessionStatus,
+    removeNonCachedSpans: state.removeNonCachedSpans,
   }));
 
   const handleFetchTrace = useCallback(async () => {
@@ -325,6 +337,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
       setIsRolloutRunning(true);
       setRolloutError(undefined);
 
+      removeNonCachedSpans();
       const overrides = getOverridesForRollout();
 
       const rolloutPayload = {
@@ -373,6 +386,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     setIsRolloutRunning,
     setRolloutError,
     setSessionStatus,
+    removeNonCachedSpans,
     toast,
     projectId,
     paramValues,
@@ -470,7 +484,8 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
 
     const llmPaths = new Set<string>();
     for (const span of spans) {
-      if (span.spanType === SpanType.LLM && span.path) {
+      const isLlm = span.spanType === SpanType.LLM;
+      if (isLlm && span.path) {
         llmPaths.add(span.path);
       }
     }
@@ -490,7 +505,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     };
 
     loadSystemMessages();
-  }, [spans, projectId, traceId, setSystemMessagesMap, setIsSystemMessagesLoading]);
+  }, []);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
