@@ -12,9 +12,11 @@ import { useToast } from "@/lib/hooks/use-toast.ts";
 
 interface HybridSetupProps {
   isSaving: boolean;
+  isVerified: boolean;
+  onVerifiedChange: (verified: boolean) => void;
 }
 
-const HybridSetup = ({ isSaving }: HybridSetupProps) => {
+const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProps) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { watch, setValue } = useFormContext<DeploymentManagementForm>();
   const { toast } = useToast();
@@ -22,7 +24,6 @@ const HybridSetup = ({ isSaving }: HybridSetupProps) => {
   const dataPlaneUrl = watch("dataPlaneUrl");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
 
   const handleGenerateKeys = useCallback(async () => {
     try {
@@ -64,24 +65,24 @@ const HybridSetup = ({ isSaving }: HybridSetupProps) => {
       if (!response.ok) {
         const error = (await response.json()) as { error: string };
         toast({ variant: "destructive", title: "Verification failed", description: error.error });
-        setIsVerified(false);
+        onVerifiedChange(false);
         return;
       }
 
       const result = (await response.json()) as { success: boolean };
       if (result.success) {
-        setIsVerified(result.success);
+        onVerifiedChange(true);
         toast({ title: "Deployment verified successfully" });
       }
     } catch (e) {
       if (e instanceof Error) {
         toast({ variant: "destructive", title: "Error", description: e.message });
       }
-      setIsVerified(false);
+      onVerifiedChange(false);
     } finally {
       setIsVerifying(false);
     }
-  }, [dataPlaneUrl, toast, workspaceId]);
+  }, [dataPlaneUrl, toast, workspaceId, onVerifiedChange]);
 
   return (
     <div className="space-y-6 mt-6">
@@ -119,7 +120,7 @@ const HybridSetup = ({ isSaving }: HybridSetupProps) => {
             value={dataPlaneUrl || ""}
             onChange={(e) => {
               setValue("dataPlaneUrl", e.target.value);
-              setIsVerified(false);
+              onVerifiedChange(false);
             }}
             className="flex-1"
           />
