@@ -107,7 +107,18 @@ export const updateDeployment = async (input: z.infer<typeof UpdateDeploymentSch
     updateData.dataPlaneUrlNonce = dataPlaneUrlNonce;
   }
 
-  await db.update(workspaceDeployments).set(updateData).where(eq(workspaceDeployments.workspaceId, workspaceId));
+  const existingDeployment = await db.query.workspaceDeployments.findFirst({
+    where: eq(workspaceDeployments.workspaceId, workspaceId),
+  });
+
+  if (existingDeployment) {
+    await db.update(workspaceDeployments).set(updateData).where(eq(workspaceDeployments.workspaceId, workspaceId));
+  } else {
+    await db.insert(workspaceDeployments).values({
+      workspaceId,
+      ...updateData,
+    });
+  }
 
   const projs = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
