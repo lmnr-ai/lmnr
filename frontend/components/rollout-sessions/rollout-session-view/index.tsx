@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
@@ -25,7 +25,7 @@ import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
-import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, filterColumns, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
@@ -53,7 +53,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  // Consolidated store access
   const {
     // Data state
     selectedSpan,
@@ -71,7 +70,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     spansError,
     setSpansError,
     rebuildSpanPathCounts,
-    addSpanIfNew,
     // UI state
     tab,
     setTab,
@@ -114,7 +112,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     spansError: state.spansError,
     setSpansError: state.setSpansError,
     rebuildSpanPathCounts: state.rebuildSpanPathCounts,
-    addSpanIfNew: state.addSpanIfNew,
     // UI state
     tab: state.tab,
     setTab: state.setTab,
@@ -143,6 +140,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   }));
 
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
+  const prevLlmPathsRef = useRef<string>("");
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -354,11 +352,11 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
       span_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
-          for (const incomingSpan of payload.spans) {
-            addSpanIfNew(incomingSpan);
+          for (const span of payload.spans) {
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
             // Update the current traceId from the incoming span
-            if (incomingSpan.traceId) {
-              setCurrentTraceId(incomingSpan.traceId);
+            if (span.traceId) {
+              setCurrentTraceId(span.traceId);
             }
           }
         }
@@ -370,7 +368,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         }
       },
     }),
-    [addSpanIfNew, setSessionStatus, setCurrentTraceId]
+    [setSpans, setTrace, setBrowserSession, setSessionStatus, setCurrentTraceId]
   );
 
   useEffect(() => {
@@ -417,6 +415,10 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
 
     if (llmPaths.size === 0) return;
 
+    const pathsKey = Array.from(llmPaths).sort().join(",");
+    if (pathsKey === prevLlmPathsRef.current) return;
+    prevLlmPathsRef.current = pathsKey;
+
     const loadSystemMessages = async () => {
       setIsSystemMessagesLoading(true);
       try {
@@ -430,7 +432,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     };
 
     loadSystemMessages();
-  }, [traceId, spans]);
+  }, [projectId, traceId, spans, setIsSystemMessagesLoading, setSystemMessagesMap]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,

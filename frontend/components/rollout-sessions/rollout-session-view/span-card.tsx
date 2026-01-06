@@ -52,7 +52,7 @@ export function SpanCard({
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, lockToSpan, unlockFromSpan, isSpanLocked, getSpanAttribute } =
+  const { selectedSpan, spans, toggleCollapse, lockToSpan, unlockFromSpan, isSpanLocked } =
     useRolloutSessionStoreContext((state) => ({
       selectedSpan: state.selectedSpan,
       spans: state.spans,
@@ -60,15 +60,12 @@ export function SpanCard({
       lockToSpan: state.lockToSpan,
       unlockFromSpan: state.unlockFromSpan,
       isSpanLocked: state.isSpanLocked,
-      getSpanAttribute: state.getSpanAttribute,
     }));
 
-  const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
-  const isCached = isSpanLocked(span);
-
-  const isLockedByAttribute = !!rolloutSessionId;
-  const isLocked = isLockedByAttribute || isCached;
-  const canToggleLock = !isLockedByAttribute;
+  const isPermanentlyLocked = span.spanType === "CACHED";
+  const isLockedFromUI = isSpanLocked(span);
+  const isLocked = isPermanentlyLocked || isLockedFromUI;
+  const canToggleLock = !isPermanentlyLocked;
 
   const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
@@ -218,8 +215,8 @@ export function SpanCard({
               </TooltipTrigger>
               <TooltipPortal>
                 <TooltipContent side="top" className="text-xs">
-                  {!canToggleLock && isLocked
-                    ? "Locked by rollout session"
+                  {isPermanentlyLocked
+                    ? "Permanently cached"
                     : isLocked
                       ? "Unlock from here"
                       : "Lock to here"}

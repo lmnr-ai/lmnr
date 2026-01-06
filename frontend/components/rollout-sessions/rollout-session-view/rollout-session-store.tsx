@@ -1,4 +1,4 @@
-import { get, has } from "lodash";
+import { has } from "lodash";
 import { createContext, PropsWithChildren, useContext, useRef } from "react";
 import { createStore, StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -22,71 +22,6 @@ import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
 
 import { SystemMessage } from "./system-messages-utils";
-
-export type RealtimeSpanInput = {
-  spanId: string;
-  parentSpanId?: string;
-  traceId: string;
-  spanType: SpanType;
-  name: string;
-  startTime: string;
-  endTime: string;
-  attributes: Record<string, any>;
-  status?: string;
-  path?: string;
-  events?: Event[];
-  model?: string;
-  pending?: boolean;
-  collapsed?: boolean;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  inputCost?: number;
-  outputCost?: number;
-  totalCost?: number;
-  aggregatedMetrics?: TraceViewSpan["aggregatedMetrics"];
-};
-
-function toTraceViewSpan(incoming: TraceViewSpan | RealtimeSpanInput): TraceViewSpan {
-  const attrs = incoming.attributes || {};
-
-  const spanPath = attrs["lmnr.span.path"];
-  const path = incoming.path ?? (Array.isArray(spanPath) ? spanPath.join(".") : "");
-
-  const model = incoming.model ?? get(attrs, "gen_ai.response.model") ?? get(attrs, "gen_ai.request.model") ?? "";
-
-  // Derive token/cost metrics from attributes
-  const inputTokens = incoming.inputTokens ?? get(attrs, "gen_ai.usage.input_tokens", 0);
-  const outputTokens = incoming.outputTokens ?? get(attrs, "gen_ai.usage.output_tokens", 0);
-  const totalTokens = incoming.totalTokens ?? get(attrs, "llm.usage.total_tokens", inputTokens + outputTokens);
-  const inputCost = incoming.inputCost ?? get(attrs, "gen_ai.usage.input_cost", 0);
-  const outputCost = incoming.outputCost ?? get(attrs, "gen_ai.usage.output_cost", 0);
-  const totalCost = incoming.totalCost ?? get(attrs, "gen_ai.usage.cost", inputCost + outputCost);
-
-  return {
-    spanId: incoming.spanId,
-    parentSpanId: incoming.parentSpanId,
-    traceId: incoming.traceId,
-    name: incoming.name,
-    startTime: incoming.startTime,
-    endTime: incoming.endTime,
-    attributes: attrs,
-    spanType: incoming.spanType,
-    path,
-    events: incoming.events ?? [],
-    status: incoming.status,
-    model,
-    pending: incoming.pending ?? false,
-    collapsed: incoming.collapsed ?? false,
-    inputTokens,
-    outputTokens,
-    totalTokens,
-    inputCost,
-    outputCost,
-    totalCost,
-    aggregatedMetrics: incoming.aggregatedMetrics,
-  };
-}
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
@@ -228,7 +163,6 @@ interface RolloutSessionStoreActions {
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
-  addSpanIfNew: (span: TraceViewSpan | RealtimeSpanInput) => boolean;
 
   // Rollout-specific actions
   setSystemMessagesMap: (
@@ -249,7 +183,6 @@ interface RolloutSessionStoreActions {
   setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
   setSessionStatus: (status: RolloutSessionStatus) => void;
-  removeNonCachedSpans: () => void;
   setCurrentTraceId: (traceId: string) => void;
   // Rollout session actions
   runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
@@ -548,80 +481,6 @@ const createRolloutSessionStore = ({
 
           set({ spanPathCounts: pathCounts });
         },
-        addSpanIfNew: (rawSpan: TraceViewSpan | RealtimeSpanInput): boolean => {
-          // Convert incoming span to TraceViewSpan format
-          const incomingSpan = toTraceViewSpan(rawSpan);
-          const incomingPath = incomingSpan.attributes?.["lmnr.span.path"];
-
-          if (!incomingPath || !Array.isArray(incomingPath)) {
-            const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
-            if (!exists) {
-              get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
-              return true;
-            }
-            return false;
-          }
-
-          const pathKey = incomingPath.join(".");
-          const incomingPathCount = incomingSpan.attributes?.["lmnr.rollout.path.index"];
-
-          // If no path count attribute, just add as new span
-          if (incomingPathCount === undefined || incomingPathCount === null) {
-            get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
-            // Update span path counts for the new span
-            const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
-            get().spanPathCounts.set(pathKey, currentCount + 1);
-            return true;
-          }
-
-          // Find existing span with same path AND same path count
-          const existingSpanWithSameCount = get().spans.find((s) => {
-            const sPath = s.attributes?.["lmnr.span.path"];
-            if (!sPath || !Array.isArray(sPath)) return false;
-            if (sPath.join(".") !== pathKey) return false;
-            const sPathCount = s.attributes?.["lmnr.rollout.path.index"];
-            return sPathCount === incomingPathCount;
-          });
-
-          if (existingSpanWithSameCount) {
-            // Replace the existing span with same path and count
-            get().setSpans((prevSpans) =>
-              prevSpans.map((s) =>
-                s.spanId === existingSpanWithSameCount.spanId ? { ...incomingSpan, collapsed: s.collapsed } : s
-              )
-            );
-            return true;
-          }
-
-          const originalSpansWithPath = get()
-            .spans.filter((span) => {
-              const sPath = span.attributes?.["lmnr.span.path"];
-              if (!sPath || !Array.isArray(sPath)) return false;
-              if (sPath.join(".") !== pathKey) return false;
-              // Only consider spans without path count as "original"
-              return span.attributes?.["lmnr.rollout.path.index"] === undefined;
-            })
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-          // path count is 1-indexed, so we need to get the (pathCount - 1)th original span
-          const targetIndex = incomingPathCount - 1;
-          if (targetIndex >= 0 && targetIndex < originalSpansWithPath.length) {
-            const spanToReplace = originalSpansWithPath[targetIndex];
-            get().setSpans((prevSpans) =>
-              prevSpans.map((s) =>
-                s.spanId === spanToReplace.spanId ? { ...incomingSpan, collapsed: s.collapsed } : s
-              )
-            );
-            return true;
-          }
-
-          // No original span to replace at this index - add as new
-          get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
-          // Update span path counts for the new span
-          const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
-          get().spanPathCounts.set(pathKey, currentCount + 1);
-          return true;
-        },
 
         // Rollout-specific actions
         setSystemMessagesMap: (messages) => {
@@ -772,44 +631,12 @@ const createRolloutSessionStore = ({
         setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
         setCurrentTraceId: (currentTraceId: string) => set({ currentTraceId }),
 
-        removeNonCachedSpans: () => {
-          const spans = get().spans;
-          const lockedSpanCounts = get().lockedSpanCounts;
-
-          if (Object.keys(lockedSpanCounts).length === 0) {
-            return;
-          }
-
-          let cutoffTime = 0;
-          for (const [pathKey, count] of Object.entries(lockedSpanCounts)) {
-            if (count <= 0) continue;
-
-            const spansWithPath = spans
-              .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-              .filter((s) => {
-                const sPath = s.attributes?.["lmnr.span.path"];
-                return sPath && Array.isArray(sPath) && sPath.join(".") === pathKey;
-              })
-              .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-            const lastCachedIndex = Math.min(count - 1, spansWithPath.length - 1);
-            if (lastCachedIndex >= 0 && spansWithPath[lastCachedIndex]) {
-              const spanEndTime = new Date(spansWithPath[lastCachedIndex].endTime).getTime();
-              cutoffTime = Math.max(cutoffTime, spanEndTime);
-            }
-          }
-
-          if (cutoffTime > 0) {
-            const filteredSpans = spans.filter((s) => new Date(s.startTime).getTime() <= cutoffTime);
-            set({ spans: filteredSpans });
-          }
-        },
-
         runRollout: async (projectId: string, sessionId: string) => {
           try {
             set({ isRolloutLoading: true, rolloutError: undefined });
 
-            get().removeNonCachedSpans();
+            // Clear all spans before running rollout
+            set({ spans: [] });
             const overrides = get().getSystemPromptOverrides();
             const currentTraceId = get().currentTraceId;
             const lockedSpanCounts = get().lockedSpanCounts;

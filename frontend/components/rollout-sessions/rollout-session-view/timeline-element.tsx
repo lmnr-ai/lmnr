@@ -40,19 +40,16 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
-  const { getSpanAttribute, lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
-    getSpanAttribute: state.getSpanAttribute,
+  const { lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
     lockToSpan: state.lockToSpan,
     unlockFromSpan: state.unlockFromSpan,
     isSpanLocked: state.isSpanLocked,
   }));
 
-  const rolloutSessionId = getSpanAttribute(span.span.spanId, "lmnr.rollout.session_id");
-  const isCached = isSpanLocked(span.span);
-
-  const isLockedByAttribute = !!rolloutSessionId;
-  const isLocked = isLockedByAttribute || isCached;
-  const canToggleLock = !isLockedByAttribute;
+  const isPermanentlyLocked = span.span.spanType === "CACHED";
+  const isLockedFromUI = isSpanLocked(span.span);
+  const isLocked = isPermanentlyLocked || isLockedFromUI;
+  const canToggleLock = !isPermanentlyLocked;
 
   const handleSpanSelect = () => {
     if (!span.span.pending) {
@@ -220,8 +217,8 @@ const TimelineElement = ({
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="top" className="text-xs">
-              {!canToggleLock && isLocked
-                ? "Locked by rollout session"
+              {isPermanentlyLocked
+                ? "Permanently cached"
                 : isLocked
                   ? "Unlock from here"
                   : "Lock to here"}

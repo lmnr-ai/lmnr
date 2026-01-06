@@ -28,22 +28,14 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-const ListItem = ({
-  span,
-  getOutput,
-  onSpanSelect,
-  onOpenSettings,
-  isLast = false,
-}: ListItemProps) => {
-  const { selectedSpan, getSpanAttribute, spans, lockToSpan, unlockFromSpan, isSpanLocked } =
-    useRolloutSessionStoreContext((state) => ({
-      selectedSpan: state.selectedSpan,
-      getSpanAttribute: state.getSpanAttribute,
-      spans: state.spans,
-      lockToSpan: state.lockToSpan,
-      unlockFromSpan: state.unlockFromSpan,
-      isSpanLocked: state.isSpanLocked,
-    }));
+const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
+  const { selectedSpan, spans, lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
+    selectedSpan: state.selectedSpan,
+    spans: state.spans,
+    lockToSpan: state.lockToSpan,
+    unlockFromSpan: state.unlockFromSpan,
+    isSpanLocked: state.isSpanLocked,
+  }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
@@ -52,12 +44,10 @@ const ListItem = ({
   // Get full span from store to check lock status
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
 
-  const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
-  const isCached = fullSpan ? isSpanLocked(fullSpan) : false;
-
-  const isLockedByAttribute = !!rolloutSessionId;
-  const isLocked = isLockedByAttribute || isCached;
-  const canToggleLock = !isLockedByAttribute;
+  const isPermanentlyLocked = span.spanType === "CACHED";
+  const isLockedFromUI = fullSpan ? isSpanLocked(fullSpan) : false;
+  const isLocked = isPermanentlyLocked || isLockedFromUI;
+  const canToggleLock = !isPermanentlyLocked;
 
   const [isExpanded, setIsExpanded] = useState(
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
@@ -168,11 +158,7 @@ const ListItem = ({
                 </TooltipTrigger>
                 <TooltipPortal>
                   <TooltipContent side="top" className="text-xs">
-                    {!canToggleLock && isLocked
-                      ? "Locked by rollout session"
-                      : isLocked
-                        ? "Unlock from here"
-                        : "Lock to here"}
+                    {isPermanentlyLocked ? "Permanently cached" : isLocked ? "Unlock from here" : "Lock to here"}
                   </TooltipContent>
                 </TooltipPortal>
               </Tooltip>
