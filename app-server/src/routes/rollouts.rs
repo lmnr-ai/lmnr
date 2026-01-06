@@ -18,9 +18,13 @@ use crate::{
 
 #[derive(Deserialize, Serialize)]
 struct RunRequest {
+    #[serde(default)]
     pub trace_id: Option<Uuid>,
+    #[serde(default)]
     pub path_to_count: HashMap<String, u32>,
+    #[serde(default)]
     pub args: HashMap<String, Value>,
+    #[serde(default)]
     pub overrides: HashMap<String, SpanOverride>,
 }
 
