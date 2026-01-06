@@ -1,6 +1,6 @@
 use actix_web::{HttpResponse, delete, patch, post, web};
 use chrono::{DateTime, Utc};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
@@ -87,6 +87,8 @@ struct SpanStartUpdate {
     parent_span_id: Option<Uuid>,
     #[serde(default)]
     span_type: SpanType,
+    #[serde(default)]
+    attributes: HashMap<String, serde_json::Value>,
 }
 
 #[derive(serde::Deserialize)]
@@ -95,7 +97,7 @@ enum SpanUpdateRequest {
     SpanStart(SpanStartUpdate),
 }
 
-#[patch("rollouts/{session_id}/updates")]
+#[patch("rollouts/{session_id}/update")]
 pub async fn send_span_update(
     path: web::Path<Uuid>,
     body: web::Json<SpanUpdateRequest>,
