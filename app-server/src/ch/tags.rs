@@ -56,7 +56,7 @@ pub async fn insert_tag(
 ) -> Result<Uuid> {
     let id = Uuid::new_v4();
     let tag = CHTag::new(project_id, id, name, source, span_id);
-    let ch_insert = client.insert("tags");
+    let ch_insert = client.insert::<CHTag>("tags").await;
     match ch_insert {
         Ok(mut ch_insert) => {
             ch_insert.write(&tag).await?;
@@ -83,7 +83,7 @@ pub async fn insert_tags_batch(client: clickhouse::Client, tags: &[SpanTag]) -> 
         return Ok(());
     }
 
-    let ch_insert = client.insert("tags");
+    let ch_insert = client.insert::<CHTag>("tags").await;
     match ch_insert {
         Ok(mut ch_insert) => {
             ch_insert = ch_insert.with_option("wait_for_async_insert", "0");

@@ -11,8 +11,10 @@ interface State {
 interface ContextValue {
   state: State;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  visibleSpanIds: string[];
   scrollTo: (pos: number) => void;
   updateState: (newState: Partial<State>) => void;
+  setVisibleSpanIds: (spanIds: string[]) => void;
   createScrollHandler: (
     source: "tree" | "minimap",
     syncFn: (scrollData: { scrollTop: number; scrollHeight: number; clientHeight: number }) => void
@@ -31,6 +33,7 @@ const DEBOUNCED_DELAY = 100;
 
 export function ScrollContextProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<State>({ totalHeight: 0, scrollTop: 0, viewportHeight: 0 });
+  const [visibleSpanIds, setVisibleSpanIds] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeScrollerRef = useRef<"tree" | "minimap" | null>(null);
@@ -76,8 +79,10 @@ export function ScrollContextProvider({ children }: PropsWithChildren) {
       value={{
         state,
         scrollRef,
+        visibleSpanIds,
         scrollTo,
         updateState,
+        setVisibleSpanIds,
         createScrollHandler,
       }}
     >

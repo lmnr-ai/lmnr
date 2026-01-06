@@ -102,6 +102,10 @@ export interface BuildSpansQueryOptions {
     condition: string;
     params: QueryParams;
   }>;
+  orderBy?: Array<{
+    column: string;
+    direction: "ASC" | "DESC";
+  }>;
 }
 
 export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): QueryResult => {
@@ -115,6 +119,7 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     pastHours,
     columns,
     customConditions: additionalConditions = [],
+    orderBy,
   } = options;
 
   const customConditions: Array<{
@@ -146,7 +151,7 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     filters,
     columnFilterConfig: spansColumnFilterConfig,
     customConditions,
-    orderBy: [
+    orderBy: orderBy || [
       {
         column: "start_time",
         direction: "DESC",

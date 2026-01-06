@@ -10,10 +10,12 @@ import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datata
 const Trace = ({ trace }: { trace: TraceViewTrace }) => (
   <>
     <Header path={`traces/${trace.id}`} childrenContainerClassName="flex-none mr-2 h-12" />
-    <div className="grow border-t" />
-    <FiltersContextProvider>
-      <TraceView propsTrace={trace} onClose={() => {}} traceId={trace.id} />
-    </FiltersContextProvider>
+    <div className="flex-none border-t" />
+    <div className="flex-1 min-h-0 flex">
+      <FiltersContextProvider>
+        <TraceView propsTrace={trace} onClose={() => {}} traceId={trace.id} />
+      </FiltersContextProvider>
+    </div>
   </>
 );
 

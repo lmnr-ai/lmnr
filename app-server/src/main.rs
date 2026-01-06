@@ -575,6 +575,24 @@ fn main() -> anyhow::Result<()> {
         .with_url(clickhouse_url.clone())
         .with_user(clickhouse_user)
         .with_database("default")
+        // Validation switches the write format from RowBinary to RowBinaryWithNamesAndTypes.
+        // https://clickhouse.com/docs/interfaces/formats/RowBinaryWithNamesAndTypes
+        //
+        // Disable validation globally, because:
+        // 1. Type safety in clickhouse is a little more relaxed than in other databases.
+        //    For example, columns don't have to have explicit default values, while validation
+        //    requires unused columns to be present in each write.
+        // 2. For the examples like above, validation makes schema updates harder,
+        //    because we need to update all writes to the table, for the cases where
+        //    validation in code breaks, while clickhouse permits the writes.
+        //    Moreover, code updates need to be done at the same time as the schema update.
+        // 3. Validation is costly. It can slow down writes by 1.1-3x according to the
+        //    crate doc comments.
+        // 4. Rust types themselves are a bit more strict. For example, `data` in `BrowserEventCHRow`
+        //    is `&'a [u8]`, but the column is `String`. The underlying data is not a valid UTF-8 string,
+        //    but it's still a valid binary data. Rust will refuse to create a String from it, while
+        //    the validation in the SDK would require us to make it a String
+        .with_validation(false)
         .with_option("async_insert", "1")
         .with_option("wait_for_async_insert", "1");
 

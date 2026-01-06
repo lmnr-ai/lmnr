@@ -1,11 +1,12 @@
 import { get } from "lodash";
-import { AlertTriangle, ChartNoAxesGantt, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
+import List from "@/components/traces/trace-view/list";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
@@ -23,6 +24,7 @@ import {
   findSpanToSelect,
   onRealtimeUpdateSpans,
 } from "@/components/traces/trace-view/utils";
+import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
@@ -132,11 +134,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
-    () =>
-      spans
-        .filter((span) => span.spanType === SpanType.LLM)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        .map((span) => span.spanId),
+    () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
     [spans]
   );
 
@@ -197,7 +195,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
         params.set("spanId", span.spanId);
-        router.push(`${pathName}?${params.toString()}`);
+        router.replace(`${pathName}?${params.toString()}`);
       }
     },
     [setSelectedSpan, searchParams, setSpanPath, router, pathName]
@@ -271,9 +269,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
-      spanId,
-      searchParams,
-      spanPath,
       setSelectedSpan,
     ]
   );
@@ -364,7 +359,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, []);
 
   useEffect(() => {
-
     fetchSpans(search, filters);
 
     return () => {
@@ -418,6 +412,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           <Header handleClose={handleClose} />
           <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
             <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
+              <ViewDropdown />
               <StatefulFilter columns={filterColumns}>
                 <Button variant="outline" className="h-6 text-xs">
                   <ListFilter size={14} className="mr-1" />
@@ -435,16 +430,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 <span>Search</span>
               </Button>
               <Button
-                onClick={() => setTab("timeline")}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": tab === "timeline",
-                })}
-              >
-                <ChartNoAxesGantt size={14} className="mr-1" />
-                <span>Timeline</span>
-              </Button>
-              <Button
                 onClick={() => setTab("metadata")}
                 variant="outline"
                 className={cn("h-6 text-xs px-1.5", {
@@ -457,12 +442,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <Button
                 onClick={() => setTab("chat")}
                 variant="outline"
-                className={cn("h-6 text-xs text-primary px-1.5", {
-                  "border-primary": tab === "chat",
+                className={cn("h-6 text-xs px-1.5", {
+                  "border-primary text-primary": tab === "chat",
                 })}
               >
                 <Sparkles size={14} className="mr-1" />
-                <span className="truncate min-w-0">Ask AI</span>
+                <span>Ask AI</span>
               </Button>
               {tab === "timeline" && (
                 <>
@@ -499,7 +484,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
           ) : (
-            <ResizablePanelGroup direction="vertical">
+            <ResizablePanelGroup id="trace-view-panels" direction="vertical">
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
@@ -514,6 +499,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                   />
                 )}
                 {tab === "timeline" && <Timeline />}
+                {tab === "reader" && (
+                  <div className="flex flex-1 h-full overflow-hidden relative">
+                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Minimap onSpanSelect={handleSpanSelect} />
+                  </div>
+                )}
                 {tab === "tree" &&
                   (isSpansLoading ? (
                     <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">

@@ -83,7 +83,9 @@ pub async fn insert_evaluation_scores(
         return Ok(());
     }
 
-    let ch_insert = clickhouse.insert("evaluation_scores");
+    let ch_insert = clickhouse
+        .insert::<EvaluationScore>("evaluation_scores")
+        .await;
     match ch_insert {
         Ok(mut ch_insert) => {
             for evaluation_score in evaluation_scores {

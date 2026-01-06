@@ -16,14 +16,17 @@ interface Props {
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 function Minimap({ onSpanSelect }: Props) {
-  const { state, scrollTo, createScrollHandler } = useScrollContext();
-  const { getMinimapSpans, trace, spans, setSessionTime, browserSession } = useTraceViewStoreContext((state) => ({
-    getMinimapSpans: state.getMinimapSpans,
-    trace: state.trace,
-    spans: state.spans,
-    setSessionTime: state.setSessionTime,
-    browserSession: state.browserSession,
-  }));
+  const { state, scrollTo, createScrollHandler, visibleSpanIds } = useScrollContext();
+  const { getMinimapSpans, getListMinimapSpans, trace, spans, setSessionTime, browserSession, tab } =
+    useTraceViewStoreContext((state) => ({
+      getMinimapSpans: state.getMinimapSpans,
+      getListMinimapSpans: state.getListMinimapSpans,
+      trace: state.trace,
+      spans: state.spans,
+      setSessionTime: state.setSessionTime,
+      browserSession: state.browserSession,
+      tab: state.tab,
+    }));
 
   const store = useTraceViewStore();
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
@@ -35,7 +38,7 @@ function Minimap({ onSpanSelect }: Props) {
     [trace?.endTime, trace?.startTime]
   );
 
-  const minimapSpans = useMemo(() => getMinimapSpans(), [getMinimapSpans, spans]);
+  const minimapSpans = useMemo(() => tab === "reader" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
@@ -265,27 +268,37 @@ function Minimap({ onSpanSelect }: Props) {
           style={{ display: "none" }}
         />
         <div ref={spansContainerRef} className="relative w-2 flex-none cursor-pointer" onClick={handleMinimapClick}>
-          {minimapSpans.map((span, index) => (
-            <div
-              style={{
-                top: span.y,
-                height: span.height,
-                left: 0,
-              }}
-              key={span.spanId}
-              className="bg-background absolute opacity-80 hover:opacity-100 duration-100 transition-opacity"
-            >
+          {minimapSpans.map((span, index) => {
+            const isVisible = tab === "reader" && visibleSpanIds.includes(span.spanId);
+            return (
               <div
-                className={cn("w-2 cursor-pointer rounded-[2px] h-full transition-all")}
                 style={{
-                  backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[span.spanType],
-                  marginTop: 2,
-                  paddingBottom: 0,
+                  top: span.y,
+                  height: span.height,
+                  left: 0,
                 }}
-                onClick={(e) => handleSpanClick(index, e)}
-              />
-            </div>
-          ))}
+                key={span.spanId}
+                className={cn(
+                  "bg-background absolute duration-100 transition-opacity",
+                  tab === "reader"
+                    ? isVisible
+                      ? "opacity-100"
+                      : "opacity-40 hover:opacity-100"
+                    : "opacity-80 hover:opacity-100"
+                )}
+              >
+                <div
+                  className="w-2 cursor-pointer rounded-[2px] h-full transition-opacity"
+                  style={{
+                    backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[span.spanType],
+                    marginTop: 2,
+                    paddingBottom: 0,
+                  }}
+                  onClick={(e) => handleSpanClick(index, e)}
+                />
+              </div>
+            );
+          })}
         </div>
         <div className="flex flex-col pr-1">
           {timeMarkers.map((marker) => (

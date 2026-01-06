@@ -1285,7 +1285,11 @@ fn parse_ai_sdk_tool_calls(
         .iter()
         .filter_map(|tool_call| {
             tool_call.get("toolName").map(|tool_name| {
-                let args_value = tool_call.get("args").cloned().unwrap_or_default();
+                let args_value = tool_call
+                    .get("args")
+                    .or(tool_call.get("input"))
+                    .cloned()
+                    .unwrap_or_default();
                 let args = if let serde_json::Value::String(s) = &args_value {
                     serde_json::from_str::<IndexMap<String, serde_json::Value>>(s).ok()
                 } else {

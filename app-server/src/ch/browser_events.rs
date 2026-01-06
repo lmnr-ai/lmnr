@@ -28,7 +28,8 @@ pub async fn insert_browser_events(
     event_batch: &EventBatch,
 ) -> Result<usize, clickhouse::error::Error> {
     let mut insert = clickhouse
-        .insert("browser_session_events")
+        .insert::<BrowserEventCHRow>("browser_session_events")
+        .await
         .map_err(|e| {
             // From external POV this should be a permanent error,
             // but looking at the code it seems like `insert` always returns `Ok`,

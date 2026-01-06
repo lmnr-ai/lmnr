@@ -227,6 +227,8 @@ export const onRealtimeUpdateSpans =
           });
         }
 
+        newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
         return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       });
     };

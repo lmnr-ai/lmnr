@@ -238,7 +238,7 @@ pub async fn upsert_traces_batch(
         return Ok(());
     }
 
-    let mut insert = client.insert("traces_replacing")?;
+    let mut insert = client.insert::<CHTrace>("traces_replacing").await?;
 
     for trace in traces {
         insert.write(trace).await?;
