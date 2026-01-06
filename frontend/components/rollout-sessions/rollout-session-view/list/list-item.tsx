@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Lock, LockOpen, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
@@ -29,25 +29,22 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans, lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
+  const { selectedSpan, spans, cacheToSpan, uncacheFromSpan, isSpanCached } = useRolloutSessionStoreContext((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
-    lockToSpan: state.lockToSpan,
-    unlockFromSpan: state.unlockFromSpan,
-    isSpanLocked: state.isSpanLocked,
+    cacheToSpan: state.cacheToSpan,
+    uncacheFromSpan: state.uncacheFromSpan,
+    isSpanCached: state.isSpanCached,
   }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
-  // Get full span from store to check lock status
+  // Get full span from store to check cache status
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
 
-  const isPermanentlyLocked = span.spanType === "CACHED";
-  const isLockedFromUI = fullSpan ? isSpanLocked(fullSpan) : false;
-  const isLocked = isPermanentlyLocked || isLockedFromUI;
-  const canToggleLock = !isPermanentlyLocked;
+  const isCached = fullSpan ? isSpanCached(fullSpan) : false;
 
   const [isExpanded, setIsExpanded] = useState(
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
@@ -71,7 +68,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
         {
           "border-t pt-1": span.spanType === "LLM",
           "pb-1": isLast,
-          "opacity-50": isLocked,
+          "opacity-50": isCached,
         }
       )}
       onClick={() => onSpanSelect(span)}
@@ -133,32 +130,25 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    disabled={!canToggleLock && isLocked}
                     className={cn(
-                      "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200",
-                      isLocked ? "block" : "hidden group-hover/message:block",
-                      !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+                      "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 text-xs",
+                      isCached ? "block" : "hidden group-hover/message:block"
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!canToggleLock) return;
-                      if (isLocked) {
-                        unlockFromSpan(fullSpan);
+                      if (isCached) {
+                        uncacheFromSpan(fullSpan);
                       } else {
-                        lockToSpan(fullSpan);
+                        cacheToSpan(fullSpan);
                       }
                     }}
                   >
-                    {isLocked ? (
-                      <Lock className="size-3.5 text-secondary-foreground" />
-                    ) : (
-                      <LockOpen className="size-3.5 text-secondary-foreground" />
-                    )}
+                    {isCached ? "Cached" : "Cache until here"}
                   </Button>
                 </TooltipTrigger>
                 <TooltipPortal>
                   <TooltipContent side="top" className="text-xs">
-                    {isPermanentlyLocked ? "Permanently cached" : isLocked ? "Unlock from here" : "Lock to here"}
+                    {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
                   </TooltipContent>
                 </TooltipPortal>
               </Tooltip>

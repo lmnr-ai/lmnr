@@ -114,8 +114,8 @@ interface RolloutSessionStoreState {
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
-  lockedSpanCounts: Record<string, number>; // Tracks how many spans per path are locked/cached
-  editedMessages: Map<string, string>; // messageId -> edited content
+  cachedSpanCounts: Record<string, number>; // Tracks how many spans per path are cached
+  overrides: Record<string, { system: string }>; // path -> {system: content} - directly matches backend format
   isRolloutLoading: boolean; // Loading state for both run and cancel operations
   rolloutError?: string;
   sessionStatus: RolloutSessionStatus;
@@ -169,16 +169,16 @@ interface RolloutSessionStoreActions {
     messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
-  setLockedSpanCounts: (
-    lockedSpanCounts: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
+  setCachedSpanCounts: (
+    cachedSpanCounts: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
   ) => void;
-  setEditedMessage: (messageId: string, content: string) => void;
-  resetEditedMessage: (messageId: string) => void;
-  getEditedContent: (messageId: string) => string | undefined;
-  getSystemPromptOverrides: () => Record<string, { system: string }>;
-  lockToSpan: (span: TraceViewSpan) => void;
-  unlockFromSpan: (span: TraceViewSpan) => void;
-  isSpanLocked: (span: TraceViewSpan) => boolean;
+  toggleOverride: (messageId: string) => void;
+  updateOverride: (path: string, content: string) => void;
+  isOverrideEnabled: (messageId: string) => boolean;
+  resetOverride: (messageId: string) => void;
+  cacheToSpan: (span: TraceViewSpan) => void;
+  uncacheFromSpan: (span: TraceViewSpan) => void;
+  isSpanCached: (span: TraceViewSpan) => boolean;
   getLlmPathCounts: () => Record<string, number>;
   setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
@@ -241,8 +241,8 @@ const createRolloutSessionStore = ({
         // Rollout-specific state
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
-        lockedSpanCounts: {},
-        editedMessages: new Map(),
+        cachedSpanCounts: {},
+        overrides: {},
         isRolloutLoading: false,
         rolloutError: undefined,
         sessionStatus: initialStatus,
@@ -283,21 +283,21 @@ const createRolloutSessionStore = ({
 
             const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
             if (cachedSpans.length > 0) {
-              const initialLockedCounts: Record<string, number> = {};
+              const initialCachedCounts: Record<string, number> = {};
               cachedSpans.forEach((s) => {
                 const sPath = s.attributes?.["lmnr.span.path"];
                 if (sPath && Array.isArray(sPath)) {
                   const pathKey = sPath.join(".");
-                  initialLockedCounts[pathKey] = (initialLockedCounts[pathKey] || 0) + 1;
+                  initialCachedCounts[pathKey] = (initialCachedCounts[pathKey] || 0) + 1;
                 }
               });
-              // Merge with existing lockedSpanCounts (UI-set lock points take precedence)
-              const existingLockedCounts = get().lockedSpanCounts;
-              const mergedLockedCounts = { ...initialLockedCounts };
-              for (const [path, count] of Object.entries(existingLockedCounts)) {
-                mergedLockedCounts[path] = Math.max(mergedLockedCounts[path] || 0, count);
+              // Merge with existing cachedSpanCounts (UI-set cache points take precedence)
+              const existingCachedCounts = get().cachedSpanCounts;
+              const mergedCachedCounts = { ...initialCachedCounts };
+              for (const [path, count] of Object.entries(existingCachedCounts)) {
+                mergedCachedCounts[path] = Math.max(mergedCachedCounts[path] || 0, count);
               }
-              set({ lockedSpanCounts: mergedLockedCounts });
+              set({ cachedSpanCounts: mergedCachedCounts });
             }
           }
         },
@@ -495,53 +495,57 @@ const createRolloutSessionStore = ({
 
         setIsSystemMessagesLoading: (isLoading) => set({ isSystemMessagesLoading: isLoading }),
 
-        setLockedSpanCounts: (lockedSpanCounts) => {
-          if (typeof lockedSpanCounts === "function") {
-            const prevLockedSpanCounts = get().lockedSpanCounts;
-            const newLockedSpanCounts = lockedSpanCounts(prevLockedSpanCounts);
-            set({ lockedSpanCounts: newLockedSpanCounts });
+        setCachedSpanCounts: (cachedSpanCounts) => {
+          if (typeof cachedSpanCounts === "function") {
+            const prevCachedSpanCounts = get().cachedSpanCounts;
+            const newCachedSpanCounts = cachedSpanCounts(prevCachedSpanCounts);
+            set({ cachedSpanCounts: newCachedSpanCounts });
           } else {
-            set({ lockedSpanCounts });
+            set({ cachedSpanCounts });
           }
         },
 
-        setEditedMessage: (messageId: string, content: string) => {
-          const newMap = new Map(get().editedMessages);
-          const originalMessage = get().systemMessagesMap.get(messageId);
-          // Only store if different from original
-          if (originalMessage && content !== originalMessage.content) {
-            newMap.set(messageId, content);
+        toggleOverride: (messageId: string) => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return;
+
+          const overrides = { ...get().overrides };
+
+          if (overrides[message.path]) {
+            // Toggle OFF - remove override
+            delete overrides[message.path];
           } else {
-            newMap.delete(messageId);
-          }
-          set({ editedMessages: newMap });
-        },
-
-        resetEditedMessage: (messageId: string) => {
-          const newMap = new Map(get().editedMessages);
-          newMap.delete(messageId);
-          set({ editedMessages: newMap });
-        },
-
-        getEditedContent: (messageId: string) => get().editedMessages.get(messageId),
-
-        getSystemPromptOverrides: () => {
-          const overrides: Record<string, { system: string }> = {};
-          const systemMessages = get().systemMessagesMap;
-          const editedMessages = get().editedMessages;
-
-          // For each edited message, use its path to create the override
-          for (const [messageId, editedContent] of editedMessages.entries()) {
-            const message = systemMessages.get(messageId);
-            if (message && message.path) {
-              overrides[message.path] = { system: editedContent };
-            }
+            // Toggle ON - add override with original content
+            overrides[message.path] = { system: message.content };
           }
 
-          return overrides;
+          set({ overrides });
         },
 
-        lockToSpan: (span: TraceViewSpan) => {
+        updateOverride: (path: string, content: string) => {
+          const overrides = { ...get().overrides };
+          overrides[path] = { system: content };
+          set({ overrides });
+        },
+
+        isOverrideEnabled: (messageId: string): boolean => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return false;
+          return message.path in get().overrides;
+        },
+
+        resetOverride: (messageId: string) => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return;
+
+          const overrides = { ...get().overrides };
+          if (overrides[message.path]) {
+            overrides[message.path] = { system: message.content };
+            set({ overrides });
+          }
+        },
+
+        cacheToSpan: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -550,20 +554,20 @@ const createRolloutSessionStore = ({
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-          const newLockedCounts: Record<string, number> = {};
+          const newCachedCounts: Record<string, number> = {};
 
           spansBeforeOrAt.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
-              newLockedCounts[pathKey] = (newLockedCounts[pathKey] || 0) + 1;
+              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
             }
           });
 
-          set({ lockedSpanCounts: newLockedCounts });
+          set({ cachedSpanCounts: newCachedCounts });
         },
 
-        unlockFromSpan: (span: TraceViewSpan) => {
+        uncacheFromSpan: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -572,29 +576,27 @@ const createRolloutSessionStore = ({
             .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-          const newLockedCounts: Record<string, number> = {};
+          const newCachedCounts: Record<string, number> = {};
 
           spansBefore.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
-              newLockedCounts[pathKey] = (newLockedCounts[pathKey] || 0) + 1;
+              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
             }
           });
 
-          set({ lockedSpanCounts: newLockedCounts });
+          set({ cachedSpanCounts: newCachedCounts });
         },
 
-        isSpanLocked: (span: TraceViewSpan): boolean => {
-          if (span.spanType === SpanType.CACHED) return true;
-
+        isSpanCached: (span: TraceViewSpan): boolean => {
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
 
           const spanPathKey = spanPath.join(".");
-          const lockCount = get().lockedSpanCounts[spanPathKey];
+          const cacheCount = get().cachedSpanCounts[spanPathKey];
 
-          if (!lockCount) return false;
+          if (!cacheCount) return false;
 
           const spans = get().spans;
           const spansWithSamePath = spans
@@ -607,7 +609,7 @@ const createRolloutSessionStore = ({
 
           const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
 
-          return spanIndex !== -1 && spanIndex < lockCount;
+          return spanIndex !== -1 && spanIndex < cacheCount;
         },
 
         getLlmPathCounts: (): Record<string, number> => {
@@ -637,17 +639,37 @@ const createRolloutSessionStore = ({
 
             // Clear all spans before running rollout
             set({ spans: [] });
-            const overrides = get().getSystemPromptOverrides();
+            const overrides = get().overrides;
             const currentTraceId = get().currentTraceId;
-            const lockedSpanCounts = get().lockedSpanCounts;
+            const cachedSpanCounts = get().cachedSpanCounts;
             const paramValues = get().paramValues;
 
-            const rolloutPayload = {
-              trace_id: currentTraceId,
-              path_to_count: lockedSpanCounts,
-              args: paramValues,
-              overrides,
-            };
+            const rolloutPayload: Record<string, any> = {};
+
+            if (currentTraceId) {
+              rolloutPayload.trace_id = currentTraceId;
+            }
+
+            if (Object.keys(cachedSpanCounts).length > 0) {
+              rolloutPayload.path_to_count = cachedSpanCounts;
+            }
+
+            const nonEmptyParams = Object.entries(paramValues).reduce(
+              (acc, [key, value]) => {
+                if (value && value.trim() !== "") {
+                  acc[key] = value;
+                }
+                return acc;
+              },
+              {} as Record<string, string>
+            );
+            if (Object.keys(nonEmptyParams).length > 0) {
+              rolloutPayload.args = nonEmptyParams;
+            }
+
+            if (Object.keys(overrides).length > 0) {
+              rolloutPayload.overrides = overrides;
+            }
 
             const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
               method: "POST",

@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { VirtualItem } from "@tanstack/react-virtual";
-import { CircleDollarSign, Coins, Lock, LockOpen } from "lucide-react";
+import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -40,16 +40,13 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
-  const { lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
-    lockToSpan: state.lockToSpan,
-    unlockFromSpan: state.unlockFromSpan,
-    isSpanLocked: state.isSpanLocked,
+  const { cacheToSpan, uncacheFromSpan, isSpanCached } = useRolloutSessionStoreContext((state) => ({
+    cacheToSpan: state.cacheToSpan,
+    uncacheFromSpan: state.uncacheFromSpan,
+    isSpanCached: state.isSpanCached,
   }));
 
-  const isPermanentlyLocked = span.span.spanType === "CACHED";
-  const isLockedFromUI = isSpanLocked(span.span);
-  const isLocked = isPermanentlyLocked || isLockedFromUI;
-  const canToggleLock = !isPermanentlyLocked;
+  const isCached = isSpanCached(span.span);
 
   const handleSpanSelect = () => {
     if (!span.span.pending) {
@@ -154,7 +151,7 @@ const TimelineElement = ({
       className={cn(
         "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200 group",
         {
-          "opacity-60": isLocked,
+          "opacity-60": isCached,
         }
       )}
       style={{
@@ -192,36 +189,25 @@ const TimelineElement = ({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              disabled={!canToggleLock && isLocked}
               className={cn(
-                "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200 ml-2 z-30",
-                isLocked ? "block" : "hidden group-hover:block",
-                !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+                "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 ml-2 z-30 text-xs",
+                isCached ? "block" : "hidden group-hover:block"
               )}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!canToggleLock) return;
-                if (isLocked) {
-                  unlockFromSpan(span.span);
+                if (isCached) {
+                  uncacheFromSpan(span.span);
                 } else {
-                  lockToSpan(span.span);
+                  cacheToSpan(span.span);
                 }
               }}
             >
-              {isLocked ? (
-                <Lock className="size-3.5 text-secondary-foreground" />
-              ) : (
-                <LockOpen className="size-3.5 text-secondary-foreground" />
-              )}
+              {isCached ? "Cached" : "Cache until here"}
             </Button>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="top" className="text-xs">
-              {isPermanentlyLocked
-                ? "Permanently cached"
-                : isLocked
-                  ? "Unlock from here"
-                  : "Lock to here"}
+              {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
             </TooltipContent>
           </TooltipPortal>
         </Tooltip>

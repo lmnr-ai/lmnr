@@ -2,7 +2,6 @@
 
 import React from "react";
 
-import Placeholder from "@/components/rollout-sessions/placeholder";
 import RolloutSessionView from "@/components/rollout-sessions/rollout-session-view";
 import RolloutSessionStoreProvider, {
   TraceViewTrace,
@@ -16,19 +15,13 @@ interface RolloutSessionContentProps {
   trace?: TraceViewTrace;
 }
 
-const RolloutSessionContent = ({ sessionId, trace }: RolloutSessionContentProps) => {
-  if (!trace) {
-    return <Placeholder sessionId={sessionId} />;
-  }
-
-  return (
-    <div className="flex-1 min-h-0 flex">
-      <FiltersContextProvider>
-        <RolloutSessionView sessionId={sessionId} propsTrace={trace} traceId={trace.id} />
-      </FiltersContextProvider>
-    </div>
-  );
-};
+const RolloutSessionContent = ({ sessionId, trace }: RolloutSessionContentProps) => (
+  <div className="flex-1 min-h-0 flex">
+    <FiltersContextProvider>
+      <RolloutSessionView sessionId={sessionId} propsTrace={trace} traceId={trace?.id} />
+    </FiltersContextProvider>
+  </div>
+);
 
 const RolloutSession = ({
   projectId,

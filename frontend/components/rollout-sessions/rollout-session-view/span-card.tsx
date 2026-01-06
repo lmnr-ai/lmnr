@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronRight, CircleDollarSign, Coins, Lock, LockOpen, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -52,20 +52,17 @@ export function SpanCard({
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, lockToSpan, unlockFromSpan, isSpanLocked } =
+  const { selectedSpan, spans, toggleCollapse, cacheToSpan, uncacheFromSpan, isSpanCached } =
     useRolloutSessionStoreContext((state) => ({
       selectedSpan: state.selectedSpan,
       spans: state.spans,
       toggleCollapse: state.toggleCollapse,
-      lockToSpan: state.lockToSpan,
-      unlockFromSpan: state.unlockFromSpan,
-      isSpanLocked: state.isSpanLocked,
+      cacheToSpan: state.cacheToSpan,
+      uncacheFromSpan: state.uncacheFromSpan,
+      isSpanCached: state.isSpanCached,
     }));
 
-  const isPermanentlyLocked = span.spanType === "CACHED";
-  const isLockedFromUI = isSpanLocked(span);
-  const isLocked = isPermanentlyLocked || isLockedFromUI;
-  const canToggleLock = !isPermanentlyLocked;
+  const isCached = isSpanCached(span);
 
   const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
@@ -89,7 +86,7 @@ export function SpanCard({
           "hover:bg-red-100/10",
           isSelected ? "bg-primary/25 border-l-primary" : "border-l-transparent",
           {
-            "opacity-60": isLocked,
+            "opacity-60": isCached,
           }
         )}
         style={{
@@ -190,36 +187,25 @@ export function SpanCard({
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  disabled={!canToggleLock && isLocked}
                   className={cn(
-                    "py-0 px-[3px] h-5 hover:bg-muted animate-in fade-in duration-200",
-                    isLocked ? "block" : "hidden group-hover:block",
-                    !canToggleLock && isLocked && "opacity-50 cursor-not-allowed"
+                    "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 text-xs",
+                    isCached ? "block" : "hidden group-hover:block"
                   )}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!canToggleLock) return;
-                    if (isLocked) {
-                      unlockFromSpan(span);
+                    if (isCached) {
+                      uncacheFromSpan(span);
                     } else {
-                      lockToSpan(span);
+                      cacheToSpan(span);
                     }
                   }}
                 >
-                  {isLocked ? (
-                    <Lock className="size-3.5 text-secondary-foreground" />
-                  ) : (
-                    <LockOpen className="size-3.5 text-secondary-foreground" />
-                  )}
+                  {isCached ? "Cached" : "Cache until here"}
                 </Button>
               </TooltipTrigger>
               <TooltipPortal>
                 <TooltipContent side="top" className="text-xs">
-                  {isPermanentlyLocked
-                    ? "Permanently cached"
-                    : isLocked
-                      ? "Unlock from here"
-                      : "Lock to here"}
+                  {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
                 </TooltipContent>
               </TooltipPortal>
             </Tooltip>
