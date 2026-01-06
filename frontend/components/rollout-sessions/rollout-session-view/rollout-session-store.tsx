@@ -23,18 +23,6 @@ import { SpanType } from "@/lib/traces/types";
 
 import { SystemMessage } from "./system-messages-utils";
 
-/**
- * Helper to check if a span is an LLM span (either directly LLM type, or CACHED with original type LLM)
- */
-function isLlmOrCachedLlmSpan(span: { spanType: SpanType; attributes?: Record<string, any> }): boolean {
-  if (span.spanType === SpanType.LLM) return true;
-  if (span.spanType === SpanType.CACHED) {
-    const originalType = span.attributes?.["lmnr.span.original_type"];
-    return originalType === SpanType.LLM || originalType === "LLM";
-  }
-  return false;
-}
-
 // Incoming realtime span (may be missing some TraceViewSpan fields)
 export type RealtimeSpanInput = {
   spanId: string;

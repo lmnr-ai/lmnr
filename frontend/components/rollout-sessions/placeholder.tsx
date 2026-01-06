@@ -45,11 +45,8 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
       setIsRolloutRunning(true);
       setRolloutError(undefined);
 
-      const overrides = getOverridesForRollout();
-
       const rolloutPayload = {
         args: paramValues,
-        overrides,
       };
 
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
@@ -171,4 +168,3 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
     </div>
   );
 }
-
