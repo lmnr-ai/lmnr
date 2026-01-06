@@ -1034,6 +1034,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::payloads::get_payload)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
+                                    .service(api::v1::rollouts::send_span_update)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service(

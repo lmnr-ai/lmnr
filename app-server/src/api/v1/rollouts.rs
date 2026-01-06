@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, delete, patch, post, web};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -10,6 +11,7 @@ use crate::{
             RolloutSessionStatus, create_rollout_session, delete_rollout_session,
             get_rollout_session, update_session_status,
         },
+        spans::SpanType,
     },
     pubsub::PubSub,
     realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
@@ -73,6 +75,51 @@ pub async fn stream(
     .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     Ok(sse_response)
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SpanStartUpdate {
+    span_id: Uuid,
+    name: String,
+    start_time: DateTime<Utc>,
+    trace_id: Uuid,
+    parent_span_id: Option<Uuid>,
+    #[serde(default)]
+    span_type: SpanType,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum SpanUpdateRequest {
+    SpanStart(SpanStartUpdate),
+}
+
+#[patch("rollouts/{session_id}/updates")]
+pub async fn send_span_update(
+    path: web::Path<Uuid>,
+    body: web::Json<SpanUpdateRequest>,
+    project_api_key: ProjectApiKey,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let session_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let payload = body.into_inner();
+
+    match payload {
+        SpanUpdateRequest::SpanStart(span) => {
+            let message = SseMessage {
+                event_type: "span_start".to_string(),
+                data: serde_json::json!({
+                    "span": span,
+                }),
+            };
+            let key = format!("rollout_session_{}", session_id);
+            send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+        }
+    }
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[patch("rollouts/{session_id}/status")]
