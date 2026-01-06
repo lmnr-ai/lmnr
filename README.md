@@ -11,58 +11,52 @@
 
 # Laminar
 
-[Laminar](https://www.lmnr.ai) is the open-source platform for tracing and evaluating AI applications.
+[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
 
-- [x] Tracing
-    - [x] OpenTelemetry-based automatic tracing of common AI frameworks and SDKs (LangChain, OpenAI, Anthropic ...) with just 2 lines of code. (powered by [OpenLLMetry](https://github.com/traceloop/openllmetry)).
-    - [x] Trace input/output, latency, cost, token count.
-    - [x] Function tracing with `observe` decorator/wrapper.
-    - [x] Image tracing.
-- [x] Evals
-    - [x] Run evals in parallel with a simple SDK
-- [x] Datasets
-    - [x] Export production trace data to datasets.
-    - [x] Run evals on hosted datasets.
-- [x] Built for scale
+- [x] Tracing. [Docs](https://docs.laminar.sh/tracing/introduction)
+    - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
+- [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
+    - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
+    - [x] UI for visualizing evals and comparing results.
+- [x] AI monitoring. [Docs](http://docs.laminar.sh/tracing/events/semantic-events)
+    - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
+- [x] SQL access to all data. [Docs](http://docs.laminar.sh/platform/sql-editor)
+    - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
+- [x] Dashboards. [Docs](http://docs.laminar.sh/custom-dashboards/overview)
+    - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
+- [x] Data annotation & Datasets. [Docs](http://docs.laminar.sh/datasets/introduction)
+    - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
+- [x] Extremely high performance.
     - [x] Written in Rust 🦀
-    - [x] Traces are sent via gRPC, ensuring the best performance and lowest overhead.
-- [x] Modern Open-Source stack
-    - [x] RabbitMQ for message queue, Postgres for data, Clickhouse for analytics.
-- [x] Dashboards for statistics / traces / evaluations / tags.
+    - [x] Custom realtime engine for viewing traces as they happen.
+    - [x] Ultra-fast full-text search over span data.
+    - [x] gRPC exporter for tracing data.
 
 <img alt="traces" src="./images/traces.png">
 
 ## Documentation
 
-Check out full documentation here [docs.lmnr.ai](https://docs.lmnr.ai).
+Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
 
 ## Getting started
 
-The fastest and easiest way to get started is with our managed platform -> [lmnr.ai](https://www.lmnr.ai)
+The fastest and easiest way to get started is with our managed platform -> [laminar.sh](https://laminar.sh)
 
 ### Self-hosting with Docker compose
 
-For a quick start, clone the repo and start the services with docker compose:
+Laminar is very easy to self-host locally. For a quick start, clone the repo and start the services with docker compose:
 ```sh
 git clone https://github.com/lmnr-ai/lmnr
 cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight version of the stack with Postgres, clickhouse, app-server, and frontend. This is good for a quickstart 
+This will spin up a lightweight but full-featured version of the stack. This is good for a quickstart 
 or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
 
-You will also need to properly configure the SDK, with `baseUrl` and correct ports. See https://docs.lmnr.ai/self-hosting/setup
+You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
 
-For production environment, we recommend using our [managed platform](https://www.lmnr.ai/projects) or `docker compose -f docker-compose-full.yml up -d`.
-
-`docker-compose-full.yml` is heavy but it will enable all the features.
-
-- app-server – core Rust backend
-- rabbitmq – message queue for reliable trace processing
-- frontend – Next.js frontend and backend
-- postgres – Postgres database for all the application data
-- clickhouse – columnar OLAP database for more efficient trace and tag analytics
+For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
 ## Contributing
 
@@ -145,10 +139,6 @@ def poem_writer(topic):
 if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
 ```
-
-Running the code above will result in the following trace.
-
-<img width="996" alt="Screenshot 2024-10-29 at 7 52 40 PM" src="https://github.com/user-attachments/assets/df141a62-b241-4e43-844f-52d94fe4ad67">
 
 ## Client libraries
 
