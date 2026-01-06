@@ -18,13 +18,13 @@
 - [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](http://docs.laminar.sh/tracing/events/semantic-events)
+- [x] AI monitoring. [Docs](https://docs.laminar.sh/tracing/events/semantic-events)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] SQL access to all data. [Docs](http://docs.laminar.sh/platform/sql-editor)
+- [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
     - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
-- [x] Dashboards. [Docs](http://docs.laminar.sh/custom-dashboards/overview)
+- [x] Dashboards. [Docs](https://docs.laminar.sh/custom-dashboards/overview)
     - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
-- [x] Data annotation & Datasets. [Docs](http://docs.laminar.sh/datasets/introduction)
+- [x] Data annotation & Datasets. [Docs](https://docs.laminar.sh/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
@@ -65,7 +65,7 @@ follow the guide in [Contributing](/CONTRIBUTING.md).
 
 ## TS quickstart
 
-First, [create a project](https://www.lmnr.ai/projects) and generate a project API key. Then,
+First, [create a project](https://laminar.sh/projects) and generate a project API key. Then,
 
 ```sh
 npm add @lmnr-ai/lmnr
@@ -100,12 +100,12 @@ await poemWriter();
 
 ## Python quickstart
 
-First, [create a project](https://www.lmnr.ai/projects) and generate a project API key. Then,
+First, [create a project](https://laminar.sh/projects) and generate a project API key. Then,
 
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.lmnr.ai/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.laminar.sh/installation)
 
 
 To start tracing LLM calls just add
