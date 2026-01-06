@@ -90,7 +90,7 @@ export async function encodeSlackToken(teamId: string, token: string): Promise<{
   }
 }
 
-export async function enryptValue(
+export async function encryptValue(
   additionalData: string,
   value: string
 ): Promise<{ value: string; nonce: string }> {

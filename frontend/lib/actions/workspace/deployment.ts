@@ -3,7 +3,7 @@ import _sodium from "libsodium-wrappers";
 import { z } from "zod/v4";
 
 import { cache, WORKSPACE_DEPLOYMENTS_CACHE_KEY } from "@/lib/cache.ts";
-import { decryptValue, enryptValue, generateKeyPair } from "@/lib/crypto.ts";
+import { decryptValue, encryptValue, generateKeyPair } from "@/lib/crypto.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { projects, workspaceDeployments } from "@/lib/db/migrations/schema.ts";
 import { DeploymentType } from "@/lib/workspaces/types.ts";
@@ -28,7 +28,7 @@ export const generateDeploymentKeys = async (input: z.infer<typeof GenerateDeplo
 
   const { publicKey, privateKey } = await generateKeyPair();
 
-  const { value: encryptedPrivateKey, nonce: privateKeyNonce } = await enryptValue(workspaceId, privateKey);
+  const { value: encryptedPrivateKey, nonce: privateKeyNonce } = await encryptValue(workspaceId, privateKey);
 
   const existingDeployment = await db.query.workspaceDeployments.findFirst({
     where: eq(workspaceDeployments.workspaceId, workspaceId),
@@ -102,7 +102,7 @@ export const updateDeployment = async (input: z.infer<typeof UpdateDeploymentSch
   } = { mode };
 
   if (dataPlaneUrl) {
-    const { value: encryptedDataPlaneUrl, nonce: dataPlaneUrlNonce } = await enryptValue(workspaceId, dataPlaneUrl);
+    const { value: encryptedDataPlaneUrl, nonce: dataPlaneUrlNonce } = await encryptValue(workspaceId, dataPlaneUrl);
     updateData.dataPlaneUrl = encryptedDataPlaneUrl;
     updateData.dataPlaneUrlNonce = dataPlaneUrlNonce;
   }
