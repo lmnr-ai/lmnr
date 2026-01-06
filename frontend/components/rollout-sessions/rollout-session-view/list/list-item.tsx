@@ -22,9 +22,6 @@ interface ListItemProps {
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
   isLast: boolean;
-  onSetCachePoint?: (span: TraceViewListSpan) => void;
-  onUnlock?: (span: TraceViewListSpan) => void;
-  isCached?: boolean;
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
@@ -37,18 +34,26 @@ const ListItem = ({
   onSpanSelect,
   onOpenSettings,
   isLast = false,
-  onSetCachePoint,
-  onUnlock,
-  isCached = false,
 }: ListItemProps) => {
-  const selectedSpan = useRolloutSessionStoreContext((state) => state.selectedSpan);
-  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
+  const { selectedSpan, getSpanAttribute, spans, lockToSpan, unlockFromSpan, isSpanLocked } =
+    useRolloutSessionStoreContext((state) => ({
+      selectedSpan: state.selectedSpan,
+      getSpanAttribute: state.getSpanAttribute,
+      spans: state.spans,
+      lockToSpan: state.lockToSpan,
+      unlockFromSpan: state.unlockFromSpan,
+      isSpanLocked: state.isSpanLocked,
+    }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
+  // Get full span from store to check lock status
+  const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
+
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
+  const isCached = fullSpan ? isSpanLocked(fullSpan) : false;
 
   const isLockedByAttribute = !!rolloutSessionId;
   const isLocked = isLockedByAttribute || isCached;
@@ -133,7 +138,7 @@ const ListItem = ({
             >
               <Settings className="size-3.5 text-secondary-foreground" />
             </Button>
-            {(span.spanType === "LLM" || span.spanType === "CACHED") && (onSetCachePoint || onUnlock) && (
+            {(span.spanType === "LLM" || span.spanType === "CACHED") && fullSpan && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -147,10 +152,10 @@ const ListItem = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!canToggleLock) return;
-                      if (isLocked && onUnlock) {
-                        onUnlock(span);
-                      } else if (!isLocked && onSetCachePoint) {
-                        onSetCachePoint(span);
+                      if (isLocked) {
+                        unlockFromSpan(fullSpan);
+                      } else {
+                        lockToSpan(fullSpan);
                       }
                     }}
                   >

@@ -17,12 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 interface ListProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
-  onSetCachePoint?: (span: TraceViewSpan) => void;
-  onUnlock?: (span: TraceViewSpan) => void;
-  isSpanCached?: (span: TraceViewSpan) => boolean;
 }
 
-const List = ({ traceId, onSpanSelect, onSetCachePoint, onUnlock, isSpanCached }: ListProps) => {
+const List = ({ traceId, onSpanSelect }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useRolloutSessionStoreContext((state) => ({
@@ -128,26 +125,6 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, onUnlock, isSpanCached }
     [spans, onSpanSelect]
   );
 
-  const handleSetCachePoint = useCallback((listSpan: TraceViewListSpan) => {
-    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
-    if (fullSpan && onSetCachePoint) {
-      onSetCachePoint(fullSpan);
-    }
-  }, [spans, onSetCachePoint]);
-
-  const handleUnlock = useCallback((listSpan: TraceViewListSpan) => {
-    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
-    if (fullSpan && onUnlock) {
-      onUnlock(fullSpan);
-    }
-  }, [spans, onUnlock]);
-
-  const isListSpanCached = useCallback((listSpan: TraceViewListSpan): boolean => {
-    if (!isSpanCached) return false;
-    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
-    return fullSpan ? isSpanCached(fullSpan) : false;
-  }, [spans, isSpanCached]);
-
   const handleOpenSettings = useCallback((span: TraceViewListSpan) => {
     setSettingsSpan(span);
   }, []);
@@ -211,9 +188,6 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, onUnlock, isSpanCached }
                     getOutput={getOutput}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={handleOpenSettings}
-                    onSetCachePoint={onSetCachePoint ? handleSetCachePoint : undefined}
-                    onUnlock={onUnlock ? handleUnlock : undefined}
-                    isCached={isListSpanCached(listSpan)}
                   />
                 </div>
               );

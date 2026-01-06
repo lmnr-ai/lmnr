@@ -28,17 +28,11 @@ const TimelineElement = ({
   span,
   virtualRow,
   selectedSpan,
-  onSetCachePoint,
-  onUnlock,
-  isCached = false,
 }: {
   span: TimelineData["spans"]["0"];
   virtualRow: VirtualItem;
   selectedSpan?: TraceViewSpan;
   setSelectedSpan: (span?: TraceViewSpan) => void;
-  onSetCachePoint?: (span: TraceViewSpan) => void;
-  onUnlock?: (span: TraceViewSpan) => void;
-  isCached?: boolean;
 }) => {
   const textRef = useRef<HTMLSpanElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -46,9 +40,15 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
-  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
+  const { getSpanAttribute, lockToSpan, unlockFromSpan, isSpanLocked } = useRolloutSessionStoreContext((state) => ({
+    getSpanAttribute: state.getSpanAttribute,
+    lockToSpan: state.lockToSpan,
+    unlockFromSpan: state.unlockFromSpan,
+    isSpanLocked: state.isSpanLocked,
+  }));
 
   const rolloutSessionId = getSpanAttribute(span.span.spanId, "lmnr.rollout.session_id");
+  const isCached = isSpanLocked(span.span);
 
   const isLockedByAttribute = !!rolloutSessionId;
   const isLocked = isLockedByAttribute || isCached;
@@ -190,7 +190,7 @@ const TimelineElement = ({
         {textPosition === "inside" && spanTextElement}
       </div>
       {textPosition === "outside" && spanTextElement}
-      {(span.span.spanType === "LLM" || span.span.spanType === "CACHED") && (onSetCachePoint || onUnlock) && (
+      {(span.span.spanType === "LLM" || span.span.spanType === "CACHED") && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -204,10 +204,10 @@ const TimelineElement = ({
               onClick={(e) => {
                 e.stopPropagation();
                 if (!canToggleLock) return;
-                if (isLocked && onUnlock) {
-                  onUnlock(span.span);
-                } else if (!isLocked && onSetCachePoint) {
-                  onSetCachePoint(span.span);
+                if (isLocked) {
+                  unlockFromSpan(span.span);
+                } else {
+                  lockToSpan(span.span);
                 }
               }}
             >

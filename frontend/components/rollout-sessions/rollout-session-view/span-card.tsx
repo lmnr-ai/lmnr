@@ -36,9 +36,6 @@ interface SpanCardProps {
   depth: number;
   yOffset: number;
   onSpanSelect?: (span?: TraceViewSpan) => void;
-  onSetCachePoint?: (span: TraceViewSpan) => void;
-  onUnlock?: (span: TraceViewSpan) => void;
-  isCached?: boolean;
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
@@ -51,22 +48,23 @@ export function SpanCard({
   parentY,
   onSpanSelect,
   depth,
-  onSetCachePoint,
-  onUnlock,
-  isCached = false,
 }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse } = useRolloutSessionStoreContext((state) => ({
-    selectedSpan: state.selectedSpan,
-    spans: state.spans,
-    toggleCollapse: state.toggleCollapse,
-  }));
-
-  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
+  const { selectedSpan, spans, toggleCollapse, lockToSpan, unlockFromSpan, isSpanLocked, getSpanAttribute } =
+    useRolloutSessionStoreContext((state) => ({
+      selectedSpan: state.selectedSpan,
+      spans: state.spans,
+      toggleCollapse: state.toggleCollapse,
+      lockToSpan: state.lockToSpan,
+      unlockFromSpan: state.unlockFromSpan,
+      isSpanLocked: state.isSpanLocked,
+      getSpanAttribute: state.getSpanAttribute,
+    }));
 
   const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
+  const isCached = isSpanLocked(span);
 
   const isLockedByAttribute = !!rolloutSessionId;
   const isLocked = isLockedByAttribute || isCached;
@@ -190,7 +188,7 @@ export function SpanCard({
             </button>
           )}
           <div className="grow" />
-          {(span.spanType === "LLM" || span.spanType === "CACHED") && (onSetCachePoint || onUnlock) && (
+          {(span.spanType === "LLM" || span.spanType === "CACHED") && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -204,10 +202,10 @@ export function SpanCard({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!canToggleLock) return;
-                    if (isLocked && onUnlock) {
-                      onUnlock(span);
-                    } else if (!isLocked && onSetCachePoint) {
-                      onSetCachePoint(span);
+                    if (isLocked) {
+                      unlockFromSpan(span);
+                    } else {
+                      lockToSpan(span);
                     }
                   }}
                 >

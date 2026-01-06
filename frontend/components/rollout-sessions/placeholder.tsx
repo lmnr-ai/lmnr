@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Loader2, Play, Radio, Square } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { Fragment, useCallback, useState } from "react";
+import React, { Fragment, useCallback } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,28 +17,25 @@ interface PlaceholderProps {
 export default function Placeholder({ sessionId }: PlaceholderProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
-  const [isCancelling, setIsCancelling] = useState(false);
 
   const {
-    isRolloutRunning,
-    setIsRolloutRunning,
+    isRolloutLoading,
+    setIsRolloutLoading,
     rolloutError,
     setRolloutError,
     sessionStatus,
     setSessionStatus,
     paramValues,
-    getOverridesForRollout,
     params,
     setParamValue,
   } = useRolloutSessionStoreContext((state) => ({
-    isRolloutRunning: state.isRolloutRunning,
-    setIsRolloutRunning: state.setIsRolloutRunning,
+    isRolloutLoading: state.isRolloutLoading,
+    setIsRolloutLoading: state.setIsRolloutLoading,
     rolloutError: state.rolloutError,
     setRolloutError: state.setRolloutError,
     sessionStatus: state.sessionStatus,
     setSessionStatus: state.setSessionStatus,
     paramValues: state.paramValues,
-    getOverridesForRollout: state.getOverridesForRollout,
     params: state.params,
     setParamValue: state.setParamValue,
   }));
@@ -48,7 +45,7 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
 
   const handleRollout = useCallback(async () => {
     try {
-      setIsRolloutRunning(true);
+      setIsRolloutLoading(true);
       setRolloutError(undefined);
 
       const rolloutPayload = {
@@ -84,14 +81,13 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
       });
       console.error("Rollout error:", error);
     } finally {
-      setIsRolloutRunning(false);
+      setIsRolloutLoading(false);
     }
   }, [
     projectId,
     sessionId,
     paramValues,
-    getOverridesForRollout,
-    setIsRolloutRunning,
+    setIsRolloutLoading,
     setRolloutError,
     setSessionStatus,
     toast,
@@ -99,7 +95,7 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
 
   const handleCancel = useCallback(async () => {
     try {
-      setIsCancelling(true);
+      setIsRolloutLoading(true);
       const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -125,9 +121,9 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
         variant: "destructive",
       });
     } finally {
-      setIsCancelling(false);
+      setIsRolloutLoading(false);
     }
-  }, [projectId, sessionId, setSessionStatus, toast]);
+  }, [projectId, sessionId, setSessionStatus, setIsRolloutLoading, toast]);
 
   return (
     <div className="flex h-full w-full">
@@ -135,8 +131,8 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
         <div className="flex flex-col h-full">
           <div className="flex flex-col gap-2 p-2">
             {isRunning ? (
-              <Button className="w-fit" variant="destructive" onClick={handleCancel} disabled={isCancelling}>
-                {isCancelling ? (
+              <Button className="w-fit" variant="destructive" onClick={handleCancel} disabled={isRolloutLoading}>
+                {isRolloutLoading ? (
                   <>
                     <Loader2 size={14} className="mr-2 animate-spin" />
                     Cancelling...
@@ -149,8 +145,8 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
                 )}
               </Button>
             ) : (
-              <Button className="w-fit" onClick={handleRollout} disabled={isRolloutRunning || !canRun}>
-                {isRolloutRunning ? (
+              <Button className="w-fit" onClick={handleRollout} disabled={isRolloutLoading || !canRun}>
+                {isRolloutLoading ? (
                   <>
                     <Loader2 size={14} className="mr-2 animate-spin" />
                     Starting...

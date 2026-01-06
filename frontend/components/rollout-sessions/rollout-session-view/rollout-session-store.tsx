@@ -23,7 +23,6 @@ import { SpanType } from "@/lib/traces/types";
 
 import { SystemMessage } from "./system-messages-utils";
 
-// Incoming realtime span (may be missing some TraceViewSpan fields)
 export type RealtimeSpanInput = {
   spanId: string;
   parentSpanId?: string;
@@ -34,7 +33,6 @@ export type RealtimeSpanInput = {
   endTime: string;
   attributes: Record<string, any>;
   status?: string;
-  // Optional fields that TraceViewSpan requires but RealtimeSpan may not have
   path?: string;
   events?: Event[];
   model?: string;
@@ -181,11 +179,12 @@ interface RolloutSessionStoreState {
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
-  pathToCount: Record<string, number>;
+  lockedSpanCounts: Record<string, number>; // Tracks how many spans per path are locked/cached
   editedMessages: Map<string, string>; // messageId -> edited content
-  isRolloutRunning: boolean;
+  isRolloutLoading: boolean; // Loading state for both run and cancel operations
   rolloutError?: string;
   sessionStatus: RolloutSessionStatus;
+  currentTraceId: string; // Current trace ID for rollout runs
 
   // Params state
   params: Array<{ name: string; [key: string]: any }>;
@@ -236,21 +235,25 @@ interface RolloutSessionStoreActions {
     messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
-  setPathToCount: (
-    pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
+  setLockedSpanCounts: (
+    lockedSpanCounts: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
   ) => void;
   setEditedMessage: (messageId: string, content: string) => void;
   resetEditedMessage: (messageId: string) => void;
   getEditedContent: (messageId: string) => string | undefined;
-  getOverridesForRollout: () => Record<string, { system: string }>;
-  setCachePoint: (span: TraceViewSpan) => void;
+  getSystemPromptOverrides: () => Record<string, { system: string }>;
+  lockToSpan: (span: TraceViewSpan) => void;
   unlockFromSpan: (span: TraceViewSpan) => void;
-  isSpanCached: (span: TraceViewSpan) => boolean;
+  isSpanLocked: (span: TraceViewSpan) => boolean;
   getLlmPathCounts: () => Record<string, number>;
-  setIsRolloutRunning: (isRunning: boolean) => void;
+  setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
   setSessionStatus: (status: RolloutSessionStatus) => void;
   removeNonCachedSpans: () => void;
+  setCurrentTraceId: (traceId: string) => void;
+  // Rollout session actions
+  runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
 
   setParamValue: (name: string, value: string) => void;
 }
@@ -262,11 +265,13 @@ const createRolloutSessionStore = ({
   params = [],
   storeKey = "rollout-session-state",
   initialStatus = "PENDING",
+  initialTraceId,
 }: {
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: RolloutSessionStatus;
+  initialTraceId: string;
 }) => {
   // Initialize paramValues from params
   const initialParamValues = params.reduce(
@@ -303,11 +308,12 @@ const createRolloutSessionStore = ({
         // Rollout-specific state
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
-        pathToCount: {},
+        lockedSpanCounts: {},
         editedMessages: new Map(),
-        isRolloutRunning: false,
+        isRolloutLoading: false,
         rolloutError: undefined,
         sessionStatus: initialStatus,
+        currentTraceId: initialTraceId,
 
         // Params state (initialized from props)
         params,
@@ -344,21 +350,21 @@ const createRolloutSessionStore = ({
 
             const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
             if (cachedSpans.length > 0) {
-              const initialPathToCount: Record<string, number> = {};
+              const initialLockedCounts: Record<string, number> = {};
               cachedSpans.forEach((s) => {
                 const sPath = s.attributes?.["lmnr.span.path"];
                 if (sPath && Array.isArray(sPath)) {
                   const pathKey = sPath.join(".");
-                  initialPathToCount[pathKey] = (initialPathToCount[pathKey] || 0) + 1;
+                  initialLockedCounts[pathKey] = (initialLockedCounts[pathKey] || 0) + 1;
                 }
               });
-              // Merge with existing pathToCount (UI-set cache points take precedence)
-              const existingPathToCount = get().pathToCount;
-              const mergedPathToCount = { ...initialPathToCount };
-              for (const [path, count] of Object.entries(existingPathToCount)) {
-                mergedPathToCount[path] = Math.max(mergedPathToCount[path] || 0, count);
+              // Merge with existing lockedSpanCounts (UI-set lock points take precedence)
+              const existingLockedCounts = get().lockedSpanCounts;
+              const mergedLockedCounts = { ...initialLockedCounts };
+              for (const [path, count] of Object.entries(existingLockedCounts)) {
+                mergedLockedCounts[path] = Math.max(mergedLockedCounts[path] || 0, count);
               }
-              set({ pathToCount: mergedPathToCount });
+              set({ lockedSpanCounts: mergedLockedCounts });
             }
           }
         },
@@ -630,13 +636,13 @@ const createRolloutSessionStore = ({
 
         setIsSystemMessagesLoading: (isLoading) => set({ isSystemMessagesLoading: isLoading }),
 
-        setPathToCount: (pathToCount) => {
-          if (typeof pathToCount === "function") {
-            const prevPathToCount = get().pathToCount;
-            const newPathToCount = pathToCount(prevPathToCount);
-            set({ pathToCount: newPathToCount });
+        setLockedSpanCounts: (lockedSpanCounts) => {
+          if (typeof lockedSpanCounts === "function") {
+            const prevLockedSpanCounts = get().lockedSpanCounts;
+            const newLockedSpanCounts = lockedSpanCounts(prevLockedSpanCounts);
+            set({ lockedSpanCounts: newLockedSpanCounts });
           } else {
-            set({ pathToCount });
+            set({ lockedSpanCounts });
           }
         },
 
@@ -660,7 +666,7 @@ const createRolloutSessionStore = ({
 
         getEditedContent: (messageId: string) => get().editedMessages.get(messageId),
 
-        getOverridesForRollout: () => {
+        getSystemPromptOverrides: () => {
           const overrides: Record<string, { system: string }> = {};
           const systemMessages = get().systemMessagesMap;
           const editedMessages = get().editedMessages;
@@ -676,7 +682,7 @@ const createRolloutSessionStore = ({
           return overrides;
         },
 
-        setCachePoint: (span: TraceViewSpan) => {
+        lockToSpan: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -685,17 +691,17 @@ const createRolloutSessionStore = ({
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-          const newPathToCount: Record<string, number> = {};
+          const newLockedCounts: Record<string, number> = {};
 
           spansBeforeOrAt.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
-              newPathToCount[pathKey] = (newPathToCount[pathKey] || 0) + 1;
+              newLockedCounts[pathKey] = (newLockedCounts[pathKey] || 0) + 1;
             }
           });
 
-          set({ pathToCount: newPathToCount });
+          set({ lockedSpanCounts: newLockedCounts });
         },
 
         unlockFromSpan: (span: TraceViewSpan) => {
@@ -707,29 +713,29 @@ const createRolloutSessionStore = ({
             .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-          const newPathToCount: Record<string, number> = {};
+          const newLockedCounts: Record<string, number> = {};
 
           spansBefore.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
-              newPathToCount[pathKey] = (newPathToCount[pathKey] || 0) + 1;
+              newLockedCounts[pathKey] = (newLockedCounts[pathKey] || 0) + 1;
             }
           });
 
-          set({ pathToCount: newPathToCount });
+          set({ lockedSpanCounts: newLockedCounts });
         },
 
-        isSpanCached: (span: TraceViewSpan): boolean => {
+        isSpanLocked: (span: TraceViewSpan): boolean => {
           if (span.spanType === SpanType.CACHED) return true;
 
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
 
           const spanPathKey = spanPath.join(".");
-          const cacheCount = get().pathToCount[spanPathKey];
+          const lockCount = get().lockedSpanCounts[spanPathKey];
 
-          if (!cacheCount) return false;
+          if (!lockCount) return false;
 
           const spans = get().spans;
           const spansWithSamePath = spans
@@ -742,7 +748,7 @@ const createRolloutSessionStore = ({
 
           const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
 
-          return spanIndex !== -1 && spanIndex < cacheCount;
+          return spanIndex !== -1 && spanIndex < lockCount;
         },
 
         getLlmPathCounts: (): Record<string, number> => {
@@ -761,20 +767,21 @@ const createRolloutSessionStore = ({
           return pathMap;
         },
 
-        setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
+        setIsRolloutLoading: (isRolloutLoading: boolean) => set({ isRolloutLoading }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
         setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
+        setCurrentTraceId: (currentTraceId: string) => set({ currentTraceId }),
 
         removeNonCachedSpans: () => {
           const spans = get().spans;
-          const pathToCount = get().pathToCount;
+          const lockedSpanCounts = get().lockedSpanCounts;
 
-          if (Object.keys(pathToCount).length === 0) {
+          if (Object.keys(lockedSpanCounts).length === 0) {
             return;
           }
 
           let cutoffTime = 0;
-          for (const [pathKey, count] of Object.entries(pathToCount)) {
+          for (const [pathKey, count] of Object.entries(lockedSpanCounts)) {
             if (count <= 0) continue;
 
             const spansWithPath = spans
@@ -795,6 +802,72 @@ const createRolloutSessionStore = ({
           if (cutoffTime > 0) {
             const filteredSpans = spans.filter((s) => new Date(s.startTime).getTime() <= cutoffTime);
             set({ spans: filteredSpans });
+          }
+        },
+
+        runRollout: async (projectId: string, sessionId: string) => {
+          try {
+            set({ isRolloutLoading: true, rolloutError: undefined });
+
+            get().removeNonCachedSpans();
+            const overrides = get().getSystemPromptOverrides();
+            const currentTraceId = get().currentTraceId;
+            const lockedSpanCounts = get().lockedSpanCounts;
+            const paramValues = get().paramValues;
+
+            const rolloutPayload = {
+              trace_id: currentTraceId,
+              path_to_count: lockedSpanCounts,
+              args: paramValues,
+              overrides,
+            };
+
+            const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(rolloutPayload),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+              throw new Error(errorData.error || "Failed to run rollout");
+            }
+
+            await response.json();
+            set({ sessionStatus: "RUNNING" });
+
+            return { success: true };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to run rollout";
+            set({ rolloutError: errorMessage });
+            return { success: false, error: errorMessage };
+          } finally {
+            set({ isRolloutLoading: false });
+          }
+        },
+
+        cancelSession: async (projectId: string, sessionId: string) => {
+          try {
+            set({ isRolloutLoading: true });
+
+            const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "STOPPED" }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+              throw new Error(errorData.error || "Failed to cancel rollout");
+            }
+
+            set({ sessionStatus: "STOPPED" });
+            return { success: true };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to cancel rollout";
+            return { success: false, error: errorMessage };
+          } finally {
+            set({ isRolloutLoading: false });
           }
         },
 
@@ -824,17 +897,19 @@ const RolloutSessionStoreProvider = ({
   params,
   storeKey,
   initialStatus,
+  initialTraceId,
   children,
 }: PropsWithChildren<{
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: RolloutSessionStatus;
+  initialTraceId: string;
 }>) => {
   const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus });
+    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus, initialTraceId });
   }
 
   return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;

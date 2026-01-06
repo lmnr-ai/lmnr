@@ -67,17 +67,16 @@ const SystemMessageEditor = ({ message, editedContent, onEdit, onReset }: System
 interface RolloutSidebarProps {
   onRollout: () => void;
   onCancel: () => void;
-  isCancelling?: boolean;
+  isLoading?: boolean;
 }
 
-export default function RolloutSidebar({ onRollout, onCancel, isCancelling }: RolloutSidebarProps) {
+export default function RolloutSidebar({ onRollout, onCancel, isLoading }: RolloutSidebarProps) {
   const {
     systemMessagesMap,
     isSystemMessagesLoading,
     editedMessages,
     setEditedMessage,
     resetEditedMessage,
-    isRolloutRunning,
     rolloutError,
     params,
     paramValues,
@@ -89,7 +88,6 @@ export default function RolloutSidebar({ onRollout, onCancel, isCancelling }: Ro
     editedMessages: state.editedMessages,
     setEditedMessage: state.setEditedMessage,
     resetEditedMessage: state.resetEditedMessage,
-    isRolloutRunning: state.isRolloutRunning,
     rolloutError: state.rolloutError,
     params: state.params,
     paramValues: state.paramValues,
@@ -106,8 +104,8 @@ export default function RolloutSidebar({ onRollout, onCancel, isCancelling }: Ro
     <div className="flex flex-col h-full">
       <div className="flex flex-col gap-2 p-2">
         {isRunning ? (
-          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isCancelling}>
-            {isCancelling ? (
+          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isLoading}>
+            {isLoading ? (
               <>
                 <Loader2 size={14} className="mr-2 animate-spin" />
                 Cancelling...
@@ -120,8 +118,8 @@ export default function RolloutSidebar({ onRollout, onCancel, isCancelling }: Ro
             )}
           </Button>
         ) : (
-          <Button className="w-fit" onClick={onRollout} disabled={isRolloutRunning || !canRun}>
-            {isRolloutRunning ? (
+          <Button className="w-fit" onClick={onRollout} disabled={isLoading || !canRun}>
+            {isLoading ? (
               <>
                 <Loader2 size={14} className="mr-2 animate-spin" />
                 Starting...

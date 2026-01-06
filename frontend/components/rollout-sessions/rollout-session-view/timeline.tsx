@@ -2,17 +2,11 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import React, { memo, useEffect, useMemo, useRef } from "react";
 
-import { TraceViewSpan, useRolloutSessionStore, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStore, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import TimelineElement from "@/components/rollout-sessions/rollout-session-view/timeline-element";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
-interface TimelineProps {
-  onSetCachePoint?: (span: TraceViewSpan) => void;
-  onUnlock?: (span: TraceViewSpan) => void;
-  isSpanCached?: (span: TraceViewSpan) => boolean;
-}
-
-function Timeline({ onSetCachePoint, onUnlock, isSpanCached }: TimelineProps) {
+function Timeline() {
   const ref = useRef<HTMLDivElement>(null);
   const sessionTimeNeedleRef = useRef<HTMLDivElement>(null);
 
@@ -128,9 +122,6 @@ function Timeline({ onSetCachePoint, onUnlock, isSpanCached }: TimelineProps) {
                 setSelectedSpan={setSelectedSpan}
                 span={spans[virtualRow.index]}
                 virtualRow={virtualRow}
-                onSetCachePoint={onSetCachePoint}
-                onUnlock={onUnlock}
-                isCached={isSpanCached?.(spans[virtualRow.index].span)}
               />
             ))}
           </div>

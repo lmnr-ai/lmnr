@@ -78,6 +78,7 @@ const RolloutSession = ({
         params={params}
         storeKey={`rollout-session-${sessionId}`}
         initialStatus={initialStatus}
+        initialTraceId={trace?.id ?? ""}
       >
         <RolloutSessionContent sessionId={sessionId} trace={trace} />
       </RolloutSessionStoreProvider>

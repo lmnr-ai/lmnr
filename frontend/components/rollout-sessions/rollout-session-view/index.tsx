@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
@@ -53,11 +53,9 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const [currentTraceId, setCurrentTraceId] = useState(traceId);
-  const [isCancelling, setIsCancelling] = useState(false);
-
-  // Data states
+  // Consolidated store access
   const {
+    // Data state
     selectedSpan,
     setSelectedSpan,
     spans,
@@ -74,7 +72,33 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     setSpansError,
     rebuildSpanPathCounts,
     addSpanIfNew,
+    // UI state
+    tab,
+    setTab,
+    search,
+    setSearch,
+    searchEnabled,
+    setSearchEnabled,
+    browserSession,
+    setBrowserSession,
+    zoom,
+    setZoom,
+    langGraph,
+    getHasLangGraph,
+    hasBrowserSession,
+    setHasBrowserSession,
+    setSpanPath,
+    // Rollout state
+    setSystemMessagesMap,
+    setIsSystemMessagesLoading,
+    runRollout,
+    cancelSession,
+    setSessionStatus,
+    isRolloutLoading,
+    currentTraceId,
+    setCurrentTraceId,
   } = useRolloutSessionStoreContext((state) => ({
+    // Data state
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
@@ -91,25 +115,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     setSpansError: state.setSpansError,
     rebuildSpanPathCounts: state.rebuildSpanPathCounts,
     addSpanIfNew: state.addSpanIfNew,
-  }));
-
-  // UI states
-  const {
-    tab,
-    setTab,
-    search,
-    setSearch,
-    searchEnabled,
-    setSearchEnabled,
-    browserSession,
-    setBrowserSession,
-    zoom,
-    handleZoom,
-    langGraph,
-    getHasLangGraph,
-    hasBrowserSession,
-    setHasBrowserSession,
-  } = useRolloutSessionStoreContext((state) => ({
+    // UI state
     tab: state.tab,
     setTab: state.setTab,
     search: state.search,
@@ -117,18 +123,23 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
     searchEnabled: state.searchEnabled,
     setSearchEnabled: state.setSearchEnabled,
     zoom: state.zoom,
-    handleZoom: state.setZoom,
+    setZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
-    setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
-  }));
-
-  const { setSpanPath } = useRolloutSessionStoreContext((state) => ({
     setSpanPath: state.setSpanPath,
+    // Rollout state
+    currentTraceId: state.currentTraceId,
+    setCurrentTraceId: state.setCurrentTraceId,
+    setSystemMessagesMap: state.setSystemMessagesMap,
+    setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
+    runRollout: state.runRollout,
+    cancelSession: state.cancelSession,
+    setSessionStatus: state.setSessionStatus,
+    isRolloutLoading: state.isRolloutLoading,
   }));
 
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
@@ -147,34 +158,6 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         .map((span) => span.spanId),
     [spans]
   );
-
-  const {
-    setSystemMessagesMap,
-    setIsSystemMessagesLoading,
-    pathToCount,
-    getOverridesForRollout,
-    setCachePoint,
-    unlockFromSpan,
-    isSpanCached,
-    setIsRolloutRunning,
-    setRolloutError,
-    paramValues,
-    setSessionStatus,
-    removeNonCachedSpans,
-  } = useRolloutSessionStoreContext((state) => ({
-    setSystemMessagesMap: state.setSystemMessagesMap,
-    setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
-    pathToCount: state.pathToCount,
-    getOverridesForRollout: state.getOverridesForRollout,
-    setCachePoint: state.setCachePoint,
-    unlockFromSpan: state.unlockFromSpan,
-    isSpanCached: state.isSpanCached,
-    setIsRolloutRunning: state.setIsRolloutRunning,
-    setRolloutError: state.setRolloutError,
-    paramValues: state.paramValues,
-    setSessionStatus: state.setSessionStatus,
-    removeNonCachedSpans: state.removeNonCachedSpans,
-  }));
 
   const handleFetchTrace = useCallback(async () => {
     try {
@@ -333,96 +316,36 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
   );
 
   const handleRollout = useCallback(async () => {
-    try {
-      setIsRolloutRunning(true);
-      setRolloutError(undefined);
-
-      removeNonCachedSpans();
-      const overrides = getOverridesForRollout();
-
-      const rolloutPayload = {
-        trace_id: currentTraceId,
-        path_to_count: pathToCount,
-        args: paramValues,
-        overrides,
-      };
-
-      const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rolloutPayload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to run rollout");
-      }
-
-      await response.json();
-
-      setSessionStatus("RUNNING");
-
+    const result = await runRollout(projectId as string, sessionId);
+    if (result.success) {
       toast({
         title: "Rollout started successfully",
         description: "The rollout is now running with your configuration.",
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to run rollout";
-      setRolloutError(errorMessage);
+    } else {
       toast({
         title: "Failed to run rollout",
-        description: errorMessage,
+        description: result.error,
         variant: "destructive",
       });
-      console.error("Rollout error:", error);
-    } finally {
-      setIsRolloutRunning(false);
     }
-  }, [
-    pathToCount,
-    getOverridesForRollout,
-    currentTraceId,
-    sessionId,
-    setIsRolloutRunning,
-    setRolloutError,
-    setSessionStatus,
-    removeNonCachedSpans,
-    toast,
-    projectId,
-    paramValues,
-  ]);
+  }, [runRollout, projectId, sessionId, toast]);
 
   const handleCancel = useCallback(async () => {
-    try {
-      setIsCancelling(true);
-      const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "STOPPED" }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to cancel rollout");
-      }
-
-      setSessionStatus("STOPPED");
-
+    const result = await cancelSession(projectId as string, sessionId);
+    if (result.success) {
       toast({
         title: "Rollout cancelled",
         description: "The rollout session has been stopped.",
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to cancel rollout";
+    } else {
       toast({
         title: "Failed to cancel rollout",
-        description: errorMessage,
+        description: result.error,
         variant: "destructive",
       });
-    } finally {
-      setIsCancelling(false);
     }
-  }, [projectId, sessionId, setSessionStatus, toast]);
+  }, [cancelSession, projectId, sessionId, toast]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -447,7 +370,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         }
       },
     }),
-    [addSpanIfNew, setSessionStatus]
+    [addSpanIfNew, setSessionStatus, setCurrentTraceId]
   );
 
   useEffect(() => {
@@ -552,7 +475,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         <Header />
         <div className="flex h-full w-full min-h-0">
           <div className="flex-none w-96 border-r bg-background flex flex-col">
-            <RolloutSidebar onRollout={handleRollout} onCancel={handleCancel} isCancelling={isCancelling} />
+            <RolloutSidebar onRollout={handleRollout} onCancel={handleCancel} isLoading={isRolloutLoading} />
           </div>
 
           <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -592,7 +515,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
                       className="size-6 min-w-6 ml-auto"
                       variant="outline"
                       size="icon"
-                      onClick={() => handleZoom("in")}
+                      onClick={() => setZoom("in")}
                     >
                       <Plus className="w-4 h-4" />
                     </Button>
@@ -601,7 +524,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
                       className="size-6 min-w-6"
                       variant="outline"
                       size="icon"
-                      onClick={() => handleZoom("out")}
+                      onClick={() => setZoom("out")}
                     >
                       <Minus className="w-4 h-4" />
                     </Button>
@@ -630,18 +553,10 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
               <ResizablePanelGroup id="rollout-session-view-panels" direction="vertical">
                 <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                   {tab === "metadata" && trace && <Metadata trace={trace} />}
-                  {tab === "timeline" && (
-                    <Timeline onSetCachePoint={setCachePoint} onUnlock={unlockFromSpan} isSpanCached={isSpanCached} />
-                  )}
+                  {tab === "timeline" && <Timeline />}
                   {tab === "reader" && (
                     <div className="flex flex-1 h-full overflow-hidden relative">
-                      <List
-                        traceId={traceId}
-                        onSpanSelect={handleSpanSelect}
-                        onSetCachePoint={setCachePoint}
-                        onUnlock={unlockFromSpan}
-                        isSpanCached={isSpanCached}
-                      />
+                      <List traceId={traceId} onSpanSelect={handleSpanSelect} />
                       <Minimap onSpanSelect={handleSpanSelect} />
                     </div>
                   )}
@@ -654,12 +569,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
                       </div>
                     ) : (
                       <div className="flex flex-1 h-full overflow-hidden relative">
-                        <Tree
-                          onSpanSelect={handleSpanSelect}
-                          onSetCachePoint={setCachePoint}
-                          onUnlock={unlockFromSpan}
-                          isSpanCached={isSpanCached}
-                        />
+                        <Tree onSpanSelect={handleSpanSelect} />
                         <Minimap onSpanSelect={handleSpanSelect} />
                       </div>
                     ))}
@@ -699,7 +609,11 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
                     key={selectedSpan.spanId}
                   />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={currentTraceId} />
+                  <SpanView
+                    key={selectedSpan.spanId}
+                    spanId={selectedSpan.spanId}
+                    traceId={currentTraceId || traceId}
+                  />
                 ))}
             </div>
           </SheetContent>
