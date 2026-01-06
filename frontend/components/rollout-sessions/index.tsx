@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useMemo } from "react";
+import React from "react";
 
 import Placeholder from "@/components/rollout-sessions/placeholder";
 import RolloutSessionView from "@/components/rollout-sessions/rollout-session-view";
@@ -11,7 +10,6 @@ import RolloutSessionStoreProvider, {
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
-import { useRealtime } from "@/lib/hooks/use-realtime";
 
 interface RolloutSessionContentProps {
   sessionId: string;
@@ -44,46 +42,26 @@ const RolloutSession = ({
   sessionId: string;
   trace?: TraceViewTrace;
   initialStatus?: RolloutSessionStatus;
-}) => {
-  const router = useRouter();
-
-  const eventHandlers = useMemo(
-    () => ({
-      span_update: () => {
-        router.refresh();
-      },
-    }),
-    [router]
-  );
-
-  useRealtime({
-    key: `rollout_session_${sessionId}`,
-    projectId,
-    enabled: !trace,
-    eventHandlers,
-  });
-
-  return (
-    <>
-      <Header
-        path={[
-          { name: "rollout-sessions", href: `/project/${projectId}/rollout-sessions` },
-          { name: sessionId, copyValue: sessionId },
-        ]}
-        childrenContainerClassName="flex-none mr-2 h-12"
-      />
-      <div className="flex-none border-t" />
-      <RolloutSessionStoreProvider
-        trace={trace}
-        params={params}
-        storeKey={`rollout-session-${sessionId}`}
-        initialStatus={initialStatus}
-        initialTraceId={trace?.id ?? ""}
-      >
-        <RolloutSessionContent sessionId={sessionId} trace={trace} />
-      </RolloutSessionStoreProvider>
-    </>
-  );
-};
+}) => (
+  <>
+    <Header
+      path={[
+        { name: "rollout-sessions", href: `/project/${projectId}/rollout-sessions` },
+        { name: sessionId, copyValue: sessionId },
+      ]}
+      childrenContainerClassName="flex-none mr-2 h-12"
+    />
+    <div className="flex-none border-t" />
+    <RolloutSessionStoreProvider
+      trace={trace}
+      params={params}
+      storeKey={`rollout-session-${sessionId}`}
+      initialStatus={initialStatus}
+      initialTraceId={trace?.id ?? ""}
+    >
+      <RolloutSessionContent sessionId={sessionId} trace={trace} />
+    </RolloutSessionStoreProvider>
+  </>
+);
 
 export default RolloutSession;

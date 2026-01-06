@@ -1,13 +1,14 @@
 "use client";
 
 import { AlertTriangle, Loader2, Play, Radio, Square } from "lucide-react";
-import { useParams } from "next/navigation";
-import React, { Fragment, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import React, { Fragment, useCallback, useMemo } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface PlaceholderProps {
@@ -16,6 +17,7 @@ interface PlaceholderProps {
 
 export default function Placeholder({ sessionId }: PlaceholderProps) {
   const { projectId } = useParams();
+  const router = useRouter();
   const { toast } = useToast();
 
   const {
@@ -124,6 +126,22 @@ export default function Placeholder({ sessionId }: PlaceholderProps) {
       setIsRolloutLoading(false);
     }
   }, [projectId, sessionId, setSessionStatus, setIsRolloutLoading, toast]);
+
+  const eventHandlers = useMemo(
+    () => ({
+      span_update: () => {
+        router.refresh();
+      },
+    }),
+    [router]
+  );
+
+  useRealtime({
+    key: `rollout_session_${sessionId}`,
+    projectId: projectId as string,
+    enabled: !!sessionId && !!projectId,
+    eventHandlers,
+  });
 
   return (
     <div className="flex h-full w-full">
