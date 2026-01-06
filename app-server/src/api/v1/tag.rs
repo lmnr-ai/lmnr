@@ -47,8 +47,8 @@ pub async fn tag_trace(
     query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
     http_client: web::Data<Arc<reqwest::Client>>,
-    db: web::Data<Arc<DB>>,
-    cache: web::Data<Arc<Cache>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let names = match &req {
@@ -62,7 +62,7 @@ pub async fn tag_trace(
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
     let http_client = http_client.as_ref().clone();
-    let cache = cache.as_ref().clone();
+    let cache = cache.into_inner();
 
     let span_id = match &req {
         TagRequest::WithTraceId(req) => {
@@ -72,7 +72,7 @@ pub async fn tag_trace(
                 req.trace_id,
                 project_api_key.project_id,
                 http_client,
-                db.into_inner().as_ref().clone(),
+                db.into_inner(),
                 cache,
             )
             .await?

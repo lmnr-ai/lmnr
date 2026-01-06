@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{
     HttpResponse, post,
-    web::{Data, Json},
+    web::{self, Data, Json},
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -57,20 +57,21 @@ pub enum CreateEvaluatorScoreRequest {
 #[post("/evaluators/score")]
 pub async fn create_evaluator_score(
     req: Json<CreateEvaluatorScoreRequest>,
-    db: Data<Arc<DB>>,
+    db: web::Data<DB>,
     clickhouse: Data<clickhouse::Client>,
     clickhouse_ro: Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
     http_client: Data<Arc<reqwest::Client>>,
-    cache: Data<Arc<Cache>>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
+    let db = db.into_inner();
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
     let http_client = http_client.as_ref().clone();
-    let cache = cache.as_ref().clone();
+    let cache = cache.into_inner();
 
     // Extract common fields from both variants
     let (name, metadata, score, source) = match &req {
@@ -104,7 +105,7 @@ pub async fn create_evaluator_score(
                 req.trace_id,
                 project_api_key.project_id,
                 http_client,
-                db.clone().into_inner().as_ref().clone(),
+                db.clone(),
                 cache,
             )
             .await?

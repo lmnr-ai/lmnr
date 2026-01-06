@@ -163,7 +163,7 @@ export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSch
 
   // Make HTTP POST request to data plane
   try {
-    const response = await fetch(`${dataPlaneUrl}/api/v1/read`, {
+    const response = await fetch(`${dataPlaneUrl}/api/v1/ch/read`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
