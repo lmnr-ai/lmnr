@@ -139,7 +139,7 @@ const WorkspaceDeployment = () => {
   if (isLoading) {
     return (
       <>
-        <SettingsSectionHeader title="Deployment" description="Choose how your application is deployed" />
+        <SettingsSectionHeader title="Deployment" description="Choose how your application is deployed." />
         <SettingsSection>
           <div className="flex flex-col gap-4">
             <Skeleton className="h-16 w-full" />
@@ -175,7 +175,14 @@ const WorkspaceDeployment = () => {
             <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-accent">
               <RadioGroupItem value={DeploymentType.CLOUD} id="cloud" />
               <Label htmlFor="cloud" className="flex-1 cursor-pointer">
-                <div className="font-medium">Cloud Deployment</div>
+                <div className="font-medium flex items-center gap-2">
+                  Cloud Deployment
+                  {data?.mode === DeploymentType.CLOUD && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-normal">
+                      Active
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-muted-foreground">Fully managed hosting by Laminar.</div>
               </Label>
             </div>
@@ -183,9 +190,16 @@ const WorkspaceDeployment = () => {
             <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-accent">
               <RadioGroupItem value={DeploymentType.HYBRID} id="hybrid" />
               <Label htmlFor="hybrid" className="flex-1 cursor-pointer">
-                <div className="font-medium">Hybrid Deployment</div>
+                <div className="font-medium flex items-center gap-2">
+                  Hybrid Deployment
+                  {data?.mode === DeploymentType.HYBRID && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-normal">
+                      Active
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-muted-foreground">
-                  Self-host your data while we manage the control plane.
+                  Self-host your data while we manage everything else.
                 </div>
               </Label>
             </div>
@@ -230,7 +244,6 @@ const WorkspaceDeployment = () => {
                     Warning: If your data plane is not configured properly, this may result in data loss or inability to
                     access your traces and logs.
                   </p>
-                  <p>Make sure you have properly set up and verified your data plane before proceeding.</p>
                 </>
               ) : (
                 <>
