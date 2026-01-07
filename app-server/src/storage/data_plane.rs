@@ -88,7 +88,10 @@ impl super::StorageTrait for DataPlaneStorage {
             .await?;
 
         if response.status().is_success() {
-            let url = response.text().await.unwrap_or_default();
+            let url = response
+                .text()
+                .await
+                .map_err(|e| anyhow!("Failed to read upload response: {}", e))?;
             Ok(url)
         } else {
             Err(anyhow!(
