@@ -70,11 +70,6 @@ impl super::StorageTrait for DataPlaneStorage {
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
 
     async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
-        // For data plane, store and store_direct are the same - no queue
-        self.store_direct(bucket, key, data).await
-    }
-
-    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         let (data_plane_url, auth_token) = self.get_url_and_token()?;
 
         let payload = StorageUploadPayload {

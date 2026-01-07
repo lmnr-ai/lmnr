@@ -543,7 +543,7 @@ fn main() -> anyhow::Result<()> {
     let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
         log::info!("using S3 storage");
         let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-        let s3_storage = storage::s3::S3Storage::new(s3_client, queue.clone());
+        let s3_storage = storage::s3::S3Storage::new(s3_client);
         Arc::new(s3_storage.into())
     } else {
         log::info!("using mock storage");
@@ -642,9 +642,10 @@ fn main() -> anyhow::Result<()> {
     // == HTTP client ==
     let http_client = Arc::new(reqwest::Client::new());
 
-    // == Storage Manager ==
-    let storage_manager = Arc::new(StorageService::new(
+    // == Storage Service ==
+    let storage_service = Arc::new(StorageService::new(
         storage.clone(),
+        queue.clone(),
         db.pool.clone(),
         cache.clone(),
         (*http_client).clone(),
@@ -652,7 +653,7 @@ fn main() -> anyhow::Result<()> {
 
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
-    let storage_service_for_http = storage_manager.clone();
+    let storage_service_for_http = storage_service.clone();
     let sse_connections_for_http = sse_connections.clone();
     let http_client_for_http = http_client.clone();
 
@@ -771,8 +772,7 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let storage_for_consumer = storage.clone();
-        let storage_manager_for_consumer = storage_manager.clone();
+        let storage_service_for_consumer = storage_service.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let http_client_for_consumer = http_client.clone();
@@ -788,7 +788,7 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let storage_manager = storage_manager_for_consumer.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let http_client = http_client_for_consumer.clone();
 
@@ -800,7 +800,7 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
-                                storage: storage_manager.clone(),
+                                storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
                                 http_client: http_client.clone(),
                             },
@@ -878,12 +878,12 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn payload workers
                     {
-                        let storage = storage_for_consumer.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Payloads,
                             num_payload_workers as usize,
                             move || PayloadHandler {
-                                storage: storage.clone(),
+                                storage_service: storage_service.clone(),
                             },
                             QueueConfig {
                                 queue_name: PAYLOADS_QUEUE,

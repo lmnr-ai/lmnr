@@ -457,7 +457,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.store(*project_id, bucket, &key, data).await?;
+                    let url = storage.publish_payload(bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: Some(format!("media_type:{};base64", media_type)),
@@ -481,7 +481,7 @@ impl ChatMessageContentPart {
                     // Leave intact in case of error
                     return Ok(self.clone());
                 }
-                let url = storage.store(*project_id, bucket, &key, data).await?;
+                let url = storage.publish_payload(bucket, &key, data).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
                         media_type: document.source.media_type.clone(),
@@ -502,7 +502,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.store(*project_id, bucket, &key, data).await?;
+                    let url = storage.publish_payload(bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: image_url.detail.clone(),
@@ -524,7 +524,7 @@ impl ChatMessageContentPart {
                     return Ok(self.clone());
                 }
                 let url = storage
-                    .store(*project_id, bucket, &key, image.image.clone())
+                    .publish_payload(bucket, &key, image.image.clone())
                     .await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,

@@ -824,7 +824,7 @@ impl Span {
                             data.len()
                         );
                     } else {
-                        let url = storage.store(*project_id, &bucket, &key, data).await?;
+                        let url = storage.publish_payload(&bucket, &key, data).await?;
                         self.input_url = Some(url);
                         self.input = Some(serde_json::Value::String(preview));
                     }
@@ -851,7 +851,7 @@ impl Span {
                         data.len()
                     );
                 } else {
-                    let url = storage.store(*project_id, &bucket, &key, data).await?;
+                    let url = storage.publish_payload(&bucket, &key, data).await?;
                     self.output_url = Some(url);
                     self.output = Some(serde_json::Value::String(
                         output_str.chars().take(100).collect(),

@@ -1,23 +1,17 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_s3::Client;
-use std::{pin::Pin, sync::Arc};
+use std::pin::Pin;
 use tracing::instrument;
-
-use crate::{
-    mq::{MessageQueue, MessageQueueTrait},
-    storage::{PAYLOADS_EXCHANGE, PAYLOADS_ROUTING_KEY, QueuePayloadMessage},
-};
 
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
-    queue: Arc<MessageQueue>,
 }
 
 impl S3Storage {
-    pub fn new(client: Client, queue: Arc<MessageQueue>) -> Self {
-        Self { client, queue }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
     fn get_url(&self, key: &str) -> String {
@@ -34,28 +28,8 @@ impl S3Storage {
 impl super::StorageTrait for S3Storage {
     type StorageBytesStream =
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
-        // Push to queue instead of storing directly
-        let message = QueuePayloadMessage {
-            key: key.to_string(),
-            data,
-            bucket: bucket.to_string(),
-        };
-
-        self.queue
-            .publish(
-                &serde_json::to_vec(&message)?,
-                PAYLOADS_EXCHANGE,
-                PAYLOADS_ROUTING_KEY,
-            )
-            .await?;
-
-        // Return the URL that will be available after processing
-        Ok(self.get_url(key))
-    }
-
     #[instrument(skip(self, data))]
-    async fn store_direct(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Direct storage method used by the payload worker
         self.client
             .put_object()

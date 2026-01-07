@@ -14,14 +14,27 @@ use uuid::Uuid;
 use crate::cache::Cache;
 use crate::data_plane::get_workspace_deployment;
 use crate::db::workspaces::DeploymentMode;
+use crate::mq::{MessageQueue, MessageQueueTrait};
 
 use super::data_plane::DataPlaneStorage;
-use super::{Storage, StorageTrait};
+use super::{PAYLOADS_EXCHANGE, PAYLOADS_ROUTING_KEY, QueuePayloadMessage, Storage, StorageTrait};
+
+/// Convert a storage key to a URL.
+/// Key format: "project/{project_id}/{payload_id}[.ext]"
+fn key_to_url(key: &str) -> String {
+    let parts = key
+        .strip_prefix("project/")
+        .unwrap()
+        .split("/")
+        .collect::<Vec<&str>>();
+    format!("/api/projects/{}/payloads/{}", parts[0], parts[1])
+}
 
 /// Service for storage operations that handles routing between direct
 /// S3 writes and data plane writes based on deployment mode.
 pub struct StorageService {
     storage: Arc<Storage>,
+    queue: Arc<MessageQueue>,
     pool: PgPool,
     cache: Arc<Cache>,
     http_client: reqwest::Client,
@@ -30,19 +43,22 @@ pub struct StorageService {
 impl StorageService {
     pub fn new(
         storage: Arc<Storage>,
+        queue: Arc<MessageQueue>,
         pool: PgPool,
         cache: Arc<Cache>,
         http_client: reqwest::Client,
     ) -> Self {
         Self {
             storage,
+            queue,
             pool,
             cache,
             http_client,
         }
     }
 
-    /// Store a payload, routing to S3 or data plane based on deployment mode.
+    /// Store a payload directly, routing to S3 or data plane based on deployment mode.
+    /// Used by the PayloadHandler worker to persist data after consuming from the queue.
     #[instrument(skip(self, data))]
     pub async fn store(
         &self,
@@ -57,9 +73,30 @@ impl StorageService {
             DeploymentMode::CLOUD => (*self.storage).store(bucket, key, data).await,
             DeploymentMode::HYBRID => {
                 let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
-                data_plane.store_direct(bucket, key, data).await
+                data_plane.store(bucket, key, data).await
             }
         }
+    }
+
+    /// Publish a payload to the queue for async storage.
+    /// Returns the URL that will be available after the payload is stored.
+    #[instrument(skip(self, data))]
+    pub async fn publish_payload(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
+        let message = QueuePayloadMessage {
+            key: key.to_string(),
+            data,
+            bucket: bucket.to_string(),
+        };
+
+        self.queue
+            .publish(
+                &serde_json::to_vec(&message)?,
+                PAYLOADS_EXCHANGE,
+                PAYLOADS_ROUTING_KEY,
+            )
+            .await?;
+
+        Ok(key_to_url(key))
     }
 
     /// Get a stream of bytes, routing to S3 or data plane based on deployment mode.
