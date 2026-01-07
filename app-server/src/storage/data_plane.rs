@@ -119,9 +119,11 @@ impl super::StorageTrait for DataPlaneStorage {
         }
 
         // Convert the response body stream to our expected stream type
-        let stream = response
-            .bytes_stream()
-            .map(|result| result.unwrap_or_else(|_| bytes::Bytes::new()));
+        let stream =
+            futures_util::stream::unfold(response.bytes_stream(), |mut stream| async move {
+                let chunk = stream.next().await?.ok()?;
+                Some((chunk, stream))
+            });
 
         Ok(Box::pin(stream))
     }
