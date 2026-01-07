@@ -1,11 +1,12 @@
 "use client";
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState} from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -23,10 +24,22 @@ const columns: ColumnDef<RolloutSession>[] = [
     id: "id",
   },
   {
-    cell: ({ row }) => <Mono className="text-xs">{row.original.traceId}</Mono>,
-    size: 300,
-    header: "Trace ID",
-    id: "traceId",
+    cell: ({ row }) => (
+      <div title={row.original.name ?? "-"} className="text-sm truncate text-muted-foreground">
+        {row.original.name ?? "-"}
+      </div>
+    ),
+    header: "Name",
+    id: "name",
+  },
+  {
+    cell: ({ row }) => (
+      <Badge className="rounded-3xl mr-1 text-secondary-foreground" variant="outline">
+        {row.original.status}
+      </Badge>
+    ),
+    header: "Status",
+    id: "status",
   },
   {
     header: "Created",
@@ -35,26 +48,12 @@ const columns: ColumnDef<RolloutSession>[] = [
     id: "createdAt",
     size: 180,
   },
-  {
-    header: "Cursor Timestamp",
-    accessorKey: "cursorTimestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
-    id: "cursorTimestamp",
-    size: 180,
-  },
-  {
-    header: "Paths Count",
-    accessorFn: (row) => Object.keys(row.pathToCount || {}).length,
-    id: "pathsCount",
-    size: 120,
-  },
 ];
 
-const defaultRolloutSessionsColumnOrder = ["id", "traceId", "createdAt", "cursorTimestamp", "pathsCount"];
+const defaultRolloutSessionsColumnOrder = ["id", "name", "status", "createdAt"];
 
 function RolloutSessionsContent() {
   const { projectId } = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -62,7 +61,6 @@ function RolloutSessionsContent() {
     `/api/projects/${projectId}/rollout-sessions`,
     swrFetcher
   );
-
 
   useEffect(() => {
     if (error && error instanceof Error) {

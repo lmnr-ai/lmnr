@@ -2,10 +2,8 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool, types::Json};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
-
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -31,12 +29,11 @@ impl RolloutSessionStatus {
 #[serde(rename_all = "camelCase")]
 pub struct RolloutSession {
     pub id: Uuid,
+    pub created_at: DateTime<Utc>,
     pub project_id: Uuid,
-    pub trace_id: Uuid,
-    pub path_to_count: Json<HashMap<String, u32>>,
     pub params: Value,
     pub status: String,
-    pub cursor_timestamp: DateTime<Utc>,
+    pub name: Option<String>,
 }
 
 pub async fn get_rollout_session(
@@ -47,14 +44,13 @@ pub async fn get_rollout_session(
     let result = sqlx::query_as::<_, RolloutSession>(
         "SELECT
             id,
+            created_at,
             project_id,
-            trace_id,
-            path_to_count,
             params,
             status,
-            cursor_timestamp
+            name
         FROM
-            rollout_playgrounds
+            rollout_sessions
         WHERE
             id = $1 AND project_id = $2",
     )
@@ -71,16 +67,17 @@ pub async fn create_rollout_session(
     session_id: &Uuid,
     project_id: &Uuid,
     params: Value,
+    name: Option<String>,
 ) -> Result<()> {
     sqlx::query(
-        "INSERT INTO rollout_playgrounds (id, project_id, trace_id, path_to_count, cursor_timestamp, params)
-        VALUES ($1, $2, $3, '{}', now(), $4)
+        "INSERT INTO rollout_sessions (id, project_id, params, name)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (id) DO NOTHING",
     )
     .bind(session_id)
     .bind(project_id)
-    .bind(Uuid::nil())
     .bind(params)
+    .bind(name)
     .execute(pool)
     .await?;
 
@@ -93,7 +90,7 @@ pub async fn delete_rollout_session(
     project_id: &Uuid,
 ) -> Result<()> {
     sqlx::query(
-        "DELETE FROM rollout_playgrounds
+        "DELETE FROM rollout_sessions
         WHERE id = $1 AND project_id = $2",
     )
     .bind(session_id)
@@ -111,7 +108,7 @@ pub async fn update_session_status(
     status: RolloutSessionStatus,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE rollout_playgrounds
+        "UPDATE rollout_sessions
         SET status = $1
         WHERE id = $2 AND project_id = $3",
     )

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/utils";
+import { runRolloutSession } from "@/lib/actions/rollout-sessions";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string; sessionId: string }> }) {
   try {
@@ -9,17 +9,10 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const { sessionId, projectId } = params;
     const body = await req.json();
 
-    const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        trace_id: body.trace_id,
-        path_to_count: body.path_to_count,
-        args: body.args || {},
-        overrides: body.overrides || {},
-      }),
+    const result = await runRolloutSession({
+      projectId,
+      sessionId,
+      ...body,
     });
 
     return NextResponse.json(result);

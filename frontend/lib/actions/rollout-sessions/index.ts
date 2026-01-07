@@ -4,39 +4,23 @@ import { z } from "zod/v4";
 import { TraceViewTrace } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { rolloutPlaygrounds, sharedTraces } from "@/lib/db/migrations/schema";
+import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
+import { fetcherJSON } from "@/lib/utils";
 
 export type RolloutSessionStatus = "PENDING" | "RUNNING" | "FINISHED" | "STOPPED";
 
 export type RolloutSession = {
   id: string;
   createdAt: string;
+  name: string | null;
   projectId: string;
-  traceId: string;
-  pathToCount: Record<string, number>;
-  cursorTimestamp: string;
   params: Record<string, any>;
   status: RolloutSessionStatus;
 };
 
 const GetRolloutSessionSchema = z.object({
-  traceId: z.string().optional(),
   projectId: z.string(),
   id: z.string(),
-});
-
-const CreateRolloutSessionSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
-  pathToCount: z.record(z.string(), z.number()).optional().default({}),
-  cursorTimestamp: z.string(),
-});
-
-const UpdateRolloutSessionSchema = z.object({
-  id: z.string(),
-  projectId: z.string(),
-  traceId: z.string(),
-  cursorTimestamp: z.string(),
 });
 
 const GetRolloutSessionsSchema = z.object({
@@ -48,54 +32,19 @@ export const getRolloutSessions = async (input: z.infer<typeof GetRolloutSession
 
   const result = await db
     .select()
-    .from(rolloutPlaygrounds)
-    .where(eq(rolloutPlaygrounds.projectId, projectId))
-    .orderBy(desc(rolloutPlaygrounds.createdAt));
+    .from(rolloutSessions)
+    .where(eq(rolloutSessions.projectId, projectId))
+    .orderBy(desc(rolloutSessions.createdAt));
 
   return result;
 };
 
 export async function getRolloutSession(input: z.infer<typeof GetRolloutSessionSchema>) {
-  const { projectId, traceId, id } = GetRolloutSessionSchema.parse(input);
+  const { projectId, id } = GetRolloutSessionSchema.parse(input);
 
-  const conditions = [eq(rolloutPlaygrounds.id, id), eq(rolloutPlaygrounds.projectId, projectId)];
-
-  if (traceId) {
-    conditions.push(eq(rolloutPlaygrounds.traceId, traceId));
-  }
-
-  const result = await db.query.rolloutPlaygrounds.findFirst({
-    where: and(...conditions),
+  const result = await db.query.rolloutSessions.findFirst({
+    where: and(eq(rolloutSessions.id, id), eq(rolloutSessions.projectId, projectId)),
   });
-
-  return result;
-}
-
-export async function createRolloutSession(input: z.infer<typeof CreateRolloutSessionSchema>) {
-  const { projectId, traceId, pathToCount, cursorTimestamp } = CreateRolloutSessionSchema.parse(input);
-
-  const [result] = await db
-    .insert(rolloutPlaygrounds)
-    .values({
-      projectId,
-      traceId,
-      pathToCount,
-      cursorTimestamp,
-      params: [],
-    })
-    .returning();
-
-  return result;
-}
-
-export async function updateRolloutSession(input: z.infer<typeof UpdateRolloutSessionSchema>) {
-  const { id, projectId, traceId, cursorTimestamp } = UpdateRolloutSessionSchema.parse(input);
-
-  const [result] = await db
-    .update(rolloutPlaygrounds)
-    .set({ traceId, cursorTimestamp })
-    .where(and(eq(rolloutPlaygrounds.id, id), eq(rolloutPlaygrounds.projectId, projectId)))
-    .returning();
 
   return result;
 }
@@ -149,4 +98,63 @@ export async function getLatestTraceBySessionId(
     ...trace,
     visibility: sharedTrace ? "public" : "private",
   };
+}
+
+const RunRolloutSessionSchema = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  trace_id: z.string().optional(),
+  path_to_count: z.record(z.string(), z.number()).optional(),
+  args: z.record(z.string(), z.any()).optional(),
+  overrides: z.record(z.string(), z.any()).optional(),
+});
+
+const UpdateRolloutSessionStatusSchema = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
+});
+
+export async function runRolloutSession(input: z.infer<typeof RunRolloutSessionSchema>) {
+  const { projectId, sessionId, trace_id, path_to_count, args, overrides } = RunRolloutSessionSchema.parse(input);
+
+  const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      trace_id,
+      path_to_count,
+      args: args || {},
+      overrides: overrides || {},
+    }),
+  });
+
+  return result;
+}
+
+export async function updateRolloutSessionStatus(input: z.infer<typeof UpdateRolloutSessionStatusSchema>) {
+  const { projectId, sessionId, status } = UpdateRolloutSessionStatusSchema.parse(input);
+
+  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${sessionId}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to update status");
+  }
+
+  // Handle empty response body from backend
+  const text = await res.text();
+  const result = text ? JSON.parse(text) : { success: true };
+
+  return result;
 }

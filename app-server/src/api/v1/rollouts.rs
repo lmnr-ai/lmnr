@@ -31,6 +31,7 @@ pub struct UpdateStatusRequest {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct StreamRequest {
     pub params: Vec<InputParam>,
+    pub name: Option<String>,
 }
 
 #[post("rollouts/{session_id}")]
@@ -47,12 +48,15 @@ pub async fn stream(
     let project_id = project_api_key.project_id;
 
     // Create rollout session if not exists
+    // Create rollout session if not exists
     if get_rollout_session(&db.pool, &session_id, &project_id)
         .await?
         .is_none()
     {
-        let params = serde_json::to_value(body.into_inner().params)?;
-        create_rollout_session(&db.pool, &session_id, &project_id, params).await?;
+        let request_body = body.into_inner();
+        let params = serde_json::to_value(&request_body.params)?;
+        let name = request_body.name;
+        create_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
     }
 
     // Prepare handshake message

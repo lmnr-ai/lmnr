@@ -7,6 +7,7 @@ export default async function RolloutSessionPage(props: { params: Promise<{ proj
   const { projectId, id } = await props.params;
 
   const session = await getRolloutSession({ projectId, id });
+
   if (!session) return notFound();
 
   const trace = await getLatestTraceBySessionId({ projectId, sessionId: id });

@@ -671,7 +671,7 @@ const createRolloutSessionStore = ({
               rolloutPayload.overrides = overrides;
             }
 
-            const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/run`, {
+            const response = await fetch(`/api/projects/${projectId}/rollout-sessions/${sessionId}/run`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(rolloutPayload),
@@ -699,7 +699,7 @@ const createRolloutSessionStore = ({
           try {
             set({ isRolloutLoading: true });
 
-            const response = await fetch(`/api/projects/${projectId}/rollouts/${sessionId}/status`, {
+            const response = await fetch(`/api/projects/${projectId}/rollout-sessions/${sessionId}/status`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ status: "STOPPED" }),
