@@ -635,7 +635,6 @@ const createRolloutSessionStore = ({
             set({ isRolloutLoading: true, rolloutError: undefined });
 
             // Clear all spans and reset cached span counts before running rollout
-            set({ spans: [], cachedSpanCounts: {} });
             const overrides = get().overrides;
             const currentTraceId = get().currentTraceId;
             const cachedSpanCounts = get().cachedSpanCounts;
@@ -643,6 +642,7 @@ const createRolloutSessionStore = ({
 
             const rolloutPayload: Record<string, any> = {};
 
+            set({ spans: [], cachedSpanCounts: {} });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
