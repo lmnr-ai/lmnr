@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Cloud, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
+import { Activity, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useWorkspaceMenuContext, WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { cn } from "@/lib/utils.ts";
-import { WorkspaceTier } from "@/lib/workspaces/types.ts";
 
 const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   {
@@ -33,11 +32,7 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     value: "team",
     icon: Users,
   },
-  {
-    name: "Deployment",
-    value: "deployment",
-    icon: Cloud,
-  },
+
   {
     name: "Settings",
     value: "settings",
@@ -48,10 +43,9 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   workspaceFeatureEnabled: boolean;
-  tier: WorkspaceTier;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
   const sidebarMenus = useMemo(() => {
@@ -59,10 +53,8 @@ export const WorkspaceSidebarContent = ({ isOwner, tier, workspaceFeatureEnabled
       return menus.filter((m) => m.value === "projects");
     }
 
-    return menus
-      .filter((m) => tier === WorkspaceTier.PRO || m.value !== "deployment") // TODO: add filter for "hybrid deployment add-on"
-      .filter((m) => isOwner || m.value !== "settings");
-  }, [isOwner, workspaceFeatureEnabled, tier]);
+    return isOwner ? menus : menus.filter((m) => m.value !== "settings");
+  }, [isOwner, workspaceFeatureEnabled]);
 
   return (
     <SidebarContent>

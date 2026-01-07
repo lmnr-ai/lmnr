@@ -17,11 +17,7 @@ interface WorkspaceSidebarProps {
 const WorkspaceSidebar = ({ workspace, isOwner, workspaceFeatureEnabled }: WorkspaceSidebarProps) => (
   <Sidebar className="border-none" collapsible="icon">
     <WorkspaceSidebarHeader workspace={workspace} />
-    <WorkspaceSidebarContent
-      tier={workspace.tierName}
-      isOwner={isOwner}
-      workspaceFeatureEnabled={workspaceFeatureEnabled}
-    />
+    <WorkspaceSidebarContent isOwner={isOwner} workspaceFeatureEnabled={workspaceFeatureEnabled} />
     <SidebarFooter />
   </Sidebar>
 );

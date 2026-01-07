@@ -5,7 +5,6 @@ import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-p
 import { WorkspaceStats } from "@/lib/usage/types";
 import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
-import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -47,9 +46,6 @@ export default function WorkspaceComponent({
         )}
         {workspaceFeatureEnabled && menu === "settings" && (
           <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
-        )}
-        {workspaceFeatureEnabled && workspace.tierName === "Pro" && menu === "deployment" && ( // TODO: add filter for "hybrid deployment add-on"
-          <WorkspaceDeployment />
         )}
       </div>
     </div>
