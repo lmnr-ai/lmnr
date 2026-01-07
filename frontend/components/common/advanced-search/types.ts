@@ -6,6 +6,15 @@ import { Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
+// Shared ref types for focus management
+export interface FocusableRef {
+  focus: () => void;
+}
+
+export interface FilterTagRef {
+  focusPosition: (position: TagFocusPosition) => void;
+}
+
 export interface FilterTag {
   id: string;
   field: string;
@@ -16,6 +25,17 @@ export interface FilterTag {
 // Focus position within a tag: field -> operator -> value -> remove
 export type TagFocusPosition = "field" | "operator" | "value" | "remove";
 
+// Focus mode for two-level focus system
+export type FocusMode = "nav" | "edit";
+
+// Focus state machine for FilterTag with two-level focus
+export type FilterTagFocusState =
+  | { type: "idle" }
+  | { type: "field"; mode: FocusMode; isOpen: boolean }
+  | { type: "operator"; mode: FocusMode; isOpen: boolean }
+  | { type: "value"; mode: FocusMode; showSuggestions: boolean; isSelectOpen: boolean }
+  | { type: "remove"; mode: FocusMode };
+
 export interface FilterSearchState {
   tags: FilterTag[];
   inputValue: string;
@@ -25,6 +45,7 @@ export interface FilterSearchState {
   isAddingTag: boolean;
   selectedTagIds: Set<string>; // For bulk selection with Cmd+A
   openSelectId: string | null;
+  tagFocusStates: Map<string, FilterTagFocusState>; // Per-tag focus state
 }
 
 export interface FilterSearchContextValue {
@@ -61,6 +82,10 @@ export interface FilterSearchContextValue {
   removeSelectedTags: () => void;
 
   setOpenSelectId: (id: string | null) => void;
+
+  // Tag focus state management
+  setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
+  getTagFocusState: (tagId: string) => FilterTagFocusState;
 }
 
 export function createFilterFromTag(tag: FilterTag): Filter {
@@ -93,3 +118,4 @@ export function getOperationsForField(filters: ColumnFilter[], field: string) {
 export function getColumnFilter(filters: ColumnFilter[], field: string): ColumnFilter | undefined {
   return filters.find((f) => f.key === field);
 }
+

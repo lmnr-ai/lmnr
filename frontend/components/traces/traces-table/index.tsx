@@ -5,7 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
-import { FilterSearchInput } from "@/components/common/filter-search-input";
+import { AdvancedSearch } from "@/components/common/advanced-search";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
@@ -287,16 +287,7 @@ function TracesTableContent() {
         getRowHref={getRowHref}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 pt-1 w-full h-full gap-2">
-          <FilterSearchInput
-            filters={filters}
-            resource="traces"
-            placeholder="Search in traces..."
-            className="flex-1"
-            additionalSearchParams={{
-              searchIn: ["input", "output"],
-            }}
-          />
+        <div className="flex flex-1 w-full h-full gap-2">
           <ColumnsMenu
             lockedColumns={["status"]}
             columnLabels={columns.map((column) => ({
@@ -310,6 +301,14 @@ function TracesTableContent() {
             <Switch id="realtime" checked={realtimeEnabled} onCheckedChange={setRealtimeEnabled} />
             <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
           </div>
+        </div>
+        <div className="w-full px-0.5">
+          <AdvancedSearch
+            filters={filters}
+            resource="traces"
+            placeholder="Search in traces..."
+            className="w-full flex-1"
+          />
         </div>
         <TracesChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
       </InfiniteDataTable>

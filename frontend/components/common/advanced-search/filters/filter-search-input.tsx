@@ -2,26 +2,22 @@
 
 import { Search } from "lucide-react";
 import { useParams } from "next/navigation";
-import { ChangeEvent, memo, useCallback, useRef } from "react";
+import { ChangeEvent, FocusEvent, memo, useCallback, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { FilterSearchProvider, StatefulFilterProvider, useFilterSearch } from "./context";
-import FilterTag, { FilterTagHandle } from "./filter-tag";
-import SuggestionsDropdown, { getSuggestionAtIndex, getSuggestionsCount } from "./suggestions";
-import { ColumnFilter } from "./types";
+import { useFilterSearch } from "../context";
+import { FilterTagRef } from "../types";
+import FilterSuggestions, { getSuggestionAtIndex, getSuggestionsCount } from "./filter-suggestions";
+import FilterTag from "./filter-tag";
 
-interface FilterSearchInputInnerProps {
+interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
   resource?: "traces" | "spans";
 }
 
-const FilterSearchInputInner = ({
-  placeholder = "Search...",
-  className,
-  resource = "traces",
-}: FilterSearchInputInnerProps) => {
+const FilterSearchInput = ({ placeholder = "Search...", className, resource = "traces" }: FilterSearchInputProps) => {
   const params = useParams();
   const projectId = params.projectId as string;
   const {
@@ -40,13 +36,11 @@ const FilterSearchInputInner = ({
     removeSelectedTags,
   } = useFilterSearch();
 
-  const tagHandlesRef = useRef<Map<string, FilterTagHandle>>(new Map());
+  const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
-      // Remove selected tags when typing (overwrite behavior like native input)
-      // This catches paste operations and any input that bypasses keydown
       if (state.selectedTagIds.size > 0) {
         removeSelectedTags();
       }
@@ -59,16 +53,13 @@ const FilterSearchInputInner = ({
   const handleInputFocus = useCallback(() => setIsOpen(true), [setIsOpen]);
 
   const handleInputBlur = useCallback(() => {
-    // Don't submit if a filter tag is being edited
     if (state.activeTagId) return;
     if (state.isAddingTag) return;
-    // Don't submit if a select dropdown is open (focus moved to dropdown)
     if (state.openSelectId) return;
     setIsOpen(false);
     submit();
   }, [setIsOpen, submit, state.isAddingTag, state.activeTagId, state.openSelectId]);
 
-  // Consolidated keyboard handler for main input
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
@@ -84,7 +75,7 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Handle selection mode: Backspace/Delete removes selected tags
+      // Handle selection mode
       if (state.selectedTagIds.size > 0) {
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
@@ -93,14 +84,13 @@ const FilterSearchInputInner = ({
           submit();
           return;
         }
-        // Arrow keys deselect (navigation intent)
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
           clearSelection();
           return;
         }
       }
 
-      // Arrow down for suggestions navigation
+      // Arrow down
       if (e.key === "ArrowDown") {
         if (state.isOpen && count > 0) {
           e.preventDefault();
@@ -109,7 +99,7 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Arrow up for suggestions navigation
+      // Arrow up
       if (e.key === "ArrowUp") {
         if (state.isOpen && count > 0) {
           e.preventDefault();
@@ -118,7 +108,7 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Enter to select suggestion or submit
+      // Enter
       if (e.key === "Enter") {
         e.preventDefault();
         if (state.isOpen && count > 0) {
@@ -140,7 +130,7 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Escape to close suggestions or deselect
+      // Escape
       if (e.key === "Escape") {
         if (state.selectedTagIds.size > 0) {
           clearSelection();
@@ -151,7 +141,7 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Arrow left to navigate to last tag (when cursor at position 0)
+      // Arrow left
       if (e.key === "ArrowLeft") {
         if (input?.selectionStart === 0 && state.tags.length > 0) {
           e.preventDefault();
@@ -161,8 +151,13 @@ const FilterSearchInputInner = ({
         return;
       }
 
-      // Backspace: remove last tag when input is empty (no tags selected)
-      if (e.key === "Backspace" && state.inputValue === "" && state.tags.length > 0 && state.selectedTagIds.size === 0) {
+      // Backspace
+      if (
+        e.key === "Backspace" &&
+        state.inputValue === "" &&
+        state.tags.length > 0 &&
+        state.selectedTagIds.size === 0
+      ) {
         e.preventDefault();
         removeTag(state.tags[state.tags.length - 1].id);
         return;
@@ -176,6 +171,9 @@ const FilterSearchInputInner = ({
       state.selectedTagIds.size,
       state.isOpen,
       state.activeIndex,
+      state.activeTagId,
+      state.isAddingTag,
+      state.openSelectId,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -191,9 +189,8 @@ const FilterSearchInputInner = ({
 
   const handleContainerClick = useCallback(() => mainInputRef.current?.focus(), [mainInputRef]);
 
-  // Clear selection when focus leaves container
   const handleContainerBlur = useCallback(
-    (e: React.FocusEvent<HTMLDivElement>) => {
+    (e: FocusEvent<HTMLDivElement>) => {
       if (!e.currentTarget.contains(e.relatedTarget) && state.selectedTagIds.size > 0) {
         clearSelection();
       }
@@ -201,7 +198,6 @@ const FilterSearchInputInner = ({
     [state.selectedTagIds.size, clearSelection]
   );
 
-  // Navigation helpers
   const handleNavigateToTag = useCallback(
     (index: number, position: "field" | "remove") => {
       if (index < 0 || index >= state.tags.length) return;
@@ -214,15 +210,15 @@ const FilterSearchInputInner = ({
     <div
       ref={containerRef}
       className={cn(
-        "flex items-center gap-2 px-2 rounded-md border border-input bg-transparent relative",
-        "focus-within:ring-border/50 focus-within:ring-[3px] box-border",
-        "not-focus-within:bg-accent transition duration-300 min-h-7 py-1",
+        "flex items-center gap-2 px-2 rounded-md border border-input bg-transparent relative py-1",
+        "focus-within:ring-primary/80 focus-within:ring-[1px] transition duration-300",
+        // "not-focus-within:bg-accent ",
         className
       )}
       onClick={handleContainerClick}
       onBlur={handleContainerBlur}
     >
-      <Search className="text-secondary-foreground size-3.5 min-w-3.5 flex-shrink-0" />
+      <Search className="text-secondary-foreground size-4 min-w-4 flex-shrink-0" />
 
       <div className="flex items-center gap-1 flex-wrap flex-1">
         {state.tags.map((tag, index) => (
@@ -253,71 +249,17 @@ const FilterSearchInputInner = ({
           onKeyDown={handleKeyDown}
           placeholder={state.tags.length === 0 ? placeholder : ""}
           className={cn(
-            "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",
+            "flex-1 min-w-[100px] h-6 bg-transparent text-sm outline-none",
             "placeholder:text-muted-foreground"
           )}
         />
       </div>
 
-      <SuggestionsDropdown />
+      <FilterSuggestions />
     </div>
   );
 };
 
-// URL-synced version
-interface FilterSearchInputProps {
-  filters: ColumnFilter[];
-  resource?: "traces" | "spans";
-  placeholder?: string;
-  className?: string;
-  additionalSearchParams?: Record<string, string | string[]>;
-  onSubmit?: (filters: import("@/lib/actions/common/filters").Filter[], search: string) => void;
-}
+FilterSearchInput.displayName = "FilterSearchInput";
 
-const PureFilterSearchInput = ({
-  filters,
-  resource = "traces",
-  placeholder = "Search...",
-  className,
-  additionalSearchParams,
-  onSubmit,
-}: FilterSearchInputProps) => (
-  <FilterSearchProvider
-    filters={filters}
-    mode="url"
-    additionalSearchParams={additionalSearchParams}
-    onSubmit={onSubmit}
-  >
-    <FilterSearchInputInner placeholder={placeholder} className={className} resource={resource} />
-  </FilterSearchProvider>
-);
-
-interface StatefulFilterSearchInputProps {
-  filters: ColumnFilter[];
-  initialFilters?: import("@/lib/actions/common/filters").Filter[];
-  resource?: "traces" | "spans";
-  placeholder?: string;
-  className?: string;
-  onSubmit?: (filters: import("@/lib/actions/common/filters").Filter[], search: string) => void;
-}
-
-const PureStatefulFilterSearchInput = ({
-  filters,
-  initialFilters = [],
-  resource = "traces",
-  placeholder = "Search...",
-  className,
-  onSubmit,
-}: StatefulFilterSearchInputProps) => (
-  <StatefulFilterProvider initialFilters={initialFilters}>
-    <FilterSearchProvider filters={filters} mode="stateful" onSubmit={onSubmit}>
-      <FilterSearchInputInner placeholder={placeholder} className={className} resource={resource} />
-    </FilterSearchProvider>
-  </StatefulFilterProvider>
-);
-
-export const FilterSearchInput = memo(PureFilterSearchInput);
-export const StatefulFilterSearchInput = memo(PureStatefulFilterSearchInput);
-export { useFilterSearch, useStatefulFilters } from "./context";
-export type { ColumnFilter, FilterTag } from "./types";
-export default FilterSearchInput;
+export default memo(FilterSearchInput);

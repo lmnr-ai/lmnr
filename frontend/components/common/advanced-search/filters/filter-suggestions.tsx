@@ -6,8 +6,8 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "./context";
-import { ColumnFilter } from "./types";
+import { useFilterSearch } from "../context";
+import { ColumnFilter } from "../types";
 
 interface FieldSuggestion {
   type: "field";
@@ -21,11 +21,11 @@ interface RawSearchSuggestion {
 
 export type Suggestion = FieldSuggestion | RawSearchSuggestion;
 
-interface SuggestionsDropdownProps {
+interface FilterSuggestionsProps {
   className?: string;
 }
 
-const SuggestionsDropdown = ({ className }: SuggestionsDropdownProps) => {
+const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const { state, filters, addTag, setInputValue, setIsOpen, submit, setIsAddingTag } = useFilterSearch();
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -147,7 +147,6 @@ const SuggestionsDropdown = ({ className }: SuggestionsDropdownProps) => {
   );
 };
 
-// Export suggestions count helper for keyboard navigation
 export const getSuggestionsCount = (filters: ColumnFilter[], inputValue: string): number => {
   const input = inputValue.trim().toLowerCase();
   if (!input) {
@@ -159,11 +158,7 @@ export const getSuggestionsCount = (filters: ColumnFilter[], inputValue: string)
   return matchingFields.length + 1; // +1 for raw search option
 };
 
-export const getSuggestionAtIndex = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  index: number
-): Suggestion | null => {
+export const getSuggestionAtIndex = (filters: ColumnFilter[], inputValue: string, index: number): Suggestion | null => {
   const input = inputValue.trim().toLowerCase();
 
   if (!input) {
@@ -188,4 +183,4 @@ export const getSuggestionAtIndex = (
   return null;
 };
 
-export default memo(SuggestionsDropdown);
+export default memo(FilterSuggestions);

@@ -23,6 +23,7 @@ import {
   FilterSearchContextValue,
   FilterSearchState,
   FilterTag,
+  FilterTagFocusState,
   generateTagId,
 } from "./types";
 
@@ -65,14 +66,12 @@ export const useFilterSearch = () => {
 interface FilterSearchProviderProps {
   filters: ColumnFilter[];
   mode: "url" | "stateful";
-  additionalSearchParams?: Record<string, string | string[]>;
   onSubmit?: (filters: Filter[], search: string) => void;
 }
 
 export const FilterSearchProvider = ({
   filters,
   mode,
-  additionalSearchParams = {},
   onSubmit,
   children,
 }: PropsWithChildren<FilterSearchProviderProps>) => {
@@ -111,6 +110,7 @@ export const FilterSearchProvider = ({
         isAddingTag: false,
         selectedTagIds: new Set<string>(),
         openSelectId: null,
+        tagFocusStates: new Map<string, FilterTagFocusState>(),
       };
     }
 
@@ -126,6 +126,7 @@ export const FilterSearchProvider = ({
       isAddingTag: false,
       selectedTagIds: new Set<string>(),
       openSelectId: null,
+      tagFocusStates: new Map<string, FilterTagFocusState>(),
     };
   }, []);
 
@@ -242,6 +243,19 @@ export const FilterSearchProvider = ({
     setState((prev) => ({ ...prev, openSelectId: id }));
   }, []);
 
+  const setTagFocusState = useCallback((tagId: string, focusState: FilterTagFocusState) => {
+    setState((prev) => {
+      const newFocusStates = new Map(prev.tagFocusStates);
+      newFocusStates.set(tagId, focusState);
+      return { ...prev, tagFocusStates: newFocusStates };
+    });
+  }, []);
+
+  const getTagFocusState = useCallback(
+    (tagId: string): FilterTagFocusState => state.tagFocusStates.get(tagId) || { type: "idle" },
+    [state.tagFocusStates]
+  );
+
   const submit = useCallback(() => {
     const filterObjects = state.tags.map(createFilterFromTag);
     const searchValue = state.inputValue.trim();
@@ -265,23 +279,13 @@ export const FilterSearchProvider = ({
         params.set("search", searchValue);
       }
 
-      // Apply additional search params
-      Object.entries(additionalSearchParams).forEach(([key, val]) => {
-        params.delete(key);
-        if (Array.isArray(val)) {
-          val.forEach((v) => params.append(key, v));
-        } else {
-          params.set(key, val);
-        }
-      });
-
       router.push(`${pathname}?${params.toString()}`);
     } else if (mode === "stateful" && statefulCtx) {
       statefulCtx.setFilters(filterObjects);
     }
 
     onSubmit?.(filterObjects, searchValue);
-  }, [state.tags, state.inputValue, mode, searchParams, pathname, router, statefulCtx, onSubmit, additionalSearchParams]);
+  }, [state.tags, state.inputValue, mode, searchParams, pathname, router, statefulCtx, onSubmit]);
 
   const value = useMemo<FilterSearchContextValue>(
     () => ({
@@ -304,6 +308,8 @@ export const FilterSearchProvider = ({
       clearSelection,
       removeSelectedTags,
       setOpenSelectId,
+      setTagFocusState,
+      getTagFocusState,
     }),
     [
       state,
@@ -324,6 +330,8 @@ export const FilterSearchProvider = ({
       clearSelection,
       removeSelectedTags,
       setOpenSelectId,
+      setTagFocusState,
+      getTagFocusState,
     ]
   );
 
