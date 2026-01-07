@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { TraceViewTrace } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
@@ -23,20 +24,25 @@ const GetRolloutSessionSchema = z.object({
   id: z.string(),
 });
 
-const GetRolloutSessionsSchema = z.object({
+export const GetRolloutSessionsSchema = PaginationSchema.extend({
   projectId: z.string(),
 });
 
 export const getRolloutSessions = async (input: z.infer<typeof GetRolloutSessionsSchema>) => {
-  const { projectId } = GetRolloutSessionsSchema.parse(input);
+  const { projectId, pageNumber, pageSize } = input;
+
+  const limit = pageSize;
+  const offset = Math.max(0, pageNumber * pageSize);
 
   const result = await db
     .select()
     .from(rolloutSessions)
     .where(eq(rolloutSessions.projectId, projectId))
-    .orderBy(desc(rolloutSessions.createdAt));
+    .orderBy(desc(rolloutSessions.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  return result;
+  return { items: result };
 };
 
 export async function getRolloutSession(input: z.infer<typeof GetRolloutSessionSchema>) {

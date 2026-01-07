@@ -2,19 +2,27 @@
 
 import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
-import { RolloutSession } from "@/lib/actions/rollout-sessions";
+import { RolloutSession, RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
+
+const FETCH_SIZE = 50;
+
+const STATUS_COLORS: Record<RolloutSessionStatus, string> = {
+  PENDING: "bg-muted text-muted-foreground border-muted",
+  RUNNING: "bg-primary/20 text-primary border-primary/30",
+  FINISHED: "bg-success/20 text-success-bright border-success/30",
+  STOPPED: "bg-destructive/20 text-destructive-bright border-destructive/30",
+};
 
 const columns: ColumnDef<RolloutSession>[] = [
   {
@@ -33,11 +41,16 @@ const columns: ColumnDef<RolloutSession>[] = [
     id: "name",
   },
   {
-    cell: ({ row }) => (
-      <Badge className="rounded-3xl mr-1 text-secondary-foreground" variant="outline">
-        {row.original.status}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const status = row.original.status;
+      const colorClasses = STATUS_COLORS[status] || "text-secondary-foreground";
+
+      return (
+        <Badge className={`rounded-3xl mr-1 ${colorClasses}`} variant="outline">
+          {status}
+        </Badge>
+      );
+    },
     header: "Status",
     id: "status",
   },
@@ -57,16 +70,51 @@ function RolloutSessionsContent() {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { data, isLoading, error } = useSWR<RolloutSession[]>(
-    `/api/projects/${projectId}/rollout-sessions`,
-    swrFetcher
+  const fetchRolloutSessions = useCallback(
+    async (pageNumber: number) => {
+      try {
+        const urlParams = new URLSearchParams();
+        urlParams.set("pageNumber", pageNumber.toString());
+        urlParams.set("pageSize", FETCH_SIZE.toString());
+
+        const url = `/api/projects/${projectId}/rollout-sessions?${urlParams.toString()}`;
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          const text = (await res.json()) as { error: string };
+          throw new Error(text.error);
+        }
+
+        const data = (await res.json()) as { items: RolloutSession[] };
+        return { items: data.items, count: 0 };
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Failed to load rollout sessions. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [projectId, toast]
   );
 
-  useEffect(() => {
-    if (error && error instanceof Error) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    }
-  }, [error, toast]);
+  const {
+    data: rolloutSessions,
+    hasMore,
+    isFetching,
+    isLoading,
+    fetchNextPage,
+  } = useInfiniteScroll<RolloutSession>({
+    fetchFn: fetchRolloutSessions,
+    enabled: true,
+    deps: [projectId],
+  });
 
   return (
     <>
@@ -76,12 +124,12 @@ function RolloutSessionsContent() {
           <InfiniteDataTable
             getRowId={(row: RolloutSession) => row.id}
             columns={columns}
-            data={data ?? []}
-            hasMore={false}
+            data={rolloutSessions ?? []}
+            hasMore={hasMore}
             getRowHref={(row) => `rollout-sessions/${row.id}`}
-            isFetching={false}
+            isFetching={isFetching}
             isLoading={isLoading}
-            fetchNextPage={() => {}}
+            fetchNextPage={fetchNextPage}
             state={{
               rowSelection,
             }}
