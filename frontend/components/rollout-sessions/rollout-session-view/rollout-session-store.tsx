@@ -273,32 +273,29 @@ const createRolloutSessionStore = ({
           });
         },
         setSpans: (spans) => {
+          let newSpans: TraceViewSpan[];
+
           if (typeof spans === "function") {
             const prevSpans = get().spans;
-            const newSpans = spans(prevSpans);
-            set({ spans: newSpans });
+            newSpans = spans(prevSpans);
           } else {
-            const newSpans = spans.map((s) => ({ ...s, collapsed: false }));
-            set({ spans: newSpans });
+            newSpans = spans.map((s) => ({ ...s, collapsed: false }));
+          }
 
-            const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
-            if (cachedSpans.length > 0) {
-              const initialCachedCounts: Record<string, number> = {};
-              cachedSpans.forEach((s) => {
-                const sPath = s.attributes?.["lmnr.span.path"];
-                if (sPath && Array.isArray(sPath)) {
-                  const pathKey = sPath.join(".");
-                  initialCachedCounts[pathKey] = (initialCachedCounts[pathKey] || 0) + 1;
-                }
-              });
-              // Merge with existing cachedSpanCounts (UI-set cache points take precedence)
-              const existingCachedCounts = get().cachedSpanCounts;
-              const mergedCachedCounts = { ...initialCachedCounts };
-              for (const [path, count] of Object.entries(existingCachedCounts)) {
-                mergedCachedCounts[path] = Math.max(mergedCachedCounts[path] || 0, count);
+          set({ spans: newSpans });
+
+          // Update cachedSpanCounts based on CACHED spans in the new spans
+          const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
+          if (cachedSpans.length > 0) {
+            const newCachedCounts: Record<string, number> = {};
+            cachedSpans.forEach((s) => {
+              const sPath = s.attributes?.["lmnr.span.path"];
+              if (sPath && Array.isArray(sPath)) {
+                const pathKey = sPath.join(".");
+                newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
               }
-              set({ cachedSpanCounts: mergedCachedCounts });
-            }
+            });
+            set({ cachedSpanCounts: newCachedCounts });
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
@@ -637,8 +634,8 @@ const createRolloutSessionStore = ({
           try {
             set({ isRolloutLoading: true, rolloutError: undefined });
 
-            // Clear all spans before running rollout
-            set({ spans: [] });
+            // Clear all spans and reset cached span counts before running rollout
+            set({ spans: [], cachedSpanCounts: {} });
             const overrides = get().overrides;
             const currentTraceId = get().currentTraceId;
             const cachedSpanCounts = get().cachedSpanCounts;
