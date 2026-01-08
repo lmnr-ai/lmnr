@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
 import {
@@ -29,13 +29,15 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans, cacheToSpan, uncacheFromSpan, isSpanCached } = useRolloutSessionStoreContext((state) => ({
-    selectedSpan: state.selectedSpan,
-    spans: state.spans,
-    cacheToSpan: state.cacheToSpan,
-    uncacheFromSpan: state.uncacheFromSpan,
-    isSpanCached: state.isSpanCached,
-  }));
+  const { selectedSpan, spans, cacheToSpan, uncacheFromSpan, isSpanCached } = useRolloutSessionStoreContext(
+    (state) => ({
+      selectedSpan: state.selectedSpan,
+      spans: state.spans,
+      cacheToSpan: state.cacheToSpan,
+      uncacheFromSpan: state.uncacheFromSpan,
+      isSpanCached: state.isSpanCached,
+    })
+  );
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
@@ -47,8 +49,20 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
   const isCached = fullSpan ? isSpanCached(fullSpan) : false;
 
   const [isExpanded, setIsExpanded] = useState(
-    span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
+    span.spanType === "LLM" ||
+      span.spanType === "CACHED" ||
+      span.spanType === "EXECUTOR" ||
+      span.spanType === "EVALUATOR"
   );
+
+  useEffect(() => {
+    const shouldBeExpanded =
+      span.spanType === "LLM" ||
+      span.spanType === "CACHED" ||
+      span.spanType === "EXECUTOR" ||
+      span.spanType === "EVALUATOR";
+    setIsExpanded(shouldBeExpanded);
+  }, [span.spanId, span.spanType]);
 
   const output = getOutput(span.spanId);
   const isLoadingOutput = output === undefined;
@@ -93,6 +107,34 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 )}
               />
             </Button>
+            {(span.spanType === "LLM" || span.spanType === "CACHED") && fullSpan && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "py-0 px-2 h-5 bg-muted text-secondary-foreground animate-in fade-in duration-200 text-xs",
+                      isCached ? "block" : "hidden group-hover/message:block"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isCached) {
+                        uncacheFromSpan(fullSpan);
+                      } else {
+                        cacheToSpan(fullSpan);
+                      }
+                    }}
+                  >
+                    {isCached ? "Cached" : "Cache until here"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipPortal>
+                  <TooltipContent side="top" className="text-xs">
+                    {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
+                  </TooltipContent>
+                </TooltipPortal>
+              </Tooltip>
+            )}
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
@@ -125,35 +167,6 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
             >
               <Settings className="size-3.5 text-secondary-foreground" />
             </Button>
-            {(span.spanType === "LLM" || span.spanType === "CACHED") && fullSpan && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className={cn(
-                      "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 text-xs",
-                      isCached ? "block" : "hidden group-hover/message:block"
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isCached) {
-                        uncacheFromSpan(fullSpan);
-                      } else {
-                        cacheToSpan(fullSpan);
-                      }
-                    }}
-                  >
-                    {isCached ? "Cached" : "Cache until here"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent side="top" className="text-xs">
-                    {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
-                  </TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
-            )}
-
             {span.pathInfo && (
               <Tooltip>
                 <TooltipTrigger asChild>

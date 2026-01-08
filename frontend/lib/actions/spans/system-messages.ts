@@ -1,20 +1,19 @@
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
-import { LangChainMessagesSchema, LangChainSystemMessageSchema } from "@/lib/spans/types/langchain";
-import { OpenAIMessagesSchema, OpenAISystemMessageSchema } from "@/lib/spans/types/openai";
-import { tryParseJson } from "@/lib/utils";
-
+import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 export const GetSystemMessagesSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
-  paths: z.array(z.string()),
+  paths: z.array(z.array(z.string())),  // Array of path arrays
 });
 
 export interface SystemMessageResponse {
   id: string;
   content: string;
-  path: string;
+  path: string[];  // Return as array
 }
 
 function extractSystemMessageContent(message: any): string | null {
@@ -41,11 +40,8 @@ function parseSystemMessageFromInput(input: string): string | null {
     const openAIResult = OpenAIMessagesSchema.safeParse(parsed);
     if (openAIResult.success) {
       for (const message of openAIResult.data) {
-        const systemMsgResult = OpenAISystemMessageSchema.safeParse(message);
-        if (systemMsgResult.success) {
-          const content = extractSystemMessageContent(systemMsgResult.data);
-          if (content) return content;
-        }
+        const content = extractSystemMessageContent(message);
+        if (content) return content;
       }
     }
   } catch (e) {}
@@ -54,9 +50,17 @@ function parseSystemMessageFromInput(input: string): string | null {
     const langChainResult = LangChainMessagesSchema.safeParse(parsed);
     if (langChainResult.success) {
       for (const message of langChainResult.data) {
-        const systemMsgResult = LangChainSystemMessageSchema.safeParse(message);
-        if (systemMsgResult.success) {
-          const content = extractSystemMessageContent(systemMsgResult.data);
+        const content = extractSystemMessageContent(message);
+        if (content) return content;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (Array.isArray(parsed)) {
+      for (const message of parsed) {
+        if (message && typeof message === "object" && message.role === "system") {
+          const content = extractSystemMessageContent(message);
           if (content) return content;
         }
       }
@@ -75,6 +79,9 @@ export async function getTraceSystemMessages(
     return [];
   }
 
+  // Convert path arrays to dot-joined strings for the query
+  const pathStrings = paths.map(p => p.join('.'));
+
   const query = `
     SELECT 
       span_id as spanId,
@@ -89,11 +96,17 @@ export async function getTraceSystemMessages(
 
   const spans = await executeQuery<{ spanId: string; input: string; path: string }>({
     query,
-    parameters: { projectId, traceId, paths },
+    parameters: { projectId, traceId, paths: pathStrings },
     projectId,
   });
 
-  const systemMessagesByPath = new Map<string, string>();
+  const systemMessagesByPath = new Map<string, { content: string; path: string[] }>();
+
+  // Create a map of dot-joined path -> original path array
+  const pathMap = new Map<string, string[]>();
+  paths.forEach(pathArray => {
+    pathMap.set(pathArray.join('.'), pathArray);
+  });
 
   for (const span of spans) {
     if (!span.input || !span.path) continue;
@@ -102,11 +115,13 @@ export async function getTraceSystemMessages(
     const systemContent = parseSystemMessageFromInput(span.input);
     if (!systemContent) continue;
 
-    systemMessagesByPath.set(span.path, systemContent);
+    // Get the original path array from our map
+    const originalPath = pathMap.get(span.path) || span.path.split('.');
+    systemMessagesByPath.set(span.path, { content: systemContent, path: originalPath });
   }
 
-  return Array.from(systemMessagesByPath.entries()).map(([path, content], index) => ({
-    id: `${path}_${index}`,
+  return Array.from(systemMessagesByPath.entries()).map(([pathKey, { content, path }], index) => ({
+    id: `${pathKey}_${index}`,
     content,
     path,
   }));

@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -42,13 +42,7 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-export function SpanCard({
-  span,
-  yOffset,
-  parentY,
-  onSpanSelect,
-  depth,
-}: SpanCardProps) {
+export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -144,31 +138,25 @@ export function SpanCard({
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <>
-              <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
-                {getDurationString(span.startTime, span.endTime)}
+            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded flex flex-shrink-0 animate-in fade-in duration-200">
+              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                <Clock3 size={12} className="min-w-3 min-h-3" />
+                <span>{getDurationString(span.startTime, span.endTime)}</span>
               </div>
               {llmMetrics && (
                 <>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <Coins className="min-w-3" size={12} />
-                    {numberFormatter.format(llmMetrics.tokens)}
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <Coins size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>{numberFormatter.format(llmMetrics.tokens)}</span>
                   </div>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <CircleDollarSign className="min-w-3" size={12} />
-                    {llmMetrics.cost.toFixed(3)}
+
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>${llmMetrics.cost.toFixed(4)}</span>
                   </div>
                 </>
               )}
-            </>
+            </div>
           )}
           {hasChildren && (
             <button
@@ -181,14 +169,13 @@ export function SpanCard({
               {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
-          <div className="grow" />
           {(span.spanType === "LLM" || span.spanType === "CACHED") && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   className={cn(
-                    "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 text-xs",
+                    "py-0 px-2 h-5 bg-muted text-secondary-foreground animate-in fade-in duration-200 text-xs",
                     isCached ? "block" : "hidden group-hover:block"
                   )}
                   onClick={(e) => {

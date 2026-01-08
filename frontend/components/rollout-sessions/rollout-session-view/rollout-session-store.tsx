@@ -26,7 +26,7 @@ import { SystemMessage } from "./system-messages-utils";
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
-export const MIN_TREE_VIEW_WIDTH = 450;
+export const MIN_SIDEBAR_WIDTH = 450;
 
 export type TraceViewSpan = {
   spanId: string;
@@ -106,7 +106,7 @@ interface RolloutSessionStoreState {
   tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
   search: string;
   zoom: number;
-  treeWidth: number;
+  sidebarWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
@@ -141,7 +141,7 @@ interface RolloutSessionStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSearch: (search: string) => void;
-  setTreeWidth: (width: number) => void;
+  setSidebarWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
@@ -172,7 +172,7 @@ interface RolloutSessionStoreActions {
     cachedSpanCounts: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
   ) => void;
   toggleOverride: (messageId: string) => void;
-  updateOverride: (path: string, content: string) => void;
+  updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
   resetOverride: (messageId: string) => void;
   cacheToSpan: (span: TraceViewSpan) => void;
@@ -227,7 +227,7 @@ const createRolloutSessionStore = ({
         search: "",
         searchEnabled: false,
         zoom: 1,
-        treeWidth: MIN_TREE_VIEW_WIDTH,
+        sidebarWidth: MIN_SIDEBAR_WIDTH,
         langGraph: false,
         spanPath: null,
         hasBrowserSession: false,
@@ -378,7 +378,7 @@ const createRolloutSessionStore = ({
           return newTime >= maxTime;
         },
         setSearch: (search) => set({ search }),
-        setTreeWidth: (treeWidth) => set({ treeWidth }),
+        setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
             spanTemplates: { ...state.spanTemplates, [spanPathKey]: template },
@@ -503,27 +503,27 @@ const createRolloutSessionStore = ({
 
           const overrides = { ...get().overrides };
 
-          if (overrides[message.path]) {
+          if (overrides[message.pathKey]) {
             // Toggle OFF - remove override
-            delete overrides[message.path];
+            delete overrides[message.pathKey];
           } else {
             // Toggle ON - add override with original content
-            overrides[message.path] = { system: message.content };
+            overrides[message.pathKey] = { system: message.content };
           }
 
           set({ overrides });
         },
 
-        updateOverride: (path: string, content: string) => {
+        updateOverride: (pathKey: string, content: string) => {
           const overrides = { ...get().overrides };
-          overrides[path] = { system: content };
+          overrides[pathKey] = { system: content };
           set({ overrides });
         },
 
         isOverrideEnabled: (messageId: string): boolean => {
           const message = get().systemMessagesMap.get(messageId);
           if (!message) return false;
-          return message.path in get().overrides;
+          return message.pathKey in get().overrides;
         },
 
         resetOverride: (messageId: string) => {
@@ -531,8 +531,8 @@ const createRolloutSessionStore = ({
           if (!message) return;
 
           const overrides = { ...get().overrides };
-          if (overrides[message.path]) {
-            overrides[message.path] = { system: message.content };
+          if (overrides[message.pathKey]) {
+            overrides[message.pathKey] = { system: message.content };
             set({ overrides });
           }
         },
@@ -720,7 +720,7 @@ const createRolloutSessionStore = ({
       {
         name: storeKey,
         partialize: (state) => ({
-          treeWidth: state.treeWidth,
+          sidebarWidth: state.sidebarWidth,
           spanPath: state.spanPath,
           spanTemplates: state.spanTemplates,
           tab: state.tab,

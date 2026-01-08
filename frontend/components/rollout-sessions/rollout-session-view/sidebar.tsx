@@ -74,8 +74,9 @@ const SystemMessageEditor = ({
     >
       <div className="flex items-center justify-between px-2 bg-muted/30">
         <div className="flex items-center gap-2 truncate overflow-x-auto no-scrollbar py-2">
-          <span className="text-sm font-medium font-mono" title={message.path}>
-            {message.path}
+          <span className="text-xs text-muted-foreground">Path:</span>
+          <span className="text-xs font-medium font-mono truncate" title={message.pathKey}>
+            {message.path.join(" → ")}
           </span>
         </div>
         {isModified && (
@@ -85,9 +86,9 @@ const SystemMessageEditor = ({
           </Button>
         )}
       </div>
-      <div className="flex items-center gap-2 p-2">
-        <Switch checked={isEnabled} onCheckedChange={handleToggle} />
+      <div className="flex items-center justify-between p-2">
         <span className="text-xs text-muted-foreground">Override System Prompt</span>
+        <Switch checked={isEnabled} onCheckedChange={handleToggle} />
       </div>
       {isEnabled && (
         <Textarea
@@ -192,7 +193,7 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
             {params.map((param, index) => (
               <Fragment key={param.name}>
                 <label className="text-xs font-medium text-muted-foreground">{param.name}</label>
-                <div className="flex border rounded-md bg-muted/50 overflow-hidden min-h-24 max-h-48">
+                <div className="flex border rounded-md bg-muted/50 overflow-hidden max-h-48">
                   <CodeMirror
                     className="w-full"
                     value={paramValues[param.name] || ""}
@@ -230,9 +231,9 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
                 key={message.id}
                 message={message}
                 isEnabled={isOverrideEnabled(message.id)}
-                overrideContent={overrides[message.path]?.system}
+                overrideContent={overrides[message.pathKey]?.system}
                 onToggle={() => toggleOverride(message.id)}
-                onEdit={(content) => updateOverride(message.path, content)}
+                onEdit={(content) => updateOverride(message.pathKey, content)}
                 onReset={() => resetOverride(message.id)}
               />
             ))}

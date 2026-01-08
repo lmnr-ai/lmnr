@@ -3,7 +3,7 @@
 import { get, isEmpty } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Radio, Search } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
@@ -31,7 +31,7 @@ import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -130,7 +130,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   }));
 
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
-  const prevLlmPathsRef = useRef<string>("");
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () =>
@@ -348,27 +347,32 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     };
   }, [projectId, filters, setSpans, setTraceError, setSpansError]);
 
-  useEffect(() => {
-    if (!projectId || !trace?.id || spans.length === 0) return;
-
-    const llmPaths = new Set<string>();
+  const llmPathsRef = React.useRef<Array<{ key: string; path: string[] }>>([]);
+  const llmPaths = useMemo(() => {
+    const paths = new Map<string, string[]>();
     for (const span of spans) {
-      const isLlm = span.spanType === SpanType.LLM;
-      if (isLlm && span.path) {
-        llmPaths.add(span.path);
+      const path = get(span.attributes, "lmnr.span.path") as string[] | undefined;
+      if (span.spanType === SpanType.LLM && path) {
+        paths.set(path.join("."), path);
       }
     }
+    const newPaths = Array.from(paths.entries()).map(([key, path]) => ({ key, path }));
 
-    if (llmPaths.size === 0) return;
+    if (newPaths.map(p => p.key).join("|") === llmPathsRef.current.map(p => p.key).join("|")) {
+      return llmPathsRef.current;
+    }
 
-    const pathsKey = Array.from(llmPaths).sort().join(",");
-    if (pathsKey === prevLlmPathsRef.current) return;
-    prevLlmPathsRef.current = pathsKey;
+    llmPathsRef.current = newPaths;
+    return newPaths;
+  }, [spans]);
+
+  useEffect(() => {
+    if (!projectId || !trace?.id || isEmpty(llmPaths)) return;
 
     const loadSystemMessages = async () => {
       setIsSystemMessagesLoading(true);
       try {
-        const messages = await fetchSystemMessages(projectId as string, trace?.id, Array.from(llmPaths));
+        const messages = await fetchSystemMessages(projectId as string, trace?.id, llmPaths);
         setSystemMessagesMap(messages);
       } catch (error) {
         console.error("Failed to fetch system messages:", error);
@@ -378,7 +382,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     };
 
     loadSystemMessages();
-  }, [projectId, trace?.id, spans, setIsSystemMessagesLoading, setSystemMessagesMap]);
+  }, [projectId, trace?.id, setIsSystemMessagesLoading, setSystemMessagesMap, llmPaths]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
@@ -552,11 +556,15 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         )}
 
         <Sheet open={!!selectedSpan} onOpenChange={(open) => !open && handleSpanSelect(undefined)}>
-          <SheetContent side="right" className="min-w-[50vw] w-[50vw] flex flex-col p-0 gap-0">
+          <SheetContent
+            side="right"
+            className="min-w-[50vw] w-[50vw] flex flex-col p-0 gap-0 focus-visible:outline-none"
+          >
             <SheetHeader className="hidden">
               <SheetTitle />
+              <SheetDescription />
             </SheetHeader>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden focus-visible:outline-none">
               {selectedSpan &&
                 (selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
                   <HumanEvaluatorSpanView
