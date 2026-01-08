@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { sectionHeaderLarge, bodyLarge } from "../classNames";
 import DocsButton from "../DocsButton";
+import SystemDiagram from "./SystemDiagram";
 
 interface Props {
   className?: string;
@@ -83,7 +84,7 @@ const SecondHalf = ({ className }: Props) => {
           </div>
         </div>
         {/* Architecture diagram placeholder */}
-        <div className="bg-landing-surface-700 w-[500px] h-[600px]" />
+        <SystemDiagram />
       </div>
     </div>
   );
