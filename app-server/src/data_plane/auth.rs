@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::db::workspaces::WorkspaceDeployment;
 
-use super::crypto::decrypt_workspace_str;
+use super::crypto::decrypt;
 
 /// Token expiration time in seconds (15 minutes)
 const TOKEN_EXPIRATION_SECS: i64 = 900;
@@ -33,7 +33,7 @@ const TOKEN_CACHE_TTL_SECS: u64 = 720;
 static TOKEN_CACHE: OnceLock<Cache<Uuid, String>> = OnceLock::new();
 
 fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, String> {
-    let decrypted = decrypt_workspace_str(
+    let decrypted = decrypt(
         config.workspace_id,
         &config.private_key_nonce,
         &config.private_key,

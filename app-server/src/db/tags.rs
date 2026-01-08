@@ -10,7 +10,7 @@ pub enum TagSource {
 }
 
 /// Structured representation of a span tag for batch operations
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct SpanTag {
     pub project_id: Uuid,
     pub name: String,

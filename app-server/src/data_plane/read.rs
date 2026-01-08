@@ -156,7 +156,7 @@ async fn read_from_data_plane(
     }
 
     // Decrypt data_plane_url if present
-    let data_plane_url = crypto::decrypt_workspace_str(
+    let data_plane_url = crypto::decrypt(
         config.workspace_id,
         &config.data_plane_url_nonce,
         &config.data_plane_url,

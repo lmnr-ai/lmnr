@@ -53,7 +53,7 @@ impl ClickhouseTrait for DataPlaneClickhouse {
             return Err(anyhow!("Data plane URL is empty"));
         }
 
-        let data_plane_url = crypto::decrypt_workspace_str(
+        let data_plane_url = crypto::decrypt(
             self.config.workspace_id,
             &self.config.data_plane_url_nonce,
             &self.config.data_plane_url,

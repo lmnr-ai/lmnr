@@ -22,7 +22,7 @@ fn get_key_from_env() -> Result<xchacha20poly1305_ietf::Key> {
 }
 
 #[allow(dead_code)]
-pub fn encrypt_workspace_str(workspace_id: Uuid, val: &str) -> Result<(String, String)> {
+pub fn encrypt(workspace_id: Uuid, val: &str) -> Result<(String, String)> {
     let key = get_key_from_env()?;
 
     // Generate random nonce (24 bytes for XChaCha20-Poly1305)
@@ -42,7 +42,7 @@ pub fn encrypt_workspace_str(workspace_id: Uuid, val: &str) -> Result<(String, S
     Ok((nonce_hex, ciphertext_hex))
 }
 
-pub fn decrypt_workspace_str(workspace_id: Uuid, nonce: &str, encrypted: &str) -> Result<String> {
+pub fn decrypt(workspace_id: Uuid, nonce: &str, encrypted: &str) -> Result<String> {
     let key = get_key_from_env()?;
 
     // Decode hex
@@ -86,8 +86,8 @@ mod tests {
         let workspace_id = uuid::uuid!("00000000-0000-0000-0000-000000000000");
         let url = "http://localhost:80";
 
-        let (nonce, encrypted) = encrypt_workspace_str(workspace_id, url).unwrap();
-        let decrypted = decrypt_workspace_str(workspace_id, &nonce, &encrypted).unwrap();
+        let (nonce, encrypted) = encrypt(workspace_id, url).unwrap();
+        let decrypted = decrypt(workspace_id, &nonce, &encrypted).unwrap();
         assert_eq!(decrypted, url);
 
         println!("encrypted: {}", encrypted);
@@ -107,11 +107,10 @@ mod tests {
         let wrong_workspace_id = Uuid::new_v4();
         let url = "https://data-plane.example.com";
 
-        let (nonce, encrypted) = encrypt_workspace_str(workspace_id, url).unwrap();
+        let (nonce, encrypted) = encrypt(workspace_id, url).unwrap();
 
         // Attempt to decrypt with wrong workspace_id should fail
-        let result = decrypt_workspace_str(wrong_workspace_id, &nonce, &encrypted);
+        let result = decrypt(wrong_workspace_id, &nonce, &encrypted);
         assert!(result.is_err());
     }
 }
-
