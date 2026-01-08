@@ -113,7 +113,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                   <Button
                     variant="ghost"
                     className={cn(
-                      "py-0 px-2 h-5 bg-muted text-secondary-foreground animate-in fade-in duration-200 text-xs",
+                      "py-0 px-2 h-5 bg-muted rounded text-secondary-foreground animate-in fade-in duration-200 text-xs",
                       isCached ? "block" : "hidden group-hover/message:block"
                     )}
                     onClick={(e) => {
