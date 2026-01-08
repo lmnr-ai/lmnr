@@ -63,7 +63,7 @@ const SecondHalf = ({ className }: Props) => {
       </div>
 
       {/* Production-grade section */}
-      <div className="flex gap-10 items-center relative shrink-0 w-[1142px]">
+      <div className="flex gap-10 items-center relative shrink-0 w-full pl-[calc((100%-1142px)/2)] ">
         <div className="basis-0 flex flex-col gap-[37px] grow items-start min-h-px min-w-px relative shrink-0">
           <div className="flex flex-col items-start relative shrink-0">
             <div className={cn(sectionHeaderLarge, "leading-[54px] whitespace-nowrap")}>
@@ -84,7 +84,7 @@ const SecondHalf = ({ className }: Props) => {
           </div>
         </div>
         {/* Architecture diagram placeholder */}
-        <SystemDiagram />
+        <SystemDiagram className="flex-1" />
       </div>
     </div>
   );
