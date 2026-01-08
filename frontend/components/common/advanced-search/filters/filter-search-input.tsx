@@ -1,9 +1,11 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { ChangeEvent, FocusEvent, memo, useCallback, useRef } from "react";
+import React, { ChangeEvent, FocusEvent, memo, useCallback, useRef } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
+import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
@@ -30,10 +32,13 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     mainInputRef,
     submit,
     addTag,
+    addCompleteTag,
     setIsAddingTag,
     selectAllTags,
     clearSelection,
     removeSelectedTags,
+    clearAll,
+    autocompleteData,
   } = useFilterSearch();
 
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
@@ -63,7 +68,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, state.inputValue);
+      const count = getSuggestionsCount(filters, state.inputValue, autocompleteData);
 
       // Cmd+A / Ctrl+A to select all tags
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
@@ -112,11 +117,14 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       if (e.key === "Enter") {
         e.preventDefault();
         if (state.isOpen && count > 0) {
-          const suggestion = getSuggestionAtIndex(filters, state.inputValue, state.activeIndex);
+          const suggestion = getSuggestionAtIndex(filters, state.inputValue, state.activeIndex, autocompleteData);
           if (suggestion) {
             if (suggestion.type === "field") {
               setIsAddingTag(true);
               addTag(suggestion.filter.key);
+            } else if (suggestion.type === "value") {
+              // Create a complete filter tag - it will submit automatically
+              addCompleteTag(suggestion.field, Operator.Eq, suggestion.value);
             } else {
               setInputValue(`"${suggestion.value}"`);
               setIsOpen(false);
@@ -182,10 +190,14 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       removeSelectedTags,
       removeTag,
       addTag,
+      addCompleteTag,
       setIsAddingTag,
       submit,
+      autocompleteData,
     ]
   );
+
+  useHotkeys("meta+k", () => mainInputRef.current?.focus());
 
   const handleContainerClick = useCallback(() => mainInputRef.current?.focus(), [mainInputRef]);
 
@@ -206,13 +218,15 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     [state.tags]
   );
 
+  const hasContent = state.tags.length > 0 || state.inputValue.length > 0;
+
   return (
     <div
       ref={containerRef}
       className={cn(
-        "flex items-center gap-2 px-2 rounded-md border border-input bg-transparent relative py-1",
-        "focus-within:ring-primary/80 focus-within:ring-[1px] transition duration-300",
-        // "not-focus-within:bg-accent ",
+        "flex items-center gap-2 px-2 rounded-md border border-input bg-transparent relative",
+        "focus-within:ring-border/50 focus-within:ring-[1px] box-border",
+        "not-focus-within:bg-accent transition duration-300 py-1",
         className
       )}
       onClick={handleContainerClick}
@@ -254,6 +268,19 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           )}
         />
       </div>
+
+      {hasContent ? (
+        <button
+          type="button"
+          onClick={clearAll}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded-sm hover:bg-accent"
+          aria-label="Clear all filters"
+        >
+          <X className="size-4" />
+        </button>
+      ) : (
+        <div className="text-center text-xs opacity-75">⌘K</div>
+      )}
 
       <FilterSuggestions />
     </div>

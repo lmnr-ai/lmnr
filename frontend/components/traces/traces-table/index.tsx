@@ -302,7 +302,7 @@ function TracesTableContent() {
             <span className="text-xs cursor-pointer font-medium text-secondary-foreground">Realtime</span>
           </div>
         </div>
-        <div className="w-full px-0.5">
+        <div className="w-full px-px">
           <AdvancedSearch
             filters={filters}
             resource="traces"

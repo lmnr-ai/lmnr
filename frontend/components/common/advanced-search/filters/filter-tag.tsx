@@ -13,7 +13,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-import useSWR from "swr";
 
 import {
   createEditFocusState,
@@ -22,10 +21,9 @@ import {
   getPreviousField,
 } from "@/components/common/advanced-search/utils";
 import { Button } from "@/components/ui/button";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { useDebounce } from "@/lib/hooks/use-debounce";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import ValueInput from "../inputs";
@@ -65,6 +63,7 @@ const FilterTag = ({
     setActiveTagId,
     setTagFocusState,
     getTagFocusState,
+    autocompleteData,
   } = useFilterSearch();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,27 +97,20 @@ const FilterTag = ({
     [resource, tag.field]
   );
 
-  // Fetch value suggestions (only in edit mode for string fields)
-  const fetchUrl = useMemo(() => {
-    if (focusState.type !== "value" || dataType !== "string" || !supportsAutocomplete) return null;
-    if (!("mode" in focusState) || focusState.mode !== "edit") return null;
-    const params = new URLSearchParams({ field: tag.field });
-    if (debouncedValue) {
-      params.set("prefix", debouncedValue);
+  // Get value suggestions from preloaded autocomplete data
+  const filteredValueSuggestions = useMemo(() => {
+    if (dataType !== "string" || !supportsAutocomplete) return [];
+
+    const preloadedValues = autocompleteData.get(tag.field) || [];
+
+    if (!debouncedValue) {
+      return preloadedValues;
     }
-    return `/api/projects/${projectId}/${resource}/autocomplete?${params.toString()}`;
-  }, [debouncedValue, focusState, projectId, resource, dataType, supportsAutocomplete, tag.field]);
 
-  const { data: suggestions = { suggestions: [] } } = useSWR<{ suggestions: AutocompleteSuggestion[] }>(
-    fetchUrl,
-    swrFetcher,
-    { fallbackData: { suggestions: [] }, keepPreviousData: true }
-  );
-
-  const filteredValueSuggestions = useMemo(
-    () => suggestions.suggestions.map((s) => s.value),
-    [suggestions.suggestions]
-  );
+    // Filter in-memory based on debounced value
+    const lowerQuery = debouncedValue.toLowerCase();
+    return preloadedValues.filter((value) => value.toLowerCase().includes(lowerQuery));
+  }, [autocompleteData, tag.field, debouncedValue, dataType, supportsAutocomplete]);
 
   useEffect(() => {
     if (state.activeTagId === tag.id && state.isAddingTag) {

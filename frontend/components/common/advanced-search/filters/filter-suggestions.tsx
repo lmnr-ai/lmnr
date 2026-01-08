@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
@@ -14,19 +15,25 @@ interface FieldSuggestion {
   filter: ColumnFilter;
 }
 
+interface ValueSuggestion {
+  type: "value";
+  field: string;
+  value: string;
+}
+
 interface RawSearchSuggestion {
   type: "raw_search";
   value: string;
 }
 
-export type Suggestion = FieldSuggestion | RawSearchSuggestion;
+export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion;
 
 interface FilterSuggestionsProps {
   className?: string;
 }
 
 const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
-  const { state, filters, addTag, setInputValue, setIsOpen, submit, setIsAddingTag } = useFilterSearch();
+  const { state, filters, addTag, addCompleteTag, setInputValue, setIsOpen, submit, setIsAddingTag, autocompleteData, focusMainInput } = useFilterSearch();
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const suggestions = useMemo((): Suggestion[] => {
@@ -48,13 +55,29 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       filter,
     }));
 
-    fieldSuggestions.push({
+    // Add value suggestions from preloaded autocomplete data
+    const valueSuggestions: Suggestion[] = [];
+    autocompleteData.forEach((values, field) => {
+      const matchingValues = values.filter((value) => value.toLowerCase().includes(input));
+      matchingValues.forEach((value) => {
+        valueSuggestions.push({
+          type: "value",
+          field,
+          value,
+        });
+      });
+    });
+
+    // Combine field suggestions, value suggestions, and raw search
+    const allSuggestions = [...fieldSuggestions, ...valueSuggestions];
+
+    allSuggestions.push({
       type: "raw_search",
       value: state.inputValue.trim(),
     });
 
-    return fieldSuggestions;
-  }, [state.inputValue, filters]);
+    return allSuggestions;
+  }, [state.inputValue, filters, autocompleteData]);
 
   useEffect(() => {
     const activeItem = itemRefs.current.get(state.activeIndex);
@@ -69,6 +92,21 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       addTag(filter.key);
     },
     [addTag, setIsAddingTag]
+  );
+
+  const handleValueSelect = useCallback(
+    (field: string, value: string) => {
+      // Find the filter to get the proper field key
+      const columnFilter = filters.find((f) => f.key === field);
+      if (!columnFilter) return;
+
+      // Add a complete tag - it will submit automatically
+      addCompleteTag(field, Operator.Eq, value);
+
+      // Keep focus on main input
+      focusMainInput();
+    },
+    [filters, addCompleteTag, focusMainInput]
   );
 
   const handleRawSearchSelect = useCallback(
@@ -121,6 +159,30 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
               );
             }
 
+            if (suggestion.type === "value") {
+              // Find the filter name for display
+              const filterForField = filters.find((f) => f.key === suggestion.field);
+              const displayName = filterForField?.name || suggestion.field;
+
+              return (
+                <div
+                  key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
+                  ref={(el) => {
+                    if (el) itemRefs.current.set(idx, el);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
+                    isActive ? "bg-accent" : "hover:bg-accent"
+                  )}
+                  onMouseDown={handleMouseDown}
+                  onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
+                >
+                  <span className="text-muted-foreground">{displayName}:</span>{" "}
+                  <span className="font-medium">{suggestion.value}</span>
+                </div>
+              );
+            }
+
             // Raw search suggestion
             return (
               <div
@@ -147,18 +209,35 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   );
 };
 
-export const getSuggestionsCount = (filters: ColumnFilter[], inputValue: string): number => {
+export const getSuggestionsCount = (
+  filters: ColumnFilter[],
+  inputValue: string,
+  autocompleteData: Map<string, string[]>
+): number => {
   const input = inputValue.trim().toLowerCase();
   if (!input) {
     return filters.length;
   }
+
   const matchingFields = filters.filter(
     (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
   );
-  return matchingFields.length + 1; // +1 for raw search option
+
+  // Count matching values from autocomplete data
+  let valueCount = 0;
+  autocompleteData.forEach((values) => {
+    valueCount += values.filter((value) => value.toLowerCase().includes(input)).length;
+  });
+
+  return matchingFields.length + valueCount + 1; // +1 for raw search option
 };
 
-export const getSuggestionAtIndex = (filters: ColumnFilter[], inputValue: string, index: number): Suggestion | null => {
+export const getSuggestionAtIndex = (
+  filters: ColumnFilter[],
+  inputValue: string,
+  index: number,
+  autocompleteData: Map<string, string[]>
+): Suggestion | null => {
   const input = inputValue.trim().toLowerCase();
 
   if (!input) {
@@ -176,7 +255,22 @@ export const getSuggestionAtIndex = (filters: ColumnFilter[], inputValue: string
     return { type: "field", filter: matchingFields[index] };
   }
 
-  if (index === matchingFields.length) {
+  // Build value suggestions
+  const valueSuggestions: Array<{ field: string; value: string }> = [];
+  autocompleteData.forEach((values, field) => {
+    const matchingValues = values.filter((value) => value.toLowerCase().includes(input));
+    matchingValues.forEach((value) => {
+      valueSuggestions.push({ field, value });
+    });
+  });
+
+  const valueIndex = index - matchingFields.length;
+  if (valueIndex < valueSuggestions.length) {
+    const { field, value } = valueSuggestions[valueIndex];
+    return { type: "value", field, value };
+  }
+
+  if (index === matchingFields.length + valueSuggestions.length) {
     return { type: "raw_search", value: inputValue.trim() };
   }
 

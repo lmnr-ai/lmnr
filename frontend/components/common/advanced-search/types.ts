@@ -6,6 +6,9 @@ import { Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
+// Autocomplete cache types
+export type AutocompleteCache = Map<string, string[]>;
+
 // Shared ref types for focus management
 export interface FocusableRef {
   focus: () => void;
@@ -55,6 +58,7 @@ export interface FilterSearchContextValue {
 
   // Tag operations
   addTag: (field: string) => void;
+  addCompleteTag: (field: string, operator: Operator, value: string) => FilterTag | undefined;
   removeTag: (tagId: string) => void;
   updateTagField: (tagId: string, field: string) => void;
   updateTagOperator: (tagId: string, operator: Operator) => void;
@@ -72,6 +76,7 @@ export interface FilterSearchContextValue {
 
   // Submit
   submit: () => void;
+  clearAll: () => void;
 
   // Navigation
   focusMainInput: () => void;
@@ -86,6 +91,10 @@ export interface FilterSearchContextValue {
   // Tag focus state management
   setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
   getTagFocusState: (tagId: string) => FilterTagFocusState;
+
+  // Autocomplete data
+  autocompleteData: AutocompleteCache;
+  isAutocompleteLoading: boolean;
 }
 
 export function createFilterFromTag(tag: FilterTag): Filter {

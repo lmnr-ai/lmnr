@@ -17,6 +17,7 @@ import { Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 
 import {
+  AutocompleteCache,
   ColumnFilter,
   createFilterFromTag,
   createTagFromFilter,
@@ -53,6 +54,41 @@ export const StatefulFilterProvider = ({
   return <StatefulFilterContext.Provider value={value}>{children}</StatefulFilterContext.Provider>;
 };
 
+// Autocomplete Context
+interface AutocompleteContextValue {
+  autocompleteData: AutocompleteCache;
+  setAutocompleteData: Dispatch<SetStateAction<AutocompleteCache>>;
+  isAutocompleteLoading: boolean;
+  setIsAutocompleteLoading: Dispatch<SetStateAction<boolean>>;
+}
+
+const AutocompleteContext = createContext<AutocompleteContextValue | null>(null);
+
+export const useAutocompleteData = () => {
+  const ctx = useContext(AutocompleteContext);
+  if (!ctx) {
+    throw new Error("useAutocompleteData must be used within AutocompleteProvider");
+  }
+  return ctx;
+};
+
+export const AutocompleteProvider = ({ children }: PropsWithChildren) => {
+  const [autocompleteData, setAutocompleteData] = useState<AutocompleteCache>(new Map());
+  const [isAutocompleteLoading, setIsAutocompleteLoading] = useState(false);
+
+  const value = useMemo(
+    () => ({
+      autocompleteData,
+      setAutocompleteData,
+      isAutocompleteLoading,
+      setIsAutocompleteLoading,
+    }),
+    [autocompleteData, isAutocompleteLoading]
+  );
+
+  return <AutocompleteContext.Provider value={value}>{children}</AutocompleteContext.Provider>;
+};
+
 const FilterSearchContext = createContext<FilterSearchContextValue | null>(null);
 
 export const useFilterSearch = () => {
@@ -83,6 +119,11 @@ export const FilterSearchProvider = ({
   // Always call useContext unconditionally (React hooks rule)
   const statefulCtxValue = useContext(StatefulFilterContext);
   const statefulCtx = mode === "stateful" ? statefulCtxValue : null;
+
+  // Get autocomplete data from context
+  const autocompleteCtx = useContext(AutocompleteContext);
+  const autocompleteData = autocompleteCtx?.autocompleteData ?? new Map();
+  const isAutocompleteLoading = autocompleteCtx?.isAutocompleteLoading ?? false;
 
   const initialState = useMemo((): FilterSearchState => {
     if (mode === "url") {
@@ -155,6 +196,64 @@ export const FilterSearchProvider = ({
       }));
     },
     [filters]
+  );
+
+  const addCompleteTag = useCallback(
+    (field: string, operator: Operator, value: string) => {
+      const columnFilter = filters.find((f) => f.key === field);
+      if (!columnFilter) return;
+
+      const newTag: FilterTag = {
+        id: generateTagId(),
+        field,
+        operator,
+        value,
+      };
+
+      setState((prev) => {
+        const updatedTags = [...prev.tags, newTag];
+        const filterObjects = updatedTags.map(createFilterFromTag);
+        // Don't include inputValue as search - we're adding a complete filter, not a search
+        const searchValue = "";
+
+        // Submit immediately with the new tags
+        if (mode === "url") {
+          const params = new URLSearchParams(searchParams.toString());
+
+          // Clear existing filters and search
+          params.delete("filter");
+          params.delete("search");
+          params.delete("pageNumber");
+          params.set("pageNumber", "0");
+
+          // Add filter tags
+          filterObjects.forEach((filter) => {
+            params.append("filter", JSON.stringify(filter));
+          });
+
+          // Don't add search param when adding a complete filter tag
+
+          router.push(`${pathname}?${params.toString()}`);
+        } else if (mode === "stateful" && statefulCtx) {
+          statefulCtx.setFilters(filterObjects);
+        }
+
+        onSubmit?.(filterObjects, searchValue);
+
+        return {
+          ...prev,
+          tags: updatedTags,
+          inputValue: "", // Clear the input
+          activeTagId: null,
+          isOpen: false,
+          activeIndex: 0,
+          isAddingTag: false,
+        };
+      });
+
+      return newTag;
+    },
+    [filters, mode, searchParams, pathname, router, statefulCtx, onSubmit]
   );
 
   const removeTag = useCallback((tagId: string) => {
@@ -287,11 +386,40 @@ export const FilterSearchProvider = ({
     onSubmit?.(filterObjects, searchValue);
   }, [state.tags, state.inputValue, mode, searchParams, pathname, router, statefulCtx, onSubmit]);
 
+  const clearAll = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      tags: [],
+      inputValue: "",
+      selectedTagIds: new Set<string>(),
+      activeTagId: null,
+      isOpen: false,
+    }));
+
+    // Submit with empty state
+    if (mode === "url") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("filter");
+      params.delete("search");
+      params.delete("pageNumber");
+      params.set("pageNumber", "0");
+      router.push(`${pathname}?${params.toString()}`);
+    } else if (mode === "stateful" && statefulCtx) {
+      statefulCtx.setFilters([]);
+    }
+
+    onSubmit?.([], "");
+
+    // Blur the input
+    mainInputRef.current?.blur();
+  }, [mode, searchParams, pathname, router, statefulCtx, onSubmit, mainInputRef]);
+
   const value = useMemo<FilterSearchContextValue>(
     () => ({
       state,
       filters,
       addTag,
+      addCompleteTag,
       removeTag,
       updateTagField,
       updateTagOperator,
@@ -303,6 +431,7 @@ export const FilterSearchProvider = ({
       setIsAddingTag,
       mainInputRef,
       submit,
+      clearAll,
       focusMainInput,
       selectAllTags,
       clearSelection,
@@ -310,11 +439,14 @@ export const FilterSearchProvider = ({
       setOpenSelectId,
       setTagFocusState,
       getTagFocusState,
+      autocompleteData,
+      isAutocompleteLoading,
     }),
     [
       state,
       filters,
       addTag,
+      addCompleteTag,
       removeTag,
       updateTagField,
       updateTagOperator,
@@ -325,6 +457,7 @@ export const FilterSearchProvider = ({
       setActiveIndex,
       setIsAddingTag,
       submit,
+      clearAll,
       focusMainInput,
       selectAllTags,
       clearSelection,
@@ -332,6 +465,8 @@ export const FilterSearchProvider = ({
       setOpenSelectId,
       setTagFocusState,
       getTagFocusState,
+      autocompleteData,
+      isAutocompleteLoading,
     ]
   );
 
