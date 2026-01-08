@@ -1,4 +1,8 @@
+pub mod ch;
+pub mod data_plane;
 pub mod queries;
+
+use bytes::Bytes;
 use opentelemetry::{
     KeyValue, global,
     trace::{Span, Tracer},
@@ -6,6 +10,7 @@ use opentelemetry::{
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sqlx::PgPool;
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -14,8 +19,8 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    data_plane::read::read,
-    db::DB,
+    data_plane::get_workspace_deployment,
+    db::{DB, workspaces::DeploymentMode},
     query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
 };
 
@@ -26,12 +31,6 @@ pub enum SqlQueryError {
     ValidationError(String),
     BadResponseError(String),
     InternalError(String),
-}
-
-#[derive(Deserialize)]
-pub struct ClickhouseBadResponseError {
-    #[serde(default)]
-    pub exception: Option<String>,
 }
 
 const VERSION_REGEX_RAW: &str = r"\s*\(version\s+\d+(?:\.\d+){0,3}(?:\s+\([^)]*\))?\)$";
@@ -104,8 +103,8 @@ pub async fn execute_sql_query(
         }
     };
 
-    // Execute query via data processor
-    let res = read(
+    // Execute query
+    let res = route_and_run_query(
         &db.pool,
         cache,
         clickhouse_ro,
@@ -186,6 +185,7 @@ fn remove_query_from_error_message(error_message: &str) -> String {
     VERSION_REGEX.replace_all(&without_settings, "").to_string()
 }
 
+// Validates the query using the query engine.
 pub async fn validate_query(
     query: String,
     project_id: Uuid,
@@ -220,4 +220,35 @@ pub async fn validate_query(
     span.end();
 
     Ok(validated_query)
+}
+
+// Routes the query to the appropriate backend and runs it.
+pub async fn route_and_run_query(
+    pool: &PgPool,
+    cache: Arc<Cache>,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    http_client: Arc<reqwest::Client>,
+    project_id: Uuid,
+    query: String,
+    parameters: HashMap<String, Value>,
+) -> Result<Bytes, SqlQueryError> {
+    let config = get_workspace_deployment(pool, cache, project_id).await;
+    let deployment_config = match config {
+        Ok(config) => config,
+        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
+    };
+
+    match deployment_config.mode {
+        DeploymentMode::CLOUD => ch::read(clickhouse_ro, project_id, query, parameters).await,
+        DeploymentMode::HYBRID => {
+            data_plane::query(
+                &http_client,
+                project_id,
+                &deployment_config,
+                query,
+                parameters,
+            )
+            .await
+        }
+    }
 }

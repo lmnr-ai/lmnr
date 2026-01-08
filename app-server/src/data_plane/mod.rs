@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod crypto;
-pub mod read;
 
 use anyhow::Result;
 use sqlx::PgPool;
