@@ -19,7 +19,10 @@ import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/se
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
-import { onRealtimeUpdateSpans } from "@/components/rollout-sessions/rollout-session-view/utils.ts";
+import {
+  onRealtimeStartSpan,
+  onRealtimeUpdateSpans,
+} from "@/components/rollout-sessions/rollout-session-view/utils.ts";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { SpanView } from "@/components/traces/span-view";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -175,7 +178,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     } finally {
       setIsTraceLoading(false);
     }
-  }, [projectId, setBrowserSession, setHasBrowserSession, setIsTraceLoading, setTrace, setTraceError, trace?.id]);
+  }, [projectId, setBrowserSession, setHasBrowserSession, setIsTraceLoading, setTrace, setTraceError]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -297,6 +300,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
 
   const eventHandlers = useMemo(
     () => ({
+      span_start: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.span) {
+          onRealtimeStartSpan(setSpans, setTrace, setBrowserSession, setHasBrowserSession)(payload.span);
+        }
+      },
       span_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
@@ -358,7 +367,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     }
     const newPaths = Array.from(paths.entries()).map(([key, path]) => ({ key, path }));
 
-    if (newPaths.map(p => p.key).join("|") === llmPathsRef.current.map(p => p.key).join("|")) {
+    if (newPaths.map((p) => p.key).join("|") === llmPathsRef.current.map((p) => p.key).join("|")) {
       return llmPathsRef.current;
     }
 

@@ -5,6 +5,114 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts"
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { RealtimeSpan } from "@/lib/traces/types.ts";
 
+export const onRealtimeStartSpan =
+  (
+    setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,
+    setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
+    setShowBrowserSession: (show: boolean) => void,
+    setHasBrowserSession: (hasBrowserSession: boolean) => void
+  ) =>
+    (newSpan: Omit<RealtimeSpan, "endTime"> & { endTime?: string }) => {
+      if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
+        setShowBrowserSession(true);
+        setHasBrowserSession(true);
+      }
+
+      setTrace((trace) => {
+      // If no trace exists, create one from span data
+        if (!trace) {
+          return {
+            id: newSpan.traceId,
+            startTime: newSpan.startTime,
+            endTime: newSpan.startTime, // Use startTime as temporary endTime
+            totalTokens: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            inputCost: 0,
+            outputCost: 0,
+            totalCost: 0,
+            metadata: "",
+            status: newSpan.status || "OK",
+            traceType: "DEFAULT",
+            visibility: "private",
+            hasBrowserSession: !!newSpan.attributes["lmnr.internal.has_browser_session"],
+          } as TraceViewTrace;
+        }
+
+        // If trace ID differs from span's trace ID, create new trace from span
+        // This handles when a new rollout run creates a new trace
+        if (trace.id !== newSpan.traceId) {
+          return {
+            id: newSpan.traceId,
+            startTime: newSpan.startTime,
+            endTime: newSpan.startTime, // Use startTime as temporary endTime
+            totalTokens: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            inputCost: 0,
+            outputCost: 0,
+            totalCost: 0,
+            metadata: trace.metadata || "",
+            status: newSpan.status || "OK",
+            traceType: trace.traceType || "DEFAULT",
+            visibility: trace.visibility || "private",
+            hasBrowserSession: trace.hasBrowserSession || !!newSpan.attributes["lmnr.internal.has_browser_session"],
+          } as TraceViewTrace;
+        }
+
+        // Update trace start time if this span started earlier
+        const newTrace = { ...trace };
+        newTrace.startTime =
+        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+          ? newTrace.startTime
+          : newSpan.startTime;
+
+        if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
+          newTrace.hasBrowserSession = true;
+        }
+
+        return newTrace;
+      });
+
+      setSpans((spans) => {
+        const newSpans = [...spans];
+        const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
+
+        // Only add if span doesn't exist yet
+        if (index === -1) {
+          const pendingSpan: TraceViewSpan = {
+            spanId: newSpan.spanId,
+            parentSpanId: newSpan.parentSpanId,
+            traceId: newSpan.traceId,
+            name: newSpan.name,
+            startTime: newSpan.startTime,
+            endTime: newSpan.startTime, // Use startTime as temporary endTime for pending spans
+            attributes: newSpan.attributes,
+            spanType: newSpan.spanType,
+            path: "",
+            events: [],
+            status: newSpan.status,
+            pending: true,
+            collapsed: false,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            inputCost: 0,
+            outputCost: 0,
+            totalCost: 0,
+          };
+          newSpans.push(pendingSpan);
+
+          newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
+        }
+
+        // If span already exists, don't modify it (likely a race condition where update arrived first)
+        return spans;
+      });
+    };
+
 export const onRealtimeUpdateSpans =
   (
     setSpans: (spans: TraceViewSpan[] | ((prevSpans: TraceViewSpan[]) => TraceViewSpan[])) => void,
