@@ -1,8 +1,7 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,44 +24,7 @@ impl RolloutSessionStatus {
     }
 }
 
-#[derive(Deserialize, Serialize, FromRow, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RolloutSession {
-    pub id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub project_id: Uuid,
-    pub params: Value,
-    pub status: String,
-    pub name: Option<String>,
-}
-
-pub async fn get_rollout_session(
-    pool: &PgPool,
-    session_id: &Uuid,
-    project_id: &Uuid,
-) -> Result<Option<RolloutSession>> {
-    let result = sqlx::query_as::<_, RolloutSession>(
-        "SELECT
-            id,
-            created_at,
-            project_id,
-            params,
-            status,
-            name
-        FROM
-            rollout_sessions
-        WHERE
-            id = $1 AND project_id = $2",
-    )
-    .bind(session_id)
-    .bind(project_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(result)
-}
-
-pub async fn create_rollout_session(
+pub async fn create_or_update_rollout_session(
     pool: &PgPool,
     session_id: &Uuid,
     project_id: &Uuid,
@@ -72,7 +34,7 @@ pub async fn create_rollout_session(
     sqlx::query(
         "INSERT INTO rollout_sessions (id, project_id, params, name)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (id) DO NOTHING",
+        ON CONFLICT (id) DO UPDATE SET params = $3, name = $4",
     )
     .bind(session_id)
     .bind(project_id)

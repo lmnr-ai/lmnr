@@ -8,8 +8,8 @@ use crate::{
         DB,
         project_api_keys::ProjectApiKey,
         rollout_sessions::{
-            RolloutSessionStatus, create_rollout_session, delete_rollout_session,
-            get_rollout_session, update_session_status,
+            RolloutSessionStatus, create_or_update_rollout_session, delete_rollout_session,
+            update_session_status,
         },
         spans::SpanType,
     },
@@ -18,9 +18,22 @@ use crate::{
     routes::types::ResponseResult,
 };
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InputParam {
-    pub name: String,
+    name: String,
+    #[serde(default, rename = "type")]
+    param_type: Option<String>,
+    #[serde(default = "default_true")]
+    required: bool,
+    #[serde(default)]
+    default: Option<serde_json::Value>,
+    #[serde(default)]
+    nested: Option<Vec<InputParam>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -36,28 +49,20 @@ pub struct StreamRequest {
 
 #[post("rollouts/{session_id}")]
 pub async fn stream(
-    path: web::Path<String>,
+    path: web::Path<Uuid>,
     project_api_key: ProjectApiKey,
     body: web::Json<StreamRequest>,
     db: web::Data<DB>,
     connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
     let db = db.into_inner();
-    let session_id =
-        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
+    let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
 
-    // Create rollout session if not exists
-    // Create rollout session if not exists
-    if get_rollout_session(&db.pool, &session_id, &project_id)
-        .await?
-        .is_none()
-    {
-        let request_body = body.into_inner();
-        let params = serde_json::to_value(&request_body.params)?;
-        let name = request_body.name;
-        create_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
-    }
+    let request_body = body.into_inner();
+    let params = serde_json::to_value(&request_body.params)?;
+    let name = request_body.name;
+    create_or_update_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
 
     // Prepare handshake message
     let handshake = SseMessage {
