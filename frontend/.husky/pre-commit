@@ -1,1 +1,1 @@
-cd frontend && npx lint-staged && pnpm type-check
+cd frontend && pnpm lint-staged && pnpm type-check
