@@ -60,9 +60,9 @@ pub struct SpanHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
+    pub ch_service: Arc<ClickhouseService>,
     pub storage: Arc<StorageService>,
     pub pubsub: Arc<PubSub>,
-    pub http_client: Arc<reqwest::Client>,
 }
 
 #[async_trait]
@@ -78,13 +78,13 @@ impl MessageHandler for SpanHandler {
             self.storage.clone(),
             self.queue.clone(),
             self.pubsub.clone(),
-            self.http_client.clone(),
+            self.ch_service.clone(),
         )
         .await
     }
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub, ch_service))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -93,7 +93,7 @@ async fn process_spans_and_events_batch(
     storage: Arc<StorageService>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-    http_client: Arc<reqwest::Client>,
+    ch_service: Arc<ClickhouseService>,
 ) -> Result<(), HandlerError> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -157,7 +157,7 @@ async fn process_spans_and_events_batch(
         cache,
         queue,
         pubsub,
-        http_client,
+        ch_service,
     )
     .with_current_context()
     .await
@@ -179,7 +179,8 @@ struct StrippedSpan {
     clickhouse,
     cache,
     queue,
-    pubsub
+    pubsub,
+    ch_service
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -190,7 +191,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
-    http_client: Arc<reqwest::Client>,
+    ch_service: Arc<ClickhouseService>,
 ) -> Result<(), HandlerError> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
@@ -201,14 +202,6 @@ async fn process_batch(
     // project_id can never be None, because batch is never empty
     // but we do unwrap_or_default to avoid Option<Uuid> in the rest of the code
     let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
-
-    // Create ClickhouseService for data inserts
-    let ch_service = ClickhouseService::new(
-        clickhouse.clone(),
-        db.pool.clone(),
-        cache.clone(),
-        (*http_client).clone(),
-    );
 
     for span in &mut spans {
         let span_usage =

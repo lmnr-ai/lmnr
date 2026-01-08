@@ -65,6 +65,7 @@ use storage::{
     StorageService, mock::MockStorage,
 };
 
+use crate::ch::ClickhouseService;
 use crate::features::{enable_consumer, enable_producer};
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 
@@ -651,6 +652,14 @@ fn main() -> anyhow::Result<()> {
         (*http_client).clone(),
     ));
 
+    // == ClickHouse Service ==
+    let ch_service = Arc::new(ClickhouseService::new(
+        clickhouse.clone(),
+        db.pool.clone(),
+        cache.clone(),
+        (*http_client).clone(),
+    ));
+
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let storage_service_for_http = storage_service.clone();
@@ -775,7 +784,7 @@ fn main() -> anyhow::Result<()> {
         let storage_service_for_consumer = storage_service.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
-        let http_client_for_consumer = http_client.clone();
+        let ch_service_for_consumer = ch_service.clone();
         let worker_pool_clone = worker_pool.clone();
 
         let consumer_handle = thread::Builder::new()
@@ -790,7 +799,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
-                        let http_client = http_client_for_consumer.clone();
+                        let ch_service = ch_service_for_consumer.clone();
 
                         worker_pool_clone.spawn(
                             WorkerType::Spans,
@@ -800,9 +809,9 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
+                                ch_service: ch_service.clone(),
                                 storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
-                                http_client: http_client.clone(),
                             },
                             QueueConfig {
                                 queue_name: OBSERVATIONS_QUEUE,
