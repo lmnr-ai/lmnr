@@ -19,6 +19,7 @@ import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/se
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
+import { onRealtimeUpdateSpans } from "@/components/rollout-sessions/rollout-session-view/utils.ts";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { SpanView } from "@/components/traces/span-view";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -26,7 +27,7 @@ import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
-import { enrichSpansWithPending, filterColumns, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
@@ -41,12 +42,10 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 
 interface RolloutSessionContentProps {
   sessionId: string;
-  traceId?: string;
   spanId?: string;
-  propsTrace?: TraceViewTrace;
 }
 
-export default function RolloutSessionContent({ sessionId, traceId, spanId, propsTrace }: RolloutSessionContentProps) {
+export default function RolloutSessionContent({ sessionId, spanId }: RolloutSessionContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -89,8 +88,6 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
     setSystemMessagesMap,
     setIsSystemMessagesLoading,
     setSessionStatus,
-    currentTraceId,
-    setCurrentTraceId,
     sessionStatus,
   } = useRolloutSessionStoreContext((state) => ({
     // Data state
@@ -126,8 +123,6 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
     setHasBrowserSession: state.setHasBrowserSession,
     setSpanPath: state.setSpanPath,
     // Rollout state
-    currentTraceId: state.currentTraceId,
-    setCurrentTraceId: state.setCurrentTraceId,
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
     setSessionStatus: state.setSessionStatus,
@@ -153,48 +148,35 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
   );
 
   const handleFetchTrace = useCallback(async () => {
-    if (!traceId) return;
+    if (!trace?.id) return;
 
     try {
       setIsTraceLoading(true);
       setTraceError(undefined);
 
-      if (propsTrace) {
+      const response = await fetch(`/api/projects/${projectId}/traces/${trace?.id}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        const errorMessage = errorData.error || "Failed to load trace";
+
+        setTraceError(errorMessage);
         return;
-      } else {
-        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-          const errorMessage = errorData.error || "Failed to load trace";
-
-          setTraceError(errorMessage);
-          return;
-        }
-
-        const traceData = (await response.json()) as TraceViewTrace;
-        if (traceData.hasBrowserSession) {
-          setHasBrowserSession(true);
-          setBrowserSession(true);
-        }
-        setTrace(traceData);
       }
+
+      const traceData = (await response.json()) as TraceViewTrace;
+      if (traceData.hasBrowserSession) {
+        setHasBrowserSession(true);
+        setBrowserSession(true);
+      }
+      setTrace(traceData);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
       setTraceError(errorMessage);
     } finally {
       setIsTraceLoading(false);
     }
-  }, [
-    projectId,
-    propsTrace,
-    setBrowserSession,
-    setHasBrowserSession,
-    setIsTraceLoading,
-    setTrace,
-    setTraceError,
-    traceId,
-  ]);
+  }, [projectId, setBrowserSession, setHasBrowserSession, setIsTraceLoading, setTrace, setTraceError, trace?.id]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -225,7 +207,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
 
   const fetchSpans = useCallback(
     async (search: string, filters: Filter[]) => {
-      if (!traceId) return;
+      if (!trace?.id) return;
 
       try {
         setIsSpansLoading(true);
@@ -247,7 +229,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
           params.set("endDate", endDate.toISOString());
         }
 
-        const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
+        const url = `/api/projects/${projectId}/traces/${trace?.id}/spans?${params.toString()}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -284,7 +266,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
       setIsSpansLoading,
       setSpansError,
       projectId,
-      traceId,
+      trace?.id,
       setSpans,
       hasBrowserSession,
       setHasBrowserSession,
@@ -320,11 +302,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
         const payload = JSON.parse(event.data);
         if (payload.spans && Array.isArray(payload.spans)) {
           for (const span of payload.spans) {
-            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession)(span);
-            // Update the current traceId from the incoming span
-            if (span.traceId) {
-              setCurrentTraceId(span.traceId);
-            }
+            onRealtimeUpdateSpans(setSpans, setTrace, setBrowserSession, setHasBrowserSession)(span);
           }
         }
       },
@@ -335,7 +313,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
         }
       },
     }),
-    [setSpans, setTrace, setBrowserSession, setSessionStatus, setCurrentTraceId]
+    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, selectedSpan, setSelectedSpan]
   );
 
   useEffect(() => {
@@ -360,7 +338,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
   }, [searchParams, setSearch, setSearchEnabled]);
 
   useEffect(() => {
-    if (!traceId) return;
+    if (!trace?.id) return;
     fetchSpans(search, filters);
 
     return () => {
@@ -368,10 +346,10 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
+  }, [projectId, filters, setSpans, setTraceError, setSpansError]);
 
   useEffect(() => {
-    if (!projectId || !traceId || spans.length === 0) return;
+    if (!projectId || !trace?.id || spans.length === 0) return;
 
     const llmPaths = new Set<string>();
     for (const span of spans) {
@@ -390,7 +368,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
     const loadSystemMessages = async () => {
       setIsSystemMessagesLoading(true);
       try {
-        const messages = await fetchSystemMessages(projectId as string, traceId, Array.from(llmPaths));
+        const messages = await fetchSystemMessages(projectId as string, trace?.id, Array.from(llmPaths));
         setSystemMessagesMap(messages);
       } catch (error) {
         console.error("Failed to fetch system messages:", error);
@@ -400,7 +378,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
     };
 
     loadSystemMessages();
-  }, [projectId, traceId, spans, setIsSystemMessagesLoading, setSystemMessagesMap]);
+  }, [projectId, trace?.id, spans, setIsSystemMessagesLoading, setSystemMessagesMap]);
 
   useRealtime({
     key: `rollout_session_${sessionId}`,
@@ -536,7 +514,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
               {tab === "timeline" && <Timeline />}
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <List traceId={currentTraceId} onSpanSelect={handleSpanSelect} />
+                  <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />
                   <Minimap onSpanSelect={handleSpanSelect} />
                 </div>
               )}
@@ -558,11 +536,11 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
               <>
                 <ResizableHandle className="z-50" withHandle />
                 <ResizablePanel>
-                  {!isLoading && (
+                  {!isLoading && trace?.id && (
                     <SessionPlayer
                       onClose={() => setBrowserSession(false)}
                       hasBrowserSession={hasBrowserSession}
-                      traceId={currentTraceId}
+                      traceId={trace?.id}
                       llmSpanIds={llmSpanIds}
                     />
                   )}
@@ -587,7 +565,7 @@ export default function RolloutSessionContent({ sessionId, traceId, spanId, prop
                     key={selectedSpan.spanId}
                   />
                 ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={currentTraceId} />
+                  <SpanView spanId={selectedSpan.spanId} traceId={selectedSpan?.traceId} />
                 ))}
             </div>
           </SheetContent>

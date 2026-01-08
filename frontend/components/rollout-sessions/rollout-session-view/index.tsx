@@ -4,21 +4,16 @@ import { useParams } from "next/navigation";
 import React, { useCallback } from "react";
 
 import RolloutSessionContent from "@/components/rollout-sessions/rollout-session-view/rollout-session-content";
-import {
-  TraceViewTrace,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import RolloutSidebar from "@/components/rollout-sessions/rollout-session-view/sidebar";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface RolloutSessionViewProps {
   sessionId: string;
-  traceId?: string;
   spanId?: string;
-  propsTrace?: TraceViewTrace;
 }
 
-const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: RolloutSessionViewProps) => {
+const PureRolloutSessionView = ({ sessionId, spanId }: RolloutSessionViewProps) => {
   const { projectId } = useParams();
   const { toast } = useToast();
 
@@ -68,7 +63,7 @@ const PureRolloutSessionView = ({ sessionId, traceId, spanId, propsTrace }: Roll
         </div>
 
         <div className="flex-1">
-          <RolloutSessionContent sessionId={sessionId} traceId={traceId} spanId={spanId} propsTrace={propsTrace} />
+          <RolloutSessionContent sessionId={sessionId} spanId={spanId} />
         </div>
       </div>
     </div>

@@ -8,17 +8,16 @@ import RolloutSessionStoreProvider, {
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
+import { RolloutSession as RolloutSessionType, RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 
 interface RolloutSessionContentProps {
   sessionId: string;
-  trace?: TraceViewTrace;
 }
 
-const RolloutSessionContent = ({ sessionId, trace }: RolloutSessionContentProps) => (
+const RolloutSessionContent = ({ sessionId }: RolloutSessionContentProps) => (
   <div className="flex-1 min-h-0 flex">
     <FiltersContextProvider>
-      <RolloutSessionView sessionId={sessionId} propsTrace={trace} traceId={trace?.id} />
+      <RolloutSessionView sessionId={sessionId} />
     </FiltersContextProvider>
   </div>
 );
@@ -26,13 +25,13 @@ const RolloutSessionContent = ({ sessionId, trace }: RolloutSessionContentProps)
 const RolloutSession = ({
   projectId,
   params,
-  sessionId,
+  session,
   trace,
   initialStatus,
 }: {
   projectId: string;
   params: Array<any>;
-  sessionId: string;
+  session: RolloutSessionType;
   trace?: TraceViewTrace;
   initialStatus?: RolloutSessionStatus;
 }) => (
@@ -40,7 +39,7 @@ const RolloutSession = ({
     <Header
       path={[
         { name: "rollout-sessions", href: `/project/${projectId}/rollout-sessions` },
-        { name: sessionId, copyValue: sessionId },
+        { name: session.name ?? "-", copyValue: session.id },
       ]}
       childrenContainerClassName="flex-none mr-2 h-12"
     />
@@ -48,11 +47,10 @@ const RolloutSession = ({
     <RolloutSessionStoreProvider
       trace={trace}
       params={params}
-      storeKey={`rollout-session-${sessionId}`}
+      storeKey={`rollout-session-${session.id}`}
       initialStatus={initialStatus}
-      initialTraceId={trace?.id ?? ""}
     >
-      <RolloutSessionContent sessionId={sessionId} trace={trace} />
+      <RolloutSessionContent sessionId={session.id} />
     </RolloutSessionStoreProvider>
   </>
 );

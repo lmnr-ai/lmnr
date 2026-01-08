@@ -15,7 +15,7 @@ import { useScrollContext } from "@/components/traces/trace-view/scroll-context.
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {
-  traceId: string;
+  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
@@ -66,7 +66,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
   const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
-    id: traceId,
+    id: traceId ?? "-",
     startTime: trace?.startTime,
     endTime: trace?.endTime,
   });

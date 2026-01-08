@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 
 import RolloutSession from "@/components/rollout-sessions";
-import { getLatestTraceBySessionId, getRolloutSession, RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
+import {
+  getLatestTraceBySessionId,
+  getRolloutSession,
+  RolloutSession as RolloutSessionType,
+  RolloutSessionStatus,
+} from "@/lib/actions/rollout-sessions";
 
 export default async function RolloutSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
@@ -16,7 +21,7 @@ export default async function RolloutSessionPage(props: { params: Promise<{ proj
     <RolloutSession
       projectId={projectId}
       params={session.params as Array<any>}
-      sessionId={session.id}
+      session={session as RolloutSessionType}
       trace={trace}
       initialStatus={session.status as RolloutSessionStatus}
     />

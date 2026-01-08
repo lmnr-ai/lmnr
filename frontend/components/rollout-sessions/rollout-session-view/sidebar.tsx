@@ -1,10 +1,13 @@
 "use client";
 
+import { json } from "@codemirror/lang-json";
+import CodeMirror from "@uiw/react-codemirror";
 import { AlertTriangle, Loader2, Play, RotateCcw, Save, Square } from "lucide-react";
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment, useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -29,8 +32,38 @@ const SystemMessageEditor = ({
   onEdit,
   onReset,
 }: SystemMessageEditorProps) => {
+  // Local state for draft content - only syncs to store on blur
   const currentContent = overrideContent || message.content;
+  const [localContent, setLocalContent] = useState(currentContent);
+
+  // Sync local state when override content or message content changes from outside
+  useEffect(() => {
+    setLocalContent(currentContent);
+  }, [currentContent]);
+
   const isModified = isEnabled && overrideContent !== undefined && overrideContent !== message.content;
+
+  // Sync to store when user is done editing (on blur)
+  const handleBlur = () => {
+    if (isEnabled && localContent !== currentContent) {
+      onEdit(localContent);
+    }
+  };
+
+  // Handle reset - update local state immediately
+  const handleReset = () => {
+    setLocalContent(message.content);
+    onReset();
+  };
+
+  // Handle toggle - if turning on, initialize local state
+  const handleToggle = () => {
+    if (!isEnabled) {
+      // Turning on - ensure local state is set to current message content
+      setLocalContent(message.content);
+    }
+    onToggle();
+  };
 
   return (
     <div
@@ -46,20 +79,21 @@ const SystemMessageEditor = ({
           </span>
         </div>
         {isModified && (
-          <Button className="text-secondary-foreground hover:text-foreground" variant="ghost" onClick={onReset}>
+          <Button className="text-secondary-foreground hover:text-foreground" variant="ghost" onClick={handleReset}>
             <RotateCcw size={12} className="mr-1" />
             Reset
           </Button>
         )}
       </div>
       <div className="flex items-center gap-2 p-2">
-        <Switch checked={isEnabled} onCheckedChange={onToggle} />
+        <Switch checked={isEnabled} onCheckedChange={handleToggle} />
         <span className="text-xs text-muted-foreground">Override System Prompt</span>
       </div>
       {isEnabled && (
         <Textarea
-          value={currentContent}
-          onChange={(e) => onEdit(e.target.value)}
+          value={localContent}
+          onChange={(e) => setLocalContent(e.target.value)}
+          onBlur={handleBlur}
           className={cn(
             "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none"
           )}
@@ -158,12 +192,16 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
             {params.map((param, index) => (
               <Fragment key={param.name}>
                 <label className="text-xs font-medium text-muted-foreground">{param.name}</label>
-                <Textarea
-                  className="text-sm min-h-20 resize-y"
-                  placeholder={`Enter ${param.name}...`}
-                  value={paramValues[param.name] || ""}
-                  onChange={(e) => setParamValue(param.name, e.target.value)}
-                />
+                <div className="flex border rounded-md bg-muted/50 overflow-hidden min-h-24 max-h-48">
+                  <CodeMirror
+                    className="w-full"
+                    value={paramValues[param.name] || ""}
+                    onChange={(value) => setParamValue(param.name, value)}
+                    extensions={[json(), ...baseExtensions]}
+                    theme={theme}
+                    placeholder={`Enter ${param.name}...`}
+                  />
+                </div>
               </Fragment>
             ))}
           </div>

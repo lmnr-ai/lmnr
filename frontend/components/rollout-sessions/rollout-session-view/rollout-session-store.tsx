@@ -119,7 +119,6 @@ interface RolloutSessionStoreState {
   isRolloutLoading: boolean; // Loading state for both run and cancel operations
   rolloutError?: string;
   sessionStatus: RolloutSessionStatus;
-  currentTraceId: string; // Current trace ID for rollout runs
 
   // Params state
   params: Array<{ name: string; [key: string]: any }>;
@@ -183,7 +182,6 @@ interface RolloutSessionStoreActions {
   setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
   setSessionStatus: (status: RolloutSessionStatus) => void;
-  setCurrentTraceId: (traceId: string) => void;
   // Rollout session actions
   runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
@@ -198,13 +196,11 @@ const createRolloutSessionStore = ({
   params = [],
   storeKey = "rollout-session-state",
   initialStatus = "PENDING",
-  initialTraceId,
 }: {
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: RolloutSessionStatus;
-  initialTraceId: string;
 }) => {
   // Initialize paramValues from params
   const initialParamValues = params.reduce(
@@ -246,7 +242,6 @@ const createRolloutSessionStore = ({
         isRolloutLoading: false,
         rolloutError: undefined,
         sessionStatus: initialStatus,
-        currentTraceId: initialTraceId,
 
         // Params state (initialized from props)
         params,
@@ -628,7 +623,6 @@ const createRolloutSessionStore = ({
         setIsRolloutLoading: (isRolloutLoading: boolean) => set({ isRolloutLoading }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
         setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
-        setCurrentTraceId: (currentTraceId: string) => set({ currentTraceId }),
 
         runRollout: async (projectId: string, sessionId: string) => {
           try {
@@ -636,13 +630,13 @@ const createRolloutSessionStore = ({
 
             // Clear all spans and reset cached span counts before running rollout
             const overrides = get().overrides;
-            const currentTraceId = get().currentTraceId;
+            const currentTraceId = get()?.trace?.id;
             const cachedSpanCounts = get().cachedSpanCounts;
             const paramValues = get().paramValues;
 
             const rolloutPayload: Record<string, any> = {};
 
-            set({ spans: [], cachedSpanCounts: {} });
+            set({ spans: [], cachedSpanCounts: {}, trace: undefined });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
@@ -743,19 +737,17 @@ const RolloutSessionStoreProvider = ({
   params,
   storeKey,
   initialStatus,
-  initialTraceId,
   children,
 }: PropsWithChildren<{
   trace?: TraceViewTrace;
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: RolloutSessionStatus;
-  initialTraceId: string;
 }>) => {
   const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus, initialTraceId });
+    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus });
   }
 
   return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;
