@@ -19,6 +19,23 @@ use crate::{
 };
 
 const DEFAULT_SEARCH_MAX_HITS: usize = 500;
+const QUICKWIT_RESERVED_CHARACTERS: &[char] = &[
+    '?', '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\',
+];
+
+/// Escape special characters for Quickwit query syntax
+fn escape_quickwit_query(query: &str) -> String {
+    query
+        .chars()
+        .flat_map(|c| {
+            if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
+                vec!['\\', c]
+            } else {
+                vec![c]
+            }
+        })
+        .collect()
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +154,9 @@ pub async fn search_spans(
         return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
     }
 
+    // Escape characters reserved by quickwit
+    let escaped_query = escape_quickwit_query(trimmed_query);
+
     // If Quickwit is not available, return empty results (graceful degradation)
     let quickwit_client = match quickwit_client.as_ref() {
         Some(client) => client,
@@ -148,7 +168,7 @@ pub async fn search_spans(
 
     let mut query_parts = vec![
         format!("project_id:{}", project_id),
-        format!("({})", trimmed_query),
+        format!("({})", escaped_query),
     ];
 
     let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
