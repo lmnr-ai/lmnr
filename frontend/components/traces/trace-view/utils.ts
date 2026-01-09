@@ -267,7 +267,7 @@ export const findSpanToSelect = (
 
 export const getSpanDisplayName = (span: TraceViewSpan) => {
   const modelName = span.model;
-  return span.spanType === "LLM" && modelName ? modelName : span.name;
+  return (span.spanType === "LLM" || span.spanType === "CACHED") && modelName ? modelName : span.name;
 };
 
 export const getLLMMetrics = (span: TraceViewSpan) => {

@@ -35,6 +35,7 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
     case SpanType.DEFAULT:
       return <Braces {...iconProps} />;
     case SpanType.LLM:
+    case SpanType.CACHED:
       return <MessageCircle {...iconProps} />;
     case SpanType.EXECUTOR:
       return <Activity {...iconProps} />;
@@ -73,9 +74,10 @@ export default function SpanTypeIcon({
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
-        backgroundColor: (status === "error")
-          ? "rgba(204, 51, 51, 1)" // Red background for errors
-          : (SPAN_TYPE_TO_COLOR?.[spanType] || SPAN_TYPE_TO_COLOR[SpanType.DEFAULT]),
+        backgroundColor:
+          status === "error"
+            ? "rgba(204, 51, 51, 1)" // Red background for errors
+            : SPAN_TYPE_TO_COLOR?.[spanType] || SPAN_TYPE_TO_COLOR[SpanType.DEFAULT],
         minWidth: containerWidth,
         minHeight: containerHeight,
         width: containerWidth,

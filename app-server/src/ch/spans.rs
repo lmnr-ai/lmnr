@@ -21,14 +21,15 @@ use super::utils::chrono_to_nanoseconds;
 impl Into<u8> for SpanType {
     fn into(self) -> u8 {
         match self {
-            SpanType::DEFAULT => 0,
+            SpanType::Default => 0,
             SpanType::LLM => 1,
-            SpanType::PIPELINE => 2,
-            SpanType::EXECUTOR => 3,
-            SpanType::EVALUATOR => 4,
-            SpanType::EVALUATION => 5,
-            SpanType::TOOL => 6,
-            SpanType::HUMAN_EVALUATOR => 7,
+            SpanType::Pipeline => 2,
+            SpanType::Executor => 3,
+            SpanType::Evaluator => 4,
+            SpanType::Evaluation => 5,
+            SpanType::Tool => 6,
+            SpanType::HumanEvaluator => 7,
+            SpanType::Cached => 8,
         }
     }
 }
@@ -36,15 +37,16 @@ impl Into<u8> for SpanType {
 impl From<u8> for SpanType {
     fn from(value: u8) -> Self {
         match value {
-            0 => SpanType::DEFAULT,
+            0 => SpanType::Default,
             1 => SpanType::LLM,
-            2 => SpanType::PIPELINE,
-            3 => SpanType::EXECUTOR,
-            4 => SpanType::EVALUATOR,
-            5 => SpanType::EVALUATION,
-            6 => SpanType::TOOL,
-            7 => SpanType::HUMAN_EVALUATOR,
-            _ => SpanType::DEFAULT,
+            2 => SpanType::Pipeline,
+            3 => SpanType::Executor,
+            4 => SpanType::Evaluator,
+            5 => SpanType::Evaluation,
+            6 => SpanType::Tool,
+            7 => SpanType::HumanEvaluator,
+            8 => SpanType::Cached,
+            _ => SpanType::Default,
         }
     }
 }

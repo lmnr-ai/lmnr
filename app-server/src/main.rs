@@ -994,6 +994,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
+                            .app_data(web::Data::new(pubsub.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1030,7 +1031,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::evaluators::create_evaluator_score)
                                     .service(api::v1::sql::execute_sql_query)
-                                    .service(api::v1::payloads::get_payload),
+                                    .service(api::v1::payloads::get_payload)
+                                    .service(api::v1::rollouts::stream)
+                                    .service(api::v1::rollouts::update_status)
+                                    .service(api::v1::rollouts::send_span_update)
+                                    .service(api::v1::rollouts::delete),
                             )
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
@@ -1042,7 +1047,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
-                                    .service(routes::spans::search_spans),
+                                    .service(routes::spans::search_spans)
+                                    .service(routes::rollouts::run)
+                                    .service(routes::rollouts::update_status),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

@@ -194,7 +194,7 @@ impl TraceAggregation {
                 entry.trace_type = trace_type.clone().into();
             }
 
-            if span.span_type == SpanType::EVALUATION {
+            if span.span_type == SpanType::Evaluation {
                 entry.trace_type = 1;
             }
 

@@ -21,6 +21,7 @@ export enum SpanType {
   TOOL = "TOOL",
   HUMAN_EVALUATOR = "HUMAN_EVALUATOR",
   EVENT = "EVENT",
+  CACHED = "CACHED",
 }
 
 export type RealtimeSpan = {

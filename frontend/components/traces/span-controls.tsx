@@ -81,15 +81,17 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </DropdownMenuContent>
           </DropdownMenu>
           {span.spanType === SpanType.LLM && (
-            <Link
-              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-              passHref
-            >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                <PlayCircle className="mr-1" size={14} />
-                Experiment in playground
-              </Button>
-            </Link>
+            <>
+              <Link
+                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                passHref
+              >
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                  <PlayCircle className="mr-1" size={14} />
+                  Experiment in playground
+                </Button>
+              </Link>
+            </>
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
