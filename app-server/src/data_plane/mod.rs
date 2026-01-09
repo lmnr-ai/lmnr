@@ -2,6 +2,7 @@ pub mod auth;
 pub mod crypto;
 
 use anyhow::Result;
+use log::warn;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -24,9 +25,15 @@ pub async fn get_workspace_deployment(
             let workspace_deployment =
                 get_workspace_deployment_by_project_id(pool, &project_id).await?;
 
-            cache
+            if let Err(e) = cache
                 .insert::<WorkspaceDeployment>(&cache_key, workspace_deployment.clone())
-                .await?;
+                .await
+            {
+                warn!(
+                    "Failed to cache workspace deployment for project {}: {}",
+                    project_id, e
+                );
+            };
             Ok(workspace_deployment)
         }
     }
