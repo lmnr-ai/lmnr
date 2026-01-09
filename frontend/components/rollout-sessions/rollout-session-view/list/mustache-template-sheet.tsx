@@ -59,8 +59,8 @@ function MustacheTemplateSheetContent({
 
   return (
     <ScrollArea>
-      <SheetHeader className="pt-4 px-4 flex-shrink-0">
-        <SheetTitle>Mustache Template Editor</SheetTitle>
+      <SheetHeader className="pt-4 px-4 shrink-0">
+        <SheetTitle className="tracking-tight">Reader mode template</SheetTitle>
         <div className="text-xs text-muted-foreground text-left pt-2 space-y-1">
           <div>Templates are saved per span path. All spans matching this path will use this template.</div>
           <span>Path:</span> <span className="font-medium">{spanPathKey}</span>
