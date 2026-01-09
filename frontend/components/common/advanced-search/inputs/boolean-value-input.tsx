@@ -1,9 +1,8 @@
 "use client";
 
-import { KeyboardEvent, Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import FilterSelect, { FilterSelectOption } from "@/components/ui/filter-select";
-import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
@@ -21,6 +20,8 @@ const booleanOptions: FilterSelectOption[] = [
   { value: "true", label: "true" },
   { value: "false", label: "false" },
 ];
+
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-secondary-foreground text-xs";
 
 const BooleanValueInput = ({ tagId, focused, onExitEditLeft, onExitEditRight, mode, ref }: BooleanValueInputProps) => {
   const { state, updateTagValue, submit, focusMainInput } = useFilterSearch();
@@ -53,33 +54,11 @@ const BooleanValueInput = ({ tagId, focused, onExitEditLeft, onExitEditRight, mo
     [tagId, updateTagValue, submit, focusMainInput]
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      // Only handle arrow navigation when dropdown is closed
-      if (isOpen) return;
-
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        e.stopPropagation();
-        onExitEditLeft?.();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        e.stopPropagation();
-        onExitEditRight?.();
-      }
-      // Let all other keys (Enter, Space, ArrowDown, etc.) pass through to FilterSelect
-    },
-    [isOpen, onExitEditLeft, onExitEditRight]
-  );
-
-  const selectTriggerClassName = cn(
-    "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-secondary-foreground text-xs"
-  );
 
   if (!tag) return null;
 
   return (
-    <div ref={containerRef} onKeyDown={handleKeyDown}>
+    <div ref={containerRef}>
       <FilterSelect
         ref={selectRef}
         value={tag.value}
@@ -87,6 +66,8 @@ const BooleanValueInput = ({ tagId, focused, onExitEditLeft, onExitEditRight, mo
         onChange={handleChange}
         open={isOpen}
         onOpenChange={setIsOpen}
+        onNavigateLeft={onExitEditLeft}
+        onNavigateRight={onExitEditRight}
         placeholder="Select..."
         triggerClassName={selectTriggerClassName}
       />

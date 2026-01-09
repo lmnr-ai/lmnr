@@ -15,6 +15,14 @@ interface NumberValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
+const inputClassName = cn(
+  "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
+  "placeholder:text-muted-foreground min-w-fit max-w-60",
+  "focus:bg-accent/50",
+  "[field-sizing:content]",
+  "hide-arrow"
+);
+
 const NumberValueInput = ({ tagId, onExitEditLeft, onExitEditRight, mode, ref }: NumberValueInputProps) => {
   const { state, updateTagValue, submit, focusMainInput } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
@@ -66,14 +74,6 @@ const NumberValueInput = ({ tagId, onExitEditLeft, onExitEditRight, mode, ref }:
       }
     },
     [mode, handleComplete, onExitEditLeft, onExitEditRight]
-  );
-
-  const inputClassName = cn(
-    "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
-    "placeholder:text-muted-foreground min-w-fit max-w-60",
-    "focus:bg-accent/50",
-    "[field-sizing:content]",
-    "hide-arrow"
   );
 
   if (!tag) return null;

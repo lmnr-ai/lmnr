@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
 import { default as UIFilterSelect, FilterSelectOption } from "@/components/ui/filter-select";
 import { cn } from "@/lib/utils";
@@ -58,13 +58,6 @@ const FilterSelect = ({ tagId, selectType, onNavigateLeft, onNavigateRight, ref 
     return (focusState as any).isOpen ?? false;
   }, [focusState, selectType]);
 
-  // Auto-focus when entering edit mode for this select
-  useEffect(() => {
-    if (focusState.type === selectType && "mode" in focusState && focusState.mode === "edit") {
-      selectRef.current?.focus();
-    }
-  }, [focusState, selectType]);
-
   const handleClick = useCallback(() => {
     setActiveTagId(tagId);
     setTagFocusState(tagId, { type: selectType, mode: "edit", isOpen: false });
@@ -78,11 +71,9 @@ const FilterSelect = ({ tagId, selectType, onNavigateLeft, onNavigateRight, ref 
       if (selectType === "field") {
         updateTagField(tag.id, newValue);
         updateTagValue(tag.id, "");
-        // Move to operator in edit mode but dropdown closed
         setTagFocusState(tagId, { type: "operator", mode: "edit", isOpen: false });
       } else {
         updateTagOperator(tag.id, newValue as any);
-        // Move to value in edit mode
         setTagFocusState(tagId, { type: "value", mode: "edit", showSuggestions: false, isSelectOpen: false });
       }
     },
@@ -98,24 +89,6 @@ const FilterSelect = ({ tagId, selectType, onNavigateLeft, onNavigateRight, ref 
     [focusState, selectType, setTagFocusState, tagId]
   );
 
-  // Handle keyboard navigation when select is closed and in edit mode
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (isOpen) return; // Let FilterSelect handle it
-
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        e.stopPropagation();
-        onNavigateLeft();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        e.stopPropagation();
-        onNavigateRight();
-      }
-    },
-    [isOpen, onNavigateLeft, onNavigateRight]
-  );
-
   if (!tag) return null;
 
   const wrapperClassName = cn(
@@ -124,7 +97,7 @@ const FilterSelect = ({ tagId, selectType, onNavigateLeft, onNavigateRight, ref 
 
   return (
     <div className={wrapperClassName} onMouseDown={handleClick} onClick={(e) => e.stopPropagation()}>
-      <div onKeyDown={handleKeyDown}>
+      <div>
         <UIFilterSelect
           ref={selectRef}
           value={value}
@@ -132,6 +105,8 @@ const FilterSelect = ({ tagId, selectType, onNavigateLeft, onNavigateRight, ref 
           onChange={handleChange}
           open={isOpen}
           onOpenChange={handleOpenChange}
+          onNavigateLeft={onNavigateLeft}
+          onNavigateRight={onNavigateRight}
           triggerClassName="h-6 w-fit min-w-[28px] px-1.5 bg-transparent text-secondary-foreground font-medium text-xs"
         />
       </div>

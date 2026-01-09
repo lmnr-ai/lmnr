@@ -170,10 +170,8 @@ const FilterTag = ({
       setTagFocusState(tag.id, createNavFocusState(nextField));
       containerRef.current?.focus();
     } else if (isLast) {
-      // At rightmost field, go to main input
       focusMainInput();
     } else {
-      // Navigate to next tag
       onNavigateRight();
     }
   }, [focusState.type, isLast, focusMainInput, onNavigateRight, tag.id, setTagFocusState]);

@@ -24,29 +24,18 @@ interface ValueInputProps {
 }
 
 const ValueInput = memo(
-  ({
-    tagId,
-    columnFilter,
-    suggestions,
-    focused,
-    onExitEditLeft,
-    onExitEditRight,
-    mode,
-    ref,
-  }: ValueInputProps) => {
+  ({ tagId, columnFilter, suggestions, focused, onExitEditLeft, onExitEditRight, mode, ref }: ValueInputProps) => {
     const { getTagFocusState, setTagFocusState, setActiveTagId } = useFilterSearch();
     const focusState = getTagFocusState(tagId);
     const dataType = columnFilter.dataType;
 
-    const handleClick = useCallback(() => {
+    const handleMouseDown = useCallback(() => {
       setActiveTagId(tagId);
       setTagFocusState(tagId, { type: "value", mode: "edit", showSuggestions: false, isSelectOpen: false });
-      // Focus will be handled by the child input component via useImperativeHandle
       if (ref && typeof ref !== "function" && ref.current) {
         ref.current.focus();
       }
     }, [tagId, setActiveTagId, setTagFocusState, ref]);
-
     const wrapperClassName = cn(
       focusState.type === "value" && "mode" in focusState && focusState.mode === "nav" && "bg-accent/50"
     );
@@ -60,7 +49,6 @@ const ValueInput = memo(
               ref={ref}
               tagId={tagId}
               options={columnFilter.options}
-              focused={focused}
               onExitEditLeft={onExitEditLeft}
               onExitEditRight={onExitEditRight}
               mode={mode}
@@ -117,7 +105,7 @@ const ValueInput = memo(
     };
 
     return (
-      <div className={wrapperClassName} onMouseDown={handleClick} onClick={(e) => e.stopPropagation()}>
+      <div className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
         {renderInput()}
       </div>
     );

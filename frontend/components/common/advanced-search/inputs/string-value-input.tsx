@@ -18,6 +18,13 @@ interface StringValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
+const inputClassName = cn(
+  "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
+  "placeholder:text-muted-foreground min-w-fit max-w-60",
+  "focus:bg-accent/50",
+  "[field-sizing:content]"
+);
+
 const StringValueInput = ({
   tagId,
   suggestions,
@@ -107,12 +114,7 @@ const StringValueInput = ({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="..."
-        className={cn(
-          "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
-          "placeholder:text-muted-foreground min-w-fit max-w-60",
-          "focus:bg-accent/50",
-          "[field-sizing:content]"
-        )}
+        className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
       />
       {mode === "edit" && focused && suggestions.length > 0 && (

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import React, { ChangeEvent, FocusEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { Button } from "@/components/ui/button.tsx";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
@@ -269,19 +270,20 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
         />
       </div>
 
-      {hasContent ? (
-        <button
+      {hasContent && (
+        <Button
           type="button"
+          variant="ghost"
           onClick={clearAll}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 -m-1 rounded-sm hover:bg-accent"
+          className="text-muted-foreground"
           aria-label="Clear all filters"
         >
           <X className="size-4" />
-        </button>
-      ) : (
-        <div className="text-center text-xs opacity-75">⌘K</div>
+        </Button>
       )}
-
+      <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
+        ⌘K
+      </kbd>
       <FilterSuggestions />
     </div>
   );

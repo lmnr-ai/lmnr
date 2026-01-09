@@ -23,6 +23,8 @@ interface FilterSelectProps {
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
+  onNavigateLeft?: () => void;
+  onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
 }
 
@@ -36,6 +38,8 @@ const FilterSelect = ({
   className,
   triggerClassName,
   contentClassName,
+  onNavigateLeft,
+  onNavigateRight,
   ref,
 }: FilterSelectProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,7 +111,14 @@ const FilterSelect = ({
         return;
       }
 
+      // When open, handle dropdown navigation
       switch (e.key) {
+        case "ArrowLeft":
+          onNavigateLeft?.();
+          break;
+        case "ArrowRight":
+          onNavigateRight?.();
+          break;
         case "ArrowDown":
           e.preventDefault();
           setHighlightedIndex((prev) => Math.min(prev + 1, options.length - 1));
@@ -130,7 +141,7 @@ const FilterSelect = ({
           break;
       }
     },
-    [open, highlightedIndex, options, onChange, onOpenChange]
+    [open, highlightedIndex, options, onChange, onOpenChange, onNavigateLeft, onNavigateRight]
   );
 
   const handleOptionMouseDown = useCallback(
