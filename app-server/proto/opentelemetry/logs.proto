@@ -1,0 +1,107 @@
+// Copyright 2024, Laminar
+//
+// Simplified OpenTelemetry-like log format for Laminar logs ingestion.
+
+syntax = "proto3";
+
+package lmnr.logs.v1;
+
+import "opentelemetry/common.proto";
+
+option go_package = "github.com/lmnr-ai/lmnr/proto/logs/v1";
+
+// Service for exporting logs.
+service LogsService {
+  // Export logs to the server.
+  rpc Export(ExportLogsServiceRequest) returns (ExportLogsServiceResponse) {}
+}
+
+// Request message for exporting logs.
+message ExportLogsServiceRequest {
+  // An array of ResourceLogs.
+  repeated ResourceLogs resource_logs = 1;
+}
+
+// Response message for exporting logs.
+message ExportLogsServiceResponse {
+  // Partial success information if some logs were rejected.
+  ExportLogsPartialSuccess partial_success = 1;
+}
+
+// Partial success response for log export.
+message ExportLogsPartialSuccess {
+  // The number of rejected log records.
+  int64 rejected_log_records = 1;
+
+  // A developer-facing human-readable error message.
+  string error_message = 2;
+}
+
+// A collection of ScopeLogs from a Resource.
+message ResourceLogs {
+  // A list of ScopeLogs that originate from a resource.
+  repeated ScopeLogs scope_logs = 1;
+}
+
+// A collection of Logs produced by a Scope.
+message ScopeLogs {
+  // A list of log records.
+  repeated LogRecord log_records = 1;
+}
+
+// Possible values for LogRecord severity.
+enum SeverityNumber {
+  SEVERITY_NUMBER_UNSPECIFIED = 0;
+  SEVERITY_NUMBER_TRACE = 1;
+  SEVERITY_NUMBER_TRACE2 = 2;
+  SEVERITY_NUMBER_TRACE3 = 3;
+  SEVERITY_NUMBER_TRACE4 = 4;
+  SEVERITY_NUMBER_DEBUG = 5;
+  SEVERITY_NUMBER_DEBUG2 = 6;
+  SEVERITY_NUMBER_DEBUG3 = 7;
+  SEVERITY_NUMBER_DEBUG4 = 8;
+  SEVERITY_NUMBER_INFO = 9;
+  SEVERITY_NUMBER_INFO2 = 10;
+  SEVERITY_NUMBER_INFO3 = 11;
+  SEVERITY_NUMBER_INFO4 = 12;
+  SEVERITY_NUMBER_WARN = 13;
+  SEVERITY_NUMBER_WARN2 = 14;
+  SEVERITY_NUMBER_WARN3 = 15;
+  SEVERITY_NUMBER_WARN4 = 16;
+  SEVERITY_NUMBER_ERROR = 17;
+  SEVERITY_NUMBER_ERROR2 = 18;
+  SEVERITY_NUMBER_ERROR3 = 19;
+  SEVERITY_NUMBER_ERROR4 = 20;
+  SEVERITY_NUMBER_FATAL = 21;
+  SEVERITY_NUMBER_FATAL2 = 22;
+  SEVERITY_NUMBER_FATAL3 = 23;
+  SEVERITY_NUMBER_FATAL4 = 24;
+}
+
+// A log record according to OpenTelemetry Log Data Model.
+message LogRecord {
+  // Time when the event occurred measured by the origin clock.
+  // This field is semantically required and should be set whenever possible.
+  fixed64 time_unix_nano = 1;
+
+  // Time when the event was observed by the collection system.
+  fixed64 observed_time_unix_nano = 2;
+
+  // Numerical value of the severity.
+  SeverityNumber severity_number = 3;
+
+  // The severity text (also known as log level).
+  string severity_text = 4;
+
+  // A value containing the body of the log record.
+  opentelemetry_proto_common_v1.AnyValue body = 5;
+
+  // Additional attributes that describe the specific event occurrence.
+  repeated opentelemetry_proto_common_v1.KeyValue attributes = 6;
+
+  // A unique identifier for a trace.
+  bytes trace_id = 7;
+
+  // A unique identifier for a span within a trace.
+  bytes span_id = 8;
+}

@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "./proto/opentelemetry/resource.proto",
                 "./proto/opentelemetry/trace.proto",
                 "./proto/opentelemetry/trace_service.proto",
+                "./proto/opentelemetry/logs.proto",
             ],
             &["proto"],
         )?;

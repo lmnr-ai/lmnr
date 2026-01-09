@@ -24,6 +24,11 @@ use lapin::{
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
 };
+use logs::{
+    LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
+    grpc_service::ProcessLogsService,
+};
+use opentelemetry_proto::lmnr::logs::v1::logs_service_server::LogsServiceServer;
 use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
@@ -82,6 +87,7 @@ mod evaluators;
 mod features;
 mod instrumentation;
 mod language_model;
+mod logs;
 mod mq;
 mod names;
 mod notifications;
@@ -476,6 +482,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.8 Logs message queue ====
+            channel
+                .exchange_declare(
+                    LOGS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    LOGS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -509,6 +541,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
+        // ==== 3.8 Logs message queue ====
+        queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -763,8 +797,13 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_logs_workers = env::var("NUM_LOGS_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
+
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}, Logs workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
@@ -772,7 +811,8 @@ fn main() -> anyhow::Result<()> {
             num_payload_workers,
             num_semantic_event_workers,
             num_notification_workers,
-            num_clustering_workers
+            num_clustering_workers,
+            num_logs_workers
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -960,6 +1000,23 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
+                    // Spawn logs workers
+                    {
+                        let ch_service = ch_service_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::Logs,
+                            num_logs_workers as usize,
+                            move || LogsHandler {
+                                ch_service: ch_service.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: LOGS_QUEUE,
+                                exchange_name: LOGS_EXCHANGE,
+                                routing_key: LOGS_ROUTING_KEY,
+                            },
+                        );
+                    }
+
                     HttpServer::new(move || {
                         App::new()
                             .wrap(NormalizePath::trim())
@@ -1037,6 +1094,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::traces::process_traces),
                             )
                             .service(
+                                web::scope("/v1/logs")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(api::v1::logs::process_logs),
+                            )
+                            .service(
                                 web::scope("/v1/metrics")
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::metrics::process_metrics),
@@ -1098,9 +1160,18 @@ fn main() -> anyhow::Result<()> {
                         queue.clone(),
                     );
 
+                    let process_logs_service =
+                        ProcessLogsService::new(db.clone(), cache.clone(), queue.clone());
+
                     Server::builder()
                         .add_service(
                             TraceServiceServer::new(process_traces_service)
+                                .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
+                                .send_compressed(tonic::codec::CompressionEncoding::Gzip)
+                                .max_decoding_message_size(grpc_payload_limit),
+                        )
+                        .add_service(
+                            LogsServiceServer::new(process_logs_service)
                                 .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
                                 .send_compressed(tonic::codec::CompressionEncoding::Gzip)
                                 .max_decoding_message_size(grpc_payload_limit),

@@ -8,6 +8,7 @@ pub mod evaluation_scores;
 pub mod evaluator_scores;
 pub mod events;
 pub mod limits;
+pub mod logs;
 mod service;
 pub mod spans;
 pub mod tags;
@@ -28,6 +29,7 @@ pub enum Table {
     Spans,
     Traces,
     Tags,
+    Logs,
 }
 
 impl Table {
@@ -36,6 +38,7 @@ impl Table {
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
             Table::Tags => "tags",
+            Table::Logs => "logs",
         }
     }
 }
