@@ -17,13 +17,26 @@ use crate::{
 };
 
 #[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum Args {
+    KeyValue(HashMap<String, Value>),
+    Array(Vec<Value>),
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Self::KeyValue(HashMap::new())
+    }
+}
+
+#[derive(Deserialize, Serialize)]
 struct RunRequest {
     #[serde(default)]
     pub trace_id: Option<Uuid>,
     #[serde(default)]
     pub path_to_count: HashMap<String, u32>,
     #[serde(default)]
-    pub args: HashMap<String, Value>,
+    pub args: Args,
     #[serde(default)]
     pub overrides: HashMap<String, SpanOverride>,
 }
