@@ -15,8 +15,10 @@ import {
   TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import SearchRolloutSessionSpansInput from "@/components/rollout-sessions/rollout-session-view/search";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
+import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
 import {
@@ -29,7 +31,6 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
-import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
@@ -92,6 +93,8 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setIsSystemMessagesLoading,
     setSessionStatus,
     sessionStatus,
+    isSessionDeleted,
+    setIsSessionDeleted,
   } = useRolloutSessionStoreContext((state) => ({
     // Data state
     selectedSpan: state.selectedSpan,
@@ -130,6 +133,8 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
     setSessionStatus: state.setSessionStatus,
     sessionStatus: state.sessionStatus,
+    isSessionDeleted: state.isSessionDeleted,
+    setIsSessionDeleted: state.setIsSessionDeleted,
   }));
 
   const { value: filters, onChange: setFilters } = useFiltersContextProvider();
@@ -320,8 +325,14 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           setSessionStatus(payload.status);
         }
       },
+      session_deleted: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.session_id) {
+          setIsSessionDeleted(true);
+        }
+      },
     }),
-    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, selectedSpan, setSelectedSpan]
+    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, setIsSessionDeleted]
   );
 
   useEffect(() => {
@@ -361,7 +372,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     const paths = new Map<string, string[]>();
     for (const span of spans) {
       const path = get(span.attributes, "lmnr.span.path") as string[] | undefined;
-      if (span.spanType === SpanType.LLM && path) {
+      if (span.spanType === SpanType.LLM && path && !span.pending) {
         paths.set(path.join("."), path);
       }
     }
@@ -454,6 +465,8 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   return (
     <ScrollContextProvider>
       <div className="flex flex-col h-full w-full overflow-hidden">
+        {isSessionDeleted && <SessionTerminatedOverlay />}
+
         <Header />
         <div className="flex flex-col gap-2 p-2 border-b box-border">
           <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
@@ -511,7 +524,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         </div>
 
         {(search || searchEnabled) && (
-          <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
+          <SearchRolloutSessionSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
         )}
 
         {spansError ? (

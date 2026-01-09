@@ -20,6 +20,7 @@ import { RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
+import { tryParseJson } from "@/lib/utils.ts";
 
 import { SystemMessage } from "./system-messages-utils";
 
@@ -119,10 +120,10 @@ interface RolloutSessionStoreState {
   isRolloutLoading: boolean; // Loading state for both run and cancel operations
   rolloutError?: string;
   sessionStatus: RolloutSessionStatus;
-
+  isSessionDeleted: boolean;
   // Params state
   params: Array<{ name: string; [key: string]: any }>;
-  paramValues: Record<string, string>;
+  paramValues: string; // JSON string that can be either array or object
 }
 
 interface RolloutSessionStoreActions {
@@ -182,11 +183,12 @@ interface RolloutSessionStoreActions {
   setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
   setSessionStatus: (status: RolloutSessionStatus) => void;
+  setIsSessionDeleted: (isSessionDeleted: boolean) => void;
   // Rollout session actions
   runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
 
-  setParamValue: (name: string, value: string) => void;
+  setParamValue: (value: string) => void;
 }
 
 type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions;
@@ -201,17 +203,8 @@ const createRolloutSessionStore = ({
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: RolloutSessionStatus;
-}) => {
-  // Initialize paramValues from params
-  const initialParamValues = params.reduce(
-    (acc, param) => {
-      acc[param.name] = "";
-      return acc;
-    },
-    {} as Record<string, string>
-  );
-
-  return createStore<RolloutSessionStore>()(
+}) =>
+  createStore<RolloutSessionStore>()(
     persist(
       (set, get) => ({
         trace: trace,
@@ -242,10 +235,10 @@ const createRolloutSessionStore = ({
         isRolloutLoading: false,
         rolloutError: undefined,
         sessionStatus: initialStatus,
-
+        isSessionDeleted: false,
         // Params state (initialized from props)
         params,
-        paramValues: initialParamValues,
+        paramValues: "" as string, // Empty JSON string initially
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -645,17 +638,8 @@ const createRolloutSessionStore = ({
               rolloutPayload.path_to_count = cachedSpanCounts;
             }
 
-            const nonEmptyParams = Object.entries(paramValues).reduce(
-              (acc, [key, value]) => {
-                if (value && value.trim() !== "") {
-                  acc[key] = value;
-                }
-                return acc;
-              },
-              {} as Record<string, string>
-            );
-            if (Object.keys(nonEmptyParams).length > 0) {
-              rolloutPayload.args = nonEmptyParams;
+            if (paramValues && paramValues.trim() !== "") {
+              rolloutPayload.args = tryParseJson(paramValues);
             }
 
             if (Object.keys(overrides).length > 0) {
@@ -685,6 +669,7 @@ const createRolloutSessionStore = ({
             set({ isRolloutLoading: false });
           }
         },
+        setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
 
         cancelSession: async (projectId: string, sessionId: string) => {
           try {
@@ -711,10 +696,8 @@ const createRolloutSessionStore = ({
           }
         },
 
-        setParamValue: (name, value) => {
-          set((state) => ({
-            paramValues: { ...state.paramValues, [name]: value },
-          }));
+        setParamValue: (value: string) => {
+          set({ paramValues: value });
         },
       }),
       {
@@ -728,7 +711,6 @@ const createRolloutSessionStore = ({
       }
     )
   );
-};
 
 const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> | undefined>(undefined);
 

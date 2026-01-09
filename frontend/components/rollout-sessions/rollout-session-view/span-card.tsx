@@ -121,7 +121,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
             <div
               className={cn(
                 "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
-                span.pending && "text-muted-foreground"
+                span.pending && "text-muted-foreground shimmer"
               )}
             >
               {getSpanDisplayName(span)}

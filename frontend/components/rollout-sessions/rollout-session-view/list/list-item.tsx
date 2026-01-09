@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
@@ -8,12 +8,14 @@ import {
   TraceViewListSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils.ts";
 
 interface ListItemProps {
@@ -64,6 +66,8 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
     setIsExpanded(shouldBeExpanded);
   }, [span.spanId, span.spanType]);
 
+  const isPending = span.pending;
+
   const output = getOutput(span.spanId);
   const isLoadingOutput = output === undefined;
 
@@ -85,13 +89,19 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           "opacity-50": isCached,
         }
       )}
-      onClick={() => onSpanSelect(span)}
+      onClick={() => {
+        if (!isPending) {
+          onSpanSelect(span);
+        }
+      }}
     >
       <div className="flex items-center gap-2 pl-2 pr-3 py-2">
         <div className="flex items-center gap-2 flex-1 justify-between overflow-hidden">
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
-            <SpanTypeIcon spanType={span.spanType} />
-            <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
+            <SpanTypeIcon spanType={span.spanType} className={cn({ "text-muted-foreground bg-muted": isPending })} />
+            <span className={cn("font-medium text-sm truncate min-w-0", isPending && "text-muted-foreground shimmer")}>
+              {displayName}
+            </span>
             <Button
               variant="ghost"
               onClick={(e) => {
@@ -138,24 +148,36 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
-            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded hidden group-hover/message:flex flex-shrink-0 animate-in fade-in duration-200">
-              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                <Clock3 size={12} className="min-w-3 min-h-3" />
-                <span>{getDurationString(span.startTime, span.endTime)}</span>
+            {isPending ? (
+              isStringDateOld(span.startTime) ? (
+                <NoSpanTooltip>
+                  <div className="flex rounded bg-secondary p-1">
+                    <X className="w-4 h-4 text-secondary-foreground" />
+                  </div>
+                </NoSpanTooltip>
+              ) : (
+                <Skeleton className="w-20 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+              )
+            ) : (
+              <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded hidden group-hover/message:flex flex-shrink-0 animate-in fade-in duration-200">
+                <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                  <Clock3 size={12} className="min-w-3 min-h-3" />
+                  <span>{getDurationString(span.startTime, span.endTime)}</span>
+                </div>
+                {span.totalTokens > 0 && (
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <Coins size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>{numberFormatter.format(span.totalTokens)}</span>
+                  </div>
+                )}
+                {span.totalCost > 0 && (
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>${span.totalCost.toFixed(4)}</span>
+                  </div>
+                )}
               </div>
-              {span.totalTokens > 0 && (
-                <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                  <Coins size={14} className="min-w-[14px] min-h-[14px]" />
-                  <span>{numberFormatter.format(span.totalTokens)}</span>
-                </div>
-              )}
-              {span.totalCost > 0 && (
-                <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                  <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
-                  <span>${span.totalCost.toFixed(4)}</span>
-                </div>
-              )}
-            </div>
+            )}
             <Button
               disabled={isLoadingOutput}
               variant="ghost"
@@ -199,7 +221,7 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
         <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
           {isLoadingOutput ? (
             <>
-              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-5 w-full" />
             </>
           ) : isNil(output) ? (
             <div className="text-sm text-muted-foreground italic">No output available</div>

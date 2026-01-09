@@ -168,6 +168,7 @@ pub async fn delete(
     path: web::Path<String>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id =
@@ -175,6 +176,16 @@ pub async fn delete(
     let project_id = project_api_key.project_id;
 
     delete_rollout_session(&db.pool, &session_id, &project_id).await?;
+
+    // Send deletion event to frontend via SSE
+    let message = SseMessage {
+        event_type: "session_deleted".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+        }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
     Ok(HttpResponse::Ok().finish())
 }

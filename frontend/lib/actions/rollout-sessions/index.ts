@@ -111,7 +111,7 @@ const RunRolloutSessionSchema = z.object({
   sessionId: z.string(),
   trace_id: z.string().optional(),
   path_to_count: z.record(z.string(), z.number()).optional(),
-  args: z.record(z.string(), z.any()).optional(),
+  args: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   overrides: z.record(z.string(), z.any()).optional(),
 });
 

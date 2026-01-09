@@ -338,6 +338,9 @@ importers:
       swr:
         specifier: ^2.3.6
         version: 2.3.6(react@19.1.1)
+      tw-shimmer:
+        specifier: ^0.4.2
+        version: 0.4.2(tailwindcss@4.1.15)
       use-stick-to-bottom:
         specifier: ^1.1.1
         version: 1.1.1(react@19.1.1)
@@ -7474,6 +7477,11 @@ packages:
     resolution: {integrity: sha512-yyxBKfORQ7LuRt/BQKBXrpcq59ZvSW0XxwfjAt3w2/8PmdxaFzijtMhTawprSHhpzeM5BgU2hXHG3lklIERZXg==}
     engines: {node: '>=18.0.0'}
     hasBin: true
+
+  tw-shimmer@0.4.2:
+    resolution: {integrity: sha512-z55WnYpscs9Ih4O6M7LA2NVUsfBo2ZVjbyRrOCN/RyNKqMQfOk6ANzBW3RCeHXDJZXua7oFOGXHjUjxZG6S7Dg==}
+    peerDependencies:
+      tailwindcss: '>=4.0.0-0'
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -16383,6 +16391,10 @@ snapshots:
       get-tsconfig: 4.10.1
     optionalDependencies:
       fsevents: 2.3.3
+
+  tw-shimmer@0.4.2(tailwindcss@4.1.15):
+    dependencies:
+      tailwindcss: 4.1.15
 
   type-check@0.4.0:
     dependencies:

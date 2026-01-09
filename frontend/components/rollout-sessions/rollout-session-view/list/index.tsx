@@ -63,7 +63,12 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
 
   const items = virtualizer?.getVirtualItems() || [];
 
-  const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
+  const visibleSpanIds = compact(
+    items.map((item) => {
+      const listSpan = listSpans[item.index];
+      return listSpan && !listSpan.pending ? listSpan.spanId : null;
+    })
+  ) as string[];
 
   const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
     id: traceId ?? "-",

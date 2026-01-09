@@ -279,24 +279,25 @@ export const transformSpansToFlatMinimap = (spans: TraceViewSpan[], traceDuratio
   });
 };
 
-export const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] => listSpans.reduce<TraceViewSpan[][]>((sections, span) => {
-  const lastSection = sections[sections.length - 1];
+export const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
+  listSpans.reduce<TraceViewSpan[][]>((sections, span) => {
+    const lastSection = sections[sections.length - 1];
 
-  if (span.spanType === "LLM" && lastSection && lastSection.length > 0) {
-    sections.push([span]);
-  } else {
-    if (!lastSection) {
+    if (span.spanType === "LLM" && lastSection && lastSection.length > 0) {
       sections.push([span]);
     } else {
-      lastSection.push(span);
+      if (!lastSection) {
+        sections.push([span]);
+      } else {
+        lastSection.push(span);
+      }
     }
-  }
-  return sections;
-}, []);
+    return sections;
+  }, []);
 
 const buildParentChainRecursive = (
   spanId: string,
-  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>,
+  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>,
   chain: string[] = []
 ): string[] => {
   const span = spanMap.get(spanId);
@@ -318,7 +319,7 @@ const buildParentChainRecursive = (
  */
 export const buildSpanNameMap = (
   sections: TraceViewSpan[][],
-  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>
+  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Map<string, { name: string; count?: number }> => {
   const map = new Map<string, { name: string; count?: number }>();
 
@@ -331,7 +332,10 @@ export const buildSpanNameMap = (
 
     const commonParentIndex =
       parentChains.length > 0
-        ? parentChains[0].reduce((maxIndex, spanId, i) => parentChains.every((chain) => chain[i] === spanId) ? i : maxIndex, 0)
+        ? parentChains[0].reduce(
+          (maxIndex, spanId, i) => (parentChains.every((chain) => chain[i] === spanId) ? i : maxIndex),
+          0
+        )
         : 0;
 
     const spansInContext = new Set<string>(parentChains.flatMap((chain) => chain.slice(commonParentIndex)));
@@ -339,7 +343,7 @@ export const buildSpanNameMap = (
     const nameCounter = new Map<string, number>();
     const sortedSpans = Array.from(spansInContext)
       .map((id) => spanMap.get(id))
-      .filter((span): span is Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'> => span !== undefined);
+      .filter((span): span is Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId"> => span !== undefined);
 
     sortedSpans.forEach((span) => {
       const name = span.name;
@@ -356,7 +360,7 @@ export const buildSpanNameMap = (
 
 export const buildParentChain = (
   span: TraceViewSpan,
-  spanMap: Map<string, Pick<TraceViewSpan, 'spanId' | 'name' | 'parentSpanId'>>
+  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Array<{ spanId: string; name: string }> => {
   const parentChainIds = buildParentChainRecursive(span.spanId, spanMap);
 

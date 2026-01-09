@@ -3,7 +3,7 @@
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
 import { AlertTriangle, Loader2, Play, RotateCcw, Save, Square } from "lucide-react";
-import React, { Fragment, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -50,16 +50,13 @@ const SystemMessageEditor = ({
     }
   };
 
-  // Handle reset - update local state immediately
   const handleReset = () => {
     setLocalContent(message.content);
     onReset();
   };
 
-  // Handle toggle - if turning on, initialize local state
   const handleToggle = () => {
     if (!isEnabled) {
-      // Turning on - ensure local state is set to current message content
       setLocalContent(message.content);
     }
     onToggle();
@@ -145,6 +142,18 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
   const isRunning = sessionStatus === "RUNNING";
   const canRun = sessionStatus === "PENDING" || sessionStatus === "FINISHED" || sessionStatus === "STOPPED";
 
+  const handleParamsBlur = () => {
+    if (paramValues && paramValues.trim() !== "") {
+      try {
+        const parsed = JSON.parse(paramValues);
+        const prettified = JSON.stringify(parsed, null, 2);
+        if (prettified !== paramValues) {
+          setParamValue(prettified);
+        }
+      } catch (e) {}
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 gap-4 divide-y [&>div]:px-4 pt-4 [&>div]:pb-4 overflow-y-auto styled-scrollbar">
       <div className="flex flex-col gap-2">
@@ -190,21 +199,21 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
         <div className="flex flex-col gap-2">
           <h4 className="text-sm font-semibold">Parameters</h4>
           <div className="flex flex-col gap-2">
-            {params.map((param, index) => (
-              <Fragment key={param.name}>
-                <label className="text-xs font-medium text-muted-foreground">{param.name}</label>
-                <div className="flex border rounded-md bg-muted/50 overflow-hidden max-h-48">
-                  <CodeMirror
-                    className="w-full"
-                    value={paramValues[param.name] || ""}
-                    onChange={(value) => setParamValue(param.name, value)}
-                    extensions={[json(), ...baseExtensions]}
-                    theme={theme}
-                    placeholder={`Enter ${param.name}...`}
-                  />
-                </div>
-              </Fragment>
-            ))}
+            <div className="text-xs text-muted-foreground px-2 py-1 bg-muted/30 rounded-md">
+              <span className="font-medium">Params order: </span>
+              <span className="font-mono">{params.map((p) => p.name).join(", ")}</span>
+            </div>
+            <div className="flex border rounded-md bg-muted/50 overflow-hidden max-h-96">
+              <CodeMirror
+                className="w-full"
+                value={paramValues}
+                onBlur={handleParamsBlur}
+                onChange={(value) => setParamValue(value)}
+                extensions={[json(), ...baseExtensions]}
+                theme={theme}
+                placeholder='Enter params as array [value1, value2] or object {"key1": value1, "key2": value2}'
+              />
+            </div>
           </div>
         </div>
       )}
