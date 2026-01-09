@@ -2,11 +2,14 @@
 //!
 //! Implements ClickhouseTrait by sending requests to a remote data plane server.
 
+use std::sync::Arc;
+
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde::Serialize;
 use tracing::instrument;
 
+use crate::cache::Cache;
 use crate::data_plane::{auth::generate_auth_token, crypto};
 use crate::db::workspaces::WorkspaceDeployment;
 
@@ -29,13 +32,19 @@ pub enum DataPlaneBatch {
 #[derive(Clone)]
 pub struct DataPlaneClickhouse {
     http_client: reqwest::Client,
+    cache: Arc<Cache>,
     config: WorkspaceDeployment,
 }
 
 impl DataPlaneClickhouse {
-    pub fn new(http_client: reqwest::Client, config: WorkspaceDeployment) -> Self {
+    pub fn new(
+        http_client: reqwest::Client,
+        cache: Arc<Cache>,
+        config: WorkspaceDeployment,
+    ) -> Self {
         Self {
             http_client,
+            cache,
             config,
         }
     }
@@ -63,7 +72,8 @@ impl ClickhouseTrait for DataPlaneClickhouse {
         )
         .map_err(|e| anyhow!(e.to_string()))?;
 
-        let auth_token = generate_auth_token(&self.config)
+        let auth_token = generate_auth_token(self.cache.clone(), &self.config)
+            .await
             .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
 
         let batch = T::to_data_plane_batch(items.to_vec());

@@ -59,7 +59,8 @@ impl StorageService {
         match config.mode {
             DeploymentMode::CLOUD => (*self.storage).store(bucket, key, data).await,
             DeploymentMode::HYBRID => {
-                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                let data_plane =
+                    DataPlaneStorage::new(self.http_client.clone(), self.cache.clone(), config);
                 data_plane.store(bucket, key, data).await
             }
         }
@@ -79,7 +80,8 @@ impl StorageService {
         match config.mode {
             DeploymentMode::CLOUD => (*self.storage).get_stream(bucket, key).await,
             DeploymentMode::HYBRID => {
-                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                let data_plane =
+                    DataPlaneStorage::new(self.http_client.clone(), self.cache.clone(), config);
                 data_plane.get_stream(bucket, key).await
             }
         }
@@ -93,7 +95,8 @@ impl StorageService {
         match config.mode {
             DeploymentMode::CLOUD => (*self.storage).get_size(bucket, key).await,
             DeploymentMode::HYBRID => {
-                let data_plane = DataPlaneStorage::new(self.http_client.clone(), config);
+                let data_plane =
+                    DataPlaneStorage::new(self.http_client.clone(), self.cache.clone(), config);
                 data_plane.get_size(bucket, key).await
             }
         }

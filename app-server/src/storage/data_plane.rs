@@ -3,12 +3,14 @@
 //! Implements StorageTrait by sending requests to a remote data plane server.
 
 use std::pin::Pin;
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use serde::Serialize;
 
+use crate::cache::Cache;
 use crate::data_plane::{auth::generate_auth_token, crypto};
 use crate::db::workspaces::WorkspaceDeployment;
 
@@ -33,19 +35,25 @@ mod base64_serde {
 #[derive(Clone)]
 pub struct DataPlaneStorage {
     http_client: reqwest::Client,
+    cache: Arc<Cache>,
     config: WorkspaceDeployment,
 }
 
 impl DataPlaneStorage {
-    pub fn new(http_client: reqwest::Client, config: WorkspaceDeployment) -> Self {
+    pub fn new(
+        http_client: reqwest::Client,
+        cache: Arc<Cache>,
+        config: WorkspaceDeployment,
+    ) -> Self {
         Self {
             http_client,
+            cache,
             config,
         }
     }
 
     /// Get decrypted data plane URL and auth token.
-    fn get_url_and_token(&self) -> Result<(String, String)> {
+    async fn get_url_and_token(&self) -> Result<(String, String)> {
         let (Some(data_plane_url_nonce), Some(data_plane_url)) = (
             &self.config.data_plane_url_nonce,
             &self.config.data_plane_url,
@@ -60,7 +68,8 @@ impl DataPlaneStorage {
         )
         .map_err(|e| anyhow!(e.to_string()))?;
 
-        let auth_token = generate_auth_token(&self.config)
+        let auth_token = generate_auth_token(self.cache.clone(), &self.config)
+            .await
             .map_err(|e| anyhow!("Failed to generate auth token: {}", e))?;
 
         Ok((data_plane_url, auth_token))
@@ -73,7 +82,7 @@ impl super::StorageTrait for DataPlaneStorage {
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
 
     async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
-        let (data_plane_url, auth_token) = self.get_url_and_token()?;
+        let (data_plane_url, auth_token) = self.get_url_and_token().await?;
 
         let payload = StorageUploadPayload {
             bucket,
@@ -106,7 +115,7 @@ impl super::StorageTrait for DataPlaneStorage {
     }
 
     async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {
-        let (data_plane_url, auth_token) = self.get_url_and_token()?;
+        let (data_plane_url, auth_token) = self.get_url_and_token().await?;
 
         let response = self
             .http_client
@@ -135,7 +144,7 @@ impl super::StorageTrait for DataPlaneStorage {
     }
 
     async fn get_size(&self, bucket: &str, key: &str) -> Result<u64> {
-        let (data_plane_url, auth_token) = self.get_url_and_token()?;
+        let (data_plane_url, auth_token) = self.get_url_and_token().await?;
 
         let response = self
             .http_client

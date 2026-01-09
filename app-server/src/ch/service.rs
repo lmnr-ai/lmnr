@@ -55,7 +55,8 @@ impl ClickhouseService {
             DeploymentMode::CLOUD => self.direct.insert_batch(items).await,
             DeploymentMode::HYBRID => {
                 // Create DataPlaneClickhouse with workspace-specific config
-                let data_plane = DataPlaneClickhouse::new(self.http_client.clone(), config);
+                let data_plane =
+                    DataPlaneClickhouse::new(self.http_client.clone(), self.cache.clone(), config);
                 data_plane.insert_batch(items).await
             }
         }

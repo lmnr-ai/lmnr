@@ -232,7 +232,7 @@ pub async fn route_and_run_query(
     query: String,
     parameters: HashMap<String, Value>,
 ) -> Result<Bytes, SqlQueryError> {
-    let config = get_workspace_deployment(pool, cache, project_id).await;
+    let config = get_workspace_deployment(pool, cache.clone(), project_id).await;
     let deployment_config = match config {
         Ok(config) => config,
         Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
@@ -243,6 +243,7 @@ pub async fn route_and_run_query(
         DeploymentMode::HYBRID => {
             data_plane::query(
                 &http_client,
+                cache,
                 project_id,
                 &deployment_config,
                 query,

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use opentelemetry::{
@@ -11,6 +12,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     data_plane::{auth::generate_auth_token, crypto},
     db::workspaces::WorkspaceDeployment,
     sql::SqlQueryError,
@@ -25,6 +27,7 @@ struct DataPlaneReadRequest {
 
 pub async fn query(
     http_client: &reqwest::Client,
+    cache: Arc<Cache>,
     project_id: Uuid,
     config: &WorkspaceDeployment,
     query: String,
@@ -45,11 +48,9 @@ pub async fn query(
         .map_err(|e| SqlQueryError::InternalError(e.to_string()))?;
 
     // Generate auth token
-    let auth_token = generate_auth_token(config);
-    let auth_token = match auth_token {
-        Ok(token) => token,
-        Err(e) => return Err(SqlQueryError::InternalError(e.to_string())),
-    };
+    let auth_token = generate_auth_token(cache, config)
+        .await
+        .map_err(|e| SqlQueryError::InternalError(e.to_string()))?;
 
     let mut span = tracer.start("execute_data_plane_sql_query");
     span.set_attribute(KeyValue::new("sql.query", query.clone()));

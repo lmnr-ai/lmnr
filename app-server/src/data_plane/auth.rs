@@ -11,14 +11,13 @@
 //! cargo run --bin generate-keys  # or use the generate_keypair() function
 //! ```
 
-use std::sync::OnceLock;
-use std::time::Duration;
+use std::sync::Arc;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use moka::sync::Cache;
+use log::warn;
 use sodiumoxide::crypto::sign;
-use uuid::Uuid;
 
+use crate::cache::{Cache, CacheTrait, keys::DATA_PLANE_AUTH_TOKEN_CACHE_KEY};
 use crate::db::workspaces::WorkspaceDeployment;
 
 use super::crypto::decrypt;
@@ -28,9 +27,6 @@ const TOKEN_EXPIRATION_SECS: i64 = 900;
 
 /// Cache TTL - refresh token when 80% of lifetime has passed (12 minutes)
 const TOKEN_CACHE_TTL_SECS: u64 = 720;
-
-/// Cache of tokens per workspace_id
-static TOKEN_CACHE: OnceLock<Cache<Uuid, String>> = OnceLock::new();
 
 fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, String> {
     let (Some(private_key_nonce), Some(private_key)) =
@@ -50,15 +46,6 @@ fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, Stri
         .ok_or_else(|| "Invalid Ed25519 secret key (expected 64 bytes)".to_string())
 }
 
-fn get_token_cache() -> &'static Cache<Uuid, String> {
-    TOKEN_CACHE.get_or_init(|| {
-        Cache::builder()
-            .time_to_live(Duration::from_secs(TOKEN_CACHE_TTL_SECS))
-            .max_capacity(10_000)
-            .build()
-    })
-}
-
 /// Generate a signed token for data plane authentication.
 ///
 /// Uses Ed25519 signatures with a private key from environment variable.
@@ -66,11 +53,17 @@ fn get_token_cache() -> &'static Cache<Uuid, String> {
 ///
 /// Token format: `base64(payload).base64(signature)`
 /// Payload format: `workspace_id:issued_at:expires_at`
-pub fn generate_auth_token(config: &WorkspaceDeployment) -> Result<String, String> {
-    let cache = get_token_cache();
+pub async fn generate_auth_token(
+    cache: Arc<Cache>,
+    config: &WorkspaceDeployment,
+) -> Result<String, String> {
+    let cache_key = format!(
+        "{}:{}",
+        DATA_PLANE_AUTH_TOKEN_CACHE_KEY, config.workspace_id
+    );
 
     // Return cached token if available
-    if let Some(token) = cache.get(&config.workspace_id) {
+    if let Ok(Some(token)) = cache.get::<String>(&cache_key).await {
         return Ok(token);
     }
 
@@ -93,8 +86,16 @@ pub fn generate_auth_token(config: &WorkspaceDeployment) -> Result<String, Strin
         URL_SAFE_NO_PAD.encode(signature.as_ref())
     );
 
-    // Cache the token
-    cache.insert(config.workspace_id, token.clone());
+    // Cache the token with TTL (best-effort, don't fail if caching fails)
+    if let Err(e) = cache
+        .insert_with_ttl(&cache_key, token.clone(), TOKEN_CACHE_TTL_SECS)
+        .await
+    {
+        warn!(
+            "Failed to cache auth token for workspace {}: {}",
+            config.workspace_id, e
+        );
+    }
 
     Ok(token)
 }
