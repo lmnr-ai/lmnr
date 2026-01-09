@@ -115,7 +115,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
           defaultValue={editTemplate?.name}
           onBlur={handleEdit}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent border-token-border-light p-0 h-fit"
+          className="w-full bg-transparent border-token-border-light py-px text-sm! h-fit"
           type="text"
           onClick={(e) => e.preventDefault()}
         />
@@ -133,7 +133,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
             <Button
               variant="ghost"
               size="sm"
-              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 ml-auto focus-visible:ring-0"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 min-w-6 p-0 ml-auto focus-visible:ring-0 hover:bg-muted"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical className="h-3 w-3" />
@@ -147,8 +147,10 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
               }}
               className="cursor-pointer"
             >
-              <Edit className="h-3 w-3 mr-2" />
-              Edit
+              <Edit className="h-3.5 w-3.5 text-inherit" />
+              <span>
+                  Edit
+              </span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
@@ -157,8 +159,10 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
               }}
               className="cursor-pointer text-destructive focus:text-destructive"
             >
-              <Trash2 className="h-3 w-3 mr-2" />
-              Delete
+              <Trash2 className="h-3.5 w-3.5 text-inherit" />
+              <span>
+                Delete
+              </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

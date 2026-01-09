@@ -54,6 +54,20 @@ export const getTimeRange = (
   throw new Error("Invalid time range");
 };
 
+export const getOptionalTimeRange = (
+  pastHours: string | undefined,
+  startDate: string | undefined,
+  endDate: string | undefined
+): TimeRange | undefined => {
+  if (pastHours) {
+    return { pastHours: parseInt(pastHours) };
+  }
+  if (startDate && endDate) {
+    return { start: new Date(startDate), end: new Date(endDate) };
+  }
+  return undefined;
+};
+
 export const addTimeRangeToQuery = (query: string, timeRange: TimeRange, column: string): string => {
   if (!validateSqlString(column)) {
     throw new Error(`Invalid column name: ${column}`);

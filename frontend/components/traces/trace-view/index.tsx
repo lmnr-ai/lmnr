@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
@@ -44,10 +44,10 @@ import Tree from "./tree";
 
 interface TraceViewProps {
   traceId: string;
-  // Span id here to control span selection by spans table
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
+  initialSearch?: string;
 }
 
 const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
@@ -139,30 +139,30 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   const handleFetchTrace = useCallback(async () => {
+    if (propsTrace) {
+      return;
+    }
+
     try {
       setIsTraceLoading(true);
       setTraceError(undefined);
 
-      if (propsTrace) {
+      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        const errorMessage = errorData.error || "Failed to load trace";
+
+        setTraceError(errorMessage);
         return;
-      } else {
-        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-          const errorMessage = errorData.error || "Failed to load trace";
-
-          setTraceError(errorMessage);
-          return;
-        }
-
-        const traceData = (await response.json()) as TraceViewTrace;
-        if (traceData.hasBrowserSession) {
-          setHasBrowserSession(true);
-          setBrowserSession(true);
-        }
-        setTrace(traceData);
       }
+
+      const traceData = (await response.json()) as TraceViewTrace;
+      if (traceData.hasBrowserSession) {
+        setHasBrowserSession(true);
+        setBrowserSession(true);
+      }
+      setTrace(traceData);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
       setTraceError(errorMessage);
@@ -349,14 +349,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
-
-  useLayoutEffect(() => {
-    const urlSearch = searchParams.get("search");
-    if (urlSearch) {
-      setSearch(urlSearch);
-      setSearchEnabled(true);
-    }
-  }, []);
 
   useEffect(() => {
     fetchSpans(search, filters);
@@ -575,7 +567,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider trace={props.propsTrace}>
+    <TraceViewStoreProvider initialSearch={props.initialSearch} initialTrace={props.propsTrace}>
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );

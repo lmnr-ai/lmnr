@@ -10,13 +10,13 @@ import {
   ChevronDown,
   Database,
   FileJson2,
-  Loader,
   Loader2,
   PlayIcon,
+  Square,
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { ReactNode, useCallback, useMemo, useState } from "react";
+import React, { ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import SQLEditor from "@/components/sql/editor";
@@ -33,9 +33,10 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
-  const [results, setResults] = useState<Record<string, any>[]>([]);
+  const [results, setResults] = useState<Record<string, any>[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
   const { template, getFormattedParameters, parameters, onChange } = useSqlEditorStore((state) => ({
@@ -46,11 +47,11 @@ export default function EditorPanel() {
   }));
 
   const hasQuery = Boolean(template?.query?.trim());
-  const hasResults = results.length > 0;
+  const hasResults = results !== null && results.length > 0;
 
   const columns = useMemo<ColumnDef<any>[]>(() => {
-    if (!isEmpty(results)) {
-      return Object.keys(results?.[0]).map((column) => ({
+    if (results && !isEmpty(results)) {
+      return Object.keys(results[0]).map((column) => ({
         id: column,
         header: column,
         accessorFn: (row: any) => {
@@ -71,6 +72,17 @@ export default function EditorPanel() {
     return [];
   }, [results]);
 
+  const cancelQuery = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+      toast({
+        title: "Query cancelled.",
+      });
+    }
+  }, [toast]);
+
   const executeQuery = useCallback(async () => {
     const query = template?.query?.trim();
     if (!query) {
@@ -82,6 +94,12 @@ export default function EditorPanel() {
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setIsLoading(true);
     setError(null);
 
@@ -91,6 +109,7 @@ export default function EditorPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, parameters }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -112,6 +131,10 @@ export default function EditorPanel() {
 
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred while executing the query.";
       try {
@@ -126,7 +149,10 @@ export default function EditorPanel() {
       }
       setResults([]);
     } finally {
-      setIsLoading(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+        setIsLoading(false);
+      }
     }
   }, [projectId, template?.query, toast, getFormattedParameters]);
 
@@ -156,9 +182,11 @@ export default function EditorPanel() {
 
       if (error) {
         return (
-          <div className="flex items-center justify-center h-full space-x-2 text-destructive">
-            <AlertCircle className="w-4 h-4" />
-            <div className="text-sm whitespace-pre-wrap">{error}</div>
+          <div className="flex flex-1 items-center justify-center h-full space-x-2 text-destructive">
+            <div className="flex gap-2">
+              <AlertCircle className="size-5" />
+              <div className="whitespace-pre-wrap text-sm">{error}</div>
+            </div>
           </div>
         );
       }
@@ -167,7 +195,7 @@ export default function EditorPanel() {
         return success;
       }
 
-      if (results && results.length === 0) {
+      if (results !== null && results.length === 0) {
         return (
           <div className="flex w-full items-center justify-center h-full text-muted-foreground">
             Query executed successfully but returned no results
@@ -208,26 +236,29 @@ export default function EditorPanel() {
               </TabsTrigger>
             </TabsList>
             <div className="ml-auto">
+              {isLoading ? (
+                <Button onClick={cancelQuery} className="rounded-tr-none rounded-br-none border-r-0">
+                  <Square size={14} className="mr-1" fill="currentColor" />
+                  <span className="mr-2">Cancel</span>
+                </Button>
+              ) : (
+                <Button
+                  disabled={!hasQuery}
+                  onClick={executeQuery}
+                  className="rounded-tr-none rounded-br-none border-r-0"
+                >
+                  <PlayIcon size={14} className="mr-1" />
+                  <span className="mr-2">Run</span>
+                  <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
+                </Button>
+              )}
               <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
-                <Button disabled={!hasQuery} variant="secondary" className="rounded-tr-none rounded-br-none border-r-0">
+                <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none">
                   <Database className="size-3.5 mr-2" />
                   Export
                   <ChevronDown className="size-3.5 ml-2" />
                 </Button>
               </ExportSqlDialog>
-              <Button
-                disabled={isLoading || !hasQuery}
-                onClick={executeQuery}
-                className="ml-auto px-2 rounded-tl-none rounded-bl-none"
-              >
-                {isLoading ? (
-                  <Loader size={14} className="mr-1 animate-spin" />
-                ) : (
-                  <PlayIcon size={14} className="mr-1" />
-                )}
-                <span className="mr-2">Run</span>
-                <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
-              </Button>
             </div>
           </div>
           <TabsContent asChild value="table">
@@ -282,7 +313,7 @@ export default function EditorPanel() {
           <TabsContent asChild value="chart">
             <div className="flex flex-col flex-1 overflow-hidden">
               {renderContent({
-                success: <ChartBuilder query={template?.query || ""} data={results || []} />,
+                success: <ChartBuilder query={template?.query || ""} data={results || []} storageKey={template?.id} />,
                 loadingText: "Generating chart...",
                 default: (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-3">

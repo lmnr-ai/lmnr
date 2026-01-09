@@ -151,27 +151,27 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: TraceViewTrace; key?: string }) =>
+const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
-        trace: trace,
+        trace: initialTrace,
         isTraceLoading: false,
         traceError: undefined,
         spans: [],
         isSpansLoading: false,
         spansError: undefined,
         selectedSpan: undefined,
-        browserSession: false,
+        browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        search: "",
-        searchEnabled: false,
+        search: initialSearch || "",
+        searchEnabled: !!initialSearch,
         zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
-        hasBrowserSession: false,
+        hasBrowserSession: initialTrace?.hasBrowserSession || false,
         spanTemplates: {},
         spanPathCounts: new Map(),
 
@@ -406,7 +406,7 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
         },
       }),
       {
-        name: key,
+        name: "trace-view-state",
         partialize: (state) => ({
           treeWidth: state.treeWidth,
           spanPath: state.spanPath,
@@ -420,14 +420,14 @@ const createTraceViewStore = ({ trace, key = "trace-view-state" }: { trace?: Tra
 const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
 
 const TraceViewStoreProvider = ({
-  trace,
-  key,
   children,
-}: PropsWithChildren<{ trace?: TraceViewTrace; key?: string }>) => {
+  initialSearch,
+  initialTrace,
+}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore({ trace, key });
+    storeRef.current = createTraceViewStore(initialSearch, initialTrace);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;
