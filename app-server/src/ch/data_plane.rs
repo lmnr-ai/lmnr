@@ -24,7 +24,7 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 #[serde(tag = "table", content = "data", rename_all = "snake_case")]
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
-    Traces(Vec<CHTrace>),
+    TracesReplacing(Vec<CHTrace>),
     Tags(Vec<CHTag>),
 }
 
