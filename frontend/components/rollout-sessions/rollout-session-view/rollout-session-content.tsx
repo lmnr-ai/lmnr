@@ -411,27 +411,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     eventHandlers,
   });
 
-  if (isEmpty(spans)) {
-    const isRunning = sessionStatus === "RUNNING";
-    return (
-      <div className="flex items-center justify-center p-6 h-full">
-        <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-sm text-muted-foreground">
-              {isRunning ? "Running rollout..." : "Waiting for traces..."}
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground text-center max-w-sm">
-            {isRunning
-              ? "The rollout is running. Traces will appear here once they arrive."
-              : "Run the rollout to start, or traces will appear here when your code runs."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
@@ -457,6 +436,27 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
             <h3 className="text-lg font-semibold text-destructive mb-4">Error Loading Trace</h3>
             <p className="text-sm text-muted-foreground">{traceError}</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEmpty(spans)) {
+    const isRunning = sessionStatus === "RUNNING";
+    return (
+      <div className="flex items-center justify-center p-6 h-full">
+        <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
+          <div className="flex items-center gap-2">
+            <Radio className="w-4 h-4 text-primary animate-pulse" />
+            <span className="text-sm text-muted-foreground">
+              {isRunning ? "Running rollout..." : "Waiting for traces..."}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground text-center max-w-sm">
+            {isRunning
+              ? "The rollout is running. Traces will appear here once they arrive."
+              : "Run the rollout to start, or traces will appear here when your code runs."}
+          </p>
         </div>
       </div>
     );
@@ -524,7 +524,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         </div>
 
         {(search || searchEnabled) && (
-          <SearchRolloutSessionSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
+          <SearchRolloutSessionSpansInput
+            spans={spans}
+            submit={fetchSpans}
+            filters={filters}
+            onAddFilter={handleAddFilter}
+          />
         )}
 
         {spansError ? (
