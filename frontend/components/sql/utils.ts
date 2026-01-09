@@ -1,5 +1,6 @@
 import { autocompletion, CompletionContext, completionKeymap, CompletionResult } from "@codemirror/autocomplete";
 import { schemaCompletionSource, sql, SQLConfig, SQLNamespace } from "@codemirror/lang-sql";
+import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { createTheme } from "@uiw/codemirror-themes";
@@ -36,12 +37,20 @@ const tableSchemas = {
     { name: "total_cost", type: "Float64", description: "Total cost of the span" },
     { name: "attributes", type: "String", description: "Span attributes as stringified JSON" },
     { name: "trace_id", type: "UUID", description: "ID of the trace" },
-    { name: "tags", type: "String", description: "Tags associated with the span as a stringified JSON array of strings" },
+    {
+      name: "tags",
+      type: "String",
+      description: "Tags associated with the span as a stringified JSON array of strings",
+    },
   ],
   traces: [
     // Core columns
     { name: "id", type: "UUID", description: "Unique identifier for the trace" },
-    { name: "trace_type", type: "trace_type", description: "Stringified enum value of the trace type (DEFAULT, EVALUATION, PLAYGROUND)" },
+    {
+      name: "trace_type",
+      type: "trace_type",
+      description: "Stringified enum value of the trace type (DEFAULT, EVALUATION, PLAYGROUND)",
+    },
     { name: "metadata", type: "String", description: "Trace metadata as stringified JSON" },
     { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
     { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the trace ended" },
@@ -78,7 +87,11 @@ const tableSchemas = {
     { name: "executor_output", type: "String", description: "Output from the executor as" },
     { name: "index", type: "Int64", description: "Index of the evaluation datapoint within the evaluation" },
     { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
-    { name: "scores", type: "String", description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value" },
+    {
+      name: "scores",
+      type: "String",
+      description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
+    },
   ],
   events: [
     { name: "id", type: "UUID", description: "Unique identifier for the event" },
@@ -109,7 +122,7 @@ const sqlSchema: SQLNamespace = Object.fromEntries(
   Object.entries(tableSchemas).map(([tableName, columns]) => [
     tableName,
     columns.map((col) =>
-      col.name !== '*'
+      col.name !== "*"
         ? {
           label: col.name,
           type: "property",
@@ -129,7 +142,8 @@ const createOption = (label: string, type: string, info: string, apply?: string)
   info,
   apply: apply || label,
 });
-const isInEnumContext = (textBefore: string): boolean => /\b(span_type|trace_type|tag_source)\s*=\s*[^=\n]*$/.test(textBefore);
+const isInEnumContext = (textBefore: string): boolean =>
+  /\b(span_type|trace_type|tag_source)\s*=\s*[^=\n]*$/.test(textBefore);
 const getEnumType = (textBefore: string): string | null => {
   const match = textBefore.match(/\b(span_type|trace_type|tag_source)(?=\s*=)/);
   return match ? match[1] : null;
@@ -143,7 +157,6 @@ const generateEnumCompletions = (enumType: string, partialValue: string) => {
     .filter((value) => matchesSearch(value, partialValue))
     .map((value) => createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
 };
-
 
 const generateEnumValueCompletions = (searchTerm: string) =>
   Object.entries(enumValues).flatMap(([enumType, values]) =>
@@ -182,11 +195,11 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
   });
 
 const generateAllColumnCompletions = (searchTerm: string) => {
-  const columnMap = new Map<string, { tables: string[], type: string, description: string }>();
+  const columnMap = new Map<string, { tables: string[]; type: string; description: string }>();
 
   Object.entries(tableSchemas).forEach(([tableName, columns]) => {
     columns
-      .filter((col) => col.name !== '*' && startsWithSearch(col.name, searchTerm))
+      .filter((col) => col.name !== "*" && startsWithSearch(col.name, searchTerm))
       .forEach((col) => {
         if (!columnMap.has(col.name)) {
           columnMap.set(col.name, {
@@ -206,7 +219,7 @@ const generateAllColumnCompletions = (searchTerm: string) => {
 
   const allColumns: any[] = [];
   columnMap.forEach((data, columnName) => {
-    const tableList = data.tables.join(', ');
+    const tableList = data.tables.join(", ");
     allColumns.push({
       label: columnName,
       type: "property",
@@ -233,12 +246,14 @@ const generateCompletions = (textBefore: string, searchTerm: string) => {
 const sqlConfig: SQLConfig = {
   dialect: ClickHouseDialect,
   schema: sqlSchema,
-  upperCaseKeywords: true
+  upperCaseKeywords: true,
 };
 
 const sqlSchemaCompletions = schemaCompletionSource(sqlConfig);
 
-const combinedCompletionSource = (context: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
+const combinedCompletionSource = (
+  context: CompletionContext
+): CompletionResult | Promise<CompletionResult | null> | null => {
   const word = context.matchBefore(/\w*/);
   if (!word || (word.from === word.to && !context.explicit)) {
     return null;
@@ -256,11 +271,7 @@ const combinedCompletionSource = (context: CompletionContext): CompletionResult 
 
   if (sqlCompletions instanceof Promise) {
     return sqlCompletions.then((resolved) => {
-      const allOptions = [
-        ...(resolved?.options || []),
-        ...sortedCustomOptions.slice(0, 50),
-        ...columnCompletions,
-      ];
+      const allOptions = [...(resolved?.options || []), ...sortedCustomOptions.slice(0, 50), ...columnCompletions];
 
       if (allOptions.length > 0) {
         return {
@@ -272,11 +283,7 @@ const combinedCompletionSource = (context: CompletionContext): CompletionResult 
       return null;
     });
   } else {
-    const allOptions = [
-      ...(sqlCompletions?.options || []),
-      ...sortedCustomOptions.slice(0, 50),
-      ...columnCompletions,
-    ];
+    const allOptions = [...(sqlCompletions?.options || []), ...sortedCustomOptions.slice(0, 50), ...columnCompletions];
 
     if (allOptions.length > 0) {
       return {
@@ -309,16 +316,23 @@ export const extensions = [
       width: "100%",
       position: "relative",
     },
+    ".cm-searchMatch": {
+      backgroundColor: "hsl(var(--primary) / 0.3)",
+      border: "1px solid hsl(var(--primary))",
+      borderRadius: "3px",
+    },
     ".cm-searchMatch-selected": {
       backgroundColor: "hsl(var(--primary))",
       color: "hsl(var(--primary-foreground))",
       fontWeight: "600",
     },
   }),
+  search(),
+  highlightSelectionMatches(),
   EditorView.lineWrapping,
   sql({
     dialect: ClickHouseDialect,
-    upperCaseKeywords: true
+    upperCaseKeywords: true,
   }),
   ClickHouseDialect.language.data.of({
     autocomplete: combinedCompletionSource,
