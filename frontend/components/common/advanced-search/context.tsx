@@ -25,34 +25,10 @@ import {
   FilterSearchState,
   FilterTag,
   FilterTagFocusState,
+  FilterTagRef,
   generateTagId,
+  TagFocusPosition,
 } from "./types";
-
-interface StatefulFilterContextValue {
-  filters: Filter[];
-  setFilters: Dispatch<SetStateAction<Filter[]>>;
-}
-
-const StatefulFilterContext = createContext<StatefulFilterContextValue | null>(null);
-
-export const useStatefulFilters = () => {
-  const ctx = useContext(StatefulFilterContext);
-  if (!ctx) {
-    throw new Error("useStatefulFilters must be used within StatefulFilterProvider");
-  }
-  return ctx;
-};
-
-export const StatefulFilterProvider = ({
-  initialFilters = [],
-  children,
-}: PropsWithChildren<{ initialFilters?: Filter[] }>) => {
-  const [filters, setFilters] = useState<Filter[]>(initialFilters);
-
-  const value = useMemo(() => ({ filters, setFilters }), [filters]);
-
-  return <StatefulFilterContext.Provider value={value}>{children}</StatefulFilterContext.Provider>;
-};
 
 // Autocomplete Context
 interface AutocompleteContextValue {
@@ -101,13 +77,11 @@ export const useFilterSearch = () => {
 
 interface FilterSearchProviderProps {
   filters: ColumnFilter[];
-  mode: "url" | "stateful";
   onSubmit?: (filters: Filter[], search: string) => void;
 }
 
 export const FilterSearchProvider = ({
   filters,
-  mode,
   onSubmit,
   children,
 }: PropsWithChildren<FilterSearchProviderProps>) => {
@@ -115,10 +89,7 @@ export const FilterSearchProvider = ({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const mainInputRef = useRef<HTMLInputElement>(null);
-
-  // Always call useContext unconditionally (React hooks rule)
-  const statefulCtxValue = useContext(StatefulFilterContext);
-  const statefulCtx = mode === "stateful" ? statefulCtxValue : null;
+  const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
 
   // Get autocomplete data from context
   const autocompleteCtx = useContext(AutocompleteContext);
@@ -126,41 +97,24 @@ export const FilterSearchProvider = ({
   const isAutocompleteLoading = autocompleteCtx?.isAutocompleteLoading ?? false;
 
   const initialState = useMemo((): FilterSearchState => {
-    if (mode === "url") {
-      const rawSearch = searchParams.get("search") ?? "";
-      const filterParams = searchParams.getAll("filter");
-      const tags: FilterTag[] = filterParams.flatMap((f) => {
-        try {
-          const parsed = JSON.parse(f) as Filter;
-          const columnFilter = filters.find((col) => col.key === parsed.column);
-          if (columnFilter) {
-            return [createTagFromFilter(parsed)];
-          }
-          return [];
-        } catch {
-          return [];
+    const rawSearch = searchParams.get("search") ?? "";
+    const filterParams = searchParams.getAll("filter");
+    const tags: FilterTag[] = filterParams.flatMap((f) => {
+      try {
+        const parsed = JSON.parse(f) as Filter;
+        const columnFilter = filters.find((col) => col.key === parsed.column);
+        if (columnFilter) {
+          return [createTagFromFilter(parsed)];
         }
-      });
+        return [];
+      } catch {
+        return [];
+      }
+    });
 
-      return {
-        tags,
-        inputValue: rawSearch,
-        activeTagId: null,
-        isOpen: false,
-        activeIndex: 0,
-        isAddingTag: false,
-        selectedTagIds: new Set<string>(),
-        openSelectId: null,
-        tagFocusStates: new Map<string, FilterTagFocusState>(),
-      };
-    }
-
-    // Stateful mode
-    const statefulFilters = statefulCtx?.filters ?? [];
-    const tags = statefulFilters.map(createTagFromFilter);
     return {
       tags,
-      inputValue: "",
+      inputValue: rawSearch,
       activeTagId: null,
       isOpen: false,
       activeIndex: 0,
@@ -169,7 +123,7 @@ export const FilterSearchProvider = ({
       openSelectId: null,
       tagFocusStates: new Map<string, FilterTagFocusState>(),
     };
-  }, []);
+  }, [searchParams, filters]);
 
   const [state, setState] = useState<FilterSearchState>(initialState);
 
@@ -192,7 +146,7 @@ export const FilterSearchProvider = ({
         activeTagId: newTag.id,
         isOpen: false,
         activeIndex: 0,
-        isAddingTag: true, // Flag to prevent submit on blur
+        isAddingTag: true,
       }));
     },
     [filters]
@@ -213,37 +167,30 @@ export const FilterSearchProvider = ({
       setState((prev) => {
         const updatedTags = [...prev.tags, newTag];
         const filterObjects = updatedTags.map(createFilterFromTag);
-        // Don't include inputValue as search - we're adding a complete filter, not a search
         const searchValue = "";
 
         // Submit immediately with the new tags
-        if (mode === "url") {
-          const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(searchParams.toString());
 
-          // Clear existing filters and search
-          params.delete("filter");
-          params.delete("search");
-          params.delete("pageNumber");
-          params.set("pageNumber", "0");
+        // Clear existing filters and search
+        params.delete("filter");
+        params.delete("search");
+        params.delete("pageNumber");
+        params.set("pageNumber", "0");
 
-          // Add filter tags
-          filterObjects.forEach((filter) => {
-            params.append("filter", JSON.stringify(filter));
-          });
+        // Add filter tags
+        filterObjects.forEach((filter) => {
+          params.append("filter", JSON.stringify(filter));
+        });
 
-          // Don't add search param when adding a complete filter tag
-
-          router.push(`${pathname}?${params.toString()}`);
-        } else if (mode === "stateful" && statefulCtx) {
-          statefulCtx.setFilters(filterObjects);
-        }
+        router.push(`${pathname}?${params.toString()}`);
 
         onSubmit?.(filterObjects, searchValue);
 
         return {
           ...prev,
           tags: updatedTags,
-          inputValue: "", // Clear the input
+          inputValue: "",
           activeTagId: null,
           isOpen: false,
           activeIndex: 0,
@@ -253,7 +200,7 @@ export const FilterSearchProvider = ({
 
       return newTag;
     },
-    [filters, mode, searchParams, pathname, router, statefulCtx, onSubmit]
+    [filters, searchParams, pathname, router, onSubmit]
   );
 
   const removeTag = useCallback((tagId: string) => {
@@ -355,36 +302,69 @@ export const FilterSearchProvider = ({
     [state.tagFocusStates]
   );
 
+  // Navigation methods - moved from filter-search-input
+  const navigateToTag = useCallback((tagId: string, position: TagFocusPosition) => {
+    tagHandlesRef.current.get(tagId)?.focusPosition(position);
+  }, []);
+
+  const navigateToPreviousTag = useCallback(
+    (currentTagId: string) => {
+      const currentIndex = state.tags.findIndex((t) => t.id === currentTagId);
+      if (currentIndex > 0) {
+        const previousTag = state.tags[currentIndex - 1];
+        navigateToTag(previousTag.id, "remove");
+      }
+    },
+    [state.tags, navigateToTag]
+  );
+
+  const navigateToNextTag = useCallback(
+    (currentTagId: string) => {
+      const currentIndex = state.tags.findIndex((t) => t.id === currentTagId);
+      if (currentIndex >= 0 && currentIndex < state.tags.length - 1) {
+        const nextTag = state.tags[currentIndex + 1];
+        navigateToTag(nextTag.id, "field");
+      } else if (currentIndex === state.tags.length - 1) {
+        focusMainInput();
+      }
+    },
+    [state.tags, navigateToTag, focusMainInput]
+  );
+
+  const registerTagHandle = useCallback((tagId: string, handle: FilterTagRef | null) => {
+    if (handle) {
+      tagHandlesRef.current.set(tagId, handle);
+    } else {
+      tagHandlesRef.current.delete(tagId);
+    }
+  }, []);
+
   const submit = useCallback(() => {
     const filterObjects = state.tags.map(createFilterFromTag);
     const searchValue = state.inputValue.trim();
 
-    if (mode === "url") {
-      const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams.toString());
 
-      // Clear existing filters and search
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
+    // Clear existing filters and search
+    params.delete("filter");
+    params.delete("search");
+    params.delete("pageNumber");
+    params.set("pageNumber", "0");
 
-      // Add filter tags
-      filterObjects.forEach((filter) => {
-        params.append("filter", JSON.stringify(filter));
-      });
+    // Add filter tags
+    filterObjects.forEach((filter) => {
+      params.append("filter", JSON.stringify(filter));
+    });
 
-      // Add raw search if present
-      if (searchValue) {
-        params.set("search", searchValue);
-      }
-
-      router.push(`${pathname}?${params.toString()}`);
-    } else if (mode === "stateful" && statefulCtx) {
-      statefulCtx.setFilters(filterObjects);
+    // Add raw search if present
+    if (searchValue) {
+      params.set("search", searchValue);
     }
 
+    router.push(`${pathname}?${params.toString()}`);
+
     onSubmit?.(filterObjects, searchValue);
-  }, [state.tags, state.inputValue, mode, searchParams, pathname, router, statefulCtx, onSubmit]);
+  }, [state.tags, state.inputValue, searchParams, pathname, router, onSubmit]);
 
   const clearAll = useCallback(() => {
     setState((prev) => ({
@@ -397,22 +377,18 @@ export const FilterSearchProvider = ({
     }));
 
     // Submit with empty state
-    if (mode === "url") {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
-      router.push(`${pathname}?${params.toString()}`);
-    } else if (mode === "stateful" && statefulCtx) {
-      statefulCtx.setFilters([]);
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("filter");
+    params.delete("search");
+    params.delete("pageNumber");
+    params.set("pageNumber", "0");
+    router.push(`${pathname}?${params.toString()}`);
 
     onSubmit?.([], "");
 
     // Blur the input
     mainInputRef.current?.blur();
-  }, [mode, searchParams, pathname, router, statefulCtx, onSubmit, mainInputRef]);
+  }, [searchParams, pathname, router, onSubmit, mainInputRef]);
 
   const value = useMemo<FilterSearchContextValue>(
     () => ({
@@ -441,6 +417,10 @@ export const FilterSearchProvider = ({
       getTagFocusState,
       autocompleteData,
       isAutocompleteLoading,
+      navigateToTag,
+      navigateToPreviousTag,
+      navigateToNextTag,
+      registerTagHandle,
     }),
     [
       state,
@@ -467,6 +447,10 @@ export const FilterSearchProvider = ({
       getTagFocusState,
       autocompleteData,
       isAutocompleteLoading,
+      navigateToTag,
+      navigateToPreviousTag,
+      navigateToNextTag,
+      registerTagHandle,
     ]
   );
 

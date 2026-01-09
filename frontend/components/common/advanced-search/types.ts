@@ -80,6 +80,10 @@ export interface FilterSearchContextValue {
 
   // Navigation
   focusMainInput: () => void;
+  navigateToTag: (tagId: string, position: TagFocusPosition) => void;
+  navigateToPreviousTag: (currentTagId: string) => void;
+  navigateToNextTag: (currentTagId: string) => void;
+  registerTagHandle: (tagId: string, handle: FilterTagRef | null) => void;
 
   // Selection
   selectAllTags: () => void;

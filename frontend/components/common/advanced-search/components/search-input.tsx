@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button.tsx";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import FilterSuggestions, { getSuggestionAtIndex, getSuggestionsCount } from "../components/suggestions";
 import { useFilterSearch } from "../context";
-import FilterTag from "./filter-tag";
+import FilterSuggestions, { getSuggestionAtIndex, getSuggestionsCount } from "./suggestions";
+import FilterTag from "./tag";
 
 interface FilterSearchInputProps {
   placeholder?: string;

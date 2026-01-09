@@ -7,13 +7,12 @@ import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
+import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface StringValueInputProps {
   tagId: string;
   suggestions: string[];
   focused: boolean;
-  onExitEditLeft?: () => void;
-  onExitEditRight?: () => void;
   mode: FocusMode;
   ref?: Ref<FocusableRef>;
 }
@@ -29,12 +28,18 @@ const StringValueInput = ({
   tagId,
   suggestions,
   focused,
-  onExitEditLeft,
-  onExitEditRight,
   mode,
   ref,
 }: StringValueInputProps) => {
-  const { state, updateTagValue, submit, focusMainInput } = useFilterSearch();
+  const {
+    state,
+    updateTagValue,
+    submit,
+    focusMainInput,
+    setTagFocusState,
+    navigateToPreviousTag,
+    navigateToNextTag,
+  } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,24 +77,34 @@ const StringValueInput = ({
 
         const input = e.target as HTMLInputElement;
 
-        if (e.key === "ArrowLeft" && onExitEditLeft) {
+        if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
             e.preventDefault();
-            onExitEditLeft();
+            const prevField = getPreviousField("value");
+            if (prevField) {
+              setTagFocusState(tagId, createNavFocusState(prevField));
+            } else {
+              navigateToPreviousTag(tagId);
+            }
           }
           return;
         }
 
-        if (e.key === "ArrowRight" && onExitEditRight) {
+        if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
             e.preventDefault();
-            onExitEditRight();
+            const nextField = getNextField("value");
+            if (nextField) {
+              setTagFocusState(tagId, createNavFocusState(nextField));
+            } else {
+              navigateToNextTag(tagId);
+            }
           }
           return;
         }
       }
     },
-    [mode, focused, suggestions.length, handleComplete, onExitEditLeft, onExitEditRight]
+    [mode, focused, suggestions.length, handleComplete, tagId, setTagFocusState, navigateToPreviousTag, navigateToNextTag]
   );
 
   const handleSuggestionSelect = useCallback(

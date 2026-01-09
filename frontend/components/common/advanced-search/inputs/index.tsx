@@ -6,25 +6,23 @@ import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { ColumnFilter, FocusableRef, FocusMode } from "../types";
-import BooleanValueInput from "./boolean-value-input";
-import EnumValueInput from "./enum-value-input";
-import JsonValueInput from "./json-value-input";
-import NumberValueInput from "./number-value-input";
-import StringValueInput from "./string-value-input";
+import BooleanValueInput from "./boolean";
+import EnumValueInput from "./enum";
+import JsonValueInput from "./json";
+import NumberValueInput from "./number";
+import StringValueInput from "./string";
 
 interface ValueInputProps {
   tagId: string;
   columnFilter: ColumnFilter;
   suggestions: string[];
   focused: boolean;
-  onExitEditLeft?: () => void;
-  onExitEditRight?: () => void;
   mode: FocusMode;
   ref?: Ref<FocusableRef>;
 }
 
 const ValueInput = memo(
-  ({ tagId, columnFilter, suggestions, focused, onExitEditLeft, onExitEditRight, mode, ref }: ValueInputProps) => {
+  ({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
     const { getTagFocusState, setTagFocusState, setActiveTagId } = useFilterSearch();
     const focusState = getTagFocusState(tagId);
     const dataType = columnFilter.dataType;
@@ -49,8 +47,6 @@ const ValueInput = memo(
               ref={ref}
               tagId={tagId}
               options={columnFilter.options}
-              onExitEditLeft={onExitEditLeft}
-              onExitEditRight={onExitEditRight}
               mode={mode}
             />
           );
@@ -61,8 +57,6 @@ const ValueInput = memo(
               ref={ref}
               tagId={tagId}
               focused={focused}
-              onExitEditLeft={onExitEditLeft}
-              onExitEditRight={onExitEditRight}
               mode={mode}
             />
           );
@@ -72,8 +66,6 @@ const ValueInput = memo(
             <NumberValueInput
               ref={ref}
               tagId={tagId}
-              onExitEditLeft={onExitEditLeft}
-              onExitEditRight={onExitEditRight}
               mode={mode}
             />
           );
@@ -83,8 +75,6 @@ const ValueInput = memo(
             <JsonValueInput
               ref={ref}
               tagId={tagId}
-              onExitEditLeft={onExitEditLeft}
-              onExitEditRight={onExitEditRight}
               mode={mode}
             />
           );
@@ -96,8 +86,6 @@ const ValueInput = memo(
               tagId={tagId}
               suggestions={suggestions}
               focused={focused}
-              onExitEditLeft={onExitEditLeft}
-              onExitEditRight={onExitEditRight}
               mode={mode}
             />
           );

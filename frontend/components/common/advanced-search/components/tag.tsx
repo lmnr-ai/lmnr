@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { useFilterSearch } from "../context";
 import ValueInput from "../inputs";
 import { FilterTag as FilterTagType, FilterTagRef, FocusableRef, getColumnFilter, TagFocusPosition } from "../types";
-import FilterSelect from "./filter-select";
+import FilterSelect from "./select";
 
 interface FilterTagProps {
   tag: FilterTagType;
