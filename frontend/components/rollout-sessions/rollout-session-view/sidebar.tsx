@@ -2,8 +2,9 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlertTriangle, Loader2, Play, RotateCcw, Save, Square } from "lucide-react";
+import { AlertTriangle, CirclePlay, Loader, Loader2, RotateCcw, Save, Square } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,19 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
     }
   };
 
+  useHotkeys(
+    "meta+enter,ctrl+enter",
+    () => {
+      if (canRun && !isLoading) {
+        onRollout();
+      }
+    },
+    {
+      enabled: !isRunning,
+    },
+    [isRunning, canRun, isLoading, onRollout]
+  );
+
   return (
     <div className="flex flex-col flex-1 gap-4 divide-y [&>div]:px-4 pt-4 [&>div]:pb-4 overflow-y-auto styled-scrollbar">
       <div className="flex flex-col gap-2">
@@ -161,13 +175,14 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
           <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isLoading}>
             {isLoading ? (
               <>
-                <Loader2 size={14} className="mr-2 animate-spin" />
-                Cancelling...
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                Stopping...
               </>
             ) : (
               <>
-                <Square size={14} className="mr-2" />
-                Cancel
+                <Square size={14} className="mr-1.5" />
+                <span className="mr-1.5">Stop</span>
+                <Loader className="animate-spin w-4 h-4" />
               </>
             )}
           </Button>
@@ -175,13 +190,19 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
           <Button className="w-fit" onClick={onRollout} disabled={isLoading || !canRun}>
             {isLoading ? (
               <>
-                <Loader2 size={14} className="mr-2 animate-spin" />
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
                 Starting...
               </>
             ) : (
               <>
-                <Play size={14} className="mr-2" />
-                Run Rollout
+                <CirclePlay size={14} className="mr-1.5" />
+                <span className="mr-1.5">Run</span>
+                <kbd
+                  data-slot="kbd"
+                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
+                >
+                  ⌘ + ⏎
+                </kbd>
               </>
             )}
           </Button>
