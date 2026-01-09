@@ -19,7 +19,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::{
-    db::spans::{Span, SpanType},
+    db::spans::Span,
     language_model::{ChatMessage, ChatMessageContent, ChatMessageContentPart},
     utils::json_value_to_string,
 };
@@ -142,7 +142,7 @@ enum LangChainChatMessage {
 }
 
 pub fn is_langchain_span(span: &Span) -> bool {
-    span.span_type == SpanType::LLM
+    span.is_llm_span()
         && (span
             .attributes
             .raw_attributes
@@ -1160,7 +1160,7 @@ mod tests {
 
         // Test with non-LLM span type
         let non_llm_span = Span {
-            span_type: SpanType::DEFAULT,
+            span_type: SpanType::Default,
             attributes: {
                 let mut attrs = HashMap::new();
                 attrs.insert(

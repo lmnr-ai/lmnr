@@ -1,154 +1,128 @@
 import { z } from "zod/v4";
 
+import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
-import { LangChainMessagesSchema, LangChainSystemMessageSchema } from "@/lib/spans/types/langchain";
-import { OpenAIMessagesSchema, OpenAISystemMessageSchema } from "@/lib/spans/types/openai";
-import { tryParseJson } from "@/lib/utils";
-
+import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 export const GetSystemMessagesSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
+  paths: z.array(z.array(z.string())),  // Array of path arrays
 });
 
 export interface SystemMessageResponse {
   id: string;
   content: string;
-  spanIds: string[];
+  path: string[];  // Return as array
 }
 
-/**
- * Extract system message content from a message object
- */
 function extractSystemMessageContent(message: any): string | null {
   if (!message || typeof message !== "object") return null;
-
-  // Check if it's a system message
   if (message.role !== "system") return null;
 
-  // Extract content based on format
   if (typeof message.content === "string") {
     return message.content;
   }
 
-  // Handle array content (OpenAI format with text parts)
   if (Array.isArray(message.content)) {
-    const textParts = message.content
-      .filter((part: any) => part.type === "text")
-      .map((part: any) => part.text);
+    const textParts = message.content.filter((part: any) => part.type === "text").map((part: any) => part.text);
     return textParts.join("\n");
   }
 
   return null;
 }
 
-/**
- * Try to parse input and extract system messages using zod schemas
- */
-function parseSystemMessagesFromInput(input: string): string[] {
+function parseSystemMessageFromInput(input: string): string | null {
   const parsed = tryParseJson(input);
-  if (!parsed) return [];
+  if (!parsed) return null;
 
-  const systemMessages: string[] = [];
-
-  // Try OpenAI format
   try {
     const openAIResult = OpenAIMessagesSchema.safeParse(parsed);
     if (openAIResult.success) {
       for (const message of openAIResult.data) {
-        const systemMsgResult = OpenAISystemMessageSchema.safeParse(message);
-        if (systemMsgResult.success) {
-          const content = extractSystemMessageContent(systemMsgResult.data);
-          if (content) {
-            systemMessages.push(content);
-          }
-        }
+        const content = extractSystemMessageContent(message);
+        if (content) return content;
       }
-      if (systemMessages.length > 0) return systemMessages;
     }
-  } catch (e) {
-    // Continue to try other formats
-  }
+  } catch (e) {}
 
-  // Try LangChain format
   try {
     const langChainResult = LangChainMessagesSchema.safeParse(parsed);
     if (langChainResult.success) {
       for (const message of langChainResult.data) {
-        const systemMsgResult = LangChainSystemMessageSchema.safeParse(message);
-        if (systemMsgResult.success) {
-          const content = extractSystemMessageContent(systemMsgResult.data);
-          if (content) {
-            systemMessages.push(content);
-          }
+        const content = extractSystemMessageContent(message);
+        if (content) return content;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (Array.isArray(parsed)) {
+      for (const message of parsed) {
+        if (message && typeof message === "object" && message.role === "system") {
+          const content = extractSystemMessageContent(message);
+          if (content) return content;
         }
       }
-      if (systemMessages.length > 0) return systemMessages;
     }
-  } catch (e) {
-    // Continue
-  }
+  } catch (e) {}
 
-  return systemMessages;
+  return null;
 }
 
-/**
- * Fetch system messages from LLM spans in a trace
- */
 export async function getTraceSystemMessages(
   input: z.infer<typeof GetSystemMessagesSchema>
 ): Promise<SystemMessageResponse[]> {
-  const { projectId, traceId } = GetSystemMessagesSchema.parse(input);
+  const { projectId, traceId, paths } = GetSystemMessagesSchema.parse(input);
 
-  // Query only LLM spans with their inputs
+  if (paths.length === 0) {
+    return [];
+  }
+
+  // Convert path arrays to dot-joined strings for the query
+  const pathStrings = paths.map(p => p.join('.'));
+
   const query = `
     SELECT 
       span_id as spanId,
-      input
+      input,
+      path
     FROM spans
     WHERE trace_id = {traceId: UUID}
       AND span_type = 'LLM'
+      AND path IN ({paths: Array(String)})
     ORDER BY start_time ASC
   `;
 
-  const spans = await executeQuery<{ spanId: string; input: string }>({
+  const spans = await executeQuery<{ spanId: string; input: string; path: string }>({
     query,
-    parameters: { projectId, traceId },
+    parameters: { projectId, traceId, paths: pathStrings },
     projectId,
   });
 
-  // Extract system messages and deduplicate
-  const systemMessagesMap = new Map<string, { content: string; spanIds: string[] }>();
+  const systemMessagesByPath = new Map<string, { content: string; path: string[] }>();
+
+  // Create a map of dot-joined path -> original path array
+  const pathMap = new Map<string, string[]>();
+  paths.forEach(pathArray => {
+    pathMap.set(pathArray.join('.'), pathArray);
+  });
 
   for (const span of spans) {
-    if (!span.input) continue;
+    if (!span.input || !span.path) continue;
+    if (systemMessagesByPath.has(span.path)) continue;
 
-    const systemMessages = parseSystemMessagesFromInput(span.input);
+    const systemContent = parseSystemMessageFromInput(span.input);
+    if (!systemContent) continue;
 
-    for (const content of systemMessages) {
-      // Use content as the key to deduplicate
-      const existing = systemMessagesMap.get(content);
-      if (existing) {
-        // Add this span to the list of spans using this message
-        if (!existing.spanIds.includes(span.spanId)) {
-          existing.spanIds.push(span.spanId);
-        }
-      } else {
-        // Create new system message entry
-        systemMessagesMap.set(content, {
-          content,
-          spanIds: [span.spanId],
-        });
-      }
-    }
+    // Get the original path array from our map
+    const originalPath = pathMap.get(span.path) || span.path.split('.');
+    systemMessagesByPath.set(span.path, { content: systemContent, path: originalPath });
   }
 
-  // Convert map to array and add IDs
-  return Array.from(systemMessagesMap.entries()).map(([content, data]) => ({
-    id: content, // Using content as ID for deduplication
-    content: data.content,
-    spanIds: data.spanIds,
+  return Array.from(systemMessagesByPath.entries()).map(([pathKey, { content, path }], index) => ({
+    id: `${pathKey}_${index}`,
+    content,
+    path,
   }));
 }
-
-
-

@@ -792,14 +792,13 @@ export const eventClusters = pgTable("event_clusters", {
   }).onUpdate("cascade").onDelete("cascade"),
 ]);
 
-export const rolloutPlaygrounds = pgTable("rollout_playgrounds", {
+export const rolloutSessions = pgTable("rollout_sessions", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   projectId: uuid("project_id").notNull(),
-  traceId: uuid("trace_id").notNull(),
-  pathToCount: jsonb("path_to_count").notNull(),
-  cursorTimestamp: timestamp("cursor_timestamp", { withTimezone: true, mode: 'string' }).notNull(),
   params: jsonb().notNull(),
+  status: text().default('PENDING').notNull(),
+  name: text(),
 });
 
 export const tagClasses = pgTable("tag_classes", {

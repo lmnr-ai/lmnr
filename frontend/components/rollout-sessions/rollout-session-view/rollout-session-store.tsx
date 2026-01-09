@@ -16,16 +16,18 @@ import {
   transformSpansToTree,
   TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
+import { tryParseJson } from "@/lib/utils.ts";
 
 import { SystemMessage } from "./system-messages-utils";
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
-export const MIN_TREE_VIEW_WIDTH = 450;
+export const MIN_SIDEBAR_WIDTH = 450;
 
 export type TraceViewSpan = {
   spanId: string;
@@ -105,17 +107,23 @@ interface RolloutSessionStoreState {
   tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
   search: string;
   zoom: number;
-  treeWidth: number;
+  sidebarWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
 
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
-  pathToCount: Record<string, number>;
-  pathSystemMessageOverrides: Map<string, string>;
-  isRolloutRunning: boolean;
+  isSystemMessagesLoading: boolean;
+  cachedSpanCounts: Record<string, number>; // Tracks how many spans per path are cached
+  overrides: Record<string, { system: string }>; // path -> {system: content} - directly matches backend format
+  isRolloutLoading: boolean; // Loading state for both run and cancel operations
   rolloutError?: string;
+  sessionStatus: RolloutSessionStatus;
+  isSessionDeleted: boolean;
+  // Params state
+  params: Array<{ name: string; [key: string]: any }>;
+  paramValues: string; // JSON string that can be either array or object
 }
 
 interface RolloutSessionStoreActions {
@@ -134,7 +142,7 @@ interface RolloutSessionStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSearch: (search: string) => void;
-  setTreeWidth: (width: number) => void;
+  setSidebarWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
@@ -155,22 +163,47 @@ interface RolloutSessionStoreActions {
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
-  addSpanIfNew: (span: TraceViewSpan) => boolean;
 
   // Rollout-specific actions
-  setSystemMessagesMap: (messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)) => void;
-  setPathToCount: (pathToCount: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => void;
-  setPathSystemMessageOverrides: (overrides: Map<string, string> | ((prev: Map<string, string>) => Map<string, string>)) => void;
-  setCachePoint: (span: TraceViewSpan) => void;
+  setSystemMessagesMap: (
+    messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
+  ) => void;
+  setIsSystemMessagesLoading: (isLoading: boolean) => void;
+  setCachedSpanCounts: (
+    cachedSpanCounts: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)
+  ) => void;
+  toggleOverride: (messageId: string) => void;
+  updateOverride: (pathKey: string, content: string) => void;
+  isOverrideEnabled: (messageId: string) => boolean;
+  resetOverride: (messageId: string) => void;
+  cacheToSpan: (span: TraceViewSpan) => void;
+  uncacheFromSpan: (span: TraceViewSpan) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
   getLlmPathCounts: () => Record<string, number>;
-  setIsRolloutRunning: (isRunning: boolean) => void;
+  setIsRolloutLoading: (isLoading: boolean) => void;
   setRolloutError: (error?: string) => void;
+  setSessionStatus: (status: RolloutSessionStatus) => void;
+  setIsSessionDeleted: (isSessionDeleted: boolean) => void;
+  // Rollout session actions
+  runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
+
+  setParamValue: (value: string) => void;
 }
 
 type RolloutSessionStore = RolloutSessionStoreState & RolloutSessionStoreActions;
 
-const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { trace?: TraceViewTrace; key?: string }) =>
+const createRolloutSessionStore = ({
+  trace,
+  params = [],
+  storeKey = "rollout-session-state",
+  initialStatus = "PENDING",
+}: {
+  trace?: TraceViewTrace;
+  params?: Array<{ name: string; [key: string]: any }>;
+  storeKey?: string;
+  initialStatus?: RolloutSessionStatus;
+}) =>
   createStore<RolloutSessionStore>()(
     persist(
       (set, get) => ({
@@ -187,7 +220,7 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
         search: "",
         searchEnabled: false,
         zoom: 1,
-        treeWidth: MIN_TREE_VIEW_WIDTH,
+        sidebarWidth: MIN_SIDEBAR_WIDTH,
         langGraph: false,
         spanPath: null,
         hasBrowserSession: false,
@@ -196,10 +229,16 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
 
         // Rollout-specific state
         systemMessagesMap: new Map(),
-        pathToCount: {},
-        pathSystemMessageOverrides: new Map(),
-        isRolloutRunning: false,
+        isSystemMessagesLoading: false,
+        cachedSpanCounts: {},
+        overrides: {},
+        isRolloutLoading: false,
         rolloutError: undefined,
+        sessionStatus: initialStatus,
+        isSessionDeleted: false,
+        // Params state (initialized from props)
+        params,
+        paramValues: "" as string, // Empty JSON string initially
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -222,12 +261,29 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           });
         },
         setSpans: (spans) => {
+          let newSpans: TraceViewSpan[];
+
           if (typeof spans === "function") {
             const prevSpans = get().spans;
-            const newSpans = spans(prevSpans);
-            set({ spans: newSpans });
+            newSpans = spans(prevSpans);
           } else {
-            set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
+            newSpans = spans.map((s) => ({ ...s, collapsed: false }));
+          }
+
+          set({ spans: newSpans });
+
+          // Update cachedSpanCounts based on CACHED spans in the new spans
+          const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
+          if (cachedSpans.length > 0) {
+            const newCachedCounts: Record<string, number> = {};
+            cachedSpans.forEach((s) => {
+              const sPath = s.attributes?.["lmnr.span.path"];
+              if (sPath && Array.isArray(sPath)) {
+                const pathKey = sPath.join(".");
+                newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
+              }
+            });
+            set({ cachedSpanCounts: newCachedCounts });
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
@@ -315,7 +371,7 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           return newTime >= maxTime;
         },
         setSearch: (search) => set({ search }),
-        setTreeWidth: (treeWidth) => set({ treeWidth }),
+        setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
             spanTemplates: { ...state.spanTemplates, [spanPathKey]: template },
@@ -403,30 +459,12 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           spans.forEach((span) => {
             const spanPath = span.attributes?.["lmnr.span.path"];
             if (spanPath && Array.isArray(spanPath)) {
-              const pathKey = spanPath.join("/");
+              const pathKey = spanPath.join(".");
               pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1);
             }
           });
 
           set({ spanPathCounts: pathCounts });
-        },
-        addSpanIfNew: (incomingSpan: TraceViewSpan): boolean => {
-          const spanPath = incomingSpan.attributes?.["lmnr.span.path"];
-          if (!spanPath || !Array.isArray(spanPath)) {
-            const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
-            if (!exists) {
-              get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
-              return true;
-            }
-            return false;
-          }
-
-          const pathKey = spanPath.join("/");
-          const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
-
-          get().spanPathCounts.set(pathKey, currentCount + 1);
-          get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
-          return true;
         },
 
         // Rollout-specific actions
@@ -440,62 +478,114 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           }
         },
 
-        setPathToCount: (pathToCount) => {
-          if (typeof pathToCount === "function") {
-            const prevPathToCount = get().pathToCount;
-            const newPathToCount = pathToCount(prevPathToCount);
-            set({ pathToCount: newPathToCount });
+        setIsSystemMessagesLoading: (isLoading) => set({ isSystemMessagesLoading: isLoading }),
+
+        setCachedSpanCounts: (cachedSpanCounts) => {
+          if (typeof cachedSpanCounts === "function") {
+            const prevCachedSpanCounts = get().cachedSpanCounts;
+            const newCachedSpanCounts = cachedSpanCounts(prevCachedSpanCounts);
+            set({ cachedSpanCounts: newCachedSpanCounts });
           } else {
-            set({ pathToCount });
+            set({ cachedSpanCounts });
           }
         },
 
-        setPathSystemMessageOverrides: (overrides) => {
-          if (typeof overrides === "function") {
-            const prevOverrides = get().pathSystemMessageOverrides;
-            const newOverrides = overrides(prevOverrides);
-            set({ pathSystemMessageOverrides: newOverrides });
+        toggleOverride: (messageId: string) => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return;
+
+          const overrides = { ...get().overrides };
+
+          if (overrides[message.pathKey]) {
+            // Toggle OFF - remove override
+            delete overrides[message.pathKey];
           } else {
-            set({ pathSystemMessageOverrides: overrides });
+            // Toggle ON - add override with original content
+            overrides[message.pathKey] = { system: message.content };
+          }
+
+          set({ overrides });
+        },
+
+        updateOverride: (pathKey: string, content: string) => {
+          const overrides = { ...get().overrides };
+          overrides[pathKey] = { system: content };
+          set({ overrides });
+        },
+
+        isOverrideEnabled: (messageId: string): boolean => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return false;
+          return message.pathKey in get().overrides;
+        },
+
+        resetOverride: (messageId: string) => {
+          const message = get().systemMessagesMap.get(messageId);
+          if (!message) return;
+
+          const overrides = { ...get().overrides };
+          if (overrides[message.pathKey]) {
+            overrides[message.pathKey] = { system: message.content };
+            set({ overrides });
           }
         },
 
-        setCachePoint: (span: TraceViewSpan) => {
+        cacheToSpan: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
           const spansBeforeOrAt = spans
-            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-          const newPathToCount: Record<string, number> = {};
+          const newCachedCounts: Record<string, number> = {};
 
           spansBeforeOrAt.forEach((s) => {
             const sPath = s.attributes?.["lmnr.span.path"];
             if (sPath && Array.isArray(sPath)) {
               const pathKey = sPath.join(".");
-              newPathToCount[pathKey] = (newPathToCount[pathKey] || 0) + 1;
+              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
             }
           });
 
-          set({ pathToCount: newPathToCount });
+          set({ cachedSpanCounts: newCachedCounts });
+        },
+
+        uncacheFromSpan: (span: TraceViewSpan) => {
+          const spans = get().spans;
+          const clickedSpanTime = new Date(span.startTime).getTime();
+
+          const spansBefore = spans
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
+            .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+          const newCachedCounts: Record<string, number> = {};
+
+          spansBefore.forEach((s) => {
+            const sPath = s.attributes?.["lmnr.span.path"];
+            if (sPath && Array.isArray(sPath)) {
+              const pathKey = sPath.join(".");
+              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
+            }
+          });
+
+          set({ cachedSpanCounts: newCachedCounts });
         },
 
         isSpanCached: (span: TraceViewSpan): boolean => {
-          if (span.spanType !== SpanType.LLM) return false;
-
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
 
           const spanPathKey = spanPath.join(".");
-          const cacheCount = get().pathToCount[spanPathKey];
+          const cacheCount = get().cachedSpanCounts[spanPathKey];
 
           if (!cacheCount) return false;
 
           const spans = get().spans;
           const spansWithSamePath = spans
-            .filter((s) => s.spanType === SpanType.LLM)
+            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .filter((s) => {
               const sPath = s.attributes?.["lmnr.span.path"];
               return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
@@ -510,8 +600,8 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
         getLlmPathCounts: (): Record<string, number> => {
           const pathMap: Record<string, number> = {};
 
-          get().spans
-            .filter((span) => span.spanType === SpanType.LLM)
+          get()
+            .spans.filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
             .forEach((span) => {
               const spanPath = span.attributes?.["lmnr.span.path"];
               if (spanPath && Array.isArray(spanPath)) {
@@ -523,13 +613,97 @@ const createRolloutSessionStore = ({ trace, key = "rollout-session-state" }: { t
           return pathMap;
         },
 
-        setIsRolloutRunning: (isRolloutRunning: boolean) => set({ isRolloutRunning }),
+        setIsRolloutLoading: (isRolloutLoading: boolean) => set({ isRolloutLoading }),
         setRolloutError: (rolloutError?: string) => set({ rolloutError }),
+        setSessionStatus: (sessionStatus: RolloutSessionStatus) => set({ sessionStatus }),
+
+        runRollout: async (projectId: string, sessionId: string) => {
+          try {
+            set({ isRolloutLoading: true, rolloutError: undefined });
+
+            // Clear all spans and reset cached span counts before running rollout
+            const overrides = get().overrides;
+            const currentTraceId = get()?.trace?.id;
+            const cachedSpanCounts = get().cachedSpanCounts;
+            const paramValues = get().paramValues;
+
+            const rolloutPayload: Record<string, any> = {};
+
+            set({ spans: [], cachedSpanCounts: {}, trace: undefined });
+            if (currentTraceId) {
+              rolloutPayload.trace_id = currentTraceId;
+            }
+
+            if (Object.keys(cachedSpanCounts).length > 0) {
+              rolloutPayload.path_to_count = cachedSpanCounts;
+            }
+
+            if (paramValues && paramValues.trim() !== "") {
+              rolloutPayload.args = tryParseJson(paramValues);
+            }
+
+            if (Object.keys(overrides).length > 0) {
+              rolloutPayload.overrides = overrides;
+            }
+
+            const response = await fetch(`/api/projects/${projectId}/rollout-sessions/${sessionId}/run`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(rolloutPayload),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+              throw new Error(errorData.error || "Failed to run rollout");
+            }
+
+            await response.json();
+            set({ sessionStatus: "RUNNING" });
+
+            return { success: true };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to run rollout";
+            set({ rolloutError: errorMessage });
+            return { success: false, error: errorMessage };
+          } finally {
+            set({ isRolloutLoading: false });
+          }
+        },
+        setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
+
+        cancelSession: async (projectId: string, sessionId: string) => {
+          try {
+            set({ isRolloutLoading: true });
+
+            const response = await fetch(`/api/projects/${projectId}/rollout-sessions/${sessionId}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "STOPPED" }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+              throw new Error(errorData.error || "Failed to cancel rollout");
+            }
+
+            set({ sessionStatus: "STOPPED" });
+            return { success: true };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to cancel rollout";
+            return { success: false, error: errorMessage };
+          } finally {
+            set({ isRolloutLoading: false });
+          }
+        },
+
+        setParamValue: (value: string) => {
+          set({ paramValues: value });
+        },
       }),
       {
-        name: key,
+        name: storeKey,
         partialize: (state) => ({
-          treeWidth: state.treeWidth,
+          sidebarWidth: state.sidebarWidth,
           spanPath: state.spanPath,
           spanTemplates: state.spanTemplates,
           tab: state.tab,
@@ -542,13 +716,20 @@ const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> |
 
 const RolloutSessionStoreProvider = ({
   trace,
-  key,
+  params,
+  storeKey,
+  initialStatus,
   children,
-}: PropsWithChildren<{ trace?: TraceViewTrace; key?: string }>) => {
+}: PropsWithChildren<{
+  trace?: TraceViewTrace;
+  params?: Array<{ name: string; [key: string]: any }>;
+  storeKey?: string;
+  initialStatus?: RolloutSessionStatus;
+}>) => {
   const storeRef = useRef<StoreApi<RolloutSessionStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createRolloutSessionStore({ trace, key });
+    storeRef.current = createRolloutSessionStore({ trace, params, storeKey, initialStatus });
   }
 
   return <RolloutSessionStoreContext.Provider value={storeRef.current}>{children}</RolloutSessionStoreContext.Provider>;
@@ -572,5 +753,3 @@ export const useRolloutSessionStore = () => {
 };
 
 export default RolloutSessionStoreProvider;
-
-

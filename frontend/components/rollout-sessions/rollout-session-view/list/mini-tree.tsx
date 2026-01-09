@@ -2,6 +2,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
 import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
 import SpanTypeIcon from "../../../traces/span-type-icon.tsx";
@@ -15,20 +16,28 @@ export function MiniTree({ span }: MiniTreeProps) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
 
-  const { getSpanBranch, getSpanNameInfo, selectSpanById } = useRolloutSessionStoreContext((state) => ({
+  const { getSpanBranch, getSpanNameInfo, selectSpanById, getSpanAttribute } = useRolloutSessionStoreContext((state) => ({
     getSpanBranch: state.getSpanBranch,
     getSpanNameInfo: state.getSpanNameInfo,
     selectSpanById: state.selectSpanById,
+    getSpanAttribute: state.getSpanAttribute,
   }));
 
   const fullSpanBranch = getSpanBranch(span);
 
-  const allSpans = fullSpanBranch.map((branchSpan) => ({
-    spanId: branchSpan.spanId,
-    name: branchSpan.name,
-    spanType: branchSpan.spanType,
-    isCurrent: branchSpan.spanId === span.spanId,
-  }));
+  const allSpans = fullSpanBranch.map((branchSpan) => {
+    const isCached = branchSpan.spanType === SpanType.CACHED;
+    const displaySpanType = isCached
+      ? (getSpanAttribute(branchSpan.spanId, "lmnr.span.original_type") as SpanType) || branchSpan.spanType
+      : branchSpan.spanType;
+
+    return {
+      spanId: branchSpan.spanId,
+      name: branchSpan.name,
+      spanType: displaySpanType,
+      isCurrent: branchSpan.spanId === span.spanId,
+    };
+  });
 
   const ROW_HEIGHT = 22;
   const DEPTH_INDENT = 24;

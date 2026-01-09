@@ -1,113 +1,191 @@
-use actix_web::{HttpResponse, post, web};
-use clickhouse::Row;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
+use actix_web::{HttpResponse, delete, patch, post, web};
+use chrono::{DateTime, Utc};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
-    db::{DB, project_api_keys::ProjectApiKey, rollout_playgrounds::get_rollout_playground},
+    db::{
+        DB,
+        project_api_keys::ProjectApiKey,
+        rollout_sessions::{
+            RolloutSessionStatus, create_or_update_rollout_session, delete_rollout_session,
+            update_session_status,
+        },
+        spans::SpanType,
+    },
+    pubsub::PubSub,
+    realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
     routes::types::ResponseResult,
 };
 
-#[derive(Deserialize)]
-pub struct RolloutRequest {
-    pub path: String,
-    pub index: usize,
+fn default_true() -> bool {
+    true
 }
 
-fn deserialize_json_string<'de, D>(deserializer: D) -> Result<Value, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    serde_json::from_str(&s).map_err(serde::de::Error::custom)
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InputParam {
+    name: String,
+    #[serde(default, rename = "type")]
+    param_type: Option<String>,
+    #[serde(default = "default_true")]
+    required: bool,
+    #[serde(default)]
+    default: Option<serde_json::Value>,
+    #[serde(default)]
+    nested: Option<Vec<InputParam>>,
 }
 
-#[derive(Row, Serialize, Deserialize, Clone)]
-pub struct RolloutSpan {
-    pub input: String,
-    pub output: String,
-    pub name: String,
-    #[serde(deserialize_with = "deserialize_json_string")]
-    pub attributes: Value,
+#[derive(serde::Deserialize)]
+pub struct UpdateStatusRequest {
+    pub status: RolloutSessionStatus,
 }
 
-#[derive(Serialize)]
-pub struct RolloutResponse {
-    pub span: RolloutSpan,
-    pub path_to_count: HashMap<String, u32>,
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct StreamRequest {
+    pub params: Vec<InputParam>,
+    pub name: Option<String>,
 }
 
 #[post("rollouts/{session_id}")]
-pub async fn get_rollout(
-    path: web::Path<String>,
-    body: web::Json<RolloutRequest>,
+pub async fn stream(
+    path: web::Path<Uuid>,
     project_api_key: ProjectApiKey,
+    body: web::Json<StreamRequest>,
     db: web::Data<DB>,
-    clickhouse: web::Data<clickhouse::Client>,
+    connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
     let db = db.into_inner();
-    let session_id = Uuid::parse_str(&path.into_inner()).unwrap();
+    let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
 
-    // Fetch rollout playground
-    let rollout_playground = match get_rollout_playground(&db.pool, &session_id, &project_id).await
-    {
-        Ok(rollout_playgroundopt) => match rollout_playgroundopt {
-            Some(rollout_playground) => rollout_playground,
-            None => {
-                return Err(crate::routes::error::Error::NotFound(
-                    "No rollout playground was found for given id".to_string(),
-                ));
-            }
-        },
-        Err(e) => {
-            return Err(e.into());
-        }
+    let request_body = body.into_inner();
+    let params = serde_json::to_value(&request_body.params)?;
+    let name = request_body.name;
+    create_or_update_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
+
+    // Prepare handshake message
+    let handshake = SseMessage {
+        event_type: "handshake".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+            "project_id": project_id,
+        }),
     };
 
-    // Find the maximum mock index for the given path
-    let max_mock_index = match rollout_playground.path_to_count.get(&body.path) {
-        Some(path_count) => *path_count,
-        None => {
-            return Err(crate::routes::error::Error::NotFound(
-                "Path not found in rollout playground".to_string(),
-            ));
-        }
-    };
+    // Start stream with initial handshake
+    let key = format!("rollout_sdk_{}", session_id);
+    let sse_response = create_sse_response(
+        project_id,
+        key.clone(),
+        connections.get_ref().clone(),
+        Some(handshake),
+    )
+    .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    if body.index > max_mock_index as usize {
-        return Err(crate::routes::error::Error::NotFound(
-            "Given index is larger than maximum mock index".to_string(),
-        ));
+    Ok(sse_response)
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SpanStartUpdate {
+    span_id: Uuid,
+    name: String,
+    start_time: DateTime<Utc>,
+    trace_id: Uuid,
+    parent_span_id: Option<Uuid>,
+    #[serde(default)]
+    span_type: SpanType,
+    #[serde(default)]
+    attributes: HashMap<String, serde_json::Value>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum SpanUpdateRequest {
+    SpanStart(SpanStartUpdate),
+}
+
+#[patch("rollouts/{session_id}/update")]
+pub async fn send_span_update(
+    path: web::Path<Uuid>,
+    body: web::Json<SpanUpdateRequest>,
+    project_api_key: ProjectApiKey,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let session_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let payload = body.into_inner();
+
+    match payload {
+        SpanUpdateRequest::SpanStart(span) => {
+            let message = SseMessage {
+                event_type: "span_start".to_string(),
+                data: serde_json::json!({
+                    "span": span,
+                }),
+            };
+            let key = format!("rollout_session_{}", session_id);
+            send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+        }
     }
 
-    // Find all spans with given trace_id and path
-    let spans = clickhouse
-        .query(
-            "SELECT input, output, name, attributes
-            FROM spans 
-            WHERE project_id = ? AND trace_id = ? AND path = ?
-            ORDER BY start_time ASC",
-        )
-        .bind(project_id)
-        .bind(rollout_playground.trace_id)
-        .bind(&body.path)
-        .fetch_all::<RolloutSpan>()
-        .await?;
+    Ok(HttpResponse::Ok().finish())
+}
 
-    // Return the span at the given index
-    if spans.len() <= body.index {
-        return Err(crate::routes::error::Error::NotFound(
-            "Index not found in rollout playground".to_string(),
-        ));
-    }
+#[patch("rollouts/{session_id}/status")]
+pub async fn update_status(
+    path: web::Path<Uuid>,
+    body: web::Json<UpdateStatusRequest>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let db = db.into_inner();
+    let session_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let new_status = body.into_inner().status;
 
-    let response = RolloutResponse {
-        span: spans[body.index].clone(),
-        path_to_count: rollout_playground.path_to_count.0,
+    // Update status in database
+    update_session_status(&db.pool, &session_id, &project_id, new_status).await?;
+
+    // Send status update to frontend via SSE
+    let message = SseMessage {
+        event_type: "status_update".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+            "status": new_status,
+        }),
     };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
-    Ok(HttpResponse::Ok().json(response))
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[delete("rollouts/{session_id}")]
+pub async fn delete(
+    path: web::Path<String>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let db = db.into_inner();
+    let session_id =
+        Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
+    let project_id = project_api_key.project_id;
+
+    delete_rollout_session(&db.pool, &session_id, &project_id).await?;
+
+    // Send deletion event to frontend via SSE
+    let message = SseMessage {
+        event_type: "session_deleted".to_string(),
+        data: serde_json::json!({
+            "session_id": session_id,
+        }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+
+    Ok(HttpResponse::Ok().finish())
 }

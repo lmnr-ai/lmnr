@@ -1,10 +1,16 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import { TimelineData } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store-utils.ts";
+import {
+  TraceViewSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -34,9 +40,13 @@ const TimelineElement = ({
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.span.spanId, [span.span.spanId, selectedSpan?.spanId]);
 
-  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
+  const { cacheToSpan, uncacheFromSpan, isSpanCached } = useRolloutSessionStoreContext((state) => ({
+    cacheToSpan: state.cacheToSpan,
+    uncacheFromSpan: state.uncacheFromSpan,
+    isSpanCached: state.isSpanCached,
+  }));
 
-  const rolloutSessionId = getSpanAttribute(span.span.spanId, "lmnr.rollout.session_id");
+  const isCached = isSpanCached(span.span);
 
   const handleSpanSelect = () => {
     if (!span.span.pending) {
@@ -139,9 +149,9 @@ const TimelineElement = ({
       data-index={virtualRow.index}
       onClick={handleSpanSelect}
       className={cn(
-        "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200",
+        "absolute w-full h-8 flex items-center px-4 hover:bg-muted cursor-pointer transition duration-200 group",
         {
-          "opacity-60": rolloutSessionId,
+          "opacity-60": isCached,
         }
       )}
       style={{
@@ -174,6 +184,34 @@ const TimelineElement = ({
         {textPosition === "inside" && spanTextElement}
       </div>
       {textPosition === "outside" && spanTextElement}
+      {(span.span.spanType === "LLM" || span.span.spanType === "CACHED") && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                "py-0 px-2 h-5 hover:bg-muted animate-in fade-in duration-200 ml-2 z-30 text-xs",
+                isCached ? "block" : "hidden group-hover:block"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isCached) {
+                  uncacheFromSpan(span.span);
+                } else {
+                  cacheToSpan(span.span);
+                }
+              }}
+            >
+              {isCached ? "Cached" : "Cache until here"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent side="top" className="text-xs">
+              {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
+      )}
     </div>
   );
 };

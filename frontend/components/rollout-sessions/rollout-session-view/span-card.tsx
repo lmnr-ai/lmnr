@@ -1,11 +1,17 @@
-import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import {
+  TraceViewSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -40,15 +46,17 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse } = useRolloutSessionStoreContext((state) => ({
-    selectedSpan: state.selectedSpan,
-    spans: state.spans,
-    toggleCollapse: state.toggleCollapse,
-  }));
+  const { selectedSpan, spans, toggleCollapse, cacheToSpan, uncacheFromSpan, isSpanCached } =
+    useRolloutSessionStoreContext((state) => ({
+      selectedSpan: state.selectedSpan,
+      spans: state.spans,
+      toggleCollapse: state.toggleCollapse,
+      cacheToSpan: state.cacheToSpan,
+      uncacheFromSpan: state.uncacheFromSpan,
+      isSpanCached: state.isSpanCached,
+    }));
 
-  const getSpanAttribute = useRolloutSessionStoreContext((state) => state.getSpanAttribute);
-
-  const rolloutSessionId = getSpanAttribute(span.spanId, "lmnr.rollout.session_id");
+  const isCached = isSpanCached(span);
 
   const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
@@ -68,11 +76,11 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
     <div className="text-md flex w-full flex-col" ref={ref}>
       <div
         className={cn(
-          "flex flex-col cursor-pointer transition-all w-full min-w-full border-l-2",
+          "flex flex-col cursor-pointer transition-all w-full min-w-full border-l-2 group",
           "hover:bg-red-100/10",
           isSelected ? "bg-primary/25 border-l-primary" : "border-l-transparent",
           {
-            "opacity-60": rolloutSessionId,
+            "opacity-60": isCached,
           }
         )}
         style={{
@@ -113,7 +121,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
             <div
               className={cn(
                 "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
-                span.pending && "text-muted-foreground"
+                span.pending && "text-muted-foreground shimmer"
               )}
             >
               {getSpanDisplayName(span)}
@@ -130,31 +138,25 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <>
-              <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
-                {getDurationString(span.startTime, span.endTime)}
+            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded flex flex-shrink-0 animate-in fade-in duration-200">
+              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                <Clock3 size={12} className="min-w-3 min-h-3" />
+                <span>{getDurationString(span.startTime, span.endTime)}</span>
               </div>
               {llmMetrics && (
                 <>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <Coins className="min-w-3" size={12} />
-                    {numberFormatter.format(llmMetrics.tokens)}
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <Coins size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>{numberFormatter.format(llmMetrics.tokens)}</span>
                   </div>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <CircleDollarSign className="min-w-3" size={12} />
-                    {llmMetrics.cost.toFixed(3)}
+
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>${llmMetrics.cost.toFixed(4)}</span>
                   </div>
                 </>
               )}
-            </>
+            </div>
           )}
           {hasChildren && (
             <button
@@ -167,7 +169,34 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
               {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
-          <div className="grow" />
+          {(span.spanType === "LLM" || span.spanType === "CACHED") && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "py-0 px-2 h-5 bg-muted rounded text-secondary-foreground animate-in fade-in duration-200 text-xs",
+                    isCached ? "block" : "hidden group-hover:block"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isCached) {
+                      uncacheFromSpan(span);
+                    } else {
+                      cacheToSpan(span);
+                    }
+                  }}
+                >
+                  {isCached ? "Cached" : "Cache until here"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="top" className="text-xs">
+                  {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          )}
         </div>
       </div>
     </div>

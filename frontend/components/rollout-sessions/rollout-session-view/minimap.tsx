@@ -8,6 +8,7 @@ import {
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
+import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";
 
@@ -16,7 +17,7 @@ interface Props {
 }
 function Minimap({ onSpanSelect }: Props) {
   const { state, scrollTo, createScrollHandler, visibleSpanIds } = useScrollContext();
-  const { getMinimapSpans, getListMinimapSpans, trace, spans, setSessionTime, browserSession, tab } =
+  const { getMinimapSpans, getListMinimapSpans, trace, spans, setSessionTime, browserSession, tab, getSpanAttribute } =
     useRolloutSessionStoreContext((state) => ({
       getMinimapSpans: state.getMinimapSpans,
       getListMinimapSpans: state.getListMinimapSpans,
@@ -25,6 +26,7 @@ function Minimap({ onSpanSelect }: Props) {
       setSessionTime: state.setSessionTime,
       browserSession: state.browserSession,
       tab: state.tab,
+      getSpanAttribute: state.getSpanAttribute,
     }));
 
   const store = useRolloutSessionStore();
@@ -38,6 +40,14 @@ function Minimap({ onSpanSelect }: Props) {
   );
 
   const minimapSpans = useMemo(() => tab === "reader" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
+
+  // Helper to get display span type (original type for CACHED spans)
+  const getDisplaySpanType = useCallback((spanId: string, spanType: SpanType) => {
+    if (spanType === SpanType.CACHED) {
+      return (getSpanAttribute(spanId, "lmnr.span.original_type") as SpanType) || spanType;
+    }
+    return spanType;
+  }, [getSpanAttribute]);
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
@@ -289,7 +299,7 @@ function Minimap({ onSpanSelect }: Props) {
                 <div
                   className="w-2 cursor-pointer rounded-[2px] h-full transition-opacity"
                   style={{
-                    backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[span.spanType],
+                    backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[getDisplaySpanType(span.spanId, span.spanType)],
                     marginTop: 2,
                     paddingBottom: 0,
                   }}

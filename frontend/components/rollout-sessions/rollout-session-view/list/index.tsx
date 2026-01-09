@@ -4,24 +4,22 @@ import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ListItem from "@/components/rollout-sessions/rollout-session-view/list/list-item.tsx";
+import MustacheTemplateSheet from "@/components/rollout-sessions/rollout-session-view/list/mustache-template-sheet.tsx";
 import {
   TraceViewListSpan,
   TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {
-  traceId: string;
+  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
-  onSetCachePoint?: (span: TraceViewSpan) => void;
-  isSpanCached?: (span: TraceViewSpan) => boolean;
 }
 
-const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProps) => {
+const List = ({ traceId, onSpanSelect }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useRolloutSessionStoreContext((state) => ({
@@ -65,10 +63,15 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProp
 
   const items = virtualizer?.getVirtualItems() || [];
 
-  const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
+  const visibleSpanIds = compact(
+    items.map((item) => {
+      const listSpan = listSpans[item.index];
+      return listSpan && !listSpan.pending ? listSpan.spanId : null;
+    })
+  ) as string[];
 
   const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
-    id: traceId,
+    id: traceId ?? "-",
     startTime: trace?.startTime,
     endTime: trace?.endTime,
   });
@@ -126,19 +129,6 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProp
     },
     [spans, onSpanSelect]
   );
-
-  const handleSetCachePoint = useCallback((listSpan: TraceViewListSpan) => {
-    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
-    if (fullSpan && onSetCachePoint) {
-      onSetCachePoint(fullSpan);
-    }
-  }, [spans, onSetCachePoint]);
-
-  const isListSpanCached = useCallback((listSpan: TraceViewListSpan): boolean => {
-    if (!isSpanCached) return false;
-    const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
-    return fullSpan ? isSpanCached(fullSpan) : false;
-  }, [spans, isSpanCached]);
 
   const handleOpenSettings = useCallback((span: TraceViewListSpan) => {
     setSettingsSpan(span);
@@ -203,8 +193,6 @@ const List = ({ traceId, onSpanSelect, onSetCachePoint, isSpanCached }: ListProp
                     getOutput={getOutput}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={handleOpenSettings}
-                    onSetCachePoint={onSetCachePoint ? handleSetCachePoint : undefined}
-                    isCached={isListSpanCached(listSpan)}
                   />
                 </div>
               );
