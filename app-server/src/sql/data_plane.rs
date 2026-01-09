@@ -32,19 +32,17 @@ pub async fn query(
 ) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    if config.data_plane_url.is_empty() {
+    let (Some(data_plane_url_nonce), Some(data_plane_url)) =
+        (&config.data_plane_url_nonce, &config.data_plane_url)
+    else {
         return Err(SqlQueryError::InternalError(
-            "Data plane URL is empty".to_string(),
+            "Data plane URL is not configured".to_string(),
         ));
-    }
+    };
 
-    // Decrypt data_plane_url if present
-    let data_plane_url = crypto::decrypt(
-        config.workspace_id,
-        &config.data_plane_url_nonce,
-        &config.data_plane_url,
-    )
-    .map_err(|e| SqlQueryError::InternalError(e.to_string()))?;
+    // Decrypt data_plane_url
+    let data_plane_url = crypto::decrypt(config.workspace_id, data_plane_url_nonce, data_plane_url)
+        .map_err(|e| SqlQueryError::InternalError(e.to_string()))?;
 
     // Generate auth token
     let auth_token = generate_auth_token(config);

@@ -49,14 +49,17 @@ impl ClickhouseTrait for DataPlaneClickhouse {
             return Ok(());
         }
 
-        if self.config.data_plane_url.is_empty() {
-            return Err(anyhow!("Data plane URL is empty"));
-        }
+        let (Some(data_plane_url_nonce), Some(data_plane_url)) = (
+            &self.config.data_plane_url_nonce,
+            &self.config.data_plane_url,
+        ) else {
+            return Err(anyhow!("Data plane URL is not configured"));
+        };
 
         let data_plane_url = crypto::decrypt(
             self.config.workspace_id,
-            &self.config.data_plane_url_nonce,
-            &self.config.data_plane_url,
+            data_plane_url_nonce,
+            data_plane_url,
         )
         .map_err(|e| anyhow!(e.to_string()))?;
 

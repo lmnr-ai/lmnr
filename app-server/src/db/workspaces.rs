@@ -16,11 +16,11 @@ pub enum DeploymentMode {
 pub struct WorkspaceDeployment {
     pub workspace_id: Uuid,
     pub mode: DeploymentMode,
-    pub private_key: String,
-    pub private_key_nonce: String,
-    pub public_key: String,
-    pub data_plane_url: String,
-    pub data_plane_url_nonce: String,
+    pub private_key: Option<String>,
+    pub private_key_nonce: Option<String>,
+    pub public_key: Option<String>,
+    pub data_plane_url: Option<String>,
+    pub data_plane_url_nonce: Option<String>,
 }
 
 pub async fn get_workspace_deployment_by_project_id(
@@ -32,11 +32,11 @@ pub async fn get_workspace_deployment_by_project_id(
         SELECT
             projects.workspace_id,
             COALESCE(workspace_deployments.mode, 'CLOUD') as mode,
-            COALESCE(workspace_deployments.public_key, '') as public_key,
-            COALESCE(workspace_deployments.private_key, '') as private_key,
-            COALESCE(workspace_deployments.private_key_nonce, '') as private_key_nonce,
-            COALESCE(workspace_deployments.data_plane_url, '') as data_plane_url,
-            COALESCE(workspace_deployments.data_plane_url_nonce, '') as data_plane_url_nonce
+            workspace_deployments.public_key,
+            workspace_deployments.private_key,
+            workspace_deployments.private_key_nonce,
+            workspace_deployments.data_plane_url,
+            workspace_deployments.data_plane_url_nonce
         FROM
             projects
             LEFT JOIN workspace_deployments ON projects.workspace_id = workspace_deployments.workspace_id

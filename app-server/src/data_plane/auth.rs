@@ -33,12 +33,14 @@ const TOKEN_CACHE_TTL_SECS: u64 = 720;
 static TOKEN_CACHE: OnceLock<Cache<Uuid, String>> = OnceLock::new();
 
 fn key_from_base64(config: &WorkspaceDeployment) -> Result<sign::SecretKey, String> {
-    let decrypted = decrypt(
-        config.workspace_id,
-        &config.private_key_nonce,
-        &config.private_key,
-    )
-    .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
+    let (Some(private_key_nonce), Some(private_key)) =
+        (&config.private_key_nonce, &config.private_key)
+    else {
+        return Err("Private key is not configured".to_string());
+    };
+
+    let decrypted = decrypt(config.workspace_id, private_key_nonce, private_key)
+        .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
 
     let key_bytes = base64::engine::general_purpose::STANDARD
         .decode(&decrypted)
