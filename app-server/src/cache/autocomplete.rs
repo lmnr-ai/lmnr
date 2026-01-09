@@ -123,7 +123,7 @@ pub async fn populate_autocomplete_cache(
                 Ok(true) => {
                     insert_current_span_values(project_id, spans, cache.clone()).await;
 
-                    let cache_clone = cache.clone();
+                    let cache_clone: Arc<Cache> = cache.clone();
                     let clickhouse_clone = clickhouse.clone();
 
                     tokio::spawn(async move {

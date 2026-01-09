@@ -18,9 +18,10 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     ch::{
-        self,
+        ClickhouseService,
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation, upsert_traces_batch},
+        tags::CHTag,
+        traces::{CHTrace, TraceAggregation},
     },
     db::{
         DB,
@@ -37,7 +38,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    storage::Storage,
+    storage::StorageService,
     traces::{
         IngestedBytes,
         events::record_span_events,
@@ -59,7 +60,8 @@ pub struct SpanHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub storage: Arc<Storage>,
+    pub ch_service: Arc<ClickhouseService>,
+    pub storage: Arc<StorageService>,
     pub pubsub: Arc<PubSub>,
 }
 
@@ -76,20 +78,22 @@ impl MessageHandler for SpanHandler {
             self.storage.clone(),
             self.queue.clone(),
             self.pubsub.clone(),
+            self.ch_service.clone(),
         )
         .await
     }
 }
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub))]
+#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub, ch_service))]
 async fn process_spans_and_events_batch(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    storage: Arc<Storage>,
+    storage: Arc<StorageService>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    ch_service: Arc<ClickhouseService>,
 ) -> Result<(), HandlerError> {
     let mut all_spans = Vec::new();
     let mut all_events = Vec::new();
@@ -153,6 +157,7 @@ async fn process_spans_and_events_batch(
         cache,
         queue,
         pubsub,
+        ch_service,
     )
     .with_current_context()
     .await
@@ -174,7 +179,8 @@ struct StrippedSpan {
     clickhouse,
     cache,
     queue,
-    pubsub
+    pubsub,
+    ch_service
 ))]
 async fn process_batch(
     mut spans: Vec<Span>,
@@ -185,6 +191,7 @@ async fn process_batch(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
+    ch_service: Arc<ClickhouseService>,
 ) -> Result<(), HandlerError> {
     let mut span_usage_vec = Vec::new();
     let mut all_events = Vec::new();
@@ -245,7 +252,7 @@ async fn process_batch(
                 .map(|trace| CHTrace::from_db_trace(trace))
                 .collect();
 
-            if let Err(e) = upsert_traces_batch(clickhouse.clone(), &ch_traces).await {
+            if let Err(e) = ch_service.insert_batch(project_id, &ch_traces).await {
                 log::error!(
                     "Failed to upsert {} traces to ClickHouse: {:?}",
                     ch_traces.len(),
@@ -282,7 +289,7 @@ async fn process_batch(
         .collect();
 
     // Record spans to clickhouse
-    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+    if let Err(e) = ch_service.insert_batch(project_id, &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
@@ -414,10 +421,11 @@ async fn process_batch(
 
     // Record all tags in a single batch
     if !tags_batch.is_empty() {
-        if let Err(e) = crate::ch::tags::insert_tags_batch(clickhouse.clone(), &tags_batch).await {
+        let ch_tags: Vec<CHTag> = tags_batch.iter().map(CHTag::from).collect();
+        if let Err(e) = ch_service.insert_batch(project_id, &ch_tags).await {
             log::error!(
                 "Failed to record tags to DB for batch of {} tags: {:?}",
-                tags_batch.len(),
+                ch_tags.len(),
                 e
             );
         }

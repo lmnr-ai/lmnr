@@ -62,9 +62,10 @@ use std::{
 };
 use storage::{
     PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler, Storage,
-    mock::MockStorage,
+    StorageService, mock::MockStorage,
 };
 
+use crate::ch::ClickhouseService;
 use crate::features::{enable_consumer, enable_producer};
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 
@@ -73,6 +74,7 @@ mod auth;
 mod browser_events;
 mod cache;
 mod ch;
+mod data_plane;
 mod datasets;
 mod db;
 mod evaluations;
@@ -542,7 +544,7 @@ fn main() -> anyhow::Result<()> {
     let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
         log::info!("using S3 storage");
         let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-        let s3_storage = storage::s3::S3Storage::new(s3_client, queue.clone());
+        let s3_storage = storage::s3::S3Storage::new(s3_client);
         Arc::new(s3_storage.into())
     } else {
         log::info!("using mock storage");
@@ -638,9 +640,31 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // == HTTP client ==
+    let http_client = Arc::new(reqwest::Client::new());
+
+    // == Storage Service ==
+    let storage_service = Arc::new(StorageService::new(
+        storage.clone(),
+        queue.clone(),
+        db.pool.clone(),
+        cache.clone(),
+        (*http_client).clone(),
+    ));
+
+    // == ClickHouse Service ==
+    let ch_service = Arc::new(ClickhouseService::new(
+        clickhouse.clone(),
+        db.pool.clone(),
+        cache.clone(),
+        (*http_client).clone(),
+    ));
+
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
+    let storage_service_for_http = storage_service.clone();
     let sse_connections_for_http = sse_connections.clone();
+    let http_client_for_http = http_client.clone();
 
     if !enable_producer() && !enable_consumer() {
         log::error!(
@@ -757,9 +781,10 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let storage_for_consumer = storage.clone();
+        let storage_service_for_consumer = storage_service.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
+        let ch_service_for_consumer = ch_service.clone();
         let worker_pool_clone = worker_pool.clone();
 
         let consumer_handle = thread::Builder::new()
@@ -772,8 +797,9 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let storage = storage_for_consumer.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
+                        let ch_service = ch_service_for_consumer.clone();
 
                         worker_pool_clone.spawn(
                             WorkerType::Spans,
@@ -783,7 +809,8 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
-                                storage: storage.clone(),
+                                ch_service: ch_service.clone(),
+                                storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
                             },
                             QueueConfig {
@@ -860,12 +887,12 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn payload workers
                     {
-                        let storage = storage.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Payloads,
                             num_payload_workers as usize,
                             move || PayloadHandler {
-                                storage: storage.clone(),
+                                storage_service: storage_service.clone(),
                             },
                             QueueConfig {
                                 queue_name: PAYLOADS_QUEUE,
@@ -991,9 +1018,11 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(web::Data::new(storage_service_for_http.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1042,7 +1071,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
-                                    .service(routes::spans::search_spans),
+                                    .service(routes::spans::search_spans)
+                                    .service(routes::payloads::get_payload),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

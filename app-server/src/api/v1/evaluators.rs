@@ -9,6 +9,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     ch::evaluator_scores::insert_evaluator_score_ch,
     db::{
         DB,
@@ -61,11 +62,16 @@ pub async fn create_evaluator_score(
     clickhouse_ro: Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: Data<Arc<reqwest::Client>>,
+    cache: Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
+    let db = db.into_inner();
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
+    let http_client = http_client.as_ref().clone();
+    let cache = cache.into_inner();
 
     // Extract common fields from both variants
     let (name, metadata, score, source) = match &req {
@@ -98,6 +104,9 @@ pub async fn create_evaluator_score(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
+                http_client,
+                db.clone(),
+                cache,
             )
             .await?
         }

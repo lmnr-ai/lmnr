@@ -9,11 +9,8 @@ pub struct MockStorage;
 impl super::StorageTrait for MockStorage {
     type StorageBytesStream =
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
-    async fn store(&self, _bucket: &str, _key: &str, _data: Vec<u8>) -> Result<String> {
-        Ok("mock".to_string())
-    }
 
-    async fn store_direct(&self, _bucket: &str, _key: &str, _data: Vec<u8>) -> Result<String> {
+    async fn store(&self, _bucket: &str, _key: &str, _data: Vec<u8>) -> Result<String> {
         Ok("mock".to_string())
     }
 
