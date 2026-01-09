@@ -83,7 +83,7 @@ impl super::StorageTrait for DataPlaneStorage {
 
         let response = self
             .http_client
-            .post(format!("{}/api/v1/storage/upload", data_plane_url))
+            .post(format!("{data_plane_url}/api/v1/storage/upload"))
             .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
             .json(&payload)
