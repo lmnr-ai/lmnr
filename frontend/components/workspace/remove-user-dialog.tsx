@@ -25,6 +25,7 @@ const RemoveUserDialog = ({ open, onOpenChange, workspace, user }: RemoveUserDia
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
   const handleRemoveUser = async () => {
     if (user) {
       setIsLoading(true);

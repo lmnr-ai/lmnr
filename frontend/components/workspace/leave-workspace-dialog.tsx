@@ -25,6 +25,7 @@ const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWork
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
   const handleRemoveUser = async () => {
     if (user) {
       setIsLoading(true);

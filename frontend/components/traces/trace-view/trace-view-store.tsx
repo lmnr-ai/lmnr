@@ -147,27 +147,27 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = () =>
+const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
-        trace: undefined,
+        trace: initialTrace,
         isTraceLoading: false,
         traceError: undefined,
         spans: [],
         isSpansLoading: false,
         spansError: undefined,
         selectedSpan: undefined,
-        browserSession: false,
+        browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        search: "",
-        searchEnabled: false,
+        search: initialSearch || "",
+        searchEnabled: !!initialSearch,
         zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
-        hasBrowserSession: false,
+        hasBrowserSession: initialTrace?.hasBrowserSession || false,
         spanTemplates: {},
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
@@ -376,11 +376,11 @@ const createTraceViewStore = () =>
 
 const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
 
-const TraceViewStoreProvider = ({ children }: PropsWithChildren) => {
+const TraceViewStoreProvider = ({ children, initialSearch, initialTrace }: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore();
+    storeRef.current = createTraceViewStore(initialSearch, initialTrace);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;

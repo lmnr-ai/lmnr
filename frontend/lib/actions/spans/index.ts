@@ -16,7 +16,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils.ts";
+import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
@@ -279,12 +279,13 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
   const filters: Filter[] = compact(inputFilters);
 
+  const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
       traceId,
       searchQuery: search,
-      timeRange: getTimeRange(pastHours, startDate, endDate),
+      ...(timeRange && { timeRange }),
       searchType: searchIn as SpanSearchType[],
     })
     : [];

@@ -154,6 +154,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
                   setTraceId(null);
                 }}
                 traceId={traceId}
+                initialSearch={searchParams.get("search") || undefined}
               />
             </FiltersContextProvider>
           </Resizable>
