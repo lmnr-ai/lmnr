@@ -77,12 +77,9 @@ async fn get_datapoints(
 
     let dataset_id = match query.dataset {
         DatasetIdentifier::Name(name) => {
-            let Some(dataset_id) = db::datasets::get_dataset_id_by_name(
-                &db.clone().pool,
-                &name.dataset_name,
-                project_id,
-            )
-            .await?
+            let Some(dataset_id) =
+                db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
+                    .await?
             else {
                 return Ok(HttpResponse::NotFound().json(serde_json::json!({
                     "error": "Dataset not found"

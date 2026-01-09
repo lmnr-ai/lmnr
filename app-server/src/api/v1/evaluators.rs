@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{
     HttpResponse, post,
-    web::{self, Data, Json},
+    web::{Data, Json},
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -57,13 +57,13 @@ pub enum CreateEvaluatorScoreRequest {
 #[post("/evaluators/score")]
 pub async fn create_evaluator_score(
     req: Json<CreateEvaluatorScoreRequest>,
-    db: web::Data<DB>,
+    db: Data<DB>,
     clickhouse: Data<clickhouse::Client>,
     clickhouse_ro: Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
     http_client: Data<Arc<reqwest::Client>>,
-    cache: web::Data<Cache>,
+    cache: Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let db = db.into_inner();

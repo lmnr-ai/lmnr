@@ -9,7 +9,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::types::ResponseResult;
-use crate::api::v1::payloads::{PayloadQuery, get_payload_response};
+use crate::api::v1::payloads::PayloadQuery;
 use crate::storage::StorageService;
 
 #[derive(Deserialize)]
@@ -30,5 +30,7 @@ pub async fn get_payload(
     } = path.into_inner();
     let payload_type = query.payload_type.as_deref();
 
-    get_payload_response(project_id, &payload_id, payload_type, &storage).await
+    storage
+        .get_payload_response(project_id, &payload_id, payload_type)
+        .await
 }
