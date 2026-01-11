@@ -87,11 +87,11 @@ pub async fn create_labeling_queues_items(
         .items
         .into_iter()
         .map(|item| {
-            let metadata = serde_json::to_value(&item.metadata).unwrap_or_default();
-            let payload = serde_json::to_value(&item.payload).unwrap_or_default();
-            (metadata, payload)
+            let metadata = serde_json::to_value(&item.metadata)?;
+            let payload = serde_json::to_value(&item.payload)?;
+            Ok((metadata, payload))
         })
-        .collect();
+        .collect::<Result<Vec<_>, serde_json::Error>>()?;
 
     let created_items =
         db::labeling_queues::insert_labeling_queue_items(&db.pool, queue_id, items).await?;
