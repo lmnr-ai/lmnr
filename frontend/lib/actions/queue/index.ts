@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { createDatapoints } from "@/lib/clickhouse/datapoints";
@@ -66,7 +66,10 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
     const nextItem = await db.query.labelingQueueItems.findFirst({
       where: and(
         eq(labelingQueueItems.queueId, queueId),
-        sql`(${labelingQueueItems.createdAt} > ${refDate} OR (${labelingQueueItems.createdAt} = ${refDate} AND ${labelingQueueItems.id} > ${refId}))`
+        or(
+          gt(labelingQueueItems.createdAt, refDate),
+          and(eq(labelingQueueItems.createdAt, refDate), gt(labelingQueueItems.id, refId))
+        )
       ),
       orderBy: [asc(labelingQueueItems.createdAt), asc(labelingQueueItems.id)],
     });
@@ -98,7 +101,10 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
     const prevItem = await db.query.labelingQueueItems.findFirst({
       where: and(
         eq(labelingQueueItems.queueId, queueId),
-        sql`(${labelingQueueItems.createdAt} < ${refDate} OR (${labelingQueueItems.createdAt} = ${refDate} AND ${labelingQueueItems.id} < ${refId}))`
+        or(
+          lt(labelingQueueItems.createdAt, refDate),
+          and(eq(labelingQueueItems.createdAt, refDate), lt(labelingQueueItems.id, refId))
+        )
       ),
       orderBy: [desc(labelingQueueItems.createdAt), desc(labelingQueueItems.id)],
     });
