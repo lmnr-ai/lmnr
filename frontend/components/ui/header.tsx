@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PropsWithChildren } from "react";
+import { type PropsWithChildren } from "react";
 
 import CopyTooltip from "@/components/ui/copy-tooltip.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -33,9 +33,9 @@ export default function Header({
   const segments: BreadcrumbSegment[] =
     typeof path === "string"
       ? path.split("/").map((segment, index, arr) => ({
-        name: segment,
-        href: index < arr.length - 1 ? `/project/${projectId}/${segment.replace(/ /g, "-")}` : undefined,
-      }))
+          name: segment,
+          href: index < arr.length - 1 ? `/project/${projectId}/${segment.replace(/ /g, "-")}` : undefined,
+        }))
       : path;
 
   return (

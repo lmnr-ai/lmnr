@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { WorkspaceStats } from "@/lib/usage/types";
-import { Workspace } from "@/lib/workspaces/types";
+import { type WorkspaceStats } from "@/lib/usage/types";
+import { type Workspace } from "@/lib/workspaces/types";
 
 interface AddUserDialogProps {
   open: boolean;

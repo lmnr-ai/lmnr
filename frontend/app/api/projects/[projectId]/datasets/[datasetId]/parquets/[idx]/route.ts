@@ -1,8 +1,11 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
 import { streamParquet } from "@/lib/actions/dataset";
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string; idx: string }> }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ projectId: string; datasetId: string; idx: string }> }
+) {
   const { projectId, datasetId, idx } = await params;
 
   const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, parseInt(idx));

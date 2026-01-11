@@ -1,16 +1,16 @@
 import { isNil } from "lodash";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
-  ColumnFilterConfig,
+  type ColumnFilterConfig,
   createCustomFilter,
   createStringFilter,
-  QueryParams,
-  QueryResult,
-  SelectQueryOptions,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 
 const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
@@ -219,11 +219,11 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-      pagination: {
-        limit,
-        offset,
-      },
-    }),
+        pagination: {
+          limit,
+          offset,
+        },
+      }),
   };
 
   return buildSelectQuery(queryOptions);

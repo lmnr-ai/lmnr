@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
@@ -13,7 +13,10 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
   const params = await props.params;
   const projectId = params.projectId;
 
-  const parseResult = parseUrlParams(request.nextUrl.searchParams, GetSemanticEventDefinitionsSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(
+    request.nextUrl.searchParams,
+    GetSemanticEventDefinitionsSchema.omit({ projectId: true })
+  );
 
   if (!parseResult.success) {
     return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
@@ -74,5 +77,3 @@ export async function DELETE(request: NextRequest, props: { params: Promise<{ pr
     );
   }
 }
-
-

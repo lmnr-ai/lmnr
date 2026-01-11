@@ -10,7 +10,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
-import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
+import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import SpanImagesVideoPlayer from "@/components/traces/span-images-video-player";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
 import { Button } from "@/components/ui/button.tsx";

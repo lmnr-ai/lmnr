@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { MiniTree } from "@/components/rollout-sessions/rollout-session-view/list/mini-tree.tsx";
 import {
-  TraceViewListSpan,
+  type TraceViewListSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";

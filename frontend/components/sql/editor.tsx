@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
-import { SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
 import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";

@@ -1,12 +1,12 @@
-import { Metadata } from 'next';
-import { getServerSession } from 'next-auth';
+import { type Metadata } from "next";
+import { getServerSession } from "next-auth";
 
-import LandingHeader from '@/components/landing/landing-header';
-import Pricing from '@/components/landing/pricing';
-import { authOptions } from '@/lib/auth';
+import LandingHeader from "@/components/landing/landing-header";
+import Pricing from "@/components/landing/pricing";
+import { authOptions } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: 'Pricing – Laminar'
+  title: "Pricing – Laminar",
 };
 
 export default async function PricingPage() {

@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
-import { ProjectDetails } from "@/lib/actions/project";
+import { type ProjectDetails } from "@/lib/actions/project";
 
 const UsageDisplay = ({
   gbUsed,

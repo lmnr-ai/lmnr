@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { DashboardChart } from "@/components/dashboard/types";
+import { type DashboardChart } from "@/components/dashboard/types";
 import { repositionCharts } from "@/lib/actions/dashboard/utils";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
@@ -130,7 +130,7 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
     .set({
       name,
       query,
-      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`
+      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`,
     })
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 

@@ -5,7 +5,7 @@ import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
-import { Span } from "@/lib/traces/types.ts";
+import { type Span } from "@/lib/traces/types.ts";
 
 export const GetSharedSpanSchema = z.object({
   spanId: z.string(),

@@ -1,10 +1,10 @@
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
-import { RowData } from "@tanstack/react-table";
+import { type RowData } from "@tanstack/react-table";
 import { forwardRef } from "react";
 
 import { TableHeader, TableRow } from "@/components/ui/table.tsx";
 
-import { InfiniteDataTableHeaderProps } from "../model/types.ts";
+import { type InfiniteDataTableHeaderProps } from "../model/types.ts";
 import { InfiniteTableHead } from "./head.tsx";
 
 export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, InfiniteDataTableHeaderProps<RowData>>(

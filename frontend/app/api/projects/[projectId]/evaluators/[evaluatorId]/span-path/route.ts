@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, z } from "zod/v4";
 
 import { registerEvaluatorToSpanPath, unregisterEvaluatorFromSpanPath } from "@/lib/actions/evaluator/span-path";

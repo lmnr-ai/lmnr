@@ -7,8 +7,8 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { Filter } from "@/lib/actions/common/filters.ts";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type Filter } from "@/lib/actions/common/filters.ts";
 import { Operator } from "@/lib/actions/common/operators.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useDebounce } from "@/lib/hooks/use-debounce";

@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { Event, EventRow } from "@/lib/events/types";
+import { type Event, type EventRow } from "@/lib/events/types";
 
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams, resolveClusterFilters } from "./utils";
 
@@ -122,7 +122,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
     parameters: {
       name,
       projectId,
-      source: eventSource
+      source: eventSource,
     },
   });
 

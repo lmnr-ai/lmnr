@@ -1,11 +1,11 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import Events from "@/components/events";
 import { EventsStoreProvider } from "@/components/events/events-store";
 import { getClusterConfig } from "@/lib/actions/cluster-configs";
-import { EventDefinition, getEventDefinition } from "@/lib/actions/event-definitions";
+import { type EventDefinition, getEventDefinition } from "@/lib/actions/event-definitions";
 import { getLastEvent } from "@/lib/actions/events";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -28,7 +28,7 @@ export default async function CodeEventPage(props: {
   }
 
   const [lastEvent, clusterConfig] = await Promise.all([
-    getLastEvent({ projectId, name: eventDefinition.name, eventSource: 'CODE' }),
+    getLastEvent({ projectId, name: eventDefinition.name, eventSource: "CODE" }),
     getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "CODE" }),
   ]);
 

@@ -1,4 +1,4 @@
-import { NavigationConfig } from "@/components/traces/trace-view/navigation-context";
+import { type NavigationConfig } from "@/components/traces/trace-view/navigation-context";
 
 export type EventNavigationItem = {
   traceId: string;

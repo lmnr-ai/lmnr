@@ -1,7 +1,7 @@
 import { scaleUtc } from "d3-scale";
 import { differenceInHours } from "date-fns";
 
-import { ChartConfig } from "@/components/ui/chart.tsx";
+import { type ChartConfig } from "@/components/ui/chart.tsx";
 
 export const chartConfig: ChartConfig = {
   successCount: {

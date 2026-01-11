@@ -1,10 +1,16 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete.tsx";
-import { TraceViewSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/rollout-sessions/rollout-session-view/search/utils.ts";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { Filter } from "@/lib/actions/common/filters.ts";
+import {
+  type TraceViewSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import {
+  extractSpanSuggestions,
+  STATIC_SPAN_SUGGESTIONS,
+} from "@/components/rollout-sessions/rollout-session-view/search/utils.ts";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type Filter } from "@/lib/actions/common/filters.ts";
 import { Operator } from "@/lib/actions/common/operators.ts";
 
 interface SearchRolloutSessionSpansInputProps {
@@ -16,7 +22,12 @@ interface SearchRolloutSessionSpansInputProps {
 
 const MAX_SUGGESTIONS = 15;
 
-const SearchRolloutSessionSpansInput = ({ spans, submit, filters, onAddFilter }: SearchRolloutSessionSpansInputProps) => {
+const SearchRolloutSessionSpansInput = ({
+  spans,
+  submit,
+  filters,
+  onAddFilter,
+}: SearchRolloutSessionSpansInputProps) => {
   const { storeSearch, setSearch } = useRolloutSessionStoreContext((state) => ({
     storeSearch: state.search,
     setSearch: state.setSearch,
@@ -106,4 +117,3 @@ const SearchRolloutSessionSpansInput = ({ spans, submit, filters, onAddFilter }:
 };
 
 export default memo(SearchRolloutSessionSpansInput);
-

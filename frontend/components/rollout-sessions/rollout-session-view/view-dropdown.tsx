@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, List, ListTree, LucideIcon } from "lucide-react";
+import { ChartNoAxesGantt, ChevronDown, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { Button } from "@/components/ui/button.tsx";
@@ -65,11 +65,7 @@ export default function ViewDropdown() {
           const view = viewOptions[option];
           const OptionIcon = view.icon;
           return (
-            <DropdownMenuItem
-              key={option}
-              onClick={() => setTab(option)}
-              className={cn(tab === option && "bg-accent")}
-            >
+            <DropdownMenuItem key={option} onClick={() => setTab(option)} className={cn(tab === option && "bg-accent")}>
               <OptionIcon size={14} />
               {view.label}
             </DropdownMenuItem>
@@ -79,6 +75,3 @@ export default function ViewDropdown() {
     </DropdownMenu>
   );
 }
-
-
-

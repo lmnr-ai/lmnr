@@ -2,7 +2,7 @@ import { isNil } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
+import React, { type KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

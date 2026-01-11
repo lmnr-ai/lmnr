@@ -78,7 +78,7 @@ class CacheManager {
   async set<T>(key: string, value: T, options: RedisSetOptions = {}): Promise<void> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
-      let args: any[] = [];
+      const args: any[] = [];
       if (options.expireAfterSeconds) {
         args.push("EX", options.expireAfterSeconds);
       }

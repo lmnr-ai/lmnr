@@ -6,13 +6,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import CodeHighlighter from "@/components/ui/code-highlighter.tsx";
-import { GenerateProjectApiKeyResponse } from "@/lib/api-keys/types.ts";
+import { type GenerateProjectApiKeyResponse } from "@/lib/api-keys/types.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface ApiKeyGeneratorProps {
-    context: "traces" | "evaluations";
-    title?: string;
+  context: "traces" | "evaluations";
+  title?: string;
 }
 
 export default function ApiKeyGenerator({ context, title = "Get your API Key" }: ApiKeyGeneratorProps) {
@@ -22,9 +22,7 @@ export default function ApiKeyGenerator({ context, title = "Get your API Key" }:
   const { toast } = useToast();
 
   const apiKeyName = `${context}-setup-api-key`;
-  const displayValue = generatedKey
-    ? `LMNR_PROJECT_API_KEY=${generatedKey}`
-    : "LMNR_PROJECT_API_KEY=<your_api_key>";
+  const displayValue = generatedKey ? `LMNR_PROJECT_API_KEY=${generatedKey}` : "LMNR_PROJECT_API_KEY=<your_api_key>";
 
   const handleGenerateKey = async () => {
     try {
@@ -62,11 +60,15 @@ export default function ApiKeyGenerator({ context, title = "Get your API Key" }:
         {!generatedKey && (
           <Button onClick={handleGenerateKey} disabled={isLoading}>
             <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={14} />
-                Generate
+            Generate
           </Button>
         )}
       </div>
-      <CodeHighlighter className="text-xs bg-background p-4 rounded-md border [&_code]:break-all" copyable code={displayValue} />
+      <CodeHighlighter
+        className="text-xs bg-background p-4 rounded-md border [&_code]:break-all"
+        copyable
+        code={displayValue}
+      />
     </div>
   );
 }

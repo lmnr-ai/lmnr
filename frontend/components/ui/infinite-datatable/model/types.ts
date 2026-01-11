@@ -1,6 +1,6 @@
-import { Row, RowData, Table, TableOptions } from "@tanstack/react-table";
-import { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
-import { ReactNode, RefObject } from "react";
+import { type Row, type RowData, type Table, type TableOptions } from "@tanstack/react-table";
+import { type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
+import { type ReactNode, type RefObject } from "react";
 
 export interface LoadMoreButtonProps {
   onClick: () => void;

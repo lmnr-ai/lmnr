@@ -1,5 +1,5 @@
 import { and, desc, eq, ilike, inArray } from "drizzle-orm";
-import {partition} from "lodash";
+import { partition } from "lodash";
 import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
@@ -8,11 +8,11 @@ import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { deleteDatapointsByDatasetIds } from "@/lib/clickhouse/datapoints";
-import { DatasetInfo } from "@/lib/dataset/types";
+import { type DatasetInfo } from "@/lib/dataset/types";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
-import { PaginatedResponse } from "@/lib/types";
+import { type PaginatedResponse } from "@/lib/types";
 
 const CreateDatasetSchema = z.object({
   name: z.string().min(1, { message: "Dataset name is required" }),
@@ -48,7 +48,7 @@ export async function createDataset(input: z.infer<typeof CreateDatasetSchema>) 
 export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
   const { projectId, pageNumber, pageSize, search, filter } = input;
 
-  const [countFilters, pgFilters] = partition(filter, f => f.column === 'count');
+  const [countFilters, pgFilters] = partition(filter, (f) => f.column === "count");
 
   if (countFilters.length > 0) {
     const countQuery = buildSelectQuery({
@@ -61,7 +61,7 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       havingColumnFilterConfig: {
         processors: new Map([
           [
-            'count',
+            "count",
             (filter, paramKey) => ({
               condition: `count ${OperatorLabelMap[filter.operator]} {${paramKey}: UInt64}`,
               params: { [paramKey]: filter.value },
@@ -71,25 +71,20 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       },
     });
 
-    const countRows = await executeQuery<{ datasetId: string, count: number}>({
+    const countRows = await executeQuery<{ datasetId: string; count: number }>({
       query: countQuery.query,
       parameters: countQuery.parameters,
       projectId,
     });
 
     const qualifyingDatasetIds = countRows.map((row) => row.datasetId);
-    const datapointCounts = Object.fromEntries(
-      countRows.map((row) => [row.datasetId, row.count])
-    );
+    const datapointCounts = Object.fromEntries(countRows.map((row) => [row.datasetId, row.count]));
 
     if (qualifyingDatasetIds.length === 0) {
       return { items: [], totalCount: 0 };
     }
 
-    const filters = [
-      eq(datasets.projectId, projectId),
-      inArray(datasets.id, qualifyingDatasetIds),
-    ];
+    const filters = [eq(datasets.projectId, projectId), inArray(datasets.id, qualifyingDatasetIds)];
 
     if (search) {
       filters.push(ilike(datasets.name, `%${search}%`));
@@ -158,15 +153,13 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
     groupBy: ["datasetId"],
   });
 
-  const rows = await executeQuery<{ datasetId: string; count: number}>({
+  const rows = await executeQuery<{ datasetId: string; count: number }>({
     query: countQuery.query,
     parameters: countQuery.parameters,
     projectId,
   });
 
-  const datapointCounts = Object.fromEntries(
-    rows.map((row) => [row.datasetId, row.count])
-  );
+  const datapointCounts = Object.fromEntries(rows.map((row) => [row.datasetId, row.count]));
 
   const items = datasetsData.items.map((dataset) => ({
     ...dataset,

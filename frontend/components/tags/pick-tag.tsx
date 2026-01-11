@@ -1,16 +1,16 @@
 "use client";
-import { CheckedState } from "@radix-ui/react-checkbox";
+import { type CheckedState } from "@radix-ui/react-checkbox";
 import { isEmpty } from "lodash";
 import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
-import { Dispatch, SetStateAction, useMemo } from "react";
+import { type Dispatch, type SetStateAction, useMemo } from "react";
 
 import { useTagsContext } from "@/components/tags/tags-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanTag, TagClass } from "@/lib/traces/types";
+import { type SpanTag, type TagClass } from "@/lib/traces/types";
 
 interface PickTagProps {
   setStep: Dispatch<SetStateAction<0 | 1>>;
@@ -41,7 +41,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
 
   const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
     try {
-      if (Boolean(checked)) {
+      if (checked) {
         const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
           method: "POST",
           body: JSON.stringify({

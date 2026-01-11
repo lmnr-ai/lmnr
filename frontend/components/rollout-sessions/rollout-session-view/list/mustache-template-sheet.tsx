@@ -1,8 +1,11 @@
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { PropsWithChildren, useMemo, useState } from "react";
+import { type PropsWithChildren, useMemo, useState } from "react";
 
-import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import {
+  type TraceViewListSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { extractKeys, generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -183,4 +186,3 @@ export default function MustacheTemplateSheet({
     </Sheet>
   );
 }
-

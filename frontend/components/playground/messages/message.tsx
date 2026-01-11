@@ -2,14 +2,26 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { capitalize } from "lodash";
 import { Bolt, ChevronRight, CircleMinus, CirclePlus, ImagePlus, MessageCirclePlus } from "lucide-react";
 import React from "react";
-import { Controller, ControllerRenderProps, useFieldArray, UseFieldArrayReturn, useFormContext } from "react-hook-form";
+import {
+  Controller,
+  type ControllerRenderProps,
+  useFieldArray,
+  type UseFieldArrayReturn,
+  useFormContext,
+} from "react-hook-form";
 
 import MessageParts from "@/components/playground/messages/message-parts";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ImagePart, PlaygroundForm, TextPart, ToolCallPart, ToolResultPart } from "@/lib/playground/types";
+import {
+  type ImagePart,
+  type PlaygroundForm,
+  type TextPart,
+  type ToolCallPart,
+  type ToolResultPart,
+} from "@/lib/playground/types";
 
 interface MessageProps {
   insert: UseFieldArrayReturn<PlaygroundForm, "messages">["insert"];

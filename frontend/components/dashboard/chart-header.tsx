@@ -1,9 +1,9 @@
 import { Edit, EllipsisVertical, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
-import React, { FocusEvent, KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
+import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

@@ -1,19 +1,19 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
+import { type Filter } from "@/lib/actions/common/filters";
+import { type Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
-  ColumnFilterConfig,
+  type ColumnFilterConfig,
   createCustomFilter,
   createNumberFilter,
-  QueryParams,
-  QueryResult,
-  SelectQueryOptions,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import {
-  EvaluationResultWithScores,
-  EvaluationScoreDistributionBucket,
-  EvaluationScoreStatistics,
+  type EvaluationResultWithScores,
+  type EvaluationScoreDistributionBucket,
+  type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
 
 // Constants for distribution calculation
@@ -29,8 +29,10 @@ const evaluationDatapointsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
-              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
+            return (
+              `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+              ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`
+            );
           }
           return "";
         },

@@ -1,5 +1,5 @@
 "use client";
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
@@ -16,7 +16,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { SpanRow } from "@/lib/traces/types";
+import { type SpanRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
 

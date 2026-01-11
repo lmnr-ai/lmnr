@@ -4,11 +4,11 @@ import "./styles.css";
 import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
-import { Responsive, ResponsiveProps, WidthProvider } from "react-grid-layout";
+import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layout";
 import useSWR from "swr";
 
 import Chart from "@/components/dashboard/chart";
-import { DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";

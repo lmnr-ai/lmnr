@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getWorkspaceUsers } from "@/lib/actions/workspace";
@@ -17,5 +17,3 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ workspac
     return Response.json({ error: "Failed to get workspace users. Please try again." }, { status: 500 });
   }
 }
-
-

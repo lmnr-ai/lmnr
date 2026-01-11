@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -7,7 +7,7 @@ import Evaluation from "@/components/evaluation/evaluation";
 import { EVALUATION_TRACE_VIEW_WIDTH } from "@/lib/actions/evaluation";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
-import { Evaluation as EvaluationType } from "@/lib/evaluation/types";
+import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 
 export const metadata: Metadata = {
   title: "Evaluation results",

@@ -14,9 +14,9 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
-import { getCoreRowModel, getExpandedRowModel, RowData, useReactTable } from "@tanstack/react-table";
+import { getCoreRowModel, getExpandedRowModel, type RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import React, { type PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
@@ -25,7 +25,7 @@ import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import { useDataTableStore } from "./model/datatable-store.tsx";
-import { InfiniteDataTableProps } from "./model/types.ts";
+import { type InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
 import { SelectionPanel } from "./ui/selection-panel.tsx";

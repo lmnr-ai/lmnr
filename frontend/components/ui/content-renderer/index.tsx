@@ -1,6 +1,6 @@
 import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
-import CodeMirror, { ReactCodeMirrorProps, ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,7 +11,7 @@ import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
   baseExtensions,
   createImageDecorationPlugin,
-  ImageData,
+  type ImageData,
   languageExtensions,
   modes as defaultModes,
   renderText,

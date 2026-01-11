@@ -1,5 +1,5 @@
 "use client";
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -19,10 +19,10 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { TraceRow } from "@/lib/traces/types";
+import { type TraceRow } from "@/lib/traces/types";
 
 const presetFilters: Filter[] = [];
 

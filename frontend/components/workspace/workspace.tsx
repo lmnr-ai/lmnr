@@ -2,8 +2,8 @@
 
 import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
-import { WorkspaceStats } from "@/lib/usage/types";
-import { WorkspaceInvitation, WorkspaceRole, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
+import { type WorkspaceStats } from "@/lib/usage/types";
+import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";

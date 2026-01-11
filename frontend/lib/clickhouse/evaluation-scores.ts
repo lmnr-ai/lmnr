@@ -1,7 +1,7 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { AggregationFunction } from "@/lib/clickhouse/types";
+import { type AggregationFunction } from "@/lib/clickhouse/types";
 
-import { EvaluationTimeProgression } from "../evaluation/types";
+import { type EvaluationTimeProgression } from "../evaluation/types";
 import { aggregationFunctionToCh } from "./utils";
 
 export const getEvaluationTimeProgression = async (

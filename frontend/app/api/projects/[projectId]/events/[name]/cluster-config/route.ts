@@ -1,11 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import {
-  createClusterConfig,
-  deleteClusterConfig,
-  getClusterConfig,
-} from "@/lib/actions/cluster-configs";
+import { createClusterConfig, deleteClusterConfig, getClusterConfig } from "@/lib/actions/cluster-configs";
 
 export async function GET(
   req: NextRequest,
@@ -90,4 +86,3 @@ export async function DELETE(
     );
   }
 }
-

@@ -1,7 +1,10 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
-import { TraceViewListSpan, useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import {
+  type TraceViewListSpan,
+  useRolloutSessionStoreContext,
+} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
 
@@ -16,12 +19,14 @@ export function MiniTree({ span }: MiniTreeProps) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
 
-  const { getSpanBranch, getSpanNameInfo, selectSpanById, getSpanAttribute } = useRolloutSessionStoreContext((state) => ({
-    getSpanBranch: state.getSpanBranch,
-    getSpanNameInfo: state.getSpanNameInfo,
-    selectSpanById: state.selectSpanById,
-    getSpanAttribute: state.getSpanAttribute,
-  }));
+  const { getSpanBranch, getSpanNameInfo, selectSpanById, getSpanAttribute } = useRolloutSessionStoreContext(
+    (state) => ({
+      getSpanBranch: state.getSpanBranch,
+      getSpanNameInfo: state.getSpanNameInfo,
+      selectSpanById: state.selectSpanById,
+      getSpanAttribute: state.getSpanAttribute,
+    })
+  );
 
   const fullSpanBranch = getSpanBranch(span);
 
@@ -122,6 +127,3 @@ export function MiniTree({ span }: MiniTreeProps) {
     </div>
   );
 }
-
-
-

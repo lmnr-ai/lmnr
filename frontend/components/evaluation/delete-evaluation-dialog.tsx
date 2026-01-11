@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";

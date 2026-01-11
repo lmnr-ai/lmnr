@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -6,7 +6,7 @@ import Events from "@/components/events";
 import { EventsStoreProvider } from "@/components/events/events-store";
 import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { getLastEvent } from "@/lib/actions/events";
-import { getSemanticEventDefinition, SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { getSemanticEventDefinition, type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -28,7 +28,7 @@ export default async function SemanticEventPage(props: {
   }
 
   const [lastEvent, clusterConfig] = await Promise.all([
-    getLastEvent({ projectId, name: eventDefinition.name, eventSource: 'SEMANTIC' }),
+    getLastEvent({ projectId, name: eventDefinition.name, eventSource: "SEMANTIC" }),
     getClusterConfig({ projectId, eventName: eventDefinition.name, eventSource: "SEMANTIC" }),
   ]);
 

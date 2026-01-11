@@ -1,15 +1,15 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, getTimeRange, TimeRange } from "@/lib/clickhouse/utils";
-import { SessionRow } from "@/lib/traces/types";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
+import { addTimeRangeToQuery, getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
+import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -23,9 +23,7 @@ export const DeleteSessionsSchema = z.object({
   sessionIds: z.array(z.string()).min(1),
 });
 
-export async function getSessions(
-  input: z.infer<typeof GetSessionsSchema>
-): Promise<{ items: SessionRow[] }> {
+export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Promise<{ items: SessionRow[] }> {
   const {
     projectId,
     pastHours,
@@ -45,11 +43,11 @@ export async function getSessions(
 
   const traceIds = search
     ? await searchTraceIds({
-      projectId,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
 
   if (search && traceIds?.length === 0) {
@@ -66,7 +64,11 @@ export async function getSessions(
     pastHours,
   });
 
-  const items = await executeQuery<Omit<SessionRow, "subRows">>({ query: mainQuery, parameters: mainParams, projectId });
+  const items = await executeQuery<Omit<SessionRow, "subRows">>({
+    query: mainQuery,
+    parameters: mainParams,
+    projectId,
+  });
 
   return {
     items: items.map((item) => ({ ...item, subRows: [] })),

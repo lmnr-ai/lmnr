@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { executeQuery } from "@/lib/actions/sql";
 import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
 
-import { GetTraceStructureSchema } from "./index";
+import { type GetTraceStructureSchema } from "./index";
 
 const ClickHouseToSpanSchema = z
   .object({
@@ -43,10 +43,14 @@ const ClickHouseToSpanSchema = z
     let output = span.output;
     try {
       input = JSON.parse(input);
-    } catch {}
+    } catch {
+      // Input is not valid JSON, keep as string
+    }
     try {
       output = JSON.parse(output);
-    } catch {}
+    } catch {
+      // Output is not valid JSON, keep as string
+    }
     return {
       spanId: span.span_id,
       type: span.span_type,

@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
+import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
 
 interface ChartProps {
   className?: string;
@@ -22,9 +22,9 @@ export default function Chart({ className, scoreName, distribution, isLoading = 
   // Convert distribution data to the format expected by the chart
   const chartData = distribution
     ? distribution.map((bucket, index) => ({
-      index,
-      height: bucket.heights[0],
-    }))
+        index,
+        height: bucket.heights[0],
+      }))
     : [];
 
   return (

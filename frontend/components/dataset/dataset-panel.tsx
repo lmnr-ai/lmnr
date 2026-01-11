@@ -5,7 +5,7 @@ import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { Datapoint } from "@/lib/dataset/types";
+import { type Datapoint } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 
@@ -34,42 +34,51 @@ const safeParseJSON = (jsonString: string | null | undefined, fallback: any = nu
   }
 };
 
-export default function DatasetPanel({ datasetId, datapointId, onClose, onEditingStateChange, onDatapointUpdate }: DatasetPanelProps) {
+export default function DatasetPanel({
+  datasetId,
+  datapointId,
+  onClose,
+  onEditingStateChange,
+  onDatapointUpdate,
+}: DatasetPanelProps) {
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  const { data: datapoint, isLoading, mutate } = useSWR<Datapoint>(
-    `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`,
-    swrFetcher
-  );
+  const {
+    data: datapoint,
+    isLoading,
+    mutate,
+  } = useSWR<Datapoint>(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`, swrFetcher);
 
   // Fetch all versions
-  const { data: versions, isLoading: versionsLoading, mutate: mutateVersions } = useSWR<Datapoint[]>(
+  const {
+    data: versions,
+    isLoading: versionsLoading,
+    mutate: mutateVersions,
+  } = useSWR<Datapoint[]>(
     `/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}/versions`,
     swrFetcher
   );
 
   // Track selected version - initialize from URL param if present
-  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(() => searchParams.get("createdAt"));
+  const [selectedVersionCreatedAt, setSelectedVersionCreatedAt] = useState<string | null>(() =>
+    searchParams.get("createdAt")
+  );
 
   // Calculate if viewing an old version
   const isViewingOldVersion = useMemo(() => {
     if (!versions || versions.length === 0 || !selectedVersionCreatedAt) return false;
-    const sortedVersions = [...versions].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    const sortedVersions = [...versions].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     const latestVersion = sortedVersions[0];
     return selectedVersionCreatedAt !== latestVersion.createdAt;
   }, [versions, selectedVersionCreatedAt]);
 
-  const [newData, setNewData] = useState<any>(
-    datapoint ? safeParseJSON(datapoint.data, null) : null
-  );
-  const [newTarget, setNewTarget] = useState<any>(
-    datapoint ? safeParseJSON(datapoint.target, null) : null
-  );
+  const [newData, setNewData] = useState<any>(datapoint ? safeParseJSON(datapoint.data, null) : null);
+  const [newTarget, setNewTarget] = useState<any>(datapoint ? safeParseJSON(datapoint.target, null) : null);
   const [newMetadata, setNewMetadata] = useState<Record<string, any>>(
     datapoint ? safeParseJSON(datapoint.metadata, {}) : {}
   );
@@ -209,24 +218,27 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
   }, []);
 
   // Handler for when user selects a different version from dropdown
-  const handleVersionChange = useCallback((createdAt: string) => {
-    setSelectedVersionCreatedAt(createdAt);
+  const handleVersionChange = useCallback(
+    (createdAt: string) => {
+      setSelectedVersionCreatedAt(createdAt);
 
-    // Update URL with the selected version's createdAt
-    const params = new URLSearchParams(searchParams.toString());
-    if (createdAt) {
-      params.set("createdAt", createdAt);
-    } else {
-      params.delete("createdAt");
-    }
-    router.push(`${pathname}?${params.toString()}`);
+      // Update URL with the selected version's createdAt
+      const params = new URLSearchParams(searchParams.toString());
+      if (createdAt) {
+        params.set("createdAt", createdAt);
+      } else {
+        params.delete("createdAt");
+      }
+      router.push(`${pathname}?${params.toString()}`);
 
-    // Find and load the selected version
-    const version = versions?.find(v => v.createdAt === createdAt);
-    if (version) {
-      loadVersion(version);
-    }
-  }, [versions, loadVersion, searchParams, pathname, router]);
+      // Find and load the selected version
+      const version = versions?.find((v) => v.createdAt === createdAt);
+      if (version) {
+        loadVersion(version);
+      }
+    },
+    [versions, loadVersion, searchParams, pathname, router]
+  );
 
   // Initialize with specific version from URL or latest version when datapoint first loads
   useEffect(() => {
@@ -235,8 +247,8 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
     const createdAtFromUrl = searchParams.get("createdAt");
 
     // If there's a createdAt in the URL and it matches a version, load that version
-    if (createdAtFromUrl && versions.some(v => v.createdAt === createdAtFromUrl)) {
-      const version = versions.find(v => v.createdAt === createdAtFromUrl);
+    if (createdAtFromUrl && versions.some((v) => v.createdAt === createdAtFromUrl)) {
+      const version = versions.find((v) => v.createdAt === createdAtFromUrl);
       if (version) {
         loadVersion(version);
         setSelectedVersionCreatedAt(createdAtFromUrl);
@@ -327,21 +339,11 @@ export default function DatasetPanel({ datasetId, datapointId, onClose, onEditin
             )}
             {(isEditing || isViewingOldVersion) && !saving && (
               <>
-                <Button
-                  variant="default"
-                  onClick={saveChanges}
-                  disabled={!canSave}
-                  className="gap-1"
-                >
+                <Button variant="default" onClick={saveChanges} disabled={!canSave} className="gap-1">
                   <Save className="h-4 w-4" />
                   {isViewingOldVersion ? "Save as new version" : "Save"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={discardChanges}
-                  className="gap-1"
-                  icon="x"
-                >
+                <Button variant="outline" onClick={discardChanges} className="gap-1" icon="x">
                   Discard changes
                 </Button>
               </>

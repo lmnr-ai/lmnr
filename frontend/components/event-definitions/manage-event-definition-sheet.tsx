@@ -6,11 +6,11 @@ import CodeMirror from "@uiw/react-codemirror";
 import { get } from "lodash";
 import { BookMarked, Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import {
-  Control,
+  type Control,
   Controller,
-  FieldErrors,
+  type FieldErrors,
   FormProvider,
   useFieldArray,
   useForm,
@@ -26,7 +26,7 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
 
@@ -42,13 +42,8 @@ export type ManageEventDefinitionForm = Omit<
 export const getDefaultValues = (projectId: string): ManageEventDefinitionForm => ({
   name: "",
   prompt: "",
-  structuredOutput: "{\n" +
-      "  \"type\": \"object\",\n" +
-      "  \"properties\": {\n" +
-      "  },\n" +
-      "   \"required\": [\n" +
-      "  ]\n" +
-      "}",
+  structuredOutput:
+    "{\n" + '  "type": "object",\n' + '  "properties": {\n' + "  },\n" + '   "required": [\n' + "  ]\n" + "}",
   projectId,
   triggerSpans: [],
 });

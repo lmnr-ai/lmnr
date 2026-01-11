@@ -15,8 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { SharedSpanImage } from "@/lib/actions/shared/spans/images";
-import { SpanImage } from "@/lib/actions/span/images";
+import { type SharedSpanImage } from "@/lib/actions/shared/spans/images";
+import { type SpanImage } from "@/lib/actions/span/images";
 import { cn, formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SpanImagesVideoPlayerProps {
@@ -49,11 +49,11 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const swrKey =
     spanIds.length > 0
       ? {
-        url: isShared
-          ? `/api/shared/traces/${traceId}/spans/images`
-          : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
-        spanIds,
-      }
+          url: isShared
+            ? `/api/shared/traces/${traceId}/spans/images`
+            : `/api/projects/${projectId}/traces/${traceId}/spans/images`,
+          spanIds,
+        }
       : null;
 
   const postFetcher = async ({ url, spanIds }: { url: string; spanIds: string[] }) => {

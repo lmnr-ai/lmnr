@@ -6,14 +6,28 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "next build && next start",
     "type-check": "tsc --noEmit",
     "format:write": "prettier --write \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
     "test": "tsx --test tests/**/*.test.ts",
-    "schema-pull:lint": "drizzle-kit pull && sed -i.bak \"s/\\.default(')/\\.default('')/g\" lib/db/migrations/schema.ts && sed -i.bak \"s/vector()/jsonb()/g\" lib/db/migrations/schema.ts && rm lib/db/migrations/schema.ts.bak && next lint --fix"
+    "schema-pull:lint": "drizzle-kit pull && sed -i.bak \"s/\\.default(')/\\.default('')/g\" lib/db/migrations/schema.ts && sed -i.bak \"s/vector()/jsonb()/g\" lib/db/migrations/schema.ts && rm lib/db/migrations/schema.ts.bak && eslint . --fix",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,mjs}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,mdx}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.17",
@@ -97,7 +111,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.468.0",
     "mustache": "^4.2.0",
-    "next": "^15.5.9",
+    "next": "16.1.1",
     "next-auth": "^4.24.13",
     "next-mdx-remote": "^5.0.0",
     "pako": "^2.1.0",
@@ -106,9 +120,9 @@
     "posthog-js": "^1.260.1",
     "posthog-node": "^5.7.0",
     "re-resizable": "^6.11.2",
-    "react": "^19.1.1",
+    "react": "19.2.3",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^19.1.1",
+    "react-dom": "19.2.3",
     "react-github-btn": "^1.4.0",
     "react-grid-layout": "^1.5.2",
     "react-hook-form": "^7.62.0",
@@ -134,8 +148,8 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.3",
-    "@next/eslint-plugin-next": "~15.5.9",
+    "@eslint/js": "^9.18.0",
+    "@next/eslint-plugin-next": "16.1.1",
     "@tailwindcss/postcss": "^4.1.15",
     "@tailwindcss/typography": "^0.5.16",
     "@types/d3-scale": "^4.0.9",
@@ -145,31 +159,26 @@
     "@types/mustache": "^4.2.6",
     "@types/node": "^24.3.0",
     "@types/papaparse": "^5.3.16",
-    "@types/react": "^19.1.10",
-    "@types/react-dom": "^19.1.7",
+    "@types/react": "19.2.8",
+    "@types/react-dom": "19.2.3",
     "@types/react-grid-layout": "^1.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^8.50.0",
-    "@typescript-eslint/parser": "^8.50.0",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9.39.2",
-    "eslint-config-love": "^137.0.0",
-    "eslint-config-next": "~15.5.9",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
-    "eslint-plugin-tailwindcss": "^3.18.2",
     "eslint-plugin-unused-imports": "^4.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.1.15",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.20.4",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.32.0"
   }
 }

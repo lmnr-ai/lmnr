@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import { useRolloutSessionStoreContext } from "./rollout-session-store";
-import { SystemMessage } from "./system-messages-utils";
+import { type SystemMessage } from "./system-messages-utils";
 
 interface SystemMessageEditorProps {
   message: SystemMessage;
@@ -151,7 +151,9 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
         if (prettified !== paramValues) {
           setParamValue(prettified);
         }
-      } catch (e) {}
+      } catch {
+        // Invalid JSON, ignore prettification
+      }
     }
   };
 

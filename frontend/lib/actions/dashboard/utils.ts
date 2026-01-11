@@ -1,7 +1,7 @@
 import { sortBy } from "lodash";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
-import { ChartUpdatesSchema } from "@/lib/actions/dashboard/index";
+import { type ChartUpdatesSchema } from "@/lib/actions/dashboard/index";
 
 export const repositionCharts = (charts: z.infer<typeof ChartUpdatesSchema>) =>
   sortBy(charts, ["settings.layout.y", "settings.layout.x"]).reduce(

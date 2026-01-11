@@ -3,18 +3,18 @@
 import { format, formatRelative } from "date-fns";
 import { Network } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, ResizeCallback } from "re-resizable";
+import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import ManageEventDefinitionSheet, {
-  ManageEventDefinitionForm,
+  type ManageEventDefinitionForm,
 } from "@/components/event-definitions/manage-event-definition-sheet.tsx";
 import ClustersTable from "@/components/events/clusters-table";
 import DisableClusteringDialog from "@/components/events/disable-clustering-dialog";
 import { useEventsStoreContext } from "@/components/events/events-store";
 import EventsTable from "@/components/events/events-table";
 import StartClusteringDialog from "@/components/events/start-clustering-dialog";
-import { EventNavigationItem, getEventsConfig } from "@/components/events/utils";
+import { type EventNavigationItem, getEventsConfig } from "@/components/events/utils";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
@@ -43,17 +43,25 @@ function PureEvents({
   const ref = useRef<Resizable>(null);
   const { workspace } = useProjectContext();
 
-  const { eventDefinition, setEventDefinition, traceId, spanId, setTraceId, setSpanId, clusterConfig, isSemanticEventsEnabled } =
-    useEventsStoreContext((state) => ({
-      eventDefinition: state.eventDefinition,
-      setEventDefinition: state.setEventDefinition,
-      traceId: state.traceId,
-      spanId: state.spanId,
-      setTraceId: state.setTraceId,
-      setSpanId: state.setSpanId,
-      clusterConfig: state.clusterConfig,
-      isSemanticEventsEnabled: state.isSemanticEventsEnabled,
-    }));
+  const {
+    eventDefinition,
+    setEventDefinition,
+    traceId,
+    spanId,
+    setTraceId,
+    setSpanId,
+    clusterConfig,
+    isSemanticEventsEnabled,
+  } = useEventsStoreContext((state) => ({
+    eventDefinition: state.eventDefinition,
+    setEventDefinition: state.setEventDefinition,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+    clusterConfig: state.clusterConfig,
+    isSemanticEventsEnabled: state.isSemanticEventsEnabled,
+  }));
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";

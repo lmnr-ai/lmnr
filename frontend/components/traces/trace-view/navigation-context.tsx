@@ -1,6 +1,6 @@
 import { debounce } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 export type NavigationConfig<T> = {
