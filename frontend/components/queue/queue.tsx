@@ -74,23 +74,35 @@ function QueueInner() {
     };
   }, [currentItem, isLoading, dataset, isValid]);
 
-  const sourceLink = useMemo(() => {
-    if (!currentItem) return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
+  const sourceInfo = useMemo(() => {
+    if (!currentItem) return null;
 
-    if (get(currentItem.metadata, "source") === "datapoint") {
-      return `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`;
+    const source = get(currentItem.metadata, "source");
+
+    if (source === "datapoint") {
+      return {
+        label: "datapoint",
+        link: `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    if (get(currentItem.metadata, "source") === "span") {
-      return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
+    if (source === "span") {
+      return {
+        label: "span",
+        link: `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    if (get(currentItem.metadata, "source") === "sql") {
-      return `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`;
+    if (source === "sql") {
+      return {
+        label: "sql",
+        link: `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
-  }, [currentItem, projectId, storeQueue?.id]);
+    // No source - manually created
+    return null;
+  }, [currentItem, projectId]);
 
   const onChange = useCallback(
     (v: string) => {
@@ -263,11 +275,17 @@ function QueueInner() {
             <>
               <span className="mb-1">Payload</span>
               <div className="flex text-xs gap-1 text-nowrap truncate">
-                <span className="text-secondary-foreground">Created from</span>
-                <Link className="flex text-xs items-center text-primary" href={sourceLink}>
-                  {get(currentItem?.metadata, "source", "-")}
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
+                {sourceInfo ? (
+                  <>
+                    <span className="text-secondary-foreground">Created from</span>
+                    <Link className="flex text-xs items-center text-primary" href={sourceInfo.link}>
+                      {sourceInfo.label}
+                      <ArrowUpRight className="w-3 h-3" />
+                    </Link>
+                  </>
+                ) : (
+                  <span className="text-secondary-foreground">Created manually</span>
+                )}
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ResizableWrapper height={height} onHeightChange={setHeight}>

@@ -25,10 +25,10 @@ export const PushQueueItemSchema = z.object({
         metadata: z.record(z.string(), z.any()),
       }),
       metadata: z.object({
-        source: z.enum(["span", "datapoint"]),
+        source: z.enum(["span", "datapoint"]).optional(),
         datasetId: z.string().optional(),
         traceId: z.string().optional(),
-        id: z.string(),
+        id: z.string().optional(),
       }),
     })
   ),

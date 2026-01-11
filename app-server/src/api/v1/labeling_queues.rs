@@ -9,38 +9,16 @@ use crate::{
     routes::types::ResponseResult,
 };
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LabelingQueueItemPayload {
-    pub data: serde_json::Value,
-    pub target: serde_json::Value,
-    #[serde(default)]
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LabelingQueueItemSource {
-    Span,
-    Datapoint,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LabelingQueueItemMetadata {
-    pub source: LabelingQueueItemSource,
-    #[serde(default)]
-    pub dataset_id: Option<String>,
-    #[serde(default)]
-    pub trace_id: Option<String>,
-    pub id: String,
-}
-
+/// Request structure for a single labeling queue item.
+/// For API ingestion, items are created manually without a source reference.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelingQueueItemRequest {
-    pub payload: LabelingQueueItemPayload,
-    pub metadata: LabelingQueueItemMetadata,
+    pub data: serde_json::Value,
+    pub target: serde_json::Value,
+    /// Optional metadata for the payload (not the queue item metadata).
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,15 +61,20 @@ pub async fn create_labeling_queues_items(
     }
 
     // Convert request items to (metadata, payload) tuples for DB insertion
+    // Queue item metadata is empty for API-ingested items (no source)
     let items: Vec<(serde_json::Value, serde_json::Value)> = request
         .items
         .into_iter()
         .map(|item| {
-            let metadata = serde_json::to_value(&item.metadata)?;
-            let payload = serde_json::to_value(&item.payload)?;
-            Ok((metadata, payload))
+            let queue_item_metadata = serde_json::json!({});
+            let payload = serde_json::json!({
+                "data": item.data,
+                "target": item.target,
+                "metadata": item.metadata,
+            });
+            (queue_item_metadata, payload)
         })
-        .collect::<Result<Vec<_>, serde_json::Error>>()?;
+        .collect();
 
     let created_items =
         db::labeling_queues::insert_labeling_queue_items(&db.pool, queue_id, items).await?;
