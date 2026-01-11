@@ -127,7 +127,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  }, [data, datapointIds, datasetId, spanId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
+  }, [data, datapointIds, datasetId, spanId, traceId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
