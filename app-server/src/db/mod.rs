@@ -9,6 +9,7 @@ pub mod evaluators;
 pub mod event_cluster_configs;
 pub mod event_definitions;
 pub mod events;
+pub mod labeling_queues;
 pub mod prices;
 pub mod project_api_keys;
 pub mod projects;
