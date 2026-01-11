@@ -10,11 +10,12 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       return Response.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const { refDate, direction } = parsedBody.data;
+    const { refDate, refId, direction } = parsedBody.data;
 
     const result = await moveQueueItem({
       queueId: params.queueId,
       refDate,
+      refId,
       direction,
     });
 

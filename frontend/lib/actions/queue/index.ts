@@ -9,10 +9,11 @@ import { generateUuid } from "@/lib/utils";
 export const MoveQueueSchema = z.object({
   queueId: z.string(),
   refDate: z.string(),
+  refId: z.string(),
   direction: z.enum(["next", "prev"]),
 });
 
-export const MoveQueueRequestSchema = MoveQueueSchema.pick({ refDate: true, direction: true });
+export const MoveQueueRequestSchema = MoveQueueSchema.pick({ refDate: true, refId: true, direction: true });
 
 export const PushQueueItemSchema = z.object({
   queueId: z.string(),
@@ -50,7 +51,7 @@ export const RemoveQueueItemSchema = z.object({
 export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({ queueId: true, projectId: true });
 
 export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
-  const { queueId, refDate, direction } = MoveQueueSchema.parse(input);
+  const { queueId, refDate, refId, direction } = MoveQueueSchema.parse(input);
 
   const [{ count }] = await db
     .select({
@@ -60,9 +61,14 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
     .where(eq(labelingQueueItems.queueId, queueId));
 
   if (direction === "next") {
+    // Use compound ordering: (created_at, id) to handle items with same timestamp
+    // Find items where (created_at > refDate) OR (created_at = refDate AND id > refId)
     const nextItem = await db.query.labelingQueueItems.findFirst({
-      where: and(eq(labelingQueueItems.queueId, queueId), gt(labelingQueueItems.createdAt, refDate)),
-      orderBy: asc(labelingQueueItems.createdAt),
+      where: and(
+        eq(labelingQueueItems.queueId, queueId),
+        sql`(${labelingQueueItems.createdAt} > ${refDate} OR (${labelingQueueItems.createdAt} = ${refDate} AND ${labelingQueueItems.id} > ${refId}))`
+      ),
+      orderBy: [asc(labelingQueueItems.createdAt), asc(labelingQueueItems.id)],
     });
 
     if (!nextItem) {
@@ -75,7 +81,7 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
           SELECT COUNT(*)::int4
           FROM labeling_queue_items
           WHERE queue_id = ${queueId}
-          AND created_at < ${nextItem.createdAt}
+          AND (created_at < ${nextItem.createdAt} OR (created_at = ${nextItem.createdAt} AND id < ${nextItem.id}))
         ) + 1`,
       })
       .from(labelingQueueItems)
@@ -87,9 +93,14 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
       position,
     };
   } else if (direction === "prev") {
+    // Use compound ordering: (created_at, id) to handle items with same timestamp
+    // Find items where (created_at < refDate) OR (created_at = refDate AND id < refId)
     const prevItem = await db.query.labelingQueueItems.findFirst({
-      where: and(eq(labelingQueueItems.queueId, queueId), lt(labelingQueueItems.createdAt, refDate)),
-      orderBy: desc(labelingQueueItems.createdAt),
+      where: and(
+        eq(labelingQueueItems.queueId, queueId),
+        sql`(${labelingQueueItems.createdAt} < ${refDate} OR (${labelingQueueItems.createdAt} = ${refDate} AND ${labelingQueueItems.id} < ${refId}))`
+      ),
+      orderBy: [desc(labelingQueueItems.createdAt), desc(labelingQueueItems.id)],
     });
 
     if (!prevItem) {
@@ -102,7 +113,7 @@ export async function moveQueueItem(input: z.infer<typeof MoveQueueSchema>) {
           SELECT COUNT(*)::int4
           FROM labeling_queue_items
           WHERE queue_id = ${queueId}
-          AND created_at < ${prevItem.createdAt}
+          AND (created_at < ${prevItem.createdAt} OR (created_at = ${prevItem.createdAt} AND id < ${prevItem.id}))
         ) + 1`,
       })
       .from(labelingQueueItems)

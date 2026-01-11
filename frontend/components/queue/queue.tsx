@@ -120,6 +120,7 @@ function QueueInner() {
   const move = useCallback(
     async (
       refDate: string,
+      refId: string,
       direction: "next" | "prev" = "next",
       load: "skip" | "move" | "first-load" | false = "move"
     ) => {
@@ -127,7 +128,7 @@ function QueueInner() {
         setIsLoading(load);
         const response = await fetch(`/api/projects/${projectId}/queues/${storeQueue?.id}/move`, {
           method: "POST",
-          body: JSON.stringify({ refDate, direction }),
+          body: JSON.stringify({ refDate, refId, direction }),
         });
         if (!response.ok) {
           toast({ variant: "destructive", title: "Error", description: "Failed to move queue. Please try again." });
@@ -185,7 +186,7 @@ function QueueInner() {
         }
 
         if (currentItem) {
-          await move(currentItem.createdAt);
+          await move(currentItem.createdAt, currentItem.id, "next");
         }
       } catch (e) {
         toast({
@@ -201,7 +202,8 @@ function QueueInner() {
   );
 
   useEffect(() => {
-    move(new Date(0).toISOString(), "next", "first-load");
+    // Use epoch date and empty UUID to get the first item
+    move(new Date(0).toISOString(), "00000000-0000-0000-0000-000000000000", "next", "first-load");
   }, []);
 
   useHotkeys(
@@ -210,7 +212,7 @@ function QueueInner() {
       (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem && !states.next) {
-          move(currentItem.createdAt, "next");
+          move(currentItem.createdAt, currentItem.id, "next");
         }
       },
       [currentItem, move, states.next]
@@ -224,7 +226,7 @@ function QueueInner() {
       (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem && !states.prev) {
-          move(currentItem.createdAt, "prev");
+          move(currentItem.createdAt, currentItem.id, "prev");
         }
       },
       [currentItem, move, states.prev]
@@ -319,7 +321,7 @@ function QueueInner() {
                 <div className="flex items-center text-center text-xs opacity-75">⌘ + ›</div>
               </Button>
               <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "prev")}
+                onClick={() => currentItem && move(currentItem.createdAt, currentItem.id, "prev")}
                 disabled={states.prev}
                 variant="outline"
               >
@@ -327,7 +329,7 @@ function QueueInner() {
                 <div className="text-center text-xs opacity-75">⌘ + ↓</div>
               </Button>
               <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "next")}
+                onClick={() => currentItem && move(currentItem.createdAt, currentItem.id, "next")}
                 disabled={states.next}
                 variant="outline"
               >
