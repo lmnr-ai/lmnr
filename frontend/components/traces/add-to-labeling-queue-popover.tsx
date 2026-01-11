@@ -25,6 +25,7 @@ interface AddToLabelingQueuePopoverProps {
   datapointIds?: string[];
   datasetId?: string;
   spanId?: string;
+  traceId?: string;
   buttonVariant?: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive";
   buttonSize?: "default" | "sm" | "lg" | "icon";
 }
@@ -34,6 +35,7 @@ export default function AddToLabelingQueuePopover({
   datapointIds,
   datasetId,
   spanId,
+  traceId,
   buttonVariant = "secondary",
   buttonSize = "sm",
   children,
@@ -69,6 +71,7 @@ export default function AddToLabelingQueuePopover({
               metadata: {
                 source: "span",
                 id: spanId,
+                traceId,
               },
             }),
           });
