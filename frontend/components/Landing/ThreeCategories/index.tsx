@@ -10,6 +10,8 @@ import EventDefinitionImage from "./EventDefinitionImage";
 import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../classNames";
 import FullContextImage from "./FullContextImage";
 import BrowserScreenRecordingImage from "./BrowserScreenRecordingImage";
+import DashboardImage from "./DashboardImage";
+import EvalsImage from "./EvalsImage";
 
 interface Props {
   className?: string;
@@ -94,6 +96,21 @@ const ThreeCategories = ({ className }: Props) => {
           <PlaygroundImage className="relative shrink-0 w-[720px] h-[450px]" />
         </div>
 
+        {/* Capture what your agent sees */}
+        <div className="flex items-start justify-between w-full">
+          <div className="flex flex-col gap-[50px] items-start w-[380px] pt-[40px]">
+            <div className="flex flex-col gap-6 items-start w-full">
+              <p className={subsectionTitle}>Capture what your agent sees</p>
+              <p className={bodyMedium}>
+                Browser screen recordings automatically synced with your agent traces. Works with BrowserUse, Stagehand,
+                and Playwright
+              </p>
+            </div>
+            <DocsButton />
+          </div>
+          <BrowserScreenRecordingImage className="relative shrink-0 w-[500px] inset-0" />
+        </div>
+
         {/* ANALYSIS Section */}
         <SectionName label="ANALYSIS" index={2} />
 
@@ -132,23 +149,6 @@ const ThreeCategories = ({ className }: Props) => {
           </div>
         </div>
 
-        {/* Capture what your agent sees */}
-        <div className="flex items-start justify-between w-full">
-          <div className="flex flex-col gap-[50px] items-start w-[380px]">
-            <div className="flex flex-col gap-6 items-start w-full">
-              <p className={subsectionTitle}>Capture what your agent sees</p>
-              <p className={bodyMedium}>
-                Browser screen recordings automatically synced with your agent traces. Works with BrowserUse, Stagehand,
-                and Playwright
-              </p>
-            </div>
-            <DocsButton />
-          </div>
-          <div className="relative shrink-0 w-[664px] h-[415px]">
-            <BrowserScreenRecordingImage className="absolute inset-0" />
-          </div>
-        </div>
-
         {/* Custom dashboards */}
         <div className="flex items-start justify-between w-full">
           <div className="flex flex-col gap-[50px] items-start w-[380px]">
@@ -162,9 +162,7 @@ const ThreeCategories = ({ className }: Props) => {
             </div>
             <DocsButton />
           </div>
-          <div className="relative shrink-0 w-[664px] h-[415px]">
-            <PlaceholderImage className="absolute inset-0 pb-0 pl-[100px] pr-0 pt-20 rounded-sm" />
-          </div>
+          <DashboardImage className="relative shrink-0 w-[664px] h-[415px]" />
         </div>
 
         {/* EVALS Section */}
@@ -177,9 +175,7 @@ const ThreeCategories = ({ className }: Props) => {
           </div>
           <DocsButton />
           <div className="flex flex-col gap-16 items-start w-full">
-            <div className="bg-landing-surface-700 flex h-[630px] items-center justify-center overflow-hidden p-8 rounded-lg w-full relative">
-              <PlaceholderImage className="absolute inset-0" />
-            </div>
+            <EvalsImage />
             <div className="flex gap-10 items-start w-full">
               <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px opacity-80 relative shrink-0">
                 <div className="flex flex-col gap-1 items-start w-full">

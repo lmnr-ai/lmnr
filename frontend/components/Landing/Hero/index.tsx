@@ -2,11 +2,11 @@
 
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 
 import Header from "../Header";
 import LandingButton from "../LandingButton";
-import PlaceholderImage from "../PlaceholderImage";
 import InfiniteLogoCarousel from "./InfiniteLogoCarousel";
 import ScreenshotToggleButton from "./ScreenshotToggleButton";
 
@@ -16,11 +16,17 @@ interface Props {
 
 type TabType = "TRACING" | "EVALS" | "ANALYSIS";
 
+const tabImages: Record<TabType, string> = {
+  TRACING: "/assets/landing/observability.png",
+  EVALS: "/assets/landing/evals.png",
+  ANALYSIS: "/assets/landing/dashboards.png",
+};
+
 const Hero = ({ className }: Props) => {
   const [activeTab, setActiveTab] = useState<TabType>("TRACING");
 
   return (
-    <div className={cn("bg-landing-surface-900 flex flex-col items-center justify-between w-full", className)}>
+    <div className={cn("bg-landing-surface-900 flex flex-col items-center justify-between w-full gap-4", className)}>
       <div className="flex flex-col items-center justify-between pt-8 px-[48px] h-[calc(75dvh)] w-full">
         {/*TODO: hasSession for real*/}
         <Header hasSession={true} />
@@ -51,8 +57,10 @@ const Hero = ({ className }: Props) => {
           <InfiniteLogoCarousel />
         </div>
       </div>
-      <div className="flex flex-col w-full pb-[120px] gap-[80px] items-center">
-        <PlaceholderImage className="w-[1100px] h-[600px]" />
+      <div className="flex flex-col w-full pb-[120px] gap-[40px] items-center">
+        <div className="relative w-[990px] h-[700px] rounded-lg overflow-hidden outline-[4px] outline-offset-4 outline-white/10">
+          <Image src={tabImages[activeTab]} alt={`${activeTab} screenshot`} fill className="object-cover" priority />
+        </div>
         {/* Centered title and buttons */}
         <div className="flex gap-5 items-center">
           <ScreenshotToggleButton isActive={activeTab === "TRACING"} onClick={() => setActiveTab("TRACING")}>
