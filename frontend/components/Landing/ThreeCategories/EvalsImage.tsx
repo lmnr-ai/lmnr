@@ -18,8 +18,8 @@ const EvalsImage = ({ className }: Props) => {
   });
 
   const opacity = useTransform(scrollYProgress, [0, 0.3, 0.6], [0, 0.8, 1]);
-  const y1 = useTransform(scrollYProgress, [0, 1], ["40px", "-40px"]);
-  const y2 = useTransform(scrollYProgress, [0, 1], ["80px", "-80px"]);
+  const y1 = useTransform(scrollYProgress, [0, 1], ["80px", "-80px"]);
+  const y2 = useTransform(scrollYProgress, [0, 1], ["120px", "-120px"]);
 
   return (
     <div

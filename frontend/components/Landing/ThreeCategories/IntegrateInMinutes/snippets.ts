@@ -19,81 +19,81 @@ export const integrations: Record<Integration, IntegrationData> = {
     name: "Browser Use",
     logoSrc: browserUse,
     alt: "Browser Use",
-    typescript: `// TODO: actual snippet please
-import { Laminar } from "@lmnr-ai/sdk";
+    python: `from langchain_anthropic import ChatAnthropic
+from browser_use import Agent
+import asyncio
 
-const laminar = new Laminar({
-  apiKey: process.env.LAMINAR_API_KEY,
-});
-
-// Your agent code here
-const agent = await laminar.trace("agent.run", async () => {
-  // Browser automation code
-});`,
-    python: `# TODO: actual snippet please
 from lmnr import Laminar
+# this line instruments Browser Use and playwright browser
+Laminar.initialize(project_api_key="...")
 
-laminar = Laminar(api_key=os.getenv("LAMINAR_API_KEY"))
+async def main():
+    agent = Agent(
+        task="go to ycombinator.com, describe 5 companies from the latest batch of startups.",
+        llm=ChatAnthropic(model="claude-3-7-sonnet-20250219")
+    )
+    result = await agent.run()
+    print(result)
 
-# Your agent code here
-with laminar.trace("agent.run"):
-    # Browser automation code
-    pass`,
+asyncio.run(main())`,
   },
   vercel: {
-    name: "Vercel",
+    name: "Vercel AI SDK",
     logoSrc: vercel,
-    alt: "Vercel",
-    typescript: `// TODO: actual snippet please
-import { Laminar } from "@lmnr-ai/sdk";
+    alt: "Vercel AI SDK",
+    typescript: `import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
+import { getTracer } from '@lmnr-ai/lmnr';
 
-const laminar = new Laminar({
-  apiKey: process.env.LAMINAR_API_KEY,
-});
-
-export default async function handler(req: Request) {
-  return await laminar.trace("api.handler", async () => {
-    // Your API handler code
-  });
-}`,
+const { text } = await generateText({
+  model: openai('gpt-4.1-nano'),
+  prompt: 'What is Laminar flow?',
+  experimental_telemetry: {
+    isEnabled: true,
+    tracer: getTracer(),
+  },
+});`,
   },
   langgraph: {
-    name: "LangGraph",
+    name: "LangChain",
     logoSrc: langgraph,
-    alt: "LangGraph",
-    typescript: `// TODO: actual snippet please
-import { Laminar } from "@lmnr-ai/sdk";
-import { StateGraph } from "@langchain/langgraph";
+    alt: "LangChain",
+    python: `from lmnr import Laminar
+from dotenv import load_dotenv
+# other imports...
 
-const laminar = new Laminar({
-  apiKey: process.env.LAMINAR_API_KEY,
-});
+load_dotenv()
 
-const workflow = new StateGraph({
-  // Your LangGraph workflow
-});`,
-    python: `# TODO: actual snippet please
-from lmnr import Laminar
-from langgraph.graph import StateGraph
+# Initialize Laminar - this single step enables automatic tracing
+Laminar.initialize()
 
-laminar = Laminar(api_key=os.getenv("LAMINAR_API_KEY"))
+model = ChatOpenAI()
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant."),
+    ("human", "{question}")
+])
+output_parser = StrOutputParser()
 
-workflow = StateGraph({
-    # Your LangGraph workflow
-})`,
+chain = prompt | model | output_parser
+
+response = chain.invoke({"question": "What is the capital of France?"})
+print(response)`,
   },
   "light-llm": {
-    name: "Light LLM",
+    name: "LiteLLM",
     logoSrc: lightLlm,
-    alt: "Light LLM",
-    python: `# TODO: actual snippet please
-from lmnr import Laminar
+    alt: "LiteLLM",
+    python: `import litellm
+from lmnr import Laminar, LaminarLiteLLMCallback
 
-laminar = Laminar(api_key=os.getenv("LAMINAR_API_KEY"))
+Laminar.initialize(project_api_key="LMNR_PROJECT_API_KEY")
+litellm.callbacks = [LaminarLiteLLMCallback()]
 
-# Your agent code here
-with laminar.trace("agent.run"):
-    # Light LLM integration code
-    pass`,
+response = litellm.completion(
+    model="gpt-4.1-nano",
+    messages=[
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+)`,
   },
 };
