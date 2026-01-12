@@ -8,6 +8,7 @@ import IntegrateInMinutes from "./IntegrateInMinutes";
 import PlaygroundImage from "./PlaygroundImage";
 import EventDefinitionImage from "./EventDefinitionImage";
 import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../classNames";
+import FullContextImage from "./FullContextImage";
 
 interface Props {
   className?: string;
@@ -49,7 +50,7 @@ const ThreeCategories = ({ className }: Props) => {
           </div>
           <div className="flex gap-[30px] h-[481px] items-start w-full">
             <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
-              <PlaceholderImage className="absolute bg-landing-surface-500 border border-landing-surface-400 h-[942px] left-[100px] top-[-28px] w-[624px]" />
+              <FullContextImage className="absolute size-full inset-0" />
               <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
                 <div className="flex flex-col gap-1 items-start w-full">
                   <p className={cn(cardTitle, "w-full")}>Full context at a glance</p>

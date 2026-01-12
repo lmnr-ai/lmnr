@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__figma-desktop__get_screenshot",
+      "mcp__figma-desktop__get_design_context"
+    ]
+  }
+}
