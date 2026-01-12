@@ -9,6 +9,7 @@ import PlaygroundImage from "./PlaygroundImage";
 import EventDefinitionImage from "./EventDefinitionImage";
 import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../classNames";
 import FullContextImage from "./FullContextImage";
+import BrowserScreenRecordingImage from "./BrowserScreenRecordingImage";
 
 interface Props {
   className?: string;
@@ -144,7 +145,7 @@ const ThreeCategories = ({ className }: Props) => {
             <DocsButton />
           </div>
           <div className="relative shrink-0 w-[664px] h-[415px]">
-            <PlaceholderImage className="absolute inset-0 pb-0 pl-[100px] pr-0 pt-20 rounded-sm" />
+            <BrowserScreenRecordingImage className="absolute inset-0" />
           </div>
         </div>
 
