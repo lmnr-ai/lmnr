@@ -4,12 +4,13 @@ import { Search, X } from "lucide-react";
 import React, { ChangeEvent, FocusEvent, KeyboardEvent, memo, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAutocompleteData, useFilterSearch } from "../context";
-import FilterSuggestions, { getSuggestionAtIndex, getSuggestionsCount } from "./suggestions";
+import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
 interface FilterSearchInputProps {
@@ -202,7 +203,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 rounded-md border border-input bg-transparent relative",
+        "flex items-start gap-2 px-2 rounded-md border border-input bg-transparent relative",
         "focus-within:ring-border/50 focus-within:ring-[1px] box-border",
         "not-focus-within:bg-accent transition duration-300 py-1",
         className
@@ -210,7 +211,9 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
-      <Search className="text-secondary-foreground size-4 min-w-4 flex-shrink-0" />
+      <span className="p-1">
+        <Search className="text-secondary-foreground size-4 min-w-4 flex-shrink-0" />
+      </span>
 
       <div className="flex items-center gap-1 flex-wrap flex-1">
         {state.tags.map((tag) => (
@@ -244,13 +247,13 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           type="button"
           variant="ghost"
           onClick={clearAll}
-          className="text-secondary-foreground h-6 px-1 py-1 w-fit"
+          className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:bg-muted"
           aria-label="Clear all filters"
         >
           <X className="size-4" />
         </Button>
       )}
-      <kbd className="text-secondary-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
+      <kbd className="text-secondary-foreground pointer-events-none inline-flex h-6 w-6 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
         ⌘K
       </kbd>
       <FilterSuggestions />

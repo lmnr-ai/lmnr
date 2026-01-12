@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { useAutocompleteData, useFilterSearch } from "../context";
 import { ColumnFilter } from "../types";
+import { buildValueSuggestions } from "../utils";
 
 interface FieldSuggestion {
   type: "field";
@@ -28,6 +29,33 @@ interface RawSearchSuggestion {
 
 export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion;
 
+export const buildSuggestions = (
+  inputValue: string,
+  filters: ColumnFilter[],
+  autocompleteData: Map<string, string[]>
+): Suggestion[] => {
+  const input = inputValue.trim().toLowerCase();
+
+  if (!input) {
+    return filters.map((filter) => ({ type: "field" as const, filter }));
+  }
+
+  const matchingFields = filters.filter(
+    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
+  );
+
+  const fieldSuggestions: Suggestion[] = matchingFields.map((filter) => ({
+    type: "field" as const,
+    filter,
+  }));
+
+  const valueSuggestions: Suggestion[] = buildValueSuggestions(input, filters, autocompleteData).map(
+    ({ field, value }) => ({ type: "value" as const, field, value })
+  );
+
+  return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
+};
+
 interface FilterSuggestionsProps {
   className?: string;
 }
@@ -38,48 +66,19 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const { data } = useAutocompleteData();
 
-  const suggestions = useMemo((): Suggestion[] => {
-    const input = state.inputValue.trim().toLowerCase();
+  const suggestionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-    if (!input) {
-      return filters.map((filter) => ({
-        type: "field",
-        filter,
-      }));
+  const suggestions = useMemo(
+    () => buildSuggestions(state.inputValue, filters, data),
+    [state.inputValue, filters, data]
+  );
+
+  useEffect(() => {
+    const activeElement = suggestionRefs.current.get(state.activeIndex);
+    if (activeElement) {
+      activeElement.scrollIntoView({ block: "nearest" });
     }
-
-    const matchingFields = filters.filter(
-      (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
-    );
-
-    const fieldSuggestions: Suggestion[] = matchingFields.map((filter) => ({
-      type: "field",
-      filter,
-    }));
-
-    // Add value suggestions from preloaded autocomplete data
-    const valueSuggestions: Suggestion[] = [];
-    data.forEach((values, field) => {
-      const matchingValues = values.filter((value) => value.toLowerCase().includes(input));
-      matchingValues.forEach((value) => {
-        valueSuggestions.push({
-          type: "value",
-          field,
-          value,
-        });
-      });
-    });
-
-    // Combine field suggestions, value suggestions, and raw search
-    const allSuggestions = [...fieldSuggestions, ...valueSuggestions];
-
-    allSuggestions.push({
-      type: "raw_search",
-      value: state.inputValue.trim(),
-    });
-
-    return allSuggestions;
-  }, [state.inputValue, filters, data]);
+  }, [state.activeIndex]);
 
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
@@ -98,7 +97,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const handleRawSearchSelect = useCallback(
     (value: string) => {
-      setInputValue(`"${value}"`);
+      setInputValue(value);
       setIsOpen(false);
       submit();
     },
@@ -131,6 +130,9 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
               return (
                 <div
                   key={`field-${suggestion.filter.key}`}
+                  ref={(el) => {
+                    if (el) suggestionRefs.current.set(idx, el);
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
@@ -151,6 +153,9 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
               return (
                 <div
                   key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
+                  ref={(el) => {
+                    if (el) suggestionRefs.current.set(idx, el);
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
@@ -168,6 +173,9 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
             return (
               <div
                 key="raw-search"
+                ref={(el) => {
+                  if (el) suggestionRefs.current.set(idx, el);
+                }}
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
                   isActive ? "bg-accent" : "hover:bg-accent"
@@ -185,74 +193,6 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       </ScrollArea>
     </div>
   );
-};
-
-export const getSuggestionsCount = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  autocompleteData: Map<string, string[]>
-): number => {
-  const input = inputValue.trim().toLowerCase();
-  if (!input) {
-    return filters.length;
-  }
-
-  const matchingFields = filters.filter(
-    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
-  );
-
-  // Count matching values from autocomplete data
-  let valueCount = 0;
-  autocompleteData.forEach((values) => {
-    valueCount += values.filter((value) => value.toLowerCase().includes(input)).length;
-  });
-
-  return matchingFields.length + valueCount + 1; // +1 for raw search option
-};
-
-export const getSuggestionAtIndex = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  index: number,
-  autocompleteData: Map<string, string[]>
-): Suggestion | null => {
-  const input = inputValue.trim().toLowerCase();
-
-  if (!input) {
-    if (index < filters.length) {
-      return { type: "field", filter: filters[index] };
-    }
-    return null;
-  }
-
-  const matchingFields = filters.filter(
-    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
-  );
-
-  if (index < matchingFields.length) {
-    return { type: "field", filter: matchingFields[index] };
-  }
-
-  // Build value suggestions
-  const valueSuggestions: Array<{ field: string; value: string }> = [];
-  autocompleteData.forEach((values, field) => {
-    const matchingValues = values.filter((value) => value.toLowerCase().includes(input));
-    matchingValues.forEach((value) => {
-      valueSuggestions.push({ field, value });
-    });
-  });
-
-  const valueIndex = index - matchingFields.length;
-  if (valueIndex < valueSuggestions.length) {
-    const { field, value } = valueSuggestions[valueIndex];
-    return { type: "value", field, value };
-  }
-
-  if (index === matchingFields.length + valueSuggestions.length) {
-    return { type: "raw_search", value: inputValue.trim() };
-  }
-
-  return null;
 };
 
 export default memo(FilterSuggestions);

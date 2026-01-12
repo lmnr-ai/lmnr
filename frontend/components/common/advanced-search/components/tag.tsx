@@ -14,7 +14,6 @@ import {
   useRef,
 } from "react";
 
-import { createEditFocusState } from "@/components/common/advanced-search/utils";
 import { Button } from "@/components/ui/button";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
@@ -32,7 +31,7 @@ interface FilterTagProps {
 }
 
 const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: FilterTagProps) => {
-  const { filters, removeTag, submit, focusMainInput, setTagFocusState, getTagFocusState, navigateWithinTag } =
+  const { filters, removeTag, focusMainInput, setTagFocusState, getTagFocusState, navigateWithinTag } =
     useFilterSearch();
 
   const { data } = useAutocompleteData();
@@ -111,8 +110,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     (e: KeyboardEvent) => {
       if (focusState.type === "idle") return;
 
-      const openDropdown = focusState.type === "field" || focusState.type === "operator";
-      setTagFocusState(tag.id, createEditFocusState(focusState.type, openDropdown));
+      setTagFocusState(tag.id, { type: focusState.type, mode: "edit" });
 
       // Focus the appropriate ref
       const refMap = {

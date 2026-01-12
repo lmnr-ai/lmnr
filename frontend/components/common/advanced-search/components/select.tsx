@@ -3,6 +3,7 @@
 import { Ref, useCallback, useMemo } from "react";
 
 import { default as UIFilterSelect, FilterSelectOption } from "@/components/ui/filter-select";
+import { Operator } from "@/lib/actions/common/operators.ts";
 import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
@@ -63,7 +64,7 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
         updateTagValue(tag.id, "");
         setTagFocusState(tagId, { type: "operator", mode: "edit" });
       } else {
-        updateTagOperator(tag.id, newValue as any);
+        updateTagOperator(tag.id, newValue as Operator);
         setTagFocusState(tagId, { type: "value", mode: "edit" });
       }
     },
