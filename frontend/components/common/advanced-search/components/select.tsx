@@ -1,13 +1,12 @@
 "use client";
 
-import { Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { Ref, useCallback, useMemo } from "react";
 
 import { default as UIFilterSelect, FilterSelectOption } from "@/components/ui/filter-select";
 import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, getOperationsForField } from "../types";
-import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface FilterSelectProps {
   tagId: string;
@@ -24,18 +23,11 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
     updateTagValue,
     getTagFocusState,
     setTagFocusState,
-    setActiveTagId,
-    navigateToPreviousTag,
-    navigateToNextTag,
+    navigateWithinTag,
   } = useFilterSearch();
-  const selectRef = useRef<FocusableRef>(null);
 
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
   const focusState = getTagFocusState(tagId);
-
-  useImperativeHandle(ref, () => ({
-    focus: () => selectRef.current?.focus(),
-  }));
 
   const options: FilterSelectOption[] = useMemo(() => {
     if (selectType === "field") {
@@ -53,17 +45,14 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
     return selectType === "field" ? tag.field : tag.operator;
   }, [tag, selectType]);
 
-  const isOpen = useMemo(() => {
-    if (focusState.type !== selectType) return false;
-    if (focusState.mode !== "edit") return false;
-    return (focusState as any).isOpen ?? false;
-  }, [focusState, selectType]);
+  const isOpen = useMemo(() => focusState.type === selectType && focusState.mode === "edit", [focusState, selectType]);
 
   const handleClick = useCallback(() => {
-    setActiveTagId(tagId);
-    setTagFocusState(tagId, { type: selectType, mode: "edit", isOpen: false });
-    selectRef.current?.focus();
-  }, [tagId, selectType, setActiveTagId, setTagFocusState]);
+    setTagFocusState(tagId, { type: selectType, mode: "edit" });
+    if (ref && typeof ref !== "function" && ref.current) {
+      ref.current.focus();
+    }
+  }, [tagId, setTagFocusState, selectType, ref]);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -72,71 +61,38 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
       if (selectType === "field") {
         updateTagField(tag.id, newValue);
         updateTagValue(tag.id, "");
-        setTagFocusState(tagId, { type: "operator", mode: "edit", isOpen: false });
+        setTagFocusState(tagId, { type: "operator", mode: "edit" });
       } else {
         updateTagOperator(tag.id, newValue as any);
-        setTagFocusState(tagId, { type: "value", mode: "edit", showSuggestions: false, isSelectOpen: false });
+        setTagFocusState(tagId, { type: "value", mode: "edit" });
       }
     },
     [tag, selectType, updateTagField, updateTagOperator, updateTagValue, setTagFocusState, tagId]
   );
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (focusState.type === selectType && focusState.mode === "edit") {
-        setTagFocusState(tagId, { ...focusState, isOpen: open } as any);
-      }
-    },
-    [focusState, selectType, setTagFocusState, tagId]
-  );
-
-  const handleNavigateLeft = useCallback(() => {
-    if (focusState.type === "idle") return;
-
-    const prevField = getPreviousField(selectType);
-
-    if (prevField) {
-      setTagFocusState(tagId, createNavFocusState(prevField));
-    } else {
-      // At leftmost field, navigate to previous tag
-      navigateToPreviousTag(tagId);
-    }
-  }, [focusState.type, selectType, tagId, setTagFocusState, navigateToPreviousTag]);
-
-  const handleNavigateRight = useCallback(() => {
-    if (focusState.type === "idle") return;
-
-    const nextField = getNextField(selectType);
-
-    if (nextField) {
-      setTagFocusState(tagId, createNavFocusState(nextField));
-    } else {
-      navigateToNextTag(tagId);
-    }
-  }, [focusState.type, selectType, tagId, setTagFocusState, navigateToNextTag]);
-
   if (!tag) return null;
 
-  const wrapperClassName = cn(
-    focusState.type === selectType && "mode" in focusState && focusState.mode === "nav" && "bg-accent/50"
-  );
+  const wrapperClassName = cn(focusState.type === selectType && "bg-accent", {
+    "rounded-l-md": selectType === "field",
+  });
 
   return (
-    <div className={wrapperClassName} onMouseDown={handleClick} onClick={(e) => e.stopPropagation()}>
-      <div>
-        <UIFilterSelect
-          ref={selectRef}
-          value={value}
-          options={options}
-          onChange={handleChange}
-          open={isOpen}
-          onOpenChange={handleOpenChange}
-          onNavigateLeft={handleNavigateLeft}
-          onNavigateRight={handleNavigateRight}
-          triggerClassName="h-6 w-fit min-w-[28px] px-1.5 bg-transparent text-secondary-foreground font-medium text-xs"
-        />
-      </div>
-    </div>
+    <UIFilterSelect
+      className={wrapperClassName}
+      onMouseDown={handleClick}
+      onClick={(e) => e.stopPropagation()}
+      ref={ref}
+      value={value}
+      options={options}
+      onValueChange={handleChange}
+      open={isOpen}
+      onOpenChange={() => {}}
+      onNavigateLeft={() => navigateWithinTag(tagId, "left")}
+      onNavigateRight={() => navigateWithinTag(tagId, "right")}
+      triggerClassName={cn("h-6 w-fit min-w-[28px] px-1.5 text-secondary-foreground font-medium text-xs", {
+        "rounded-l-md": selectType === "field",
+      })}
+    />
   );
 };
 

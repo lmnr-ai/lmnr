@@ -5,7 +5,7 @@ import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS }
 
 const BaseFilterSchema = z.object({
   column: z.string(),
-  value: z.union([z.string(), z.number()]),
+  value: z.union([z.string().min(1), z.number()]),
 });
 
 export const StringFilterSchema = BaseFilterSchema.extend({

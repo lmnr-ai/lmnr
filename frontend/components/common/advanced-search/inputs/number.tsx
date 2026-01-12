@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
-import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface NumberValueInputProps {
   tagId: string;
@@ -23,15 +22,7 @@ const inputClassName = cn(
 );
 
 const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
-  const {
-    state,
-    updateTagValue,
-    submit,
-    focusMainInput,
-    setTagFocusState,
-    navigateToPreviousTag,
-    navigateToNextTag,
-  } = useFilterSearch();
+  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +43,14 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
     focusMainInput();
   }, [submit, focusMainInput]);
 
+  const handleBlur = useCallback(() => {
+    if (mode === "edit") {
+      queueMicrotask(() => {
+        submit();
+      });
+    }
+  }, [submit, mode]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (mode === "edit") {
@@ -66,12 +65,8 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
         if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
             e.preventDefault();
-            const prevField = getPreviousField("value");
-            if (prevField) {
-              setTagFocusState(tagId, createNavFocusState(prevField));
-            } else {
-              navigateToPreviousTag(tagId);
-            }
+            e.stopPropagation();
+            navigateWithinTag(tagId, "left");
           }
           return;
         }
@@ -79,18 +74,14 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
         if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
             e.preventDefault();
-            const nextField = getNextField("value");
-            if (nextField) {
-              setTagFocusState(tagId, createNavFocusState(nextField));
-            } else {
-              navigateToNextTag(tagId);
-            }
+            e.stopPropagation();
+            navigateWithinTag(tagId, "right");
           }
           return;
         }
       }
     },
-    [mode, handleComplete, tagId, setTagFocusState, navigateToPreviousTag, navigateToNextTag]
+    [mode, handleComplete, tagId, navigateWithinTag]
   );
 
   if (!tag) return null;
@@ -103,7 +94,8 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
         value={tag.value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="0"
+        onBlur={handleBlur}
+        placeholder="..."
         className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
       />

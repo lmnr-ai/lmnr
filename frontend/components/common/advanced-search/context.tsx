@@ -1,5 +1,6 @@
 "use client";
 
+import { isEqual } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   createContext,
@@ -29,13 +30,11 @@ import {
   generateTagId,
   TagFocusPosition,
 } from "./types";
+import { getNextField, getPreviousField } from "./utils";
 
-// Autocomplete Context
 interface AutocompleteContextValue {
-  autocompleteData: AutocompleteCache;
-  setAutocompleteData: Dispatch<SetStateAction<AutocompleteCache>>;
-  isAutocompleteLoading: boolean;
-  setIsAutocompleteLoading: Dispatch<SetStateAction<boolean>>;
+  data: AutocompleteCache;
+  setData: Dispatch<SetStateAction<AutocompleteCache>>;
 }
 
 const AutocompleteContext = createContext<AutocompleteContextValue | null>(null);
@@ -49,17 +48,14 @@ export const useAutocompleteData = () => {
 };
 
 export const AutocompleteProvider = ({ children }: PropsWithChildren) => {
-  const [autocompleteData, setAutocompleteData] = useState<AutocompleteCache>(new Map());
-  const [isAutocompleteLoading, setIsAutocompleteLoading] = useState(false);
+  const [data, setData] = useState<AutocompleteCache>(new Map());
 
   const value = useMemo(
     () => ({
-      autocompleteData,
-      setAutocompleteData,
-      isAutocompleteLoading,
-      setIsAutocompleteLoading,
+      data,
+      setData,
     }),
-    [autocompleteData, isAutocompleteLoading]
+    [data, setData]
   );
 
   return <AutocompleteContext.Provider value={value}>{children}</AutocompleteContext.Provider>;
@@ -80,21 +76,12 @@ interface FilterSearchProviderProps {
   onSubmit?: (filters: Filter[], search: string) => void;
 }
 
-export const FilterSearchProvider = ({
-  filters,
-  onSubmit,
-  children,
-}: PropsWithChildren<FilterSearchProviderProps>) => {
+export const FilterSearchProvider = ({ filters, onSubmit, children }: PropsWithChildren<FilterSearchProviderProps>) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
-
-  // Get autocomplete data from context
-  const autocompleteCtx = useContext(AutocompleteContext);
-  const autocompleteData = autocompleteCtx?.autocompleteData ?? new Map();
-  const isAutocompleteLoading = autocompleteCtx?.isAutocompleteLoading ?? false;
 
   const initialState = useMemo((): FilterSearchState => {
     const rawSearch = searchParams.get("search") ?? "";
@@ -115,10 +102,8 @@ export const FilterSearchProvider = ({
     return {
       tags,
       inputValue: rawSearch,
-      activeTagId: null,
       isOpen: false,
-      activeIndex: 0,
-      isAddingTag: false,
+      activeIndex: -1,
       selectedTagIds: new Set<string>(),
       openSelectId: null,
       tagFocusStates: new Map<string, FilterTagFocusState>(),
@@ -126,6 +111,23 @@ export const FilterSearchProvider = ({
   }, [searchParams, filters]);
 
   const [state, setState] = useState<FilterSearchState>(initialState);
+
+  // Keep ref to always have current state for submit function
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Track last submitted state to avoid redundant submits
+  const lastSubmittedRef = useRef<{ filters: Filter[]; search: string }>({
+    filters: initialState.tags.map(createFilterFromTag),
+    search: initialState.inputValue.trim(),
+  });
+
+  const activeTagId = useMemo(() => {
+    for (const [tagId, focusState] of state.tagFocusStates) {
+      if (focusState.type !== "idle") return tagId;
+    }
+    return null;
+  }, [state.tagFocusStates]);
 
   const addTag = useCallback(
     (field: string) => {
@@ -139,15 +141,20 @@ export const FilterSearchProvider = ({
         value: "",
       };
 
-      setState((prev) => ({
-        ...prev,
-        tags: [...prev.tags, newTag],
-        inputValue: "",
-        activeTagId: newTag.id,
-        isOpen: false,
-        activeIndex: 0,
-        isAddingTag: true,
-      }));
+      setState((prev) => {
+        const newFocusStates = new Map(prev.tagFocusStates);
+        // Set focus state for the new tag - this will trigger auto-focus in the tag component
+        newFocusStates.set(newTag.id, { type: "value", mode: "edit" });
+
+        return {
+          ...prev,
+          tags: [...prev.tags, newTag],
+          inputValue: "",
+          isOpen: false,
+          activeIndex: -1,
+          tagFocusStates: newFocusStates,
+        };
+      });
     },
     [filters]
   );
@@ -164,38 +171,39 @@ export const FilterSearchProvider = ({
         value,
       };
 
+      let filterObjects: Filter[] = [];
+
       setState((prev) => {
         const updatedTags = [...prev.tags, newTag];
-        const filterObjects = updatedTags.map(createFilterFromTag);
+        filterObjects = updatedTags.map(createFilterFromTag);
         const searchValue = "";
 
-        // Submit immediately with the new tags
+        lastSubmittedRef.current = { filters: filterObjects, search: searchValue };
+
+        return {
+          ...prev,
+          tags: updatedTags,
+          inputValue: "",
+          isOpen: false,
+          activeIndex: -1,
+        };
+      });
+
+      queueMicrotask(() => {
         const params = new URLSearchParams(searchParams.toString());
 
-        // Clear existing filters and search
         params.delete("filter");
         params.delete("search");
         params.delete("pageNumber");
         params.set("pageNumber", "0");
 
-        // Add filter tags
         filterObjects.forEach((filter) => {
           params.append("filter", JSON.stringify(filter));
         });
 
         router.push(`${pathname}?${params.toString()}`);
 
-        onSubmit?.(filterObjects, searchValue);
-
-        return {
-          ...prev,
-          tags: updatedTags,
-          inputValue: "",
-          activeTagId: null,
-          isOpen: false,
-          activeIndex: 0,
-          isAddingTag: false,
-        };
+        onSubmit?.(filterObjects, "");
       });
 
       return newTag;
@@ -203,18 +211,73 @@ export const FilterSearchProvider = ({
     [filters, searchParams, pathname, router, onSubmit]
   );
 
-  const removeTag = useCallback((tagId: string) => {
-    setState((prev) => {
-      const newSelectedTagIds = new Set(prev.selectedTagIds);
-      newSelectedTagIds.delete(tagId);
-      return {
-        ...prev,
-        tags: prev.tags.filter((t) => t.id !== tagId),
-        activeTagId: prev.activeTagId === tagId ? null : prev.activeTagId,
-        selectedTagIds: newSelectedTagIds,
-      };
-    });
-  }, []);
+  const submit = useCallback(
+    (explicitTags?: FilterTag[], explicitInputValue?: string) => {
+      const tags = explicitTags !== undefined ? explicitTags : stateRef.current.tags;
+      const inputValue = explicitInputValue !== undefined ? explicitInputValue : stateRef.current.inputValue;
+
+      const filterObjects = tags.map(createFilterFromTag);
+      const searchValue = inputValue.trim();
+
+      if (isEqual(lastSubmittedRef.current.filters, filterObjects) && lastSubmittedRef.current.search === searchValue) {
+        return;
+      }
+
+      const params = new URLSearchParams(searchParams.toString());
+
+      params.delete("filter");
+      params.delete("search");
+      params.delete("pageNumber");
+      params.set("pageNumber", "0");
+
+      filterObjects.forEach((filter) => {
+        params.append("filter", JSON.stringify(filter));
+      });
+
+      if (searchValue) {
+        params.set("search", searchValue);
+      }
+
+      router.push(`${pathname}?${params.toString()}`);
+
+      lastSubmittedRef.current = { filters: filterObjects, search: searchValue };
+
+      onSubmit?.(filterObjects, searchValue);
+    },
+    [searchParams, pathname, router, onSubmit]
+  );
+
+  const removeTag = useCallback(
+    (tagId: string) => {
+      let tagsToSubmit: FilterTag[] = [];
+      let inputToSubmit = "";
+
+      setState((prev) => {
+        const newSelectedTagIds = new Set(prev.selectedTagIds);
+        newSelectedTagIds.delete(tagId);
+        const newFocusStates = new Map(prev.tagFocusStates);
+        newFocusStates.delete(tagId);
+        const newTags = prev.tags.filter((t) => t.id !== tagId);
+        const newState = {
+          ...prev,
+          tags: newTags,
+          selectedTagIds: newSelectedTagIds,
+          tagFocusStates: newFocusStates,
+        };
+        stateRef.current = newState;
+
+        tagsToSubmit = newTags;
+        inputToSubmit = prev.inputValue;
+
+        return newState;
+      });
+
+      queueMicrotask(() => {
+        submit(tagsToSubmit, inputToSubmit);
+      });
+    },
+    [submit]
+  );
 
   const updateTagField = useCallback((tagId: string, field: string) => {
     setState((prev) => ({
@@ -231,34 +294,39 @@ export const FilterSearchProvider = ({
   }, []);
 
   const updateTagValue = useCallback((tagId: string, value: string) => {
-    setState((prev) => ({
-      ...prev,
-      tags: prev.tags.map((t) => (t.id === tagId ? { ...t, value } : t)),
-    }));
+    setState((prev) => {
+      const newTags = prev.tags.map((t) => (t.id === tagId ? { ...t, value } : t));
+      const newState = {
+        ...prev,
+        tags: newTags,
+      };
+      stateRef.current = newState;
+      return newState;
+    });
   }, []);
 
   const setInputValue = useCallback((value: string) => {
-    setState((prev) => ({ ...prev, inputValue: value, activeIndex: 0 }));
-  }, []);
-
-  const setActiveTagId = useCallback((tagId: string | null) => {
-    setState((prev) => ({ ...prev, activeTagId: tagId }));
+    setState((prev) => {
+      const newState = { ...prev, inputValue: value, activeIndex: -1 };
+      stateRef.current = newState;
+      return newState;
+    });
   }, []);
 
   const setIsOpen = useCallback((isOpen: boolean) => {
-    setState((prev) => ({ ...prev, isOpen, activeIndex: 0 }));
+    setState((prev) => ({ ...prev, isOpen, activeIndex: -1 }));
   }, []);
 
   const setActiveIndex = useCallback((index: number) => {
     setState((prev) => ({ ...prev, activeIndex: index }));
   }, []);
 
-  const setIsAddingTag = useCallback((isAdding: boolean) => {
-    setState((prev) => ({ ...prev, isAddingTag: isAdding }));
-  }, []);
-
   const focusMainInput = useCallback(() => {
-    setState((prev) => ({ ...prev, activeTagId: null }));
+    setState((prev) => {
+      // Clear all tag focus states
+      const newFocusStates = new Map<string, FilterTagFocusState>();
+      return { ...prev, tagFocusStates: newFocusStates };
+    });
     mainInputRef.current?.focus();
   }, []);
 
@@ -277,13 +345,31 @@ export const FilterSearchProvider = ({
   }, []);
 
   const removeSelectedTags = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => !prev.selectedTagIds.has(t.id)),
-      selectedTagIds: new Set<string>(),
-      activeTagId: null,
-    }));
-  }, []);
+    let tagsToSubmit: FilterTag[] = [];
+    let inputToSubmit = "";
+
+    setState((prev) => {
+      const newFocusStates = new Map(prev.tagFocusStates);
+      prev.selectedTagIds.forEach((id) => newFocusStates.delete(id));
+      const newTags = prev.tags.filter((t) => !prev.selectedTagIds.has(t.id));
+      const newState = {
+        ...prev,
+        tags: newTags,
+        selectedTagIds: new Set<string>(),
+        tagFocusStates: newFocusStates,
+      };
+      stateRef.current = newState;
+
+      tagsToSubmit = newTags;
+      inputToSubmit = prev.inputValue;
+
+      return newState;
+    });
+
+    queueMicrotask(() => {
+      submit(tagsToSubmit, inputToSubmit);
+    });
+  }, [submit]);
 
   const setOpenSelectId = useCallback((id: string | null) => {
     setState((prev) => ({ ...prev, openSelectId: id }));
@@ -339,32 +425,28 @@ export const FilterSearchProvider = ({
     }
   }, []);
 
-  const submit = useCallback(() => {
-    const filterObjects = state.tags.map(createFilterFromTag);
-    const searchValue = state.inputValue.trim();
+  const navigateWithinTag = useCallback(
+    (tagId: string, direction: "left" | "right") => {
+      const focusState = state.tagFocusStates.get(tagId);
+      if (!focusState || focusState.type === "idle") return;
 
-    const params = new URLSearchParams(searchParams.toString());
+      const currentType = focusState.type;
+      const targetField = direction === "left" ? getPreviousField(currentType) : getNextField(currentType);
 
-    // Clear existing filters and search
-    params.delete("filter");
-    params.delete("search");
-    params.delete("pageNumber");
-    params.set("pageNumber", "0");
-
-    // Add filter tags
-    filterObjects.forEach((filter) => {
-      params.append("filter", JSON.stringify(filter));
-    });
-
-    // Add raw search if present
-    if (searchValue) {
-      params.set("search", searchValue);
-    }
-
-    router.push(`${pathname}?${params.toString()}`);
-
-    onSubmit?.(filterObjects, searchValue);
-  }, [state.tags, state.inputValue, searchParams, pathname, router, onSubmit]);
+      if (targetField) {
+        // Navigate within same tag - use focusPosition to properly focus container
+        tagHandlesRef.current.get(tagId)?.focusPosition(targetField);
+      } else {
+        // Navigate to adjacent tag
+        if (direction === "left") {
+          navigateToPreviousTag(tagId);
+        } else {
+          navigateToNextTag(tagId);
+        }
+      }
+    },
+    [state.tagFocusStates, navigateToPreviousTag, navigateToNextTag]
+  );
 
   const clearAll = useCallback(() => {
     setState((prev) => ({
@@ -372,8 +454,8 @@ export const FilterSearchProvider = ({
       tags: [],
       inputValue: "",
       selectedTagIds: new Set<string>(),
-      activeTagId: null,
       isOpen: false,
+      tagFocusStates: new Map<string, FilterTagFocusState>(),
     }));
 
     // Submit with empty state
@@ -383,6 +465,9 @@ export const FilterSearchProvider = ({
     params.delete("pageNumber");
     params.set("pageNumber", "0");
     router.push(`${pathname}?${params.toString()}`);
+
+    // Update last submitted state
+    lastSubmittedRef.current = { filters: [], search: "" };
 
     onSubmit?.([], "");
 
@@ -394,6 +479,7 @@ export const FilterSearchProvider = ({
     () => ({
       state,
       filters,
+      activeTagId,
       addTag,
       addCompleteTag,
       removeTag,
@@ -401,10 +487,8 @@ export const FilterSearchProvider = ({
       updateTagOperator,
       updateTagValue,
       setInputValue,
-      setActiveTagId,
       setIsOpen,
       setActiveIndex,
-      setIsAddingTag,
       mainInputRef,
       submit,
       clearAll,
@@ -415,16 +499,14 @@ export const FilterSearchProvider = ({
       setOpenSelectId,
       setTagFocusState,
       getTagFocusState,
-      autocompleteData,
-      isAutocompleteLoading,
+      navigateWithinTag,
       navigateToTag,
-      navigateToPreviousTag,
-      navigateToNextTag,
       registerTagHandle,
     }),
     [
       state,
       filters,
+      activeTagId,
       addTag,
       addCompleteTag,
       removeTag,
@@ -432,10 +514,8 @@ export const FilterSearchProvider = ({
       updateTagOperator,
       updateTagValue,
       setInputValue,
-      setActiveTagId,
       setIsOpen,
       setActiveIndex,
-      setIsAddingTag,
       submit,
       clearAll,
       focusMainInput,
@@ -445,11 +525,8 @@ export const FilterSearchProvider = ({
       setOpenSelectId,
       setTagFocusState,
       getTagFocusState,
-      autocompleteData,
-      isAutocompleteLoading,
+      navigateWithinTag,
       navigateToTag,
-      navigateToPreviousTag,
-      navigateToNextTag,
       registerTagHandle,
     ]
   );

@@ -1,15 +1,14 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { useParams } from "next/navigation";
-import React, { ChangeEvent, FocusEvent, memo, useCallback } from "react";
+import React, { ChangeEvent, FocusEvent, KeyboardEvent, memo, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button.tsx";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
+import { useAutocompleteData, useFilterSearch } from "../context";
 import FilterSuggestions, { getSuggestionAtIndex, getSuggestionsCount } from "./suggestions";
 import FilterTag from "./tag";
 
@@ -20,11 +19,10 @@ interface FilterSearchInputProps {
 }
 
 const FilterSearchInput = ({ placeholder = "Search...", className, resource = "traces" }: FilterSearchInputProps) => {
-  const params = useParams();
-  const projectId = params.projectId as string;
   const {
     state,
     filters,
+    activeTagId,
     setInputValue,
     setIsOpen,
     setActiveIndex,
@@ -33,16 +31,15 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     submit,
     addTag,
     addCompleteTag,
-    setIsAddingTag,
     selectAllTags,
     clearSelection,
     removeSelectedTags,
     clearAll,
-    autocompleteData,
     registerTagHandle,
     navigateToTag,
   } = useFilterSearch();
 
+  const { data } = useAutocompleteData();
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       if (state.selectedTagIds.size > 0) {
@@ -54,20 +51,18 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     [setInputValue, setIsOpen, state.selectedTagIds.size, removeSelectedTags]
   );
 
-  const handleInputFocus = useCallback(() => setIsOpen(true), [setIsOpen]);
-
   const handleInputBlur = useCallback(() => {
-    if (state.activeTagId) return;
-    if (state.isAddingTag) return;
+    // Don't close if there's an active tag (focus is transferring to it)
+    if (activeTagId) return;
     if (state.openSelectId) return;
     setIsOpen(false);
-    submit();
-  }, [setIsOpen, submit, state.isAddingTag, state.activeTagId, state.openSelectId]);
+    // Submit is handled by tag blur or explicit actions (Enter, removeTag, etc.)
+  }, [setIsOpen, activeTagId, state.openSelectId]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
+    (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, state.inputValue, autocompleteData);
+      const count = getSuggestionsCount(filters, state.inputValue, data);
 
       // Cmd+A / Ctrl+A to select all tags
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
@@ -85,7 +80,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           e.preventDefault();
           if (state.inputValue) setInputValue("");
           removeSelectedTags();
-          submit();
+          // submit is called internally by removeSelectedTags
           return;
         }
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -115,14 +110,12 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       // Enter
       if (e.key === "Enter") {
         e.preventDefault();
-        if (state.isOpen && count > 0) {
-          const suggestion = getSuggestionAtIndex(filters, state.inputValue, state.activeIndex, autocompleteData);
+        if (state.isOpen && count > 0 && state.activeIndex >= 0) {
+          const suggestion = getSuggestionAtIndex(filters, state.inputValue, state.activeIndex, data);
           if (suggestion) {
             if (suggestion.type === "field") {
-              setIsAddingTag(true);
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              // Create a complete filter tag - it will submit automatically
               addCompleteTag(suggestion.field, Operator.Eq, suggestion.value);
             } else {
               setInputValue(`"${suggestion.value}"`);
@@ -178,9 +171,6 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       state.selectedTagIds.size,
       state.isOpen,
       state.activeIndex,
-      state.activeTagId,
-      state.isAddingTag,
-      state.openSelectId,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -190,16 +180,13 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       removeTag,
       addTag,
       addCompleteTag,
-      setIsAddingTag,
       submit,
-      autocompleteData,
+      data,
       navigateToTag,
     ]
   );
 
   useHotkeys("meta+k", () => mainInputRef.current?.focus());
-
-  const handleContainerClick = useCallback(() => mainInputRef.current?.focus(), [mainInputRef]);
 
   const handleContainerBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
@@ -220,7 +207,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
         "not-focus-within:bg-accent transition duration-300 py-1",
         className
       )}
-      onClick={handleContainerClick}
+      onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
       <Search className="text-secondary-foreground size-4 min-w-4 flex-shrink-0" />
@@ -232,7 +219,6 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
             ref={(handle) => registerTagHandle(tag.id, handle)}
             tag={tag}
             resource={resource}
-            projectId={projectId}
             isSelected={state.selectedTagIds.has(tag.id)}
           />
         ))}
@@ -242,13 +228,13 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           type="text"
           value={state.inputValue}
           onChange={handleInputChange}
-          onFocus={handleInputFocus}
+          onFocus={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
           placeholder={state.tags.length === 0 ? placeholder : ""}
           className={cn(
             "flex-1 min-w-[100px] h-6 bg-transparent text-sm outline-none",
-            "placeholder:text-muted-foreground"
+            "placeholder:text-secondary-foreground"
           )}
         />
       </div>
@@ -258,13 +244,13 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           type="button"
           variant="ghost"
           onClick={clearAll}
-          className="text-muted-foreground"
+          className="text-secondary-foreground h-6 px-1 py-1 w-fit"
           aria-label="Clear all filters"
         >
           <X className="size-4" />
         </Button>
       )}
-      <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
+      <kbd className="text-secondary-foreground pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
         ⌘K
       </kbd>
       <FilterSuggestions />

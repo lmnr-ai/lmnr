@@ -1,6 +1,16 @@
 "use client";
 
-import { KeyboardEvent, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  HTMLAttributes,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  Ref,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -13,14 +23,13 @@ export interface FocusableRef {
   focus: () => void;
 }
 
-interface FilterSelectProps {
+interface FilterSelectProps extends HTMLAttributes<HTMLDivElement> {
   value: string;
   options: FilterSelectOption[];
-  onChange: (value: string) => void;
+  onValueChange: (value: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   placeholder?: string;
-  className?: string;
   triggerClassName?: string;
   contentClassName?: string;
   onNavigateLeft?: () => void;
@@ -31,7 +40,7 @@ interface FilterSelectProps {
 const FilterSelect = ({
   value,
   options,
-  onChange,
+  onValueChange,
   open,
   onOpenChange,
   placeholder = "Select...",
@@ -41,6 +50,7 @@ const FilterSelect = ({
   onNavigateLeft,
   onNavigateRight,
   ref,
+  ...props
 }: FilterSelectProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -102,6 +112,22 @@ const FilterSelect = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Handle left/right navigation regardless of open state
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        e.stopPropagation();
+        onNavigateLeft?.();
+        triggerRef.current?.blur();
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        e.stopPropagation();
+        onNavigateRight?.();
+        triggerRef.current?.blur();
+        return;
+      }
+
       if (!open) {
         if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
           e.preventDefault();
@@ -113,12 +139,6 @@ const FilterSelect = ({
 
       // When open, handle dropdown navigation
       switch (e.key) {
-        case "ArrowLeft":
-          onNavigateLeft?.();
-          break;
-        case "ArrowRight":
-          onNavigateRight?.();
-          break;
         case "ArrowDown":
           e.preventDefault();
           setHighlightedIndex((prev) => Math.min(prev + 1, options.length - 1));
@@ -131,7 +151,7 @@ const FilterSelect = ({
         case " ":
           e.preventDefault();
           if (highlightedIndex >= 0 && highlightedIndex < options.length) {
-            onChange(options[highlightedIndex].value);
+            onValueChange(options[highlightedIndex].value);
             onOpenChange(false);
           }
           break;
@@ -141,21 +161,20 @@ const FilterSelect = ({
           break;
       }
     },
-    [open, highlightedIndex, options, onChange, onOpenChange, onNavigateLeft, onNavigateRight]
+    [open, highlightedIndex, options, onValueChange, onOpenChange, onNavigateLeft, onNavigateRight]
   );
 
   const handleOptionMouseDown = useCallback(
-    (optionValue: string) => (e: React.MouseEvent) => {
+    (optionValue: string) => (e: ReactMouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      onChange(optionValue);
-      onOpenChange(false);
+      onValueChange(optionValue);
     },
-    [onChange, onOpenChange]
+    [onValueChange]
   );
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div ref={containerRef} className={cn("relative", className)} {...props}>
       <button
         ref={triggerRef}
         type="button"

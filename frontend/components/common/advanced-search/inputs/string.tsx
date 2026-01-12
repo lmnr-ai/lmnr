@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
-import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface StringValueInputProps {
   tagId: string;
@@ -24,22 +23,8 @@ const inputClassName = cn(
   "[field-sizing:content]"
 );
 
-const StringValueInput = ({
-  tagId,
-  suggestions,
-  focused,
-  mode,
-  ref,
-}: StringValueInputProps) => {
-  const {
-    state,
-    updateTagValue,
-    submit,
-    focusMainInput,
-    setTagFocusState,
-    navigateToPreviousTag,
-    navigateToNextTag,
-  } = useFilterSearch();
+const StringValueInput = ({ tagId, suggestions, focused, mode, ref }: StringValueInputProps) => {
+  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +45,14 @@ const StringValueInput = ({
     focusMainInput();
   }, [submit, focusMainInput]);
 
+  const handleBlur = useCallback(() => {
+    if (mode === "edit") {
+      queueMicrotask(() => {
+        submit();
+      });
+    }
+  }, [submit, mode]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // In edit mode, allow normal input behavior
@@ -79,32 +72,20 @@ const StringValueInput = ({
 
         if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
-            e.preventDefault();
-            const prevField = getPreviousField("value");
-            if (prevField) {
-              setTagFocusState(tagId, createNavFocusState(prevField));
-            } else {
-              navigateToPreviousTag(tagId);
-            }
+            navigateWithinTag(tagId, "left");
           }
           return;
         }
 
         if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
-            e.preventDefault();
-            const nextField = getNextField("value");
-            if (nextField) {
-              setTagFocusState(tagId, createNavFocusState(nextField));
-            } else {
-              navigateToNextTag(tagId);
-            }
+            navigateWithinTag(tagId, "right");
           }
           return;
         }
       }
     },
-    [mode, focused, suggestions.length, handleComplete, tagId, setTagFocusState, navigateToPreviousTag, navigateToNextTag]
+    [mode, focused, suggestions.length, handleComplete, tagId, navigateWithinTag]
   );
 
   const handleSuggestionSelect = useCallback(
@@ -128,9 +109,9 @@ const StringValueInput = ({
         value={tag.value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
         placeholder="..."
         className={inputClassName}
-        tabIndex={mode === "edit" ? 0 : -1}
       />
       {mode === "edit" && focused && suggestions.length > 0 && (
         <div className="absolute top-full left-0 mt-1 z-50 w-[200px] bg-popover border shadow-md overflow-hidden">

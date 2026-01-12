@@ -34,18 +34,16 @@ export type FocusMode = "nav" | "edit";
 // Focus state machine for FilterTag with two-level focus
 export type FilterTagFocusState =
   | { type: "idle" }
-  | { type: "field"; mode: FocusMode; isOpen: boolean }
-  | { type: "operator"; mode: FocusMode; isOpen: boolean }
-  | { type: "value"; mode: FocusMode; showSuggestions: boolean; isSelectOpen: boolean }
+  | { type: "field"; mode: FocusMode }
+  | { type: "operator"; mode: FocusMode }
+  | { type: "value"; mode: FocusMode }
   | { type: "remove"; mode: FocusMode };
 
 export interface FilterSearchState {
   tags: FilterTag[];
   inputValue: string;
-  activeTagId: string | null;
   isOpen: boolean;
   activeIndex: number; // For keyboard navigation in suggestions
-  isAddingTag: boolean;
   selectedTagIds: Set<string>; // For bulk selection with Cmd+A
   openSelectId: string | null;
   tagFocusStates: Map<string, FilterTagFocusState>; // Per-tag focus state
@@ -64,12 +62,13 @@ export interface FilterSearchContextValue {
   updateTagOperator: (tagId: string, operator: Operator) => void;
   updateTagValue: (tagId: string, value: string) => void;
 
+  // Derived state
+  activeTagId: string | null;
+
   // Input operations
   setInputValue: (value: string) => void;
-  setActiveTagId: (tagId: string | null) => void;
   setIsOpen: (isOpen: boolean) => void;
   setActiveIndex: (index: number) => void;
-  setIsAddingTag: (isAdding: boolean) => void;
 
   // Refs
   mainInputRef: RefObject<HTMLInputElement | null>;
@@ -81,8 +80,6 @@ export interface FilterSearchContextValue {
   // Navigation
   focusMainInput: () => void;
   navigateToTag: (tagId: string, position: TagFocusPosition) => void;
-  navigateToPreviousTag: (currentTagId: string) => void;
-  navigateToNextTag: (currentTagId: string) => void;
   registerTagHandle: (tagId: string, handle: FilterTagRef | null) => void;
 
   // Selection
@@ -96,9 +93,8 @@ export interface FilterSearchContextValue {
   setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
   getTagFocusState: (tagId: string) => FilterTagFocusState;
 
-  // Autocomplete data
-  autocompleteData: AutocompleteCache;
-  isAutocompleteLoading: boolean;
+  // Within-tag navigation (handles focus properly)
+  navigateWithinTag: (tagId: string, direction: "left" | "right") => void;
 }
 
 export function createFilterFromTag(tag: FilterTag): Filter {
@@ -131,4 +127,3 @@ export function getOperationsForField(filters: ColumnFilter[], field: string) {
 export function getColumnFilter(filters: ColumnFilter[], field: string): ColumnFilter | undefined {
   return filters.find((f) => f.key === field);
 }
-

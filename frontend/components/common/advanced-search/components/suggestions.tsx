@@ -1,13 +1,13 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useMemo } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
+import { useAutocompleteData, useFilterSearch } from "../context";
 import { ColumnFilter } from "../types";
 
 interface FieldSuggestion {
@@ -33,8 +33,10 @@ interface FilterSuggestionsProps {
 }
 
 const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
-  const { state, filters, addTag, addCompleteTag, setInputValue, setIsOpen, submit, setIsAddingTag, autocompleteData, focusMainInput } = useFilterSearch();
-  const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const { state, filters, addTag, addCompleteTag, setInputValue, setIsOpen, submit, focusMainInput } =
+    useFilterSearch();
+
+  const { data } = useAutocompleteData();
 
   const suggestions = useMemo((): Suggestion[] => {
     const input = state.inputValue.trim().toLowerCase();
@@ -57,7 +59,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
     // Add value suggestions from preloaded autocomplete data
     const valueSuggestions: Suggestion[] = [];
-    autocompleteData.forEach((values, field) => {
+    data.forEach((values, field) => {
       const matchingValues = values.filter((value) => value.toLowerCase().includes(input));
       matchingValues.forEach((value) => {
         valueSuggestions.push({
@@ -77,22 +79,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
     });
 
     return allSuggestions;
-  }, [state.inputValue, filters, autocompleteData]);
-
-  useEffect(() => {
-    const activeItem = itemRefs.current.get(state.activeIndex);
-    if (activeItem) {
-      activeItem.scrollIntoView({ block: "nearest" });
-    }
-  }, [state.activeIndex]);
-
-  const handleFieldSelect = useCallback(
-    (filter: ColumnFilter) => {
-      setIsAddingTag(true);
-      addTag(filter.key);
-    },
-    [addTag, setIsAddingTag]
-  );
+  }, [state.inputValue, filters, data]);
 
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
@@ -144,15 +131,12 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
               return (
                 <div
                   key={`field-${suggestion.filter.key}`}
-                  ref={(el) => {
-                    if (el) itemRefs.current.set(idx, el);
-                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
                   )}
                   onMouseDown={handleMouseDown}
-                  onClick={() => handleFieldSelect(suggestion.filter)}
+                  onClick={() => addTag(suggestion.filter.key)}
                 >
                   {suggestion.filter.name}
                 </div>
@@ -167,9 +151,6 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
               return (
                 <div
                   key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
-                  ref={(el) => {
-                    if (el) itemRefs.current.set(idx, el);
-                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
@@ -187,9 +168,6 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
             return (
               <div
                 key="raw-search"
-                ref={(el) => {
-                  if (el) itemRefs.current.set(idx, el);
-                }}
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
                   isActive ? "bg-accent" : "hover:bg-accent"

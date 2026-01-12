@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
-import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface JsonValueInputProps {
   tagId: string;
@@ -22,15 +21,7 @@ const inputClassName = cn(
 );
 
 const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
-  const {
-    state,
-    updateTagValue,
-    submit,
-    focusMainInput,
-    setTagFocusState,
-    navigateToPreviousTag,
-    navigateToNextTag,
-  } = useFilterSearch();
+  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
 
   const keyInputRef = useRef<HTMLInputElement>(null);
@@ -65,6 +56,14 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
     focusMainInput();
   }, [submit, focusMainInput]);
 
+  const handleBlur = useCallback(() => {
+    if (mode === "edit") {
+      queueMicrotask(() => {
+        submit();
+      });
+    }
+  }, [submit, mode]);
+
   const handleKeyKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (mode === "edit") {
@@ -79,12 +78,8 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
             e.preventDefault();
-            const prevField = getPreviousField("value");
-            if (prevField) {
-              setTagFocusState(tagId, createNavFocusState(prevField));
-            } else {
-              navigateToPreviousTag(tagId);
-            }
+            e.stopPropagation();
+            navigateWithinTag(tagId, "left");
           }
           return;
         }
@@ -99,7 +94,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         }
       }
     },
-    [mode, handleComplete, tagId, setTagFocusState, navigateToPreviousTag]
+    [mode, handleComplete, tagId, navigateWithinTag]
   );
 
   const handleValueKeyDown = useCallback(
@@ -125,18 +120,14 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
             e.preventDefault();
-            const nextField = getNextField("value");
-            if (nextField) {
-              setTagFocusState(tagId, createNavFocusState(nextField));
-            } else {
-              navigateToNextTag(tagId);
-            }
+            e.stopPropagation();
+            navigateWithinTag(tagId, "right");
           }
           return;
         }
       }
     },
-    [mode, handleComplete, jsonKey.length, tagId, setTagFocusState, navigateToNextTag]
+    [mode, handleComplete, jsonKey.length, tagId, navigateWithinTag]
   );
 
   if (!tag) return null;
@@ -149,6 +140,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         value={jsonKey}
         onChange={handleKeyChange}
         onKeyDown={handleKeyKeyDown}
+        onBlur={handleBlur}
         placeholder="key"
         className={cn(inputClassName, "min-w-10 max-w-32")}
         tabIndex={mode === "edit" ? 0 : -1}
@@ -159,6 +151,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         value={jsonValue}
         onChange={handleValueChange}
         onKeyDown={handleValueKeyDown}
+        onBlur={handleBlur}
         placeholder="value"
         className={cn(inputClassName, "min-w-10 max-w-32")}
         tabIndex={mode === "edit" ? 0 : -1}

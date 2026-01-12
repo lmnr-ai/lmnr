@@ -21,84 +21,44 @@ interface ValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const ValueInput = memo(
-  ({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
-    const { getTagFocusState, setTagFocusState, setActiveTagId } = useFilterSearch();
-    const focusState = getTagFocusState(tagId);
-    const dataType = columnFilter.dataType;
+const ValueInput = memo(({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
+  const { getTagFocusState, setTagFocusState } = useFilterSearch();
+  const focusState = getTagFocusState(tagId);
+  const dataType = columnFilter.dataType;
 
-    const handleMouseDown = useCallback(() => {
-      setActiveTagId(tagId);
-      setTagFocusState(tagId, { type: "value", mode: "edit", showSuggestions: false, isSelectOpen: false });
-      if (ref && typeof ref !== "function" && ref.current) {
-        ref.current.focus();
-      }
-    }, [tagId, setActiveTagId, setTagFocusState, ref]);
-    const wrapperClassName = cn(
-      focusState.type === "value" && "mode" in focusState && focusState.mode === "nav" && "bg-accent/50"
-    );
+  const handleMouseDown = useCallback(() => {
+    setTagFocusState(tagId, { type: "value", mode: "edit" });
+    if (ref && typeof ref !== "function" && ref.current) {
+      ref.current.focus();
+    }
+  }, [tagId, setTagFocusState, ref]);
+  const wrapperClassName = cn(focusState.type === "value" && "bg-accent");
 
-    const renderInput = () => {
-      switch (dataType) {
-        case "enum":
-          if (columnFilter.dataType !== "enum") return null;
-          return (
-            <EnumValueInput
-              ref={ref}
-              tagId={tagId}
-              options={columnFilter.options}
-              mode={mode}
-            />
-          );
+  const renderInput = () => {
+    switch (dataType) {
+      case "enum":
+        return <EnumValueInput ref={ref} tagId={tagId} options={columnFilter.options} />;
 
-        case "boolean":
-          return (
-            <BooleanValueInput
-              ref={ref}
-              tagId={tagId}
-              focused={focused}
-              mode={mode}
-            />
-          );
+      case "boolean":
+        return <BooleanValueInput ref={ref} tagId={tagId} focused={focused} mode={mode} />;
 
-        case "number":
-          return (
-            <NumberValueInput
-              ref={ref}
-              tagId={tagId}
-              mode={mode}
-            />
-          );
+      case "number":
+        return <NumberValueInput ref={ref} tagId={tagId} mode={mode} />;
 
-        case "json":
-          return (
-            <JsonValueInput
-              ref={ref}
-              tagId={tagId}
-              mode={mode}
-            />
-          );
+      case "json":
+        return <JsonValueInput ref={ref} tagId={tagId} mode={mode} />;
 
-        default: // string
-          return (
-            <StringValueInput
-              ref={ref}
-              tagId={tagId}
-              suggestions={suggestions}
-              focused={focused}
-              mode={mode}
-            />
-          );
-      }
-    };
+      default: // string
+        return <StringValueInput ref={ref} tagId={tagId} suggestions={suggestions} focused={focused} mode={mode} />;
+    }
+  };
 
-    return (
-      <div className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
-        {renderInput()}
-      </div>
-    );
-  }
-);
+  return (
+    <div className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+      {renderInput()}
+    </div>
+  );
+});
 
 ValueInput.displayName = "ValueInput";
 

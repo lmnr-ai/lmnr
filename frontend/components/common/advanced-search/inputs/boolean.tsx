@@ -6,7 +6,6 @@ import FilterSelect, { FilterSelectOption } from "@/components/ui/filter-select"
 
 import { useFilterSearch } from "../context";
 import { FocusableRef, FocusMode } from "../types";
-import { createNavFocusState,getNextField, getPreviousField } from "../utils";
 
 interface BooleanValueInputProps {
   tagId: string;
@@ -23,21 +22,13 @@ const booleanOptions: FilterSelectOption[] = [
 const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-secondary-foreground text-xs";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
-  const {
-    state,
-    updateTagValue,
-    submit,
-    focusMainInput,
-    setTagFocusState,
-    navigateToPreviousTag,
-    navigateToNextTag,
-  } = useFilterSearch();
+  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
   const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
 
   const selectRef = useRef<FocusableRef>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Need useImperativeHandle here because we use selectRef internally in useEffect
   useImperativeHandle(ref, () => ({
     focus: () => selectRef.current?.focus(),
   }));
@@ -61,41 +52,21 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
     [tagId, updateTagValue, submit, focusMainInput]
   );
 
-  const handleNavigateLeft = useCallback(() => {
-    const prevField = getPreviousField("value");
-    if (prevField) {
-      setTagFocusState(tagId, createNavFocusState(prevField));
-    } else {
-      navigateToPreviousTag(tagId);
-    }
-  }, [tagId, setTagFocusState, navigateToPreviousTag]);
-
-  const handleNavigateRight = useCallback(() => {
-    const nextField = getNextField("value");
-    if (nextField) {
-      setTagFocusState(tagId, createNavFocusState(nextField));
-    } else {
-      navigateToNextTag(tagId);
-    }
-  }, [tagId, setTagFocusState, navigateToNextTag]);
-
   if (!tag) return null;
 
   return (
-    <div ref={containerRef}>
-      <FilterSelect
-        ref={selectRef}
-        value={tag.value}
-        options={booleanOptions}
-        onChange={handleChange}
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        onNavigateLeft={handleNavigateLeft}
-        onNavigateRight={handleNavigateRight}
-        placeholder="Select..."
-        triggerClassName={selectTriggerClassName}
-      />
-    </div>
+    <FilterSelect
+      ref={selectRef}
+      value={tag.value}
+      options={booleanOptions}
+      onValueChange={handleChange}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      onNavigateLeft={() => navigateWithinTag(tagId, "left")}
+      onNavigateRight={() => navigateWithinTag(tagId, "right")}
+      placeholder="Select..."
+      triggerClassName={selectTriggerClassName}
+    />
   );
 };
 

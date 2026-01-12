@@ -48,7 +48,7 @@ const getSpansSuggestions = async (projectId: string, prefix: string): Promise<A
   return [
     ...names.map((value) => ({ field: "name", value })),
     ...models.map((value) => ({ field: "model", value })),
-    ...tags.map((value) => ({ field: "tag", value })),
+    ...tags.map((value) => ({ field: "tags", value })),
   ];
 };
 
@@ -60,7 +60,7 @@ const getTracesSuggestions = async (projectId: string, prefix: string): Promise<
 
   return [
     ...names.map((value) => ({ field: "top_span_name", value })),
-    ...tags.map((value) => ({ field: "tag", value })),
+    ...tags.map((value) => ({ field: "tags", value })),
   ];
 };
 

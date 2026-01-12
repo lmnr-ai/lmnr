@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { memo, useEffect } from "react";
+import { memo } from "react";
 import useSWR from "swr";
 
 import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
@@ -14,7 +14,7 @@ import { ColumnFilter } from "./types";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource?: "traces" | "spans";
+  resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
   onSubmit?: (filters: Filter[], search: string) => void;
@@ -29,22 +29,10 @@ const AdvancedSearchInner = ({
 }: AdvancedSearchProps) => {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { setAutocompleteData, setIsAutocompleteLoading } = useAutocompleteData();
+  const { setData } = useAutocompleteData();
 
-  // Fetch all autocomplete data on mount
-  const { data, isLoading } = useSWR<{ suggestions: AutocompleteSuggestion[] }>(
-    projectId ? `/api/projects/${projectId}/${resource}/autocomplete` : null,
-    swrFetcher,
-    {
-      fallbackData: { suggestions: [] },
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    }
-  );
-
-  // Update autocomplete data in context when loaded
-  useEffect(() => {
-    if (data?.suggestions) {
+  useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {
+    onSuccess: (data) => {
       const cache = new Map<string, string[]>();
       data.suggestions.forEach((suggestion) => {
         const existing = cache.get(suggestion.field) || [];
@@ -53,13 +41,12 @@ const AdvancedSearchInner = ({
         }
         cache.set(suggestion.field, existing);
       });
-      setAutocompleteData(cache);
-    }
-  }, [data, setAutocompleteData]);
-
-  useEffect(() => {
-    setIsAutocompleteLoading(isLoading);
-  }, [isLoading, setIsAutocompleteLoading]);
+      setData(cache);
+    },
+    fallbackData: { suggestions: [] },
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
 
   return (
     <FilterSearchProvider filters={filters} onSubmit={onSubmit}>
