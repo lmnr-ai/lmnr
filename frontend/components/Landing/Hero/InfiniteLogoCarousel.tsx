@@ -21,37 +21,37 @@ const logos: Logo[] = [
     id: "amplitude",
     name: "Amplitude",
     image: amplitude,
-    className: "w-40 h-10"
+    className: "w-32 h-8"
   },
   {
     id: "browser-use",
     name: "Browser Use",
     component: LogoBrowserUse,
-    className: "w-40 h-10"
+    className: "w-32 h-8"
   },
   {
     id: "rye",
     name: "Rye",
     component: LogoRye,
-    className: "w-20 h-6"
+    className: "w-16 h-5"
   },
   {
     id: "skyvern",
     name: "Skyvern",
     image: skyvern,
-    className: "w-32 h-10"
+    className: "w-24 h-8"
   },
   {
     id: "axion-ray",
     name: "Axion Ray",
     component: LogoAxionRay,
-    className: "w-32 h-10"
+    className: "w-24 h-8"
   },
   {
     id: "remo",
     name: "Remo",
     component: LogoRemo,
-    className: "w-24 h-9"
+    className: "w-20 h-7"
   },
 ];
 
