@@ -5,10 +5,8 @@ use bytes::Bytes;
 use prost::Message;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
-    logs::producer::push_logs_to_queue,
-    mq::MessageQueue,
-    opentelemetry_proto::lmnr::logs::v1::ExportLogsServiceRequest,
+    db::project_api_keys::ProjectApiKey, logs::producer::push_logs_to_queue, mq::MessageQueue,
+    opentelemetry_proto::opentelemetry::proto::collector::logs::v1::ExportLogsServiceRequest,
     routes::types::ResponseResult,
 };
 

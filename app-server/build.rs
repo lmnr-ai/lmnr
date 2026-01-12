@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .include_file("mod.rs")
         .type_attribute("TracesData", "#[allow(dead_code)]")
+        .type_attribute("LogsData", "#[allow(dead_code)]")
         .out_dir("./src/opentelemetry_proto/")
         .compile_protos(
             &[

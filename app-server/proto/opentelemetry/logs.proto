@@ -1,55 +1,117 @@
-// Copyright 2024, Laminar
+// Copyright 2020, OpenTelemetry Authors
 //
-// Simplified OpenTelemetry-like log format for Laminar logs ingestion.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 syntax = "proto3";
 
-package lmnr.logs.v1;
+package opentelemetry.proto.collector.logs.v1;
 
 import "opentelemetry/common.proto";
+import "opentelemetry/resource.proto";
 
-option go_package = "github.com/lmnr-ai/lmnr/proto/logs/v1";
+option go_package = "go.opentelemetry.io/proto/otlp/collector/logs/v1";
 
-// Service for exporting logs.
+// Service that can be used to push logs between one Application instrumented with
+// OpenTelemetry and a collector, or between a collector and a central collector.
 service LogsService {
-  // Export logs to the server.
   rpc Export(ExportLogsServiceRequest) returns (ExportLogsServiceResponse) {}
 }
 
-// Request message for exporting logs.
 message ExportLogsServiceRequest {
+  // An array of ResourceLogs.
+  // For data coming from a single resource this array will typically contain one
+  // element. Intermediary nodes (such as OpenTelemetry Collector) that receive
+  // data from multiple origins typically batch the data before forwarding further and
+  // in that case this array will contain multiple elements.
+  repeated ResourceLogs resource_logs = 1;
+}
+
+message ExportLogsServiceResponse {
+  // The details of a partially successful export request.
+  //
+  // If the request is only partially accepted
+  // (i.e. when the server accepts only parts of the data and rejects the rest)
+  // the server MUST initialize the `partial_success` field and MUST
+  // set the `rejected_<signal>` with the number of items it rejected.
+  //
+  // Servers MAY also make use of the `partial_success` field to convey
+  // warnings/suggestions to senders even when the request was fully accepted.
+  // In such cases, the `rejected_<signal>` MUST have a value of `0` and
+  // the `error_message` MUST be non-empty.
+  //
+  // A `partial_success` message with an empty value (rejected_<signal> = 0 and
+  // `error_message` = "") is equivalent to it not being set/present. Senders
+  // SHOULD interpret it the same way as in the full success case.
+  ExportLogsPartialSuccess partial_success = 1;
+}
+
+message ExportLogsPartialSuccess {
+  // The number of rejected log records.
+  //
+  // A `rejected_<signal>` field holding a `0` value indicates that the
+  // request was fully accepted.
+  int64 rejected_log_records = 1;
+
+  // A developer-facing human-readable message in English. It should be used
+  // either to explain why the server rejected parts of the data during a partial
+  // success or to convey warnings/suggestions during a full success. The message
+  // should offer guidance on how users can address such issues.
+  //
+  // error_message is an optional field. An error_message with an empty value
+  // is equivalent to it not being set.
+  string error_message = 2;
+}
+
+// LogsData represents the logs data that can be stored in a persistent storage,
+// OR can be embedded by other protocols that transfer OTLP logs data but do not
+// implement the OTLP protocol.
+message LogsData {
   // An array of ResourceLogs.
   repeated ResourceLogs resource_logs = 1;
 }
 
-// Response message for exporting logs.
-message ExportLogsServiceResponse {
-  // Partial success information if some logs were rejected.
-  ExportLogsPartialSuccess partial_success = 1;
-}
-
-// Partial success response for log export.
-message ExportLogsPartialSuccess {
-  // The number of rejected log records.
-  int64 rejected_log_records = 1;
-
-  // A developer-facing human-readable error message.
-  string error_message = 2;
-}
-
 // A collection of ScopeLogs from a Resource.
 message ResourceLogs {
+  reserved 1000;
+
+  // The resource for the logs in this message.
+  // If this field is not set then resource info is unknown.
+  opentelemetry_proto_resource_v1.Resource resource = 1;
+
   // A list of ScopeLogs that originate from a resource.
-  repeated ScopeLogs scope_logs = 1;
+  repeated ScopeLogs scope_logs = 2;
+
+  // The Schema URL, if known. This is the identifier of the Schema that the resource data
+  // is recorded in.
+  string schema_url = 3;
 }
 
 // A collection of Logs produced by a Scope.
 message ScopeLogs {
+  // The instrumentation scope information for the logs in this message.
+  // Semantically when InstrumentationScope isn't set, it is equivalent with
+  // an empty instrumentation scope name (unknown).
+  opentelemetry_proto_common_v1.InstrumentationScope scope = 1;
+
   // A list of log records.
-  repeated LogRecord log_records = 1;
+  repeated LogRecord log_records = 2;
+
+  // The Schema URL, if known. This is the identifier of the Schema that the log data
+  // is recorded in.
+  string schema_url = 3;
 }
 
-// Possible values for LogRecord severity.
+// Possible values for LogRecord.SeverityNumber.
 enum SeverityNumber {
   SEVERITY_NUMBER_UNSPECIFIED = 0;
   SEVERITY_NUMBER_TRACE = 1;
@@ -78,30 +140,114 @@ enum SeverityNumber {
   SEVERITY_NUMBER_FATAL4 = 24;
 }
 
-// A log record according to OpenTelemetry Log Data Model.
+// LogRecordFlags represents constants used to interpret the
+// LogRecord.flags field, which is protobuf 'fixed32' type and is to
+// be used as bit-fields. Each non-zero value defined in this enum is
+// a bit-mask.  To extract the bit-field, for example, use an
+// expression like:
+//
+//   (logRecord.flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK)
+//
+enum LogRecordFlags {
+  // The zero value for the enum. Should not be used for comparisons.
+  // Instead use bitwise "and" with the appropriate mask as shown above.
+  LOG_RECORD_FLAGS_DO_NOT_USE = 0;
+
+  // Bits 0-7 are used for trace flags.
+  LOG_RECORD_FLAGS_TRACE_FLAGS_MASK = 0x000000FF;
+
+  // Bits 8-31 are reserved for future use.
+}
+
+// A log record according to OpenTelemetry Log Data Model:
+// https://github.com/open-telemetry/oteps/blob/main/text/logs/0097-log-data-model.md
 message LogRecord {
-  // Time when the event occurred measured by the origin clock.
-  // This field is semantically required and should be set whenever possible.
+  reserved 4;
+
+  // time_unix_nano is the time when the event occurred.
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  // Value of 0 indicates unknown or missing timestamp.
   fixed64 time_unix_nano = 1;
 
   // Time when the event was observed by the collection system.
-  fixed64 observed_time_unix_nano = 2;
+  // For events that originate in OpenTelemetry (e.g. using OpenTelemetry Logging SDK)
+  // this timestamp is typically set at the generation time and is equal to Timestamp.
+  // For events originating externally and collected by OpenTelemetry (e.g. using
+  // Collector) this is the time when OpenTelemetry's code observed the event measured
+  // by the clock of the OpenTelemetry code. This field MUST be set once the event is
+  // observed by OpenTelemetry.
+  //
+  // For converting OpenTelemetry log data to formats that support only one timestamp or
+  // when receiving OpenTelemetry log data by recipients that support only one timestamp
+  // internally the following logic is recommended:
+  //   - Use time_unix_nano if it is present, otherwise use observed_time_unix_nano.
+  //
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  // Value of 0 indicates unknown or missing timestamp.
+  fixed64 observed_time_unix_nano = 11;
 
-  // Numerical value of the severity.
-  SeverityNumber severity_number = 3;
+  // Numerical value of the severity, normalized to values described in Log Data Model.
+  // [Optional].
+  SeverityNumber severity_number = 2;
 
-  // The severity text (also known as log level).
-  string severity_text = 4;
+  // The severity text (also known as log level). The original string representation as
+  // it is known at the source. [Optional].
+  string severity_text = 3;
 
-  // A value containing the body of the log record.
+  // A value containing the body of the log record. Can be for example a human-readable
+  // string message (including multi-line) describing the event in a free form or it can
+  // be a structured data composed of arrays and maps of other values. [Optional].
   opentelemetry_proto_common_v1.AnyValue body = 5;
 
-  // Additional attributes that describe the specific event occurrence.
+  // Additional attributes that describe the specific event occurrence. [Optional].
+  // Attribute keys MUST be unique (it is not allowed to have more than one
+  // attribute with the same key).
   repeated opentelemetry_proto_common_v1.KeyValue attributes = 6;
+  uint32 dropped_attributes_count = 7;
 
-  // A unique identifier for a trace.
-  bytes trace_id = 7;
+  // Flags, a bit field. 8 least significant bits are the trace flags as
+  // defined in W3C Trace Context specification. 24 most significant bits are reserved
+  // and must be set to 0. Readers must not assume that 24 most significant bits
+  // will be zero and must correctly mask the bits when reading 8-bit trace flag (use
+  // flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK). [Optional].
+  fixed32 flags = 8;
 
-  // A unique identifier for a span within a trace.
-  bytes span_id = 8;
+  // A unique identifier for a trace. All logs from the same trace share
+  // the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+  // of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+  // is zero-length and thus is also invalid).
+  //
+  // This field is optional.
+  //
+  // The receivers SHOULD assume that the log record is not associated with a
+  // trace if any of the following is true:
+  //   - the field is not present,
+  //   - the field contains an invalid value.
+  bytes trace_id = 9;
+
+  // A unique identifier for a span within a trace, assigned when the span
+  // is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+  // other than 8 bytes is considered invalid (empty string in OTLP/JSON
+  // is zero-length and thus is also invalid).
+  //
+  // This field is optional. If the sender specifies a valid span_id then it SHOULD also
+  // specify a valid trace_id.
+  //
+  // The receivers SHOULD assume that the log record is not associated with a
+  // span if any of the following is true:
+  //   - the field is not present,
+  //   - the field contains an invalid value.
+  bytes span_id = 10;
+
+  // A unique identifier of event category/type.
+  // All events with the same event_name are expected to conform to the same
+  // schema for both their attributes and their body.
+  //
+  // Recommended to be fully qualified and short (no longer than 256 characters).
+  //
+  // Presence of event_name on the log record identifies this record
+  // as an event.
+  //
+  // [Optional].
+  string event_name = 12;
 }

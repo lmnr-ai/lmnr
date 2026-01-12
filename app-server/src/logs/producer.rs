@@ -12,7 +12,7 @@ use super::{LOGS_EXCHANGE, LOGS_ROUTING_KEY};
 use crate::{
     db::utils::span_id_to_uuid,
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    opentelemetry_proto::lmnr::logs::v1::{
+    opentelemetry_proto::opentelemetry::proto::collector::logs::v1::{
         ExportLogsServiceRequest, ExportLogsServiceResponse, LogRecord,
     },
     traces::utils::convert_any_value_to_json_value,

@@ -7,7 +7,7 @@ use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     mq::MessageQueue,
-    opentelemetry_proto::lmnr::logs::v1::{
+    opentelemetry_proto::opentelemetry::proto::collector::logs::v1::{
         ExportLogsServiceRequest, ExportLogsServiceResponse, logs_service_server::LogsService,
     },
 };
