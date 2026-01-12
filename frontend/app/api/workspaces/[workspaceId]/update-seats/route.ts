@@ -34,7 +34,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ workspac
   const prices = await s.prices.list({
     lookup_keys: [SEAT_PRICE_LOOKUP_KEY],
   });
-  const priceId = prices.data.find((p) => p.lookup_key === SEAT_PRICE_LOOKUP_KEY)?.id ?? "";
+  const price = prices.data.find((p) => p.lookup_key === SEAT_PRICE_LOOKUP_KEY);
+
+  if (!price) {
+    return Response.json({ error: "Seat price not found" }, { status: 500 });
+  }
+
+  const priceId = price.id;
 
   const subscriptionItems = await s.subscriptionItems.list({
     subscription: workspace.subscriptionId,
