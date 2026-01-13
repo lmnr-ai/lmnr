@@ -16,7 +16,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils.ts";
+import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
@@ -234,12 +234,18 @@ const fetchTraceSpans = async ({
   traceId,
   spanIds,
   filters,
+  startTime,
+  endTime,
+  pastHours,
   orderBy,
 }: {
   projectId: string;
   traceId: string;
   spanIds: string[];
   filters: Filter[];
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
   orderBy?: Array<{ column: string; direction: "ASC" | "DESC" }>;
 }) => {
   const { query, parameters } = buildSpansQueryWithParams({
@@ -265,6 +271,9 @@ const fetchTraceSpans = async ({
     projectId,
     spanIds: spanIds.length > 0 ? spanIds : undefined,
     filters: [...filters, { value: traceId, operator: Operator.Eq, column: "trace_id" }],
+    startTime,
+    endTime,
+    pastHours,
     orderBy,
   });
 
@@ -279,12 +288,13 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
   const filters: Filter[] = compact(inputFilters);
 
+  const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
       projectId,
       traceId,
       searchQuery: search,
-      timeRange: getTimeRange(pastHours, startDate, endDate),
+      ...(timeRange && { timeRange }),
       searchType: searchIn as SpanSearchType[],
     })
     : [];
@@ -302,6 +312,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       traceId,
       spanIds,
       filters,
+      startTime: startDate,
+      endTime: endDate,
+      pastHours,
       orderBy: [{ column: "start_time", direction: "ASC" }],
     }),
     fetchTraceEvents(projectId, traceId),

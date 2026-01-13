@@ -297,7 +297,7 @@ impl SpanAttributes {
             {
                 SpanType::LLM
             } else {
-                SpanType::DEFAULT
+                SpanType::Default
             }
         }
     }
@@ -557,7 +557,7 @@ impl Span {
             return;
         }
 
-        if self.span_type == SpanType::LLM {
+        if self.is_llm_span() {
             if self
                 .attributes
                 .raw_attributes
@@ -676,7 +676,7 @@ impl Span {
         }
 
         if self.is_ai_sdk_tool_call_span() {
-            self.span_type = SpanType::TOOL;
+            self.span_type = SpanType::Tool;
             if let Some(Value::String(name)) =
                 self.attributes.raw_attributes.remove("ai.toolCall.name")
             {
@@ -740,7 +740,7 @@ impl Span {
         {
             let input =
                 serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
-            if self.span_type == SpanType::LLM {
+            if self.is_llm_span() {
                 let input_messages = input_chat_messages_from_json(&input);
                 if let Ok(input_messages) = input_messages {
                     self.input = Some(json!(input_messages));
@@ -896,6 +896,16 @@ impl Span {
                     .attributes
                     .raw_attributes
                     .contains_key("ai.toolCall.id"))
+    }
+
+    pub fn is_llm_span(&self) -> bool {
+        self.span_type == SpanType::LLM
+            || (self.span_type == SpanType::Cached
+                && self
+                    .attributes
+                    .raw_attributes
+                    .get("lmnr.span.original_type")
+                    == Some(&Value::String("LLM".to_string())))
     }
 }
 
@@ -2061,7 +2071,7 @@ mod tests {
             attributes: SpanAttributes::new(parent_attributes),
             start_time: Utc::now(),
             end_time: Utc::now(),
-            span_type: SpanType::DEFAULT,
+            span_type: SpanType::Default,
             input: None,
             output: None,
             events: None,
@@ -2221,7 +2231,7 @@ mod tests {
         assert_eq!(parent_span.parent_span_id, None);
         assert_eq!(child_span.parent_span_id, Some(parent_span_id));
         assert_eq!(parent_span.trace_id, child_span.trace_id);
-        assert_eq!(parent_span.span_type, SpanType::DEFAULT);
+        assert_eq!(parent_span.span_type, SpanType::Default);
         assert_eq!(child_span.span_type, SpanType::LLM);
 
         // Verify initial path and ids_path
@@ -2679,7 +2689,7 @@ mod tests {
             attributes: SpanAttributes::new(parent_attributes),
             start_time: Utc::now(),
             end_time: Utc::now(),
-            span_type: SpanType::DEFAULT,
+            span_type: SpanType::Default,
             input: None,
             output: None,
             events: None,
@@ -2846,7 +2856,7 @@ mod tests {
         assert_eq!(parent_span.parent_span_id, None);
         assert_eq!(child_span.parent_span_id, Some(parent_span_id));
         assert_eq!(parent_span.trace_id, child_span.trace_id);
-        assert_eq!(parent_span.span_type, SpanType::DEFAULT);
+        assert_eq!(parent_span.span_type, SpanType::Default);
         assert_eq!(child_span.span_type, SpanType::LLM);
 
         // Verify initial path and ids_path

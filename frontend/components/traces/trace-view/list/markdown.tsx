@@ -63,6 +63,45 @@ interface MarkdownProps {
   className?: string;
 }
 
+const preprocessDataForMustache = (data: any): any => {
+  if (data === null || data === undefined) {
+    return data;
+  }
+
+  if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(preprocessDataForMustache);
+  }
+
+  if (typeof data === "object") {
+    const processed: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value === null || value === undefined) {
+        processed[key] = value;
+      } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        processed[key] = value;
+      } else if (Array.isArray(value)) {
+        processed[key] = preprocessDataForMustache(value);
+      } else if (typeof value === "object") {
+        // Convert nested objects to formatted JSON strings
+        const jsonStr = JSON.stringify(value, null, 2);
+        // Keep the original key for the object, but add a new key with the JSON string
+        processed[`${key}Json`] = jsonStr;
+
+        processed[key] = preprocessDataForMustache(value);
+      } else {
+        processed[key] = value;
+      }
+    }
+    return processed;
+  }
+
+  return data;
+};
+
 const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
   const formattedOutput = useMemo(() => {
     if (!output) return "";
@@ -73,8 +112,18 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
         const data = parsed !== null ? parsed : output;
 
         const unwrappedData = Array.isArray(data) && data.length === 1 ? data[0] : data;
+        const processedData = preprocessDataForMustache(unwrappedData);
+        let rendered = Mustache.render(defaultValue, processedData);
 
-        return Mustache.render(defaultValue, unwrappedData);
+        // Unescape HTML entities that Mustache escaped (like &quot; back to ")
+        rendered = rendered
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#x27;/g, "'");
+
+        return rendered;
       } catch (_) {
         return formatOutput(output);
       }
@@ -117,7 +166,7 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
           </ol>
         ),
         code: ({ children, className, ...props }) => (
-          <code {...props} className={cn(className, "text-sm")}>
+          <code {...props} className={cn(className, "text-sm font-mono whitespace-pre-wrap")}>
             {children}
           </code>
         ),

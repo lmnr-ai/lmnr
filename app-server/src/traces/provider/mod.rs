@@ -37,7 +37,7 @@ pub fn convert_span_to_provider_format(span: &mut Span) {
 }
 
 fn is_ai_sdk_llm_span(span: &Span) -> bool {
-    span.span_type == SpanType::LLM
+    span.is_llm_span()
         && (span
             .attributes
             .raw_attributes

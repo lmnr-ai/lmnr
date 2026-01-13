@@ -247,21 +247,21 @@ const syncTriggerSpans = async (
   const deletions =
     toRemove.length > 0
       ? tx
-        .delete(semanticEventTriggerSpans)
-        .where(
-          and(
-            eq(semanticEventTriggerSpans.projectId, projectId),
-            eq(semanticEventTriggerSpans.eventDefinitionId, eventDefinitionId),
-            inArray(semanticEventTriggerSpans.spanName, toRemove)
+          .delete(semanticEventTriggerSpans)
+          .where(
+            and(
+              eq(semanticEventTriggerSpans.projectId, projectId),
+              eq(semanticEventTriggerSpans.eventDefinitionId, eventDefinitionId),
+              inArray(semanticEventTriggerSpans.spanName, toRemove)
+            )
           )
-        )
       : Promise.resolve();
 
   const insertions =
     toAdd.length > 0
       ? tx
-        .insert(semanticEventTriggerSpans)
-        .values(toAdd.map((spanName) => ({ projectId, eventDefinitionId, spanName })))
+          .insert(semanticEventTriggerSpans)
+          .values(toAdd.map((spanName) => ({ projectId, eventDefinitionId, spanName })))
       : Promise.resolve();
 
   await Promise.all([deletions, insertions]);
@@ -311,4 +311,3 @@ export async function deleteSemanticEventDefinitions(input: z.infer<typeof Delet
 
   return { success: true };
 }
-

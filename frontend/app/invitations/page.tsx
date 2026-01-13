@@ -42,16 +42,19 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 
         await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
+
+      revalidatePath(`/workspace/${workspaceId}`);
+      redirect(`/workspace/${workspaceId}`);
     }
 
     if (action === "decline") {
       await db
         .delete(workspaceInvitations)
         .where(and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)));
-    }
 
-    revalidatePath("/projects");
-    redirect("/projects");
+      revalidatePath("/projects");
+      redirect("/projects");
+    }
   }
 };
 
