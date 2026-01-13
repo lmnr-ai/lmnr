@@ -312,4 +312,6 @@ export async function deleteSemanticEventDefinitions(input: z.infer<typeof Delet
   return { success: true };
 }
 
+export { executeSemanticEvent } from "./execute";
+
 
