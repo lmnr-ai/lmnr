@@ -1,6 +1,7 @@
 import {
   Database,
-  FlaskConical, GitFork,
+  FlaskConical,
+  GitFork,
   Layers,
   LayoutGrid,
   Pen,
@@ -24,7 +25,7 @@ export const getSidebarMenus = (projectId: string) => [
   },
   {
     name: "events",
-    href: `/project/${projectId}/events`,
+    href: `/project/${projectId}/events/semantic`,
     icon: Layers,
   },
   {
