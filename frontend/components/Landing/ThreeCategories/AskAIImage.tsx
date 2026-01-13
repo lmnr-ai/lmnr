@@ -56,8 +56,7 @@ const AskAIImage = ({ className }: Props) => {
           <motion.div
             key={index}
             className={cn(
-              "bg-landing-surface-500 border border-landing-surface-400 flex gap-[14px] items-center pl-3 pr-2 py-2 rounded-lg w-[593px]",
-              index === 0 ? "bg-landing-surface-500/50" : ""
+              "bg-landing-surface-500 border border-landing-surface-400 flex gap-[14px] items-center pl-3 pr-2 py-2 rounded-lg w-[593px]"
             )}
             style={{
               opacity: message.opacity,
