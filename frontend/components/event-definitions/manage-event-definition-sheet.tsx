@@ -101,7 +101,7 @@ const TriggerSpansField = ({
               </Button>
             </div>
             {errors.triggerSpans?.[index] && (
-              <p className="text-red-500 text-xs">{errors.triggerSpans?.[index]?.name?.message}</p>
+              <p className="text-destructive text-xs mt-1">{errors.triggerSpans?.[index]?.name?.message}</p>
             )}
           </div>
         ))}
