@@ -165,7 +165,7 @@ const TestEventDefinitionField = ({
       if (!executeRes.ok) {
         setTestOutput(`Error: ${result.error || "Failed to execute semantic event"}`);
       } else {
-        setTestOutput(JSON.stringify(result, null, 2));
+        setTestOutput(typeof result === "string" ? result : JSON.stringify(result, null, 2));
       }
     } catch (error) {
       setTestOutput(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
