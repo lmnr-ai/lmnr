@@ -6,7 +6,6 @@ const ExecuteSemanticEventSchema = z.object({
   projectId: z.string(),
   traceId: z.guid(),
   eventDefinition: z.object({
-    name: z.string().min(1, { error: "Event name is required" }),
     prompt: z.string().min(1, { error: "Prompt is required" }),
     structured_output_schema: z.record(z.string(), z.unknown()),
     trigger_spans: z.array(z.string()).optional().default([]),
@@ -83,7 +82,7 @@ export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemantic
   const requestBody = {
     project_id: projectId,
     trace_id: traceId,
-    event_definition: eventDefinition,
+    event_definition: { ...eventDefinition, name: "" },
   };
 
   const headers = getRequestHeaders(SEMANTIC_EVENT_SERVICE_SECRET_KEY);

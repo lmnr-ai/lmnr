@@ -52,7 +52,17 @@ export const getDefaultValues = (projectId: string): ManageEventDefinitionForm =
   name: "",
   prompt: "",
   structuredOutput:
-    "{\n" + '  "type": "object",\n' + '  "properties": {\n' + "  },\n" + '   "required": [\n' + "  ]\n" + "}",
+    "{\n" +
+    '  "type": "object",\n' +
+    '  "properties": {\n' +
+    '    "foo": {\n' +
+    '      "type": "string"\n' +
+    "    }\n" +
+    "  },\n" +
+    '   "required": [\n' +
+    '     "foo"\n' +
+    "  ]\n" +
+    "}",
   projectId,
   triggerSpans: [],
   testTraceId: "",
@@ -125,13 +135,12 @@ const TestEventDefinitionField = ({
   const [testOutput, setTestOutput] = useState("");
 
   const testSemanticEvent = useCallback(async () => {
-    const name = getValues("name");
     const prompt = getValues("prompt");
     const structuredOutput = getValues("structuredOutput");
     const triggerSpans = getValues("triggerSpans");
     const testTraceId = getValues("testTraceId");
 
-    if (!name || !prompt || !structuredOutput || !testTraceId?.trim()) return;
+    if (!prompt || !structuredOutput || !testTraceId?.trim()) return;
 
     setIsExecuting(true);
     setTestOutput("");
@@ -145,7 +154,6 @@ const TestEventDefinitionField = ({
         body: JSON.stringify({
           traceId: testTraceId,
           eventDefinition: {
-            name,
             prompt,
             structured_output_schema: tryParseJson(structuredOutput),
             trigger_spans: triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
@@ -211,11 +219,7 @@ const TestEventDefinitionField = ({
           variant="outline"
           onClick={testSemanticEvent}
           disabled={
-            !watch("name") ||
-            !watch("prompt") ||
-            !watch("structuredOutput")?.trim() ||
-            !watch("testTraceId")?.trim() ||
-            isExecuting
+            !watch("prompt") || !watch("structuredOutput")?.trim() || !watch("testTraceId")?.trim() || isExecuting
           }
           className="w-fit"
         >
