@@ -143,7 +143,6 @@ const TestEventDefinitionField = ({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          projectId,
           traceId: testTraceId,
           eventDefinition: {
             name,
@@ -209,7 +208,11 @@ const TestEventDefinitionField = ({
           variant="outline"
           onClick={testSemanticEvent}
           disabled={
-            !watch("prompt") || !watch("structuredOutput")?.trim() || !watch("testTraceId")?.trim() || isExecuting
+            !watch("name") ||
+            !watch("prompt") ||
+            !watch("structuredOutput")?.trim() ||
+            !watch("testTraceId")?.trim() ||
+            isExecuting
           }
           className="w-fit"
         >

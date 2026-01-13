@@ -49,7 +49,7 @@ const callSemanticEventService = async (
   });
 
   if (!response.ok) {
-    const errorResponse = await response.json();
+    const errorResponse = await response.json().catch(() => ({ error: "Unexpected response body" }));
     throw new Error(errorResponse.error || JSON.stringify(errorResponse));
   }
 

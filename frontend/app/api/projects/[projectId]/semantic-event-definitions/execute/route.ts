@@ -3,10 +3,12 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { executeSemanticEvent } from "@/lib/actions/semantic-event-definitions/execute";
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
   try {
     const body = await req.json();
-    const result = await executeSemanticEvent(body);
+    const result = await executeSemanticEvent({ ...body, projectId });
 
     return Response.json(result);
   } catch (error) {

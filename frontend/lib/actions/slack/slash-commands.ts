@@ -126,12 +126,17 @@ async function handleSubscribeCommand(
       };
     }
 
-    await db.insert(slackChannelToEvents).values({
-      integrationId: matchedIntegration.id,
-      projectId: matchedIntegration.projectId,
-      channelId,
-      eventName,
-    });
+    await db
+      .insert(slackChannelToEvents)
+      .values({
+        integrationId: matchedIntegration.id,
+        projectId: matchedIntegration.projectId,
+        channelId,
+        eventName,
+      })
+      .onConflictDoNothing({
+        target: [slackChannelToEvents.channelId, slackChannelToEvents.eventName, slackChannelToEvents.integrationId],
+      });
 
     const projectName = matchedIntegration.project?.name || "Unknown Project";
 
