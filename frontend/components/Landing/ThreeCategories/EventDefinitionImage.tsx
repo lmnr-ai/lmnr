@@ -38,7 +38,7 @@ const EventDefinitionImage = ({ className }: Props) => {
       style={{ opacity }}
       ref={ref}
     >
-      <div className="absolute left-[72px] top-[53px] bg-landing-surface-500 border border-landing-surface-400 flex flex-col gap-3 items-start justify-center px-6 py-4 rounded-sm w-[1179px]">
+      <div className="absolute left-[72px] top-[53px] bg-landing-surface-600 border border-landing-surface-400 flex flex-col gap-3 items-start justify-center px-6 py-4 rounded-sm w-[1179px]">
         {/* Title */}
         <p className="font-sans font-medium leading-normal text-[20px] text-landing-text-300 whitespace-nowrap shrink-0">
           LLM_logic_error

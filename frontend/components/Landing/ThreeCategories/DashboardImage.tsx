@@ -30,7 +30,7 @@ const DashboardImage = ({ className }: Props) => {
         className
       )}
     >
-      <motion.div className="relative w-[140%] h-[140%] left-[40px]" style={{ y, opacity }}>
+      <motion.div className="relative w-[140%] h-[140%] left-[40px] rounded-sm overflow-hidden" style={{ y, opacity }}>
         <Image src="/assets/landing/dashboards.png" alt="Dashboard" fill className="object-cover" />
       </motion.div>
 

@@ -13,6 +13,8 @@ import BrowserScreenRecordingImage from "./BrowserScreenRecordingImage";
 import DashboardImage from "./DashboardImage";
 import EvalsImage from "./EvalsImage";
 import GranularEvalsImage from "./GranularEvalsImage";
+import EvalsSDKImage from "./EvalsSDKImage";
+import ClusteringImage from "./ClusteringImage";
 
 interface Props {
   className?: string;
@@ -122,7 +124,7 @@ const ThreeCategories = ({ className }: Props) => {
           </div>
           <div className="flex gap-[30px] h-[481px] items-start w-full">
             <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
-              <PlaceholderImage className="absolute bg-landing-surface-500 border border-landing-surface-400 h-[942px] left-[100px] top-[-28px] w-[624px]" />
+              <ClusteringImage className="absolute inset-0" />
               <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
                 <div className="flex flex-col gap-1 items-start w-full">
                   <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
@@ -183,9 +185,7 @@ const ThreeCategories = ({ className }: Props) => {
                   <p className={cn(cardTitle, "w-full")}>An SDK you want to use</p>
                   <p className={cn(bodyMedium, "w-full")}>Dataset, evaluator, run. Simple.</p>
                 </div>
-                <div className="bg-landing-surface-700 flex h-[283px] items-start overflow-hidden pb-0 pl-[60px] pr-10 pt-10 rounded-sm w-full relative">
-                  <PlaceholderImage className="absolute inset-0" />
-                </div>
+                <EvalsSDKImage className="h-[283px] w-full" />
               </div>
               <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px opacity-80 relative shrink-0">
                 <div className="flex flex-col gap-1 items-start w-full">

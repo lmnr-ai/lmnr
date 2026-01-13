@@ -70,7 +70,7 @@ const GranularEvalsImage = ({ className }: Props) => {
 
           {/* Bar chart bars */}
           {barHeights.map((height, i) => (
-            <div key={i} className={cn(barBaseClassName, `h-[${height}]`)} />
+            <div key={i} className={cn(barBaseClassName)} style={{ height }} />
           ))}
         </motion.div>
       </div>
