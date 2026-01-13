@@ -92,5 +92,5 @@ export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemantic
     throw new Error(semanticEventResponse.error);
   }
 
-  return semanticEventResponse.attributes;
+  return semanticEventResponse?.attributes || null;
 };
