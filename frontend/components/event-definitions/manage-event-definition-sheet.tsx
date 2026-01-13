@@ -26,8 +26,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
@@ -170,7 +170,10 @@ const TestEventDefinitionField = ({
   return (
     <Collapsible defaultOpen={false} className="group overflow-hidden">
       <CollapsibleTrigger asChild>
-        <Button variant="ghost" className="justify-start items-start gap-2 w-full bg-muted/50 h-auto">
+        <Button
+          variant="ghost"
+          className="justify-start items-start gap-2 w-full bg-muted/50 group-data-[state=open]:rounded-b-none h-auto"
+        >
           <ChevronRight className="w-4 h-4 text-muted-foreground mt-1 group-data-[state=open]:rotate-90 transition-transform duration-200" />
           <div className="flex flex-col items-start gap-1">
             <Label className="cursor-pointer">Test Event Definition</Label>
@@ -180,11 +183,14 @@ const TestEventDefinitionField = ({
           </div>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-4 pl-8 pt-2">
+      <CollapsibleContent className="flex flex-col gap-4 px-4 pt-2 pb-4 bg-muted/50 rounded-b-md">
         <div className="flex flex-col gap-1">
           <Label htmlFor="testTraceId" className="text-sm">
             Trace ID
           </Label>
+          <p className="text-xs text-muted-foreground">
+            Enter a valid trace ID from your project to test the event definition.
+          </p>
           <Controller
             name="testTraceId"
             control={control}
@@ -193,14 +199,11 @@ const TestEventDefinitionField = ({
                 id="testTraceId"
                 placeholder="00000000-0000-0000-0000-000000000000"
                 className="font-mono text-sm"
-                defaultValue=""
                 {...field}
+                value={field.value || ""}
               />
             )}
           />
-          <p className="text-xs text-muted-foreground">
-            Enter a valid trace ID from your project to test the event definition.
-          </p>
         </div>
 
         <Button
@@ -372,34 +375,25 @@ function ManageEventDefinitionSheetContent({
       <ScrollArea className="flex-1">
         <form onSubmit={handleSubmit(submit)} className="grid gap-4 p-4">
           {!id && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" className="w-fit -ml-2">
+            <Select onValueChange={(value) => applyTemplate(Number(value))}>
+              <SelectTrigger>
+                <div className="flex items-center">
                   <BookMarked className="w-4 h-4 mr-1.5" />
                   <span className="text-sm font-medium">Start from a template</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-1" align="start">
-                <div className="space-y-1">
-                  {templates.map((template, index) => (
-                    <PopoverClose key={template.name} asChild>
-                      <button
-                        type="button"
-                        onClick={() => applyTemplate(index)}
-                        className="w-full text-left px-2 py-1 rounded-md hover:bg-muted transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{template.name}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
-                        </div>
-                      </button>
-                    </PopoverClose>
-                  ))}
                 </div>
-              </PopoverContent>
-            </Popover>
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((template, index) => (
+                  <SelectItem key={template.name} value={String(index)}>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-sm font-medium">{template.name}</p>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
-
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
             <Controller

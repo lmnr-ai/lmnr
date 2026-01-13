@@ -1,8 +1,10 @@
 import { z } from "zod/v4";
 
+import { executeQuery } from "@/lib/actions/sql";
+
 const ExecuteSemanticEventSchema = z.object({
   projectId: z.string(),
-  traceId: z.string(),
+  traceId: z.guid(),
   eventDefinition: z.object({
     name: z.string().min(1, { error: "Event name is required" }),
     prompt: z.string().min(1, { error: "Prompt is required" }),
@@ -61,6 +63,23 @@ export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemantic
   const { SEMANTIC_EVENT_SERVICE_SECRET_KEY, SEMANTIC_EVENT_SERVICE_URL } = getEnvironmentVariables();
   const { projectId, traceId, eventDefinition } = ExecuteSemanticEventSchema.parse(input);
 
+  const [trace] = await executeQuery<{ exists: number }>({
+    query: `
+      SELECT 1 as exists
+      FROM traces
+      WHERE id = {traceId: UUID}
+      LIMIT 1
+    `,
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
+
+  if (!trace || trace.exists === 0) {
+    throw new Error("Trace not found or does not belong to this project.");
+  }
+
   const requestBody = {
     project_id: projectId,
     trace_id: traceId,
@@ -75,8 +94,5 @@ export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemantic
     throw new Error(semanticEventResponse.error);
   }
 
-  return {
-    success: semanticEventResponse.success,
-    attributes: semanticEventResponse.attributes,
-  };
+  return semanticEventResponse.attributes;
 };

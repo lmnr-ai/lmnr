@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     }
 
     if (error instanceof Error) {
-      return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ error: error.message }, { status: 500 });
     }
 
     return Response.json({ error: "Internal server error" }, { status: 500 });
