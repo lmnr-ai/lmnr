@@ -15,6 +15,7 @@ import EvalsImage from "./EvalsImage";
 import GranularEvalsImage from "./GranularEvalsImage";
 import EvalsSDKImage from "./EvalsSDKImage";
 import ClusteringImage from "./ClusteringImage";
+import AskAIImage from "./AskAIImage";
 
 interface Props {
   className?: string;
@@ -69,7 +70,7 @@ const ThreeCategories = ({ className }: Props) => {
               </div>
             </div>
             <div className="bg-landing-surface-700 flex h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 w-[432px] relative">
-              <PlaceholderImage className="absolute bg-landing-surface-500 border border-landing-surface-400 h-[942px] left-[72px] top-[80px] w-[597px]" />
+              <AskAIImage className="absolute inset-0" />
               <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
                 <div className="flex flex-col gap-1 items-start w-full">
                   <p className={cn(cardTitle, "w-full")}>Convoluted Trace? Ask AI</p>
