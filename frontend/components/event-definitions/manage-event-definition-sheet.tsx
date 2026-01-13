@@ -56,7 +56,8 @@ export const getDefaultValues = (projectId: string): ManageEventDefinitionForm =
     '  "type": "object",\n' +
     '  "properties": {\n' +
     '    "foo": {\n' +
-    '      "type": "string"\n' +
+    '      "type": "string",\n' +
+    '      "description": "foo"\n' +
     "    }\n" +
     "  },\n" +
     '   "required": [\n' +
@@ -137,7 +138,6 @@ const TestEventDefinitionField = ({
   const testSemanticEvent = useCallback(async () => {
     const prompt = getValues("prompt");
     const structuredOutput = getValues("structuredOutput");
-    const triggerSpans = getValues("triggerSpans");
     const testTraceId = getValues("testTraceId");
 
     if (!prompt || !structuredOutput || !testTraceId?.trim()) return;
@@ -156,7 +156,6 @@ const TestEventDefinitionField = ({
           eventDefinition: {
             prompt,
             structured_output_schema: tryParseJson(structuredOutput),
-            trigger_spans: triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
           },
         }),
       });

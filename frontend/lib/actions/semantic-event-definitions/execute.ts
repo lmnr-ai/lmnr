@@ -8,7 +8,6 @@ const ExecuteSemanticEventSchema = z.object({
   eventDefinition: z.object({
     prompt: z.string().min(1, { error: "Prompt is required" }),
     structured_output_schema: z.record(z.string(), z.unknown()),
-    trigger_spans: z.array(z.string()).optional().default([]),
   }),
 });
 
