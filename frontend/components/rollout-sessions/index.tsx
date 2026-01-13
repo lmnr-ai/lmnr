@@ -4,11 +4,11 @@ import React from "react";
 
 import RolloutSessionView from "@/components/rollout-sessions/rollout-session-view";
 import RolloutSessionStoreProvider, {
-  TraceViewTrace,
+  type TraceViewTrace,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { RolloutSession as RolloutSessionType, RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
+import { type RolloutSession as RolloutSessionType, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 
 interface RolloutSessionContentProps {
   sessionId: string;

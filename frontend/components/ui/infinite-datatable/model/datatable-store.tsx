@@ -2,7 +2,7 @@
 
 import { intersection, pick, uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useRef } from "react";
-import { createStore, StoreApi } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface InfiniteScrollState<TData> {

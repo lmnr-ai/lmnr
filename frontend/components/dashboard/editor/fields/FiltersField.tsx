@@ -1,4 +1,11 @@
-import { Control, Controller, useFieldArray, useFormContext, UseFormSetValue, useWatch } from "react-hook-form";
+import {
+  type Control,
+  Controller,
+  useFieldArray,
+  useFormContext,
+  type UseFormSetValue,
+  useWatch,
+} from "react-hook-form";
 
 import { FILTER_OPERATOR_OPTIONS } from "@/components/dashboard/editor/constants";
 import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
@@ -8,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Operator } from "@/lib/actions/common/operators";
-import { QueryStructure } from "@/lib/actions/sql/types";
+import { type QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
 
 interface FilterRowProps {

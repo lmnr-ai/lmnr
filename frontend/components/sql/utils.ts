@@ -1,5 +1,10 @@
-import { autocompletion, CompletionContext, completionKeymap, CompletionResult } from "@codemirror/autocomplete";
-import { schemaCompletionSource, sql, SQLConfig, SQLNamespace } from "@codemirror/lang-sql";
+import {
+  autocompletion,
+  type CompletionContext,
+  completionKeymap,
+  type CompletionResult,
+} from "@codemirror/autocomplete";
+import { schemaCompletionSource, sql, type SQLConfig, type SQLNamespace } from "@codemirror/lang-sql";
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -124,11 +129,11 @@ const sqlSchema: SQLNamespace = Object.fromEntries(
     columns.map((col) =>
       col.name !== "*"
         ? {
-          label: col.name,
-          type: "property",
-          detail: col.type,
-          info: col.description,
-        }
+            label: col.name,
+            type: "property",
+            detail: col.type,
+            info: col.description,
+          }
         : col.name
     ),
   ])

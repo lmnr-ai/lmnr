@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 
-import { buildSelectQuery, QueryParams, SelectQueryOptions } from "@/lib/actions/common/query-builder";
+import { buildSelectQuery, type QueryParams, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
-import { createDatapoints, DatapointResult } from "@/lib/clickhouse/datapoints";
+import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 import { tryParseJson } from "@/lib/utils";
 
 // Schema for listing versions of a datapoint
@@ -33,10 +33,7 @@ const datapointVersionSelectColumns = [
 /**
  * Build query to list all versions of a specific datapoint
  */
-const buildDatapointVersionsQueryWithParams = (
-  datapointId: string,
-  datasetId: string
-) => {
+const buildDatapointVersionsQueryWithParams = (datapointId: string, datasetId: string) => {
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
@@ -113,21 +110,16 @@ const buildSpecificDatapointVersionQueryWithParams = (
  * List all versions of a specific datapoint
  * Returns versions ordered by created_at DESC (newest first)
  */
-export async function listDatapointVersions(
-  input: z.infer<typeof ListDatapointVersionsSchema>
-) {
+export async function listDatapointVersions(input: z.infer<typeof ListDatapointVersionsSchema>) {
   const { projectId, datasetId, datapointId } = ListDatapointVersionsSchema.parse(input);
 
-  const { query, parameters } = buildDatapointVersionsQueryWithParams(
-    datapointId,
-    datasetId
-  );
+  const { query, parameters } = buildDatapointVersionsQueryWithParams(datapointId, datasetId);
 
-  const versions = await executeQuery<Record<string, unknown>>({
+  const versions = (await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
-  }) as unknown as DatapointResult[];
+  })) as unknown as DatapointResult[];
 
   return versions;
 }
@@ -136,24 +128,17 @@ export async function listDatapointVersions(
  * Create a new version of a datapoint by copying an existing version
  * This effectively "sets" an old version as the newest by creating a new entry
  */
-export async function createDatapointVersionFromExisting(
-  input: z.infer<typeof CreateDatapointVersionSchema>
-) {
-  const { projectId, datasetId, datapointId, versionCreatedAt } =
-    CreateDatapointVersionSchema.parse(input);
+export async function createDatapointVersionFromExisting(input: z.infer<typeof CreateDatapointVersionSchema>) {
+  const { projectId, datasetId, datapointId, versionCreatedAt } = CreateDatapointVersionSchema.parse(input);
 
   // First, fetch the version we want to copy
-  const { query, parameters } = buildSpecificDatapointVersionQueryWithParams(
-    datapointId,
-    datasetId,
-    versionCreatedAt
-  );
+  const { query, parameters } = buildSpecificDatapointVersionQueryWithParams(datapointId, datasetId, versionCreatedAt);
 
-  const versions = await executeQuery<Record<string, unknown>>({
+  const versions = (await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
-  }) as unknown as DatapointResult[];
+  })) as unknown as DatapointResult[];
 
   if (versions.length === 0) {
     throw new Error("Version not found");
@@ -177,4 +162,3 @@ export async function createDatapointVersionFromExisting(
     message: "New version created successfully",
   };
 }
-

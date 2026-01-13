@@ -4,8 +4,8 @@ import RolloutSession from "@/components/rollout-sessions";
 import {
   getLatestTraceBySessionId,
   getRolloutSession,
-  RolloutSession as RolloutSessionType,
-  RolloutSessionStatus,
+  type RolloutSession as RolloutSessionType,
+  type RolloutSessionStatus,
 } from "@/lib/actions/rollout-sessions";
 
 export default async function RolloutSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {

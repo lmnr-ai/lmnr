@@ -13,8 +13,8 @@ import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-s
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Event } from "@/lib/events/types";
-import { Span } from "@/lib/traces/types";
+import { type Event } from "@/lib/events/types";
+import { type Span } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
@@ -41,7 +41,7 @@ const SpanViewTabs = ({
   cleanedEvents,
   searchRef,
   searchOpen,
-  setSearchOpen
+  setSearchOpen,
 }: {
   span: Span;
   cleanedEvents: any;

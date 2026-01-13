@@ -7,7 +7,7 @@ import { useCallback, useMemo } from "react";
 import {
   defaultPatternsColumnOrder,
   getColumns,
-  PatternRow,
+  type PatternRow,
   patternsTableFilters,
 } from "@/components/patterns/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";

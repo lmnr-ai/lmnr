@@ -176,7 +176,7 @@ export function deep<T>(value: T): T {
   return deepObject(value);
 }
 
-function deepObject<T extends {}>(source: T) {
+function deepObject<T extends object>(source: T) {
   const result = {} as T;
   Object.keys(source).forEach((key) => {
     const value = source[key as keyof T];

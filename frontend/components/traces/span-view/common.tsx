@@ -1,6 +1,6 @@
 import { Bolt, ChevronRight, GripHorizontal } from "lucide-react";
 import { Resizable } from "re-resizable";
-import React, { memo, PropsWithChildren, ReactNode } from "react";
+import React, { memo, type PropsWithChildren, type ReactNode } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createWorkspace, getWorkspaces } from "@/lib/actions/workspaces";
@@ -13,7 +13,10 @@ export async function GET(_req: NextRequest): Promise<Response> {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    return Response.json({ error: error instanceof Error ? error.message : "Failed to get workspaces. Please try again." }, { status: 500 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to get workspaces. Please try again." },
+      { status: 500 }
+    );
   }
 }
 

@@ -1,38 +1,37 @@
-import { Html, Link, Preview, Text } from '@react-email/components';
+import { Html, Link, Preview, Text } from "@react-email/components";
 
-export default function WelcomeEmail({ }: {}) {
+export default function WelcomeEmail() {
   return (
     <Html lang="en">
       <Preview>Welcome to Laminar - start tracing, evaluating, and analyzing your LLM app in minutes</Preview>
       <div style={container}>
         <Text style={heading}>Welcome to Laminar! 👋</Text>
+        <Text style={text}>I{"'"}m Robert, CEO of Laminar. Stoked to have you join our community!</Text>
         <Text style={text}>
-          I{"'"}m Robert, CEO of Laminar. Stoked to have you join our community!
-        </Text>
-        <Text style={text}>
-          With Laminar you can trace, evaluate, label, and analyze your LLM application.
-          Laminar is fully open source, so don{"'"}t forget to
+          With Laminar you can trace, evaluate, label, and analyze your LLM application. Laminar is fully open source,
+          so don{"'"}t forget to
           <Link style={link} href="https://github.com/lmnr-ai/lmnr" target="_blank">
-            {' star ⭐ our repo on GitHub'}
+            {" star ⭐ our repo on GitHub"}
           </Link>
           !
         </Text>
-        <Text style={text}>
-          To help you get started, our team has put together comprehensive documentation:
-        </Text>
+        <Text style={text}>To help you get started, our team has put together comprehensive documentation:</Text>
         <div style={bulletList}>
           <Text style={bulletPoint}>
-            • <Link style={link} href="https://docs.lmnr.ai/tracing" target="_blank">
+            •{" "}
+            <Link style={link} href="https://docs.lmnr.ai/tracing" target="_blank">
               Tracing your LLM applications
             </Link>
           </Text>
           <Text style={bulletPoint}>
-            • <Link style={link} href="https://docs.lmnr.ai/evaluations" target="_blank">
+            •{" "}
+            <Link style={link} href="https://docs.lmnr.ai/evaluations" target="_blank">
               Running evaluations
             </Link>
           </Text>
           <Text style={bulletPoint}>
-            • <Link style={link} href="https://docs.lmnr.ai/datasets" target="_blank">
+            •{" "}
+            <Link style={link} href="https://docs.lmnr.ai/datasets" target="_blank">
               Working with datasets
             </Link>
           </Text>
@@ -40,9 +39,9 @@ export default function WelcomeEmail({ }: {}) {
         <Text style={text}>
           Got questions or running into issues? I{"'"}m here to help - just
           <Link style={link} href="https://cal.com/robert-lmnr/demo" target="_blank">
-            {' grab a slot on my calendar'}
+            {" grab a slot on my calendar"}
           </Link>
-          {' and we can pair on it.'}
+          {" and we can pair on it."}
         </Text>
         <Text style={text}>Happy coding!</Text>
         <Text style={signature}>Robert</Text>
@@ -54,47 +53,47 @@ export default function WelcomeEmail({ }: {}) {
 
 const text = {
   fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
-  fontSize: '13px',
-  fontWeight: '400',
-  lineHeight: '19.5px'
+  fontSize: "13px",
+  fontWeight: "400",
+  lineHeight: "19.5px",
 };
 
 const container = {
-  margin: '0 auto',
-  padding: '20px',
-  maxWidth: '500px',
+  margin: "0 auto",
+  padding: "20px",
+  maxWidth: "500px",
 };
 
 const heading = {
   ...text,
-  fontSize: '24px',
-  fontWeight: '600',
-  marginBottom: '24px',
+  fontSize: "24px",
+  fontWeight: "600",
+  marginBottom: "24px",
 };
 
 const link = {
-  color: '#2563eb',
-  textDecoration: 'none',
+  color: "#2563eb",
+  textDecoration: "none",
 };
 
 const signature = {
   ...text,
-  marginTop: '24px',
-  fontWeight: '500',
+  marginTop: "24px",
+  fontWeight: "500",
 };
 
 const role = {
   ...text,
-  color: '#6b7280',
-  fontSize: '12px',
+  color: "#6b7280",
+  fontSize: "12px",
 };
 
 const bulletList = {
-  marginLeft: '20px',
-  marginBottom: '16px',
+  marginLeft: "20px",
+  marginBottom: "16px",
 };
 
 const bulletPoint = {
   ...text,
-  marginBottom: '8px',
+  marginBottom: "8px",
 };

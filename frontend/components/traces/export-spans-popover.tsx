@@ -1,13 +1,13 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dataset } from "@/lib/dataset/types";
+import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span } from "@/lib/traces/types";
+import { type Span } from "@/lib/traces/types";
 
 import DatasetSelect from "../ui/dataset-select";
 

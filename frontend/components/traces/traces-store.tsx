@@ -1,8 +1,8 @@
 import { parseISO } from "date-fns";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { TracesStatsDataPoint } from "@/lib/actions/traces/stats";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
 
 export type TracesState = {
   traceId: string | null;
@@ -100,10 +100,10 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
         stats: stats.map((stat, idx) =>
           idx === bucketIndex
             ? ({
-              timestamp: stat.timestamp,
-              successCount: isError ? stat.successCount : stat.successCount + 1,
-              errorCount: isError ? stat.errorCount + 1 : stat.errorCount,
-            } as TracesStatsDataPoint)
+                timestamp: stat.timestamp,
+                successCount: isError ? stat.successCount : stat.successCount + 1,
+                errorCount: isError ? stat.errorCount + 1 : stat.errorCount,
+              } as TracesStatsDataPoint)
             : stat
         ),
       });

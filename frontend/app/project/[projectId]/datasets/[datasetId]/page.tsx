@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
@@ -30,9 +30,11 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
     return notFound();
   }
 
-  return <Dataset
-    dataset={dataset}
-    enableDownloadParquet={process.env.DATASET_EXPORT_WORKER_URL !== undefined}
-    publicApiBaseUrl={process.env.PUBLIC_API_BASE_URL}
-  />;
+  return (
+    <Dataset
+      dataset={dataset}
+      enableDownloadParquet={process.env.DATASET_EXPORT_WORKER_URL !== undefined}
+      publicApiBaseUrl={process.env.PUBLIC_API_BASE_URL}
+    />
+  );
 }

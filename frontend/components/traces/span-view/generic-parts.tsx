@@ -1,4 +1,11 @@
-import { FilePart, ImagePart, ModelMessage, TextPart, ToolCallPart, ToolResultPart } from "ai";
+import {
+  type FilePart,
+  type ImagePart,
+  type ModelMessage,
+  type TextPart,
+  type ToolCallPart,
+  type ToolResultPart,
+} from "ai";
 import { omit } from "lodash";
 import React, { memo } from "react";
 
@@ -58,13 +65,7 @@ const GenericToolCallContentPart = ({
   />
 );
 
-const GenericToolResultContentPart = ({
-  part,
-  presetKey,
-}: {
-  part: ToolResultPart;
-  presetKey: string;
-}) => (
+const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => (
   <ToolResultContentPart toolCallId={part.toolCallId} content={omit(part, "type")} presetKey={presetKey} />
 );
 

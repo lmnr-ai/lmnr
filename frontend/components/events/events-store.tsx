@@ -1,12 +1,12 @@
 "use client";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet.tsx";
-import { EventClusterConfig } from "@/lib/actions/cluster-configs";
-import { EventDefinition } from "@/lib/actions/event-definitions";
-import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
-import { EventRow } from "@/lib/events/types";
+import { type ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet.tsx";
+import { type EventClusterConfig } from "@/lib/actions/cluster-configs";
+import { type EventDefinition } from "@/lib/actions/event-definitions";
+import { type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { type EventRow } from "@/lib/events/types";
 
 export type EventsStatsDataPoint = {
   timestamp: string;
@@ -60,9 +60,9 @@ export const createEventsStore = (initProps: EventsProps) =>
     isSemanticEventsEnabled: initProps.isSemanticEventsEnabled,
     eventDefinition: {
       ...initProps.eventDefinition,
-      prompt: 'prompt' in initProps.eventDefinition ? initProps.eventDefinition.prompt : '',
+      prompt: "prompt" in initProps.eventDefinition ? initProps.eventDefinition.prompt : "",
       structuredOutput:
-        'structuredOutput' in initProps.eventDefinition
+        "structuredOutput" in initProps.eventDefinition
           ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
           : "",
       triggerSpans:

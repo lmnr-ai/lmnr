@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { EvaluatorScore } from "@/lib/evaluators/types";
+import { type EvaluatorScore } from "@/lib/evaluators/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface EvaluatorScoresListProps {

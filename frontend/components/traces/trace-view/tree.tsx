@@ -2,7 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 
 import { useScrollContext } from "./scroll-context";
 import { SpanCard } from "./span-card";

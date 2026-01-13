@@ -1,6 +1,6 @@
 import { has } from "lodash";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
-import { createStore, StoreApi, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
@@ -8,17 +8,17 @@ import {
   buildPathInfo,
   buildSpanNameMap,
   groupIntoSections,
-  MinimapSpan,
-  TimelineData,
+  type MinimapSpan,
+  type TimelineData,
   transformSpansToFlatMinimap,
   transformSpansToMinimap,
   transformSpansToTimeline,
   transformSpansToTree,
-  TreeSpan,
+  type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { Event } from "@/lib/events/types";
+import { type Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
-import { SpanType } from "@/lib/traces/types";
+import { type SpanType } from "@/lib/traces/types";
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;

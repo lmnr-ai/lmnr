@@ -7,13 +7,13 @@ import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 export const GetSystemMessagesSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
-  paths: z.array(z.array(z.string())),  // Array of path arrays
+  paths: z.array(z.array(z.string())), // Array of path arrays
 });
 
 export interface SystemMessageResponse {
   id: string;
   content: string;
-  path: string[];  // Return as array
+  path: string[]; // Return as array
 }
 
 function extractSystemMessageContent(message: any): string | null {
@@ -44,7 +44,9 @@ function parseSystemMessageFromInput(input: string): string | null {
         if (content) return content;
       }
     }
-  } catch (e) {}
+  } catch {
+    // Schema validation failed, try next format
+  }
 
   try {
     const langChainResult = LangChainMessagesSchema.safeParse(parsed);
@@ -54,7 +56,9 @@ function parseSystemMessageFromInput(input: string): string | null {
         if (content) return content;
       }
     }
-  } catch (e) {}
+  } catch {
+    // Schema validation failed, try next format
+  }
 
   try {
     if (Array.isArray(parsed)) {
@@ -65,7 +69,9 @@ function parseSystemMessageFromInput(input: string): string | null {
         }
       }
     }
-  } catch (e) {}
+  } catch {
+    // Schema validation failed, try next format
+  }
 
   return null;
 }
@@ -80,7 +86,7 @@ export async function getTraceSystemMessages(
   }
 
   // Convert path arrays to dot-joined strings for the query
-  const pathStrings = paths.map(p => p.join('.'));
+  const pathStrings = paths.map((p) => p.join("."));
 
   const query = `
     SELECT 
@@ -104,8 +110,8 @@ export async function getTraceSystemMessages(
 
   // Create a map of dot-joined path -> original path array
   const pathMap = new Map<string, string[]>();
-  paths.forEach(pathArray => {
-    pathMap.set(pathArray.join('.'), pathArray);
+  paths.forEach((pathArray) => {
+    pathMap.set(pathArray.join("."), pathArray);
   });
 
   for (const span of spans) {
@@ -116,7 +122,7 @@ export async function getTraceSystemMessages(
     if (!systemContent) continue;
 
     // Get the original path array from our map
-    const originalPath = pathMap.get(span.path) || span.path.split('.');
+    const originalPath = pathMap.get(span.path) || span.path.split(".");
     systemMessagesByPath.set(span.path, { content: systemContent, path: originalPath });
   }
 

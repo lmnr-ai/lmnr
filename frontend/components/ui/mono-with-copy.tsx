@@ -1,4 +1,4 @@
-import { PropsWithChildren } from "react";
+import { type PropsWithChildren } from "react";
 
 import { CopyButton } from "@/components/ui/copy-button";
 import Mono from "@/components/ui/mono";

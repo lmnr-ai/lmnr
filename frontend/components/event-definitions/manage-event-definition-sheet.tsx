@@ -7,17 +7,17 @@ import Ajv from "ajv";
 import { get } from "lodash";
 import { BookMarked, ChevronRight, Loader2, PlayIcon, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import {
-  Control,
+  type Control,
   Controller,
-  FieldErrors,
+  type FieldErrors,
   FormProvider,
   useFieldArray,
   useForm,
   useFormContext,
-  UseFormGetValues,
-  UseFormWatch,
+  type UseFormGetValues,
+  type UseFormWatch,
 } from "react-hook-form";
 
 import templates from "@/components/event-definitions/prompts";
@@ -30,7 +30,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
 

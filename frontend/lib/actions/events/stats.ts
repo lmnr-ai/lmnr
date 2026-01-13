@@ -1,7 +1,7 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { buildTimeRangeWithFill, buildWhereClause, QueryParams } from "@/lib/actions/common/query-builder";
+import { buildTimeRangeWithFill, buildWhereClause, type QueryParams } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { eventsColumnFilterConfig, resolveClusterFilters } from "@/lib/actions/events/utils";
 import { executeQuery } from "@/lib/actions/sql";

@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 
 import DashboardEditor from "@/components/dashboard/editor";
 import { getChart } from "@/lib/actions/dashboard";

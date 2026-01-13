@@ -20,7 +20,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { useProjectContext } from "@/contexts/project-context";
-import { SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
+import { type SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import Header from "../ui/header";

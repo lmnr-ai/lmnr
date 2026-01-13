@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useState } from "react";
+import React, { type PropsWithChildren, useState } from "react";
 
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import { Button } from "@/components/ui/button";

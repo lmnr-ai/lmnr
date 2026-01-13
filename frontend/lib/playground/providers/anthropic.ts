@@ -1,4 +1,4 @@
-import { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { type AnthropicProviderOptions } from "@ai-sdk/anthropic";
 
 export const anthropicThinkingModels = [
   "anthropic:claude-3-7-sonnet-20250219",

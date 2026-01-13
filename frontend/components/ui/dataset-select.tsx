@@ -5,8 +5,8 @@ import useSWR from "swr";
 
 import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dataset } from "@/lib/dataset/types";
-import { PaginatedResponse } from "@/lib/types";
+import { type Dataset } from "@/lib/dataset/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
 interface DatasetSelectProps {

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
 interface ParamsPopoverProps {

@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 
 import SemanticEventDefinitions from "@/components/event-definitions/semantic-event-definitions";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";

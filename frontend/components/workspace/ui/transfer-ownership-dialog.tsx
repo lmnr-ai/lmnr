@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface TransferOwnershipDialogProps {
   open: boolean;

@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { uniq } from "lodash";
 import { z } from "zod/v4";
 
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { executeQuery } from "@/lib/actions/sql";
 import { PAYLOAD_URL_TAG, transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";

@@ -1,6 +1,6 @@
-import { BinaryOperator, eq, gt, gte, lt, lte, ne, SQL, sql } from "drizzle-orm";
+import { type BinaryOperator, eq, gt, gte, lt, lte, ne, type SQL, sql } from "drizzle-orm";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 
 const filterOperators: Record<string, BinaryOperator> = {
   eq: eq,
@@ -22,7 +22,7 @@ export const filtersToSql = (
   allowPatterns?: RegExp[],
   additionalColumnDefinitions?: Record<string, SQL<any>>
 ): SQL[] => {
-  let result = [];
+  const result = [];
   for (const filter of filters) {
     if (filter.column && filter.operator && filter.value != null) {
       const value = filter.value;

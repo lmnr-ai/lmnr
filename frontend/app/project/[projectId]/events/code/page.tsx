@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 
 import CodeEventDefinitions from "@/components/event-definitions/code-event-definitions";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";

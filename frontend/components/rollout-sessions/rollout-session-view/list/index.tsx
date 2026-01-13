@@ -6,8 +6,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ListItem from "@/components/rollout-sessions/rollout-session-view/list/list-item.tsx";
 import MustacheTemplateSheet from "@/components/rollout-sessions/rollout-session-view/list/mustache-template-sheet.tsx";
 import {
-  TraceViewListSpan,
-  TraceViewSpan,
+  type TraceViewListSpan,
+  type TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";

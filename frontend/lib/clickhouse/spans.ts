@@ -1,7 +1,7 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 import { SpanSearchType } from "./types";
-import { addTimeRangeToQuery, TimeRange } from "./utils";
+import { addTimeRangeToQuery, type TimeRange } from "./utils";
 
 export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> => {
   const query = `

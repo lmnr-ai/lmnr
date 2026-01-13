@@ -1,6 +1,6 @@
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -11,7 +11,7 @@ import EvaluatorsTable from "@/components/evaluators/evaluators-table";
 import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet";
 import { Button } from "@/components/ui/button";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { Evaluator } from "@/lib/evaluators/types";
+import { type Evaluator } from "@/lib/evaluators/types";
 
 import { defaultEvaluatorsColumnOrder } from "./lib/consts";
 

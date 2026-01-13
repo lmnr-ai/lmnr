@@ -8,7 +8,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { Form } from "@/components/dashboard/editor/Form";
 import { getDefaultFormValues } from "@/components/dashboard/editor/types";
-import { QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
+import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 
 const convertSqlToJson = async (projectId: string, sql: string): Promise<QueryStructure> => {
   const response = await fetch(`/api/projects/${projectId}/sql/to-json`, {

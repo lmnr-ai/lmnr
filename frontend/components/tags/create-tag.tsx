@@ -7,8 +7,7 @@ import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/co
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { defaultColors } from "@/lib/tags/colors";
-import { SpanTag, TagClass } from "@/lib/traces/types";
-
+import { type SpanTag, type TagClass } from "@/lib/traces/types";
 
 interface CreateTagProps {
   name: string;

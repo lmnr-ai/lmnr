@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/drizzle";
 import { apiKeys, users } from "@/lib/db/migrations/schema";
-import { UserSession } from "@/lib/types";
+import { type UserSession } from "@/lib/types";
 import { generateRandomKey } from "@/lib/utils";
 
 export async function getUserByEmail(email: string): Promise<UserSession | undefined> {

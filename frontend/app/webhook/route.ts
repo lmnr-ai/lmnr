@@ -1,36 +1,30 @@
-import { type NextRequest } from 'next/server';
-import stripe from 'stripe';
+import { type NextRequest } from "next/server";
+import stripe from "stripe";
 
 import {
   getIdFromStripeObject,
   isLookupKeyForAdditionalSeats,
-  ItemDescription,
+  type ItemDescription,
   LOOKUP_KEY_TO_TIER_NAME,
-  manageWorkspaceSubscriptionEvent
-} from '@/lib/checkout/utils';
-import { sendOnPaymentReceivedEmail } from '@/lib/emails/utils';
+  manageWorkspaceSubscriptionEvent,
+} from "@/lib/checkout/utils";
+import { sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
-async function sendEmailOnInvoiceReceived(
-  itemDescriptions: ItemDescription[],
-  email: string,
-) {
+async function sendEmailOnInvoiceReceived(itemDescriptions: ItemDescription[], email: string) {
   // set date as the current date
   // TODO: use the date from the invoice
   const date = new Date().toLocaleDateString();
   sendOnPaymentReceivedEmail(email, itemDescriptions, date);
-
 }
 
-type SubscriptionEvent = stripe.CustomerSubscriptionUpdatedEvent
+type SubscriptionEvent =
+  | stripe.CustomerSubscriptionUpdatedEvent
   | stripe.CustomerSubscriptionDeletedEvent
   | stripe.CustomerSubscriptionCreatedEvent;
-async function handleSubscriptionChange(
-  event: SubscriptionEvent,
-  cancel: boolean = false
-) {
+async function handleSubscriptionChange(event: SubscriptionEvent, cancel: boolean = false) {
   const subscription = event.data.object;
   const status = subscription.status;
-  if (['past_due', 'unpaid', 'paused'].includes(status)) {
+  if (["past_due", "unpaid", "paused"].includes(status)) {
     // https://docs.stripe.com/customer-management/integrate-customer-portal#webhooks
     // this does not include `canceled` status, because if `cancel_at_period_end` is set,
     // the subscription will not be canceled immediately and the `deleted` event will be sent eventually.
@@ -39,14 +33,12 @@ async function handleSubscriptionChange(
   }
   for (const subscriptionItem of subscription.items.data) {
     if (!subscriptionItem.plan.product) {
-      console.log(
-        `subscription updated event. No product found. subscriptionItem: ${subscriptionItem}`
-      );
+      console.log(`subscription updated event. No product found. subscriptionItem: ${subscriptionItem}`);
       continue;
     }
     const stripeCustomerId = getIdFromStripeObject(subscription.customer);
     const productId = getIdFromStripeObject(subscriptionItem.plan.product);
-    const subscriptionType = subscription.metadata?.type ?? 'workspace';
+    const subscriptionType = subscription.metadata?.type ?? "workspace";
     const workspaceId = subscription.metadata?.workspaceId;
     const userId = subscription.metadata?.userId;
 
@@ -59,11 +51,8 @@ async function handleSubscriptionChange(
       continue;
     }
     if (cancel) {
-      console.log(
-        `Subscription ${subscription.id} canceled. productId`,
-        productId
-      );
-      if (subscriptionType === 'workspace') {
+      console.log(`Subscription ${subscription.id} canceled. productId`, productId);
+      if (subscriptionType === "workspace") {
         if (!workspaceId) {
           console.log(`subscription updated event. No workspaceId found. subscriptionId: ${subscription.id}`);
           continue;
@@ -74,7 +63,7 @@ async function handleSubscriptionChange(
           workspaceId,
           subscriptionId: subscription.id,
           quantity: subscriptionItem.quantity,
-          cancel: true
+          cancel: true,
         });
       }
       return;
@@ -84,17 +73,17 @@ async function handleSubscriptionChange(
     console.log(`lookupKey`, lookupKey);
     const isAdditionalSeats = isLookupKeyForAdditionalSeats(lookupKey);
     console.log(`isAdditionalSeats`, isAdditionalSeats);
-    if (status === 'active' && stripeCustomerId && productId) {
+    if (status === "active" && stripeCustomerId && productId) {
       console.log(`Subscription ${subscription.id} active. productId`, productId);
       try {
-        if (subscriptionType === 'workspace') {
+        if (subscriptionType === "workspace") {
           await manageWorkspaceSubscriptionEvent({
             stripeCustomerId,
             productId,
             workspaceId,
             subscriptionId: subscription.id,
             quantity: subscriptionItem.quantity,
-            isAdditionalSeats
+            isAdditionalSeats,
           });
         }
       } catch (error) {
@@ -110,49 +99,43 @@ export async function POST(req: NextRequest): Promise<Response> {
   let event;
   const endpointSecret = process.env.STRIPE_WEBHOOK_ENDPOINT_SECRET;
   // Get the signature sent by Stripe
-  const signature = req.headers.get('stripe-signature') as string;
+  const signature = req.headers.get("stripe-signature") as string;
   try {
-    event = stripe.webhooks.constructEvent(
-      await req.text(),
-      signature,
-      endpointSecret!
-    );
+    event = stripe.webhooks.constructEvent(await req.text(), signature, endpointSecret!);
   } catch (err: Error | any) {
     console.log(`⚠️  Webhook signature verification failed.`, err.message);
-    return new Response('Webhook signature verification failed.', {
-      status: 400
+    return new Response("Webhook signature verification failed.", {
+      status: 400,
     });
   }
   // Handle the event
   console.log(event.type);
   switch (event.type) {
-    case 'invoice.payment_succeeded':
+    case "invoice.payment_succeeded": {
       const invoice = event.data.object;
       const itemDescriptions = invoice.lines.data.map((line) => {
-        const productDescription = line.description ?? '';
-        const lookupKey = line.price?.lookup_key ?? 'hobby_monthly_2025_04';
+        const productDescription = line.description ?? "";
+        const lookupKey = line.price?.lookup_key ?? "hobby_monthly_2025_04";
         const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
         return {
           productDescription,
           quantity: line.quantity,
-          shortDescription
+          shortDescription,
         } as ItemDescription;
       });
       const customerEmail = invoice.customer_email;
       if (customerEmail) {
-        await sendEmailOnInvoiceReceived(
-          itemDescriptions,
-          customerEmail
-        );
+        await sendEmailOnInvoiceReceived(itemDescriptions, customerEmail);
       }
       break;
-    case 'customer.subscription.deleted':
+    }
+    case "customer.subscription.deleted":
       await handleSubscriptionChange(event, true);
       break;
-    case 'customer.subscription.created':
+    case "customer.subscription.created":
       handleSubscriptionChange(event);
       break;
-    case 'customer.subscription.updated':
+    case "customer.subscription.updated":
       handleSubscriptionChange(event);
       break;
     default:
@@ -160,5 +143,5 @@ export async function POST(req: NextRequest): Promise<Response> {
       // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
       break;
   }
-  return new Response('Webhook received.', { status: 200 });
+  return new Response("Webhook received.", { status: 200 });
 }

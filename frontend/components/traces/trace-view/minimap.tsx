@@ -3,7 +3,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
-  TraceViewSpan,
+  type TraceViewSpan,
   useTraceViewStore,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -38,7 +38,10 @@ function Minimap({ onSpanSelect }: Props) {
     [trace?.endTime, trace?.startTime]
   );
 
-  const minimapSpans = useMemo(() => tab === "reader" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
+  const minimapSpans = useMemo(
+    () => (tab === "reader" ? getListMinimapSpans() : getMinimapSpans()),
+    [tab, getMinimapSpans, getListMinimapSpans, spans]
+  );
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {

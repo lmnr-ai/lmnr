@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 
 import { useEventsStoreContext } from "@/components/events/events-store";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,12 @@ export default function DisableClusteringDialog({
     try {
       setIsLoading(true);
 
-      const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=${eventType}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=${eventType}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!res.ok) {
         const error = await res.json();
@@ -75,9 +78,7 @@ export default function DisableClusteringDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Disable Clustering</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to disable clustering for this event?
-          </DialogDescription>
+          <DialogDescription>Are you sure you want to disable clustering for this event?</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" type="button" onClick={() => setOpen(false)}>
@@ -92,4 +93,3 @@ export default function DisableClusteringDialog({
     </Dialog>
   );
 }
-

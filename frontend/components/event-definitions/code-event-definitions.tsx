@@ -17,7 +17,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
-import { EventDefinitionRow } from "@/lib/actions/event-definitions";
+import { type EventDefinitionRow } from "@/lib/actions/event-definitions";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import Header from "../ui/header";

@@ -1,10 +1,10 @@
 import React, { memo } from "react";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 import {
-  LangChainContentPartSchema,
-  LangChainImageUrlPartSchema,
-  LangChainMessageSchema,
+  type LangChainContentPartSchema,
+  type LangChainImageUrlPartSchema,
+  type LangChainMessageSchema,
 } from "@/lib/spans/types/langchain";
 
 import {
@@ -29,7 +29,12 @@ const PureLangChainContentParts = ({
     case "user":
     case "human":
       return (
-        <LangChainContentPart presetKey={presetKey} parentIndex={parentIndex} part={message.content} messageIndex={parentIndex} />
+        <LangChainContentPart
+          presetKey={presetKey}
+          parentIndex={parentIndex}
+          part={message.content}
+          messageIndex={parentIndex}
+        />
       );
 
     case "tool":
@@ -40,7 +45,12 @@ const PureLangChainContentParts = ({
             content={message.content}
             presetKey={`${parentIndex}-tool-0-${presetKey}`}
           >
-            <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} messageIndex={parentIndex} />
+            <LangChainContentPart
+              part={message.content}
+              presetKey={presetKey}
+              parentIndex={parentIndex}
+              messageIndex={parentIndex}
+            />
           </ToolResultContentPart>
         </>
       );
@@ -48,7 +58,12 @@ const PureLangChainContentParts = ({
     case "ai":
       return (
         <>
-          <LangChainContentPart part={message.content} presetKey={presetKey} parentIndex={parentIndex} messageIndex={parentIndex} />
+          <LangChainContentPart
+            part={message.content}
+            presetKey={presetKey}
+            parentIndex={parentIndex}
+            messageIndex={parentIndex}
+          />
           {(message?.tool_calls || []).map((part, index) => (
             <ToolCallContentPart
               key={`${parentIndex}-tool-${index}-${presetKey}`}

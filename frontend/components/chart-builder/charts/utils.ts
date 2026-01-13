@@ -2,7 +2,7 @@ import { scaleUtc } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
 import { isNil } from "lodash";
 
-import { ChartConfig } from "@/components/ui/chart";
+import { type ChartConfig } from "@/components/ui/chart";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",

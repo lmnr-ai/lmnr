@@ -1,4 +1,4 @@
-import { GenerateProjectApiKeyResponse } from "@/lib/api-keys/types";
+import { type GenerateProjectApiKeyResponse } from "@/lib/api-keys/types";
 
 import { Button } from "../../ui/button";
 import { CopyButton } from "../../ui/copy-button";

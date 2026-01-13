@@ -1,8 +1,15 @@
-import { generateObject, generateText, GenerateTextResult, jsonSchema, modelMessageSchema, ToolSet } from "ai";
+import {
+  generateObject,
+  generateText,
+  type GenerateTextResult,
+  jsonSchema,
+  modelMessageSchema,
+  type ToolSet,
+} from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { Provider, providerToApiKey } from "@/components/playground/types";
+import { type Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
 import { decodeApiKey } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
@@ -48,7 +55,7 @@ export const PlaygroundParamsSchema = z.object({
 });
 
 export interface ChatGenerationResult {
-  result: GenerateTextResult<ToolSet, {}>;
+  result: GenerateTextResult<ToolSet, Record<string, never>>;
   startTime: Date;
   endTime: Date;
 }
@@ -147,14 +154,14 @@ export async function generateChatResponse(
 
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<GenerateTextResult<ToolSet, {}>> {
+): Promise<GenerateTextResult<ToolSet, Record<string, never>>> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
   const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
   const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  const safeResult: GenerateTextResult<ToolSet, {}> = {
+  const safeResult: GenerateTextResult<ToolSet, Record<string, never>> = {
     ...result,
     text: result.text || "",
     reasoning: result.reasoning || [],

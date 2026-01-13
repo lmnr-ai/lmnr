@@ -1,12 +1,12 @@
 import { ChartBar, ChartColumn, ChartLine } from "lucide-react";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QueryStructure } from "@/lib/actions/sql/types.ts";
+import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 
 const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = {
   [ChartType.LineChart]: {

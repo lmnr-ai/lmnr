@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import {
   IconAmazonBedrock,
@@ -112,7 +112,6 @@ export default function FrameworksGrid({
   itemClassName = "",
   labelTextColor = "text-white",
 }: FrameworksGridProps) {
-
   return (
     <div className={className}>
       <div className={gridClassName}>
@@ -128,7 +127,9 @@ export default function FrameworksGrid({
               <div className="w-20 h-20 xl:w-20 xl:h-20 2xl:w-24 2xl:h-24 rounded-lg flex items-center justify-center hover:bg-white/20 transition-colors">
                 {integration.icon || <span className="text-4xl xl:text-5xl 2xl:text-6xl">{integration.emoji}</span>}
               </div>
-              <span className={`text-xs xl:text-sm 2xl:text-base 2xl:mt-2 text-center ${labelTextColor}`}>{integration.name}</span>
+              <span className={`text-xs xl:text-sm 2xl:text-base 2xl:mt-2 text-center ${labelTextColor}`}>
+                {integration.name}
+              </span>
             </div>
           </Link>
         ))}

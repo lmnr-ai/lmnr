@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, ListTree, LucideIcon } from "lucide-react";
+import { ChartNoAxesGantt, ChevronDown, ListTree, type LucideIcon } from "lucide-react";
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -66,11 +66,7 @@ export default function ViewDropdown() {
           const view = viewOptions[option];
           const OptionIcon = view.icon;
           return (
-            <DropdownMenuItem
-              key={option}
-              onClick={() => setTab(option)}
-              className={cn(tab === option && "bg-accent")}
-            >
+            <DropdownMenuItem key={option} onClick={() => setTab(option)} className={cn(tab === option && "bg-accent")}>
               <OptionIcon size={14} />
               {view.label}
             </DropdownMenuItem>

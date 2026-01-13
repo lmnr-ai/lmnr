@@ -1,7 +1,7 @@
 import { memo } from "react";
 
 import AutocompleteSearchInput from "@/components/common/autocomplete";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { cn } from "@/lib/utils.ts";
 
 const STATIC_FIELD_VALUES: Record<string, string[]> = {

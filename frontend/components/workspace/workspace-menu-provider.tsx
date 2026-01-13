@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { createContext, PropsWithChildren, useContext, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 
 export type WorkspaceMenu = "projects" | "usage" | "team" | "settings";
 type WorkspaceMenuContextType = {

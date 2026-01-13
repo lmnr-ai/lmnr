@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { isEmpty } from "lodash";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 import { SlackSlashCommandSchema } from "@/lib/actions/slack/types";
 import { db } from "@/lib/db/drizzle";

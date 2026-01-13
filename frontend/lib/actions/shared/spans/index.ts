@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { groupBy } from "lodash";
-import z from "zod/v4";
+import type z from "zod/v4";
 
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import {aggregateSpanMetrics} from "@/lib/actions/spans/utils.ts";
+import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";

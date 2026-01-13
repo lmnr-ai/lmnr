@@ -1,7 +1,7 @@
 import { get, isArray } from "lodash";
 
-import { TraceViewSpan } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type TraceViewSpan } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { SpanType } from "@/lib/traces/types.ts";
 
 export const STATIC_SPAN_SUGGESTIONS: AutocompleteSuggestion[] = [
@@ -33,4 +33,3 @@ export const extractSpanSuggestions = (spans: TraceViewSpan[]): AutocompleteSugg
     ...Array.from(tagsSet, (tag) => ({ field: "tag", value: tag })),
   ];
 };
-

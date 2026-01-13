@@ -21,8 +21,8 @@ import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
-  TraceViewSpan,
-  TraceViewTrace,
+  type TraceViewSpan,
+  type TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
@@ -89,10 +89,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   }));
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
-    () =>
-      spans
-        .filter((span) => span.spanType === SpanType.LLM)
-        .map((span) => span.spanId),
+    () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
     [spans]
   );
 
