@@ -237,7 +237,7 @@ const TestEventDefinitionField = ({
 
         {isExecuting && (
           <span className="text-sm text-muted-foreground shimmer">
-            Testing semantic event... This may take a minute
+            Testing semantic event... this may take some time depending on the size of the trace.
           </span>
         )}
 
