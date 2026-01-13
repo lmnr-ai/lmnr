@@ -18,7 +18,7 @@ const SystemDiagram = ({ className }: Props) => {
   });
 
   // All paths animate together using the same scroll progress
-  const pathProgress = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const pathProgress = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
 
   return (
     <div className={cn("relative overflow-hidden", className)} ref={ref}>
@@ -27,9 +27,7 @@ const SystemDiagram = ({ className }: Props) => {
 
       {/* SVG overlay centered on top */}
       <svg
-        className="absolute left-0 top-1/2 -translate-y-1/2"
-        width="674"
-        height="636"
+        className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-auto"
         viewBox="0 0 674 636"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

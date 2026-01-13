@@ -12,6 +12,7 @@ import FullContextImage from "./FullContextImage";
 import BrowserScreenRecordingImage from "./BrowserScreenRecordingImage";
 import DashboardImage from "./DashboardImage";
 import EvalsImage from "./EvalsImage";
+import GranularEvalsImage from "./GranularEvalsImage";
 
 interface Props {
   className?: string;
@@ -193,9 +194,7 @@ const ThreeCategories = ({ className }: Props) => {
                     See high level results or dive deep into your individual traces.
                   </p>
                 </div>
-                <div className="bg-landing-surface-700 flex h-[283px] items-start overflow-hidden pb-0 pl-20 pr-10 pt-10 rounded-sm w-full relative">
-                  <PlaceholderImage className="absolute inset-0" />
-                </div>
+                <GranularEvalsImage className="h-[283px] w-full" />
               </div>
             </div>
           </div>
