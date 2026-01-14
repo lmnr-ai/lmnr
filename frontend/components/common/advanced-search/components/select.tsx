@@ -74,8 +74,8 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
 
   if (!tag) return null;
 
-  const wrapperClassName = cn(focusState.type === selectType && "bg-primary/10", {
-    "rounded-l-md": selectType === "field",
+  const wrapperClassName = cn(focusState.type === selectType && "bg-primary/35", {
+    "rounded-l-[0.29rem]": selectType === "field",
   });
 
   return (
@@ -91,7 +91,7 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
       onOpenChange={() => {}}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}
-      triggerClassName={cn("h-6 w-fit min-w-[28px] px-2 text-primary font-medium text-xs", {
+      triggerClassName={cn("h-5.5 w-fit min-w-[28px] px-2 font-medium text-xs text-secondary-foreground", {
         "rounded-l-md": selectType === "field",
       })}
     />

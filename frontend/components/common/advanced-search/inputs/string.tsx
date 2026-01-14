@@ -18,8 +18,8 @@ interface StringValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary min-w-fit max-w-60",
+  "h-6 px-2 py-0 text-xs bg-transparent outline-none text-primary",
+  "placeholder:text-primary/50 min-w-fit max-w-60",
   "[field-sizing:content]"
 );
 

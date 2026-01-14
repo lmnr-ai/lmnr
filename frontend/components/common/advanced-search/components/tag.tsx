@@ -218,8 +218,8 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
   if (!columnFilter) return null;
 
   const removeButtonClassName = cn(
-    "h-6 w-6 p-0 rounded-l-none rounded-r-md transition-colors outline-none border-0",
-    focusState.type === "remove" && "bg-primary/10"
+    "h-5.5 w-6 p-0 rounded-l-none rounded-r-[0.29rem] transition-colors outline-none border-0",
+    focusState.type === "remove" && "bg-primary/35"
   );
 
   return (
@@ -227,8 +227,8 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       ref={containerRef}
       tabIndex={focusState.type !== "idle" && focusState.mode === "nav" ? 0 : -1}
       className={cn(
-        "inline-flex items-center rounded-md border border-primary/50 bg-primary/10 h-6",
-        "divide-x divide-primary/20 transition-all outline-none",
+        "inline-flex items-center rounded-md border bg-background h-6",
+        "divide-x divide-input transition-all outline-none",
         "data-[selected=true]:border-primary data-[selected=true]:ring-1 data-[selected=true]:ring-primary/60"
       )}
       data-selected={isSelected}
@@ -249,7 +249,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       />
 
       <Button variant="ghost" ref={removeRef} onClick={handleRemove} className={removeButtonClassName} type="button">
-        <X className="w-3 h-3 text-primary" />
+        <X className="w-3 h-3 text-secondary-foreground" />
       </Button>
     </div>
   );

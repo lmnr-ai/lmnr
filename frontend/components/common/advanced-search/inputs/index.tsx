@@ -34,7 +34,7 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
       ref.current.focus();
     }
   }, [tagId, setTagFocusState, ref]);
-  const wrapperClassName = cn(focusState.type === "value" && "bg-primary/10");
+  const wrapperClassName = cn("font-medium text-primary h-5.5", focusState.type === "value" && "bg-primary/30");
 
   const renderInput = () => {
     switch (dataType) {

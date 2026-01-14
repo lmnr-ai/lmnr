@@ -24,7 +24,7 @@ interface NumberValueInputProps {
 
 const inputClassName = cn(
   "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary min-w-fit max-w-60 font-bold",
+  "placeholder:text-primary min-w-fit max-w-60",
   "[field-sizing:content]",
   "hide-arrow"
 );

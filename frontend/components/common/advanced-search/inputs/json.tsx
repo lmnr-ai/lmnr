@@ -160,7 +160,8 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         onChange={handleKeyChange}
         onKeyDown={handleKeyKeyDown}
         placeholder="key"
-        className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
+        className={cn(inputClassName, "min-w-10 max-w-32")}
+        tabIndex={mode === "edit" ? 0 : -1}
       />
       <input
         ref={valueInputRef}
@@ -170,7 +171,8 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         onKeyDown={handleValueKeyDown}
         onBlur={handleBlur}
         placeholder="value"
-        className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
+        className={cn(inputClassName, "min-w-10 max-w-32")}
+        tabIndex={mode === "edit" ? 0 : -1}
       />
     </div>
   );

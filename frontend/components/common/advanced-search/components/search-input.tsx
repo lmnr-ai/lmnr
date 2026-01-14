@@ -228,8 +228,8 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
-      <span className="p-1">
-        <Search className="text-secondary-foreground size-4 shrink-0" />
+      <span className="py-1 pl-1">
+        <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
       </span>
       <div className="flex items-center gap-1 flex-wrap flex-1">
         {tags.map((tag) => (
