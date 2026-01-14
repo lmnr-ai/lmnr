@@ -219,7 +219,6 @@ const createAdvancedSearchStore = (
         };
       });
 
-      console.log("calling submit");
       get().submit(router, pathname, searchParams);
     },
 
@@ -287,10 +286,8 @@ const createAdvancedSearchStore = (
       const searchValue = inputValue.trim();
 
       if (isEqual(lastSubmitted.filters, filterObjects) && lastSubmitted.search === searchValue) {
-        console.log("i thought they are same");
         return;
       }
-      console.log("i dont thought they are same");
 
       const params = new URLSearchParams(searchParams.toString());
 

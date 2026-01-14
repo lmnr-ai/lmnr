@@ -6,7 +6,7 @@ import { memo, useEffect, useMemo } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
 import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
@@ -51,7 +51,7 @@ const AdvancedSearchContent = ({
     return filterParams.flatMap((f) => {
       try {
         const parsed = JSON.parse(f);
-        const result = FilterSchema.safeParse(parsed);
+        const result = FilterSchemaRelaxed.safeParse(parsed);
 
         if (!result.success) {
           return [];
@@ -89,6 +89,7 @@ const AdvancedSearchContent = ({
       const currentSearch = searchParams.get("search") ?? "";
       updateLastSubmitted(filterObjects, currentSearch);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTags, setTags, updateLastSubmitted]);
 
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {

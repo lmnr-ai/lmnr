@@ -174,7 +174,7 @@ function SpansTableContent() {
           <AdvancedSearch
             filters={filters}
             resource="spans"
-            placeholder="Search in spans..."
+            placeholder="Search by span name, tokens, tags, full text and more..."
             className="w-full flex-1"
           />
         </div>
