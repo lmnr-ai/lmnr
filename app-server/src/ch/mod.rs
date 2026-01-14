@@ -6,6 +6,7 @@ pub mod evaluation_scores;
 pub mod evaluator_scores;
 pub mod events;
 pub mod limits;
+pub mod logs;
 pub mod spans;
 pub mod tags;
 pub mod traces;
