@@ -49,7 +49,7 @@ const GranularEvalsImage = ({ className }: Props) => {
       <div className="flex-1 relative h-full bg-landing-surface-700 overflow-hidden">
         {/* NumberContainer - Static in top left */}
         <div className="absolute top-3 left-4 flex flex-col gap-2 z-20">
-          <div className="bg-landing-surface-600 border border-landing-surface-400 flex gap-1 items-center px-2 py-1 rounded">
+          <div className="bg-landing-surface-600 border border-landing-surface-400 flex gap-1 items-center px-2 py-1 rounded w-fit">
             <p className="text-landing-text-300 text-xs">Reward</p>
             <ChevronDown className="w-4 h-4 text-landing-text-500" />
           </div>

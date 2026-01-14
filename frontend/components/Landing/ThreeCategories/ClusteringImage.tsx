@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useScroll, useTransform, motion } from "framer-motion";
+import { useRef } from "react";
 
 interface Props {
   className?: string;
@@ -19,8 +21,18 @@ const ClusteringImage = ({ className }: Props) => {
     { name: "Memory allocation failures", subClusters: 2, events: 67, highlighted: false },
   ];
 
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "center start"],
+  });
+
+  const opacity = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
+
   return (
-    <div
+    <motion.div
+      ref={ref}
+      style={{ opacity }}
       className={cn(
         "bg-landing-surface-700 flex items-end justify-center overflow-clip p-8 rounded-lg relative",
         className
@@ -66,7 +78,7 @@ const ClusteringImage = ({ className }: Props) => {
 
       {/* Gradient fade on left */}
       <div className="absolute left-0 bottom-0 w-full h-[80%] bg-gradient-to-t from-landing-surface-700 via-landing-surface-700/90 to-transparent" />
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,13 +1,25 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { sectionHeaderLarge, bodyLarge } from "../classNames";
 import DocsButton from "../DocsButton";
 import SystemDiagram from "./SystemDiagram";
+import LocalToScaleImage from "./LocalToScaleImage";
+import { useScroll } from "framer-motion";
+import { useRef } from "react";
 
 interface Props {
   className?: string;
 }
 
 const SecondHalf = ({ className }: Props) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start center", "end center"],
+  });
+
   return (
     <div
       className={cn(
@@ -15,49 +27,57 @@ const SecondHalf = ({ className }: Props) => {
         className
       )}
     >
-      {/* Try it local, free section */}
-      <div className="flex items-center relative shrink-0 w-[1164px]">
-        <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative shrink-0">
-          <p className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>Try it local, free</p>
-          <div className="flex flex-col items-start relative shrink-0 w-[380px]">
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
-              <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>
-                Set up with Docker in three lines
-              </p>
+      {/* Local to Scale combined section */}
+      <div ref={containerRef} className="relative w-[1164px] flex justify-between">
+        {/* Left column - scrolls normally */}
+        <div className="flex flex-col gap-[240px] w-[500px] pb-[100px] pt-[20px]">
+          {/* Try it local, free section */}
+          <div className="flex flex-col gap-6 items-start">
+            <p className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>Try it local, free</p>
+            <div className="flex flex-col items-start w-[380px]">
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>
+                  Set up with Docker in three lines
+                </p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Open source</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Self-host anywhere</p>
+              </div>
             </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
-              <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Open source</p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
-              <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Self-host anywhere</p>
-            </div>
+            <DocsButton />
           </div>
-          <DocsButton />
-        </div>
-        {/* Placeholder div for git clone and trace viewer */}
-        <div className="bg-landing-surface-700 w-[500px] h-[400px]" />
-      </div>
 
-      {/* Ready to scale section */}
-      <div className="flex items-center relative shrink-0 w-[1164px]">
-        <div className="basis-0 flex flex-col grow items-start min-h-px min-w-px relative shrink-0">
-          <div className="flex flex-col gap-6 items-start relative shrink-0 w-[437px]">
+          {/* Ready to scale section */}
+          <div className="flex flex-col gap-6 items-start w-[437px]">
             <div className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>
               <p className="mb-0">Ready to scale?</p>
               <p>We got you.</p>
             </div>
-            <div className="flex flex-col items-start relative shrink-0 w-full">
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
+            <div className="flex flex-col items-start w-full">
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Affordable hosted solution</p>
               </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Workspace members and roles</p>
               </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] relative shrink-0 w-full">
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Terabytes of data with ease</p>
               </div>
             </div>
             <DocsButton />
+          </div>
+        </div>
+
+        {/* Right column - sticky */}
+        <div className="relative">
+          <div className="sticky top-[calc(50vh-200px)] h-[400px]">
+            <LocalToScaleImage
+              className="top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2"
+              scrollYProgress={scrollYProgress}
+            />
           </div>
         </div>
       </div>

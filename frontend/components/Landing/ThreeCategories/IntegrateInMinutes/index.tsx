@@ -1,7 +1,11 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import DocsButton from "../../DocsButton";
 import LogoButton from "../../LogoButton";
 import { bodyLarge, subsectionTitle } from "../../classNames";
+import { type Integration } from "./snippets";
 
 // Import all logos
 import bedrock from "@/assets/landing/logos/bedrock.svg";
@@ -26,26 +30,28 @@ interface Props {
   className?: string;
 }
 
-const logos = [
+const logos: { src: string; alt: string; name: string; integration?: Integration }[] = [
+  { src: browserUse, alt: "Browser Use", name: "browser-use", integration: "browser-use" },
+  { src: vercel, alt: "Vercel", name: "vercel", integration: "vercel" },
+  { src: langgraph, alt: "LangGraph", name: "langgraph", integration: "langgraph" },
+  { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
   { src: claude, alt: "Claude", name: "claude" },
   { src: gemini, alt: "Gemini", name: "gemini" },
   { src: openAi, alt: "OpenAI", name: "open-ai" },
-  { src: langgraph, alt: "LangGraph", name: "langgraph" },
   { src: crewAi, alt: "Crew AI", name: "crew-ai" },
-  { src: vercel, alt: "Vercel", name: "vercel" },
-  { src: lightLlm, alt: "Light LLM", name: "light-llm" },
   { src: groq, alt: "Groq", name: "groq" },
   { src: mistral, alt: "Mistral", name: "mistral" },
   { src: bedrock, alt: "Bedrock", name: "bedrock" },
   { src: playwright, alt: "Playwright", name: "playwright" },
   { src: openTelemetry, alt: "Open Telemetry", name: "open-telemetry" },
   { src: openHands, alt: "Open Hands", name: "open-hands" },
-  { src: browserUse, alt: "Browser Use", name: "browser-use" },
   { src: pinecone, alt: "Pinecone", name: "pinecone" },
   { src: qdrant, alt: "Qdrant", name: "qdrant" },
 ];
 
 const IntegrateInMinutes = ({ className }: Props) => {
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration>("browser-use");
+
   return (
     <div className={cn("flex flex-col gap-[54px] items-start w-full", className)}>
       <div className="flex flex-col gap-1 items-start w-full">
@@ -53,12 +59,32 @@ const IntegrateInMinutes = ({ className }: Props) => {
         <p className={bodyLarge}>Compatible with all your favorites</p>
       </div>
       {/* Logo grid */}
-      <div className="flex flex-wrap gap-3 items-start w-full">
-        {logos.map((logo) => (
-          <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} />
+      <div className="flex flex-wrap gap-3 items-center w-full">
+        {/* Clickable integration buttons */}
+        {logos.filter(logo => logo.integration).map((logo) => (
+          <LogoButton
+            key={logo.name}
+            logoSrc={logo.src}
+            alt={logo.alt}
+            isActive={logo.integration === selectedIntegration}
+            onClick={() => setSelectedIntegration(logo.integration!)}
+          />
+        ))}
+        {/* Divider */}
+        <div className="px-[12px]">
+
+        <div className="h-[40px] w-0 border-l border-landing-text-600" />
+        </div>
+        {/* Non-clickable logo buttons */}
+        {logos.filter(logo => !logo.integration).map((logo) => (
+          <LogoButton
+            key={logo.name}
+            logoSrc={logo.src}
+            alt={logo.alt}
+          />
         ))}
       </div>
-      <IntegrationCodeSnippet />
+      <IntegrationCodeSnippet selectedIntegration={selectedIntegration} />
       <DocsButton />
     </div>
   );

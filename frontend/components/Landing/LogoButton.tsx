@@ -28,18 +28,23 @@ const sizeStyles = {
 };
 
 const LogoButton = React.forwardRef<HTMLButtonElement, LogoButtonProps>(
-  ({ className, logoSrc, alt, isActive = false, size = "md", ...props }, ref) => {
+  ({ className, logoSrc, alt, isActive = false, size = "md", onClick, ...props }, ref) => {
     const sizeStyle = sizeStyles[size];
+    const isClickable = !!onClick;
 
     return (
       <button
         ref={ref}
+        onClick={onClick}
         className={cn(
-          "bg-landing-surface-600 border border-landing-surface-500 rounded-[8px] flex justify-center items-center",
+          "rounded-[8px] flex justify-center items-center border-[0.5px]",
           sizeStyle.container,
-          "hover:bg-landing-surface-500 hover:border-landing-text-500",
-          "active:bg-landing-surface-400 active:border-landing-text-400",
-          { "border-landing-primary-400": isActive },
+          // Clickable buttons: lighter bg, visible border
+          // Non-clickable buttons: darker bg, subtle border
+          isClickable
+            ? "bg-landing-surface-600 border-landing-text-600 hover:bg-landing-surface-500 hover:border-landing-text-500"
+            : "bg-landing-surface-700 border-landing-surface-400",
+          { "border-landing-primary-400 hover:border-landing-primary-400": isActive },
           className
         )}
         {...props}
