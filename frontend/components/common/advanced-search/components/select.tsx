@@ -2,7 +2,10 @@
 
 import { type Ref, useCallback, useMemo } from "react";
 
-import { default as UIFilterSelect, type FilterSelectOption } from "@/components/ui/filter-select";
+import {
+  default as UIFilterSelect,
+  type FilterSelectOption,
+} from "@/components/common/advanced-search/components/filter-select.tsx";
 import { type Operator } from "@/lib/actions/common/operators.ts";
 import { cn } from "@/lib/utils";
 

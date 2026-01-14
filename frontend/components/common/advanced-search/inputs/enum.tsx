@@ -3,7 +3,9 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useMemo } from "react";
 
-import FilterSelect, { type FilterSelectOption } from "@/components/ui/filter-select";
+import FilterSelect, {
+  type FilterSelectOption,
+} from "@/components/common/advanced-search/components/filter-select.tsx";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import { type FocusableRef } from "../types";

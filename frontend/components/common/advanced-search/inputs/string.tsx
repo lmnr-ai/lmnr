@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
-import NativeCombobox from "@/components/ui/native-combobox";
+import NativeCombobox from "@/components/common/advanced-search/components/native-combobox.tsx";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
