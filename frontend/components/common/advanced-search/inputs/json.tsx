@@ -14,9 +14,8 @@ interface JsonValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-6 px-2 py-0 text-xs bg-transparent text-secondary-foreground outline-none",
-  "placeholder:text-muted-foreground min-w-fit max-w-60",
-  "focus:bg-accent/50",
+  "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
+  "placeholder:text-primary min-w-fit max-w-60 font-medium",
   "[field-sizing:content]"
 );
 
@@ -133,7 +132,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
   if (!tag) return null;
 
   return (
-    <div className="flex items-center divide-x divide-input">
+    <div className="flex items-center divide-x divide-primary/20">
       <input
         ref={keyInputRef}
         type="text"
@@ -142,7 +141,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         onKeyDown={handleKeyKeyDown}
         onBlur={handleBlur}
         placeholder="key"
-        className={cn(inputClassName, "min-w-10 max-w-32")}
+        className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
         tabIndex={mode === "edit" ? 0 : -1}
       />
       <input
@@ -153,7 +152,7 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         onKeyDown={handleValueKeyDown}
         onBlur={handleBlur}
         placeholder="value"
-        className={cn(inputClassName, "min-w-10 max-w-32")}
+        className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
         tabIndex={mode === "edit" ? 0 : -1}
       />
     </div>

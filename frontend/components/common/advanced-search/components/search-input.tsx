@@ -203,19 +203,18 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
   return (
     <div
       className={cn(
-        "flex items-start gap-2 px-2 rounded-md border border-input bg-transparent relative",
-        "focus-within:ring-border/50 focus-within:ring-[1px] box-border",
-        "not-focus-within:bg-accent transition duration-300 py-1",
+        "flex items-start gap-2 px-1 rounded-md border border-input relative",
+        "bg-muted/80 transition duration-250 py-0.75",
         className
       )}
       onClick={() => mainInputRef.current?.focus()}
       onBlur={handleContainerBlur}
     >
       <span className="p-1">
-        <Search className="text-secondary-foreground size-4 min-w-4 flex-shrink-0" />
+        <Search className="text-secondary-foreground size-4 shrink-0" />
       </span>
 
-      <div className="flex items-center gap-1 flex-wrap flex-1">
+      <div className="flex items-center gap-2 flex-wrap flex-1">
         {state.tags.map((tag) => (
           <FilterTag
             key={tag.id}
@@ -236,8 +235,8 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           onKeyDown={handleKeyDown}
           placeholder={state.tags.length === 0 ? placeholder : ""}
           className={cn(
-            "flex-1 min-w-[100px] h-6 bg-transparent text-sm outline-none",
-            "placeholder:text-secondary-foreground"
+            "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",
+            "placeholder:text-muted-foreground"
           )}
         />
       </div>

@@ -306,7 +306,7 @@ function TracesTableContent() {
           <AdvancedSearch
             filters={filters}
             resource="traces"
-            placeholder="Search in traces..."
+            placeholder="Search by root span name, tokens, tags, input, output and more..."
             className="w-full flex-1"
           />
         </div>

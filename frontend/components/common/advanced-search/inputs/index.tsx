@@ -32,7 +32,7 @@ const ValueInput = memo(({ tagId, columnFilter, suggestions, focused, mode, ref 
       ref.current.focus();
     }
   }, [tagId, setTagFocusState, ref]);
-  const wrapperClassName = cn(focusState.type === "value" && "bg-accent");
+  const wrapperClassName = cn(focusState.type === "value" && "bg-primary/10");
 
   const renderInput = () => {
     switch (dataType) {

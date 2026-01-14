@@ -18,7 +18,7 @@ interface EnumValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-secondary-foreground text-xs";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
 
 const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
   const { state, getTagFocusState, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
@@ -51,8 +51,8 @@ const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
       open={focusState.type === "value" && focusState.mode === "edit"}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}
-      onOpenChange={() => {}}
-      placeholder="Select..."
+      onOpenChange={() => { }}
+      placeholder="select ..."
       triggerClassName={selectTriggerClassName}
     />
   );

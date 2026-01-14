@@ -183,15 +183,15 @@ const FilterSelect = ({
         aria-haspopup="listbox"
         aria-controls={listboxId}
         className={cn(
-          "flex items-center justify-center gap-1 cursor-pointer select-none w-fit",
-          "outline-none focus-visible:bg-accent/50",
+          "flex items-center justify-center gap-1 cursor-pointer select-none w-fit font-medium",
+          "outline-none",
           triggerClassName
         )}
         onClick={() => onOpenChange(!open)}
         onKeyDown={handleKeyDown}
       >
         <span className="truncate">
-          {selectedOption?.label ?? <span className="text-muted-foreground">{placeholder}</span>}
+          {selectedOption?.label ?? <span className="text-primary">{placeholder}</span>}
         </span>
       </button>
 
@@ -201,7 +201,7 @@ const FilterSelect = ({
           id={listboxId}
           role="listbox"
           className={cn(
-            "absolute top-full left-0 z-50 mt-1 min-w-[8rem] max-h-48",
+            "absolute top-full left-0 z-50 mt-1 min-w-48 max-h-48",
             "bg-popover text-popover-foreground",
             "rounded-md border shadow-md p-1",
             "overflow-y-auto no-scrollbar",
