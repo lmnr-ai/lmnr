@@ -139,7 +139,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
             } else if (suggestion.type === "value") {
               addCompleteTag(suggestion.field, Operator.Eq, suggestion.value, router, pathname, searchParams);
             } else {
-              setInputValue(`"${suggestion.value}"`);
+              setInputValue(suggestion.value);
               setIsOpen(false);
               submit(router, pathname, searchParams);
             }

@@ -48,6 +48,7 @@ interface AdvancedSearchStore {
   setOpenSelectId: (id: string | null) => void;
 
   // Actions - tag operations
+  setTags: (tags: FilterTag[]) => void;
   addTag: (field: string) => void;
   addCompleteTag: (
     field: string,
@@ -79,6 +80,7 @@ interface AdvancedSearchStore {
   // Actions - submit/clear
   submit: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
   clearAll: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
+  updateLastSubmitted: (filters: Filter[], search: string) => void;
 }
 
 const createAdvancedSearchStore = (
@@ -127,6 +129,9 @@ const createAdvancedSearchStore = (
     setOpenSelectId: (openSelectId) => set({ openSelectId }),
 
     // Tag operations
+    setTags: (tags) => {
+      set({ tags });
+    },
     addTag: (field) => {
       const { filters } = get();
       const columnFilter = filters.find((f) => f.key === field);
@@ -214,9 +219,8 @@ const createAdvancedSearchStore = (
         };
       });
 
-      queueMicrotask(() => {
-        get().submit(router, pathname, searchParams);
-      });
+      console.log("calling submit");
+      get().submit(router, pathname, searchParams);
     },
 
     updateTagField: (tagId, field) => {
@@ -283,8 +287,10 @@ const createAdvancedSearchStore = (
       const searchValue = inputValue.trim();
 
       if (isEqual(lastSubmitted.filters, filterObjects) && lastSubmitted.search === searchValue) {
+        console.log("i thought they are same");
         return;
       }
+      console.log("i dont thought they are same");
 
       const params = new URLSearchParams(searchParams.toString());
 
@@ -327,6 +333,9 @@ const createAdvancedSearchStore = (
       lastSubmitted = { filters: [], search: "" };
 
       get().onSubmit?.([], "");
+    },
+    updateLastSubmitted: (filters, search) => {
+      lastSubmitted = { filters, search };
     },
   }));
 };

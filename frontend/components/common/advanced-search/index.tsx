@@ -1,7 +1,8 @@
 "use client";
 
+import { differenceWith, intersectionWith } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
@@ -10,7 +11,7 @@ import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
-import { type ColumnFilter, createTagFromFilter, type FilterTag } from "./types";
+import { type ColumnFilter, createFilterFromTag, createTagFromFilter, type FilterTag } from "./types";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
@@ -24,14 +25,71 @@ const AdvancedSearchContent = ({
   resource,
   placeholder = "Search...",
   className,
+  filters,
 }: {
   resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
+  filters: ColumnFilter[];
 }) => {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
+
   const setAutocompleteData = useAdvancedSearchContext((state) => state.setAutocompleteData);
+
+  const { setTags, updateLastSubmitted } = useAdvancedSearchContext((state) => ({
+    setTags: state.setTags,
+    updateLastSubmitted: state.updateLastSubmitted,
+  }));
+
+  const tags = useAdvancedSearchContext((state) => state.tags);
+
+  const urlTags = useMemo(() => {
+    const filterParams = searchParams.getAll("filter");
+
+    return filterParams.flatMap((f) => {
+      try {
+        const parsed = JSON.parse(f);
+        const result = FilterSchema.safeParse(parsed);
+
+        if (!result.success) {
+          return [];
+        }
+
+        const filter = result.data;
+        const columnFilter = filters.find((col) => col.key === filter.column);
+
+        if (columnFilter) {
+          return [createTagFromFilter(filter)];
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    });
+  }, [searchParams, filters]);
+
+  useEffect(() => {
+    const tagComparator = (tagA: FilterTag, tagB: FilterTag) =>
+      tagA.field === tagB.field && tagA.operator === tagB.operator && tagA.value === tagB.value;
+
+    const commonTags = intersectionWith(tags, urlTags, tagComparator);
+
+    const newTags = differenceWith(urlTags, tags, tagComparator);
+
+    const removedTags = differenceWith(tags, urlTags, tagComparator);
+
+    const tagsChanged = newTags.length > 0 || removedTags.length > 0;
+
+    if (tagsChanged) {
+      const mergedTags = [...commonTags, ...newTags];
+      setTags(mergedTags);
+      const filterObjects = mergedTags.map(createFilterFromTag);
+      const currentSearch = searchParams.get("search") ?? "";
+      updateLastSubmitted(filterObjects, currentSearch);
+    }
+  }, [urlTags, setTags, updateLastSubmitted]);
 
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {
     onSuccess: (data) => {
@@ -88,7 +146,7 @@ const AdvancedSearch = ({ filters, resource, placeholder, className, onSubmit }:
 
   return (
     <AdvancedSearchStoreProvider filters={filters} tags={tags} search={search} onSubmit={onSubmit}>
-      <AdvancedSearchContent resource={resource} placeholder={placeholder} className={className} />
+      <AdvancedSearchContent filters={filters} resource={resource} placeholder={placeholder} className={className} />
     </AdvancedSearchStoreProvider>
   );
 };

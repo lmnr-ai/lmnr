@@ -126,11 +126,6 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     [removeTag, tag.id, focusMainInput, router, pathname, searchParams]
   );
 
-  const handleRemoveClick = useCallback(() => {
-    removeRef.current?.focus();
-    setTagFocusState(tag.id, { type: "remove", mode: "edit" });
-  }, [tag.id, setTagFocusState]);
-
   const handleEnterKey = useCallback(
     (e: KeyboardEvent) => {
       if (focusState.type === "idle") return;
@@ -253,14 +248,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         mode={focusState.type === "idle" ? "nav" : focusState.mode}
       />
 
-      <Button
-        variant="ghost"
-        ref={removeRef}
-        onClick={handleRemove}
-        onMouseDown={handleRemoveClick}
-        className={removeButtonClassName}
-        type="button"
-      >
+      <Button variant="ghost" ref={removeRef} onClick={handleRemove} className={removeButtonClassName} type="button">
         <X className="w-3 h-3 text-primary" />
       </Button>
     </div>

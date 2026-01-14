@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  HTMLAttributes,
-  KeyboardEvent,
-  MouseEvent as ReactMouseEvent,
-  Ref,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -190,9 +190,7 @@ const FilterSelect = ({
         onClick={() => onOpenChange(!open)}
         onKeyDown={handleKeyDown}
       >
-        <span className="truncate">
-          {selectedOption?.label ?? <span className="text-primary">{placeholder}</span>}
-        </span>
+        <span className="truncate">{selectedOption?.label ?? <span className="text-primary">{placeholder}</span>}</span>
       </button>
 
       {open && (
