@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     const suggestions = await getAutocompleteSuggestions({
       projectId: params.projectId,
       entity: "traces",
-      prefix: searchParams.get("prefix") || "",
+      field: searchParams.get("field") || undefined,
     });
 
     return Response.json({ suggestions });

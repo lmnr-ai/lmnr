@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    return Response.json({ items: [] });
   }
 
   try {
