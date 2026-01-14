@@ -80,7 +80,8 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     if (activeTagId) return;
     if (openSelectId) return;
     setIsOpen(false);
-  }, [setIsOpen, activeTagId, openSelectId]);
+    submit(router, pathname, searchParams);
+  }, [activeTagId, openSelectId, setIsOpen, submit, router, pathname, searchParams]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
