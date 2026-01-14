@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
 import FilterSelect, {
   type FilterSelectOption,
@@ -22,7 +22,7 @@ const booleanOptions: FilterSelectOption[] = [
   { value: "false", label: "false" },
 ];
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs text-primary";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
   const router = useRouter();
@@ -42,22 +42,10 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
   const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
 
   const selectRef = useRef<FocusableRef>(null);
-  const [isOpen, setIsOpen] = useState(false);
 
-  // Need useImperativeHandle here because we use selectRef internally in useEffect
   useImperativeHandle(ref, () => ({
     focus: () => selectRef.current?.focus(),
   }));
-
-  useEffect(() => {
-    if (focused && mode === "edit") {
-      selectRef.current?.focus();
-      // Open dropdown automatically when entering edit mode
-      setIsOpen(true);
-    } else if (!focused || mode !== "edit") {
-      setIsOpen(false);
-    }
-  }, [focused, mode]);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -76,8 +64,8 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
       value={tag.value}
       options={booleanOptions}
       onValueChange={handleChange}
-      open={isOpen}
-      onOpenChange={setIsOpen}
+      open={mode === "edit" && focused}
+      onOpenChange={() => {}}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}
       placeholder="Select..."

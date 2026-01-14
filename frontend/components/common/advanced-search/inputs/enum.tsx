@@ -21,7 +21,7 @@ interface EnumValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-xs";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-xs text-primary";
 
 const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
   const router = useRouter();

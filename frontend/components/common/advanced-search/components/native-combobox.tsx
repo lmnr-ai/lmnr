@@ -166,7 +166,7 @@ const NativeCombobox = ({
           role="listbox"
           className={cn(
             "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
-            "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar",
+            "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
             "animate-in fade-in-0 zoom-in-95",
             dropdownClassName
           )}

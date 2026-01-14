@@ -200,7 +200,7 @@ const FilterSelect = ({
           role="listbox"
           className={cn(
             "absolute top-full left-0 z-50 mt-1 min-w-48 max-h-48",
-            "bg-popover text-popover-foreground",
+            "bg-popover text-secondary-foreground",
             "rounded-md border shadow-md p-1",
             "overflow-y-auto no-scrollbar",
             "animate-in fade-in-0 zoom-in-95",
