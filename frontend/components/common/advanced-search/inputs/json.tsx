@@ -1,11 +1,20 @@
 "use client";
 
-import { ChangeEvent, KeyboardEvent, Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  type Ref,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
-import { FocusableRef, FocusMode } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { type FocusableRef, type FocusMode } from "../types";
 
 interface JsonValueInputProps {
   tagId: string;
@@ -20,8 +29,22 @@ const inputClassName = cn(
 );
 
 const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
-  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
-  const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tags = useAdvancedSearchContext((state) => state.tags);
+
+  const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
+    updateTagValue: state.updateTagValue,
+    submit: state.submit,
+  }));
+
+  const { mainInputRef } = useAdvancedSearchRefsContext();
+
+  const { navigateWithinTag } = useAdvancedSearchNavigation();
+
+  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
 
   const keyInputRef = useRef<HTMLInputElement>(null);
   const valueInputRef = useRef<HTMLInputElement>(null);
@@ -51,17 +74,17 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
   );
 
   const handleComplete = useCallback(() => {
-    submit();
-    focusMainInput();
-  }, [submit, focusMainInput]);
+    submit(router, pathname, searchParams);
+    mainInputRef.current?.focus();
+  }, [submit, router, pathname, searchParams, mainInputRef]);
 
   const handleBlur = useCallback(() => {
     if (mode === "edit") {
       queueMicrotask(() => {
-        submit();
+        submit(router, pathname, searchParams);
       });
     }
-  }, [submit, mode]);
+  }, [submit, mode, router, pathname, searchParams]);
 
   const handleKeyKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -109,7 +132,6 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
 
         if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
-            e.preventDefault();
             keyInputRef.current?.focus();
             keyInputRef.current?.setSelectionRange(jsonKey.length, jsonKey.length);
           }
@@ -118,8 +140,6 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
 
         if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
-            e.preventDefault();
-            e.stopPropagation();
             navigateWithinTag(tagId, "right");
           }
           return;
@@ -139,10 +159,8 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         value={jsonKey}
         onChange={handleKeyChange}
         onKeyDown={handleKeyKeyDown}
-        onBlur={handleBlur}
         placeholder="key"
         className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
-        tabIndex={mode === "edit" ? 0 : -1}
       />
       <input
         ref={valueInputRef}
@@ -153,7 +171,6 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         onBlur={handleBlur}
         placeholder="value"
         className={cn(inputClassName, "min-w-10 max-w-32 placeholder:text-primary/50")}
-        tabIndex={mode === "edit" ? 0 : -1}
       />
     </div>
   );

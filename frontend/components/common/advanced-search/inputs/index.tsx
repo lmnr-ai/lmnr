@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, Ref, useCallback } from "react";
+import { type Ref, useCallback } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
-import { ColumnFilter, FocusableRef, FocusMode } from "../types";
+import { useAdvancedSearchContext } from "../store";
+import { type ColumnFilter, type FocusableRef, type FocusMode } from "../types";
 import BooleanValueInput from "./boolean";
 import EnumValueInput from "./enum";
 import JsonValueInput from "./json";
@@ -21,8 +21,10 @@ interface ValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const ValueInput = memo(({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
-  const { getTagFocusState, setTagFocusState } = useFilterSearch();
+const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
+  const getTagFocusState = useAdvancedSearchContext((state) => state.getTagFocusState);
+  const setTagFocusState = useAdvancedSearchContext((state) => state.setTagFocusState);
+
   const focusState = getTagFocusState(tagId);
   const dataType = columnFilter.dataType;
 
@@ -58,8 +60,6 @@ const ValueInput = memo(({ tagId, columnFilter, suggestions, focused, mode, ref 
       {renderInput()}
     </div>
   );
-});
-
-ValueInput.displayName = "ValueInput";
+};
 
 export default ValueInput;

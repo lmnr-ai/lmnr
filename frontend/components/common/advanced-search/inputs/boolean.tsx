@@ -1,11 +1,12 @@
 "use client";
 
-import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
-import FilterSelect, { FilterSelectOption } from "@/components/ui/filter-select";
+import FilterSelect, { type FilterSelectOption } from "@/components/ui/filter-select";
 
-import { useFilterSearch } from "../context";
-import { FocusableRef, FocusMode } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { type FocusableRef, type FocusMode } from "../types";
 
 interface BooleanValueInputProps {
   tagId: string;
@@ -22,8 +23,21 @@ const booleanOptions: FilterSelectOption[] = [
 const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
-  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
-  const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tags = useAdvancedSearchContext((state) => state.tags);
+
+  const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
+    updateTagValue: state.updateTagValue,
+    submit: state.submit,
+  }));
+
+  const { mainInputRef } = useAdvancedSearchRefsContext();
+  const { navigateWithinTag } = useAdvancedSearchNavigation();
+
+  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
 
   const selectRef = useRef<FocusableRef>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -46,10 +60,10 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
   const handleChange = useCallback(
     (newValue: string) => {
       updateTagValue(tagId, newValue);
-      submit();
-      focusMainInput();
+      submit(router, pathname, searchParams);
+      mainInputRef.current?.focus();
     },
-    [tagId, updateTagValue, submit, focusMainInput]
+    [updateTagValue, tagId, submit, router, pathname, searchParams, mainInputRef]
   );
 
   if (!tag) return null;

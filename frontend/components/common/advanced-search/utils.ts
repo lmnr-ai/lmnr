@@ -1,5 +1,5 @@
-import { buildSuggestions, Suggestion } from "@/components/common/advanced-search/components/suggestions.tsx";
-import { ColumnFilter, TagFocusPosition } from "@/components/common/advanced-search/types.ts";
+import { buildSuggestions, type Suggestion } from "@/components/common/advanced-search/components/suggestions.tsx";
+import { type ColumnFilter, type TagFocusPosition } from "@/components/common/advanced-search/types.ts";
 
 const FIELD_ORDER: TagFocusPosition[] = ["field", "operator", "value", "remove"];
 

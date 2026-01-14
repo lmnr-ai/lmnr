@@ -1,14 +1,15 @@
 "use client";
 
 import { Search } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useAutocompleteData, useFilterSearch } from "../context";
-import { ColumnFilter } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
+import { type ColumnFilter } from "../types";
 import { buildValueSuggestions } from "../utils";
 
 interface FieldSuggestion {
@@ -61,24 +62,39 @@ interface FilterSuggestionsProps {
 }
 
 const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
-  const { state, filters, addTag, addCompleteTag, setInputValue, setIsOpen, submit, focusMainInput } =
-    useFilterSearch();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const { data } = useAutocompleteData();
+  const inputValue = useAdvancedSearchContext((state) => state.inputValue);
+  const isOpen = useAdvancedSearchContext((state) => state.isOpen);
+  const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
+  const filters = useAdvancedSearchContext((state) => state.filters);
+  const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
+
+  const { addTag, addCompleteTag, setInputValue, setIsOpen, submit } = useAdvancedSearchContext((state) => ({
+    addTag: state.addTag,
+    addCompleteTag: state.addCompleteTag,
+    setInputValue: state.setInputValue,
+    setIsOpen: state.setIsOpen,
+    submit: state.submit,
+  }));
+
+  const { mainInputRef } = useAdvancedSearchRefsContext();
 
   const suggestionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const suggestions = useMemo(
-    () => buildSuggestions(state.inputValue, filters, data),
-    [state.inputValue, filters, data]
+    () => buildSuggestions(inputValue, filters, autocompleteData),
+    [inputValue, filters, autocompleteData]
   );
 
   useEffect(() => {
-    const activeElement = suggestionRefs.current.get(state.activeIndex);
+    const activeElement = suggestionRefs.current.get(activeIndex);
     if (activeElement) {
       activeElement.scrollIntoView({ block: "nearest" });
     }
-  }, [state.activeIndex]);
+  }, [activeIndex]);
 
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
@@ -86,30 +102,24 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
-      // Add a complete tag - it will submit automatically
-      addCompleteTag(field, Operator.Eq, value);
+      addCompleteTag(field, Operator.Eq, value, router, pathname, searchParams);
 
       // Keep focus on main input
-      focusMainInput();
+      mainInputRef.current?.focus();
     },
-    [filters, addCompleteTag, focusMainInput]
+    [filters, addCompleteTag, router, pathname, searchParams, mainInputRef]
   );
 
   const handleRawSearchSelect = useCallback(
     (value: string) => {
       setInputValue(value);
       setIsOpen(false);
-      submit();
+      submit(router, pathname, searchParams);
     },
-    [setInputValue, setIsOpen, submit]
+    [setInputValue, setIsOpen, submit, router, pathname, searchParams]
   );
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  if (!state.isOpen || suggestions.length === 0) return null;
+  if (!isOpen || suggestions.length === 0) return null;
 
   return (
     <div
@@ -119,12 +129,12 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       )}
     >
       <div className="px-3 pt-2 pb-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-        {state.inputValue.trim() ? "Suggestions" : "Filter by"}
+        {inputValue.trim() ? "Suggestions" : "Filter by"}
       </div>
       <ScrollArea className="max-h-64 [&>div]:max-h-64">
         <div className="pb-1">
           {suggestions.map((suggestion, idx) => {
-            const isActive = idx === state.activeIndex;
+            const isActive = idx === activeIndex;
 
             if (suggestion.type === "field") {
               return (
@@ -137,7 +147,10 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                     "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
                   )}
-                  onMouseDown={handleMouseDown}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                   onClick={() => addTag(suggestion.filter.key)}
                 >
                   {suggestion.filter.name}
@@ -160,7 +173,10 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                     "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
                     isActive ? "bg-accent" : "hover:bg-accent"
                   )}
-                  onMouseDown={handleMouseDown}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                   onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
                 >
                   <span className="text-muted-foreground">{displayName}:</span>{" "}
@@ -180,7 +196,10 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                   "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
                   isActive ? "bg-accent" : "hover:bg-accent"
                 )}
-                onMouseDown={handleMouseDown}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
                 onClick={() => handleRawSearchSelect(suggestion.value)}
               >
                 <Search className="w-3 h-3" />

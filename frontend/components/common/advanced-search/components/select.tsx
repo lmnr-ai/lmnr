@@ -1,13 +1,13 @@
 "use client";
 
-import { Ref, useCallback, useMemo } from "react";
+import { type Ref, useCallback, useMemo } from "react";
 
-import { default as UIFilterSelect, FilterSelectOption } from "@/components/ui/filter-select";
-import { Operator } from "@/lib/actions/common/operators.ts";
+import { default as UIFilterSelect, type FilterSelectOption } from "@/components/ui/filter-select";
+import { type Operator } from "@/lib/actions/common/operators.ts";
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
-import { FocusableRef, getOperationsForField } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation } from "../store";
+import { type FocusableRef, getOperationsForField } from "../types";
 
 interface FilterSelectProps {
   tagId: string;
@@ -16,18 +16,21 @@ interface FilterSelectProps {
 }
 
 const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
-  const {
-    filters,
-    state,
-    updateTagField,
-    updateTagOperator,
-    updateTagValue,
-    getTagFocusState,
-    setTagFocusState,
-    navigateWithinTag,
-  } = useFilterSearch();
+  const filters = useAdvancedSearchContext((state) => state.filters);
+  const tags = useAdvancedSearchContext((state) => state.tags);
 
-  const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
+  const { updateTagField, updateTagOperator, updateTagValue, getTagFocusState, setTagFocusState } =
+    useAdvancedSearchContext((state) => ({
+      updateTagField: state.updateTagField,
+      updateTagOperator: state.updateTagOperator,
+      updateTagValue: state.updateTagValue,
+      getTagFocusState: state.getTagFocusState,
+      setTagFocusState: state.setTagFocusState,
+    }));
+
+  const { navigateWithinTag } = useAdvancedSearchNavigation();
+
+  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
   const focusState = getTagFocusState(tagId);
 
   const options: FilterSelectOption[] = useMemo(() => {
@@ -45,8 +48,6 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
     if (!tag) return "";
     return selectType === "field" ? tag.field : tag.operator;
   }, [tag, selectType]);
-
-  const isOpen = useMemo(() => focusState.type === selectType && focusState.mode === "edit", [focusState, selectType]);
 
   const handleClick = useCallback(() => {
     setTagFocusState(tagId, { type: selectType, mode: "edit" });
@@ -86,8 +87,8 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
       value={value}
       options={options}
       onValueChange={handleChange}
-      open={isOpen}
-      onOpenChange={() => { }}
+      open={focusState.type === selectType && focusState.mode === "edit"}
+      onOpenChange={() => {}}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}
       triggerClassName={cn("h-6 w-fit min-w-[28px] px-2 text-primary font-medium text-xs", {

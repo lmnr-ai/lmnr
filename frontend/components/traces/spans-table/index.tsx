@@ -4,8 +4,8 @@ import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
-import SearchSpansInput from "@/components/traces/spans-table/search.tsx";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -13,7 +13,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SpanRow } from "@/lib/traces/types";
@@ -158,7 +158,7 @@ function SpansTableContent() {
         fetchNextPage={fetchNextPage}
         lockedColumns={["status"]}
       >
-        <div className="flex flex-1 pt-1 w-full h-full gap-2">
+        <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
             lockedColumns={["status"]}
@@ -169,9 +169,15 @@ function SpansTableContent() {
           />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
-          <SearchSpansInput />
         </div>
-        <DataTableFilterList />
+        <div className="w-full px-px">
+          <AdvancedSearch
+            filters={filters}
+            resource="spans"
+            placeholder="Search in spans..."
+            className="w-full flex-1"
+          />
+        </div>
       </InfiniteDataTable>
     </div>
   );

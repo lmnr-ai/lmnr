@@ -1,11 +1,20 @@
 "use client";
 
-import { ChangeEvent, KeyboardEvent, Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  type Ref,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
-import { useFilterSearch } from "../context";
-import { FocusableRef, FocusMode } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { type FocusableRef, type FocusMode } from "../types";
 
 interface NumberValueInputProps {
   tagId: string;
@@ -21,8 +30,21 @@ const inputClassName = cn(
 );
 
 const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
-  const { state, updateTagValue, submit, focusMainInput, navigateWithinTag } = useFilterSearch();
-  const tag = useMemo(() => state.tags.find((t) => t.id === tagId), [state.tags, tagId]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tags = useAdvancedSearchContext((state) => state.tags);
+
+  const { submit, updateTagValue } = useAdvancedSearchContext((state) => ({
+    updateTagValue: state.updateTagValue,
+    submit: state.submit,
+  }));
+
+  const { mainInputRef } = useAdvancedSearchRefsContext();
+  const { navigateWithinTag } = useAdvancedSearchNavigation();
+
+  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,21 +60,26 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
   );
 
   const handleComplete = useCallback(() => {
-    submit();
-    focusMainInput();
-  }, [submit, focusMainInput]);
+    submit(router, pathname, searchParams);
+    mainInputRef.current?.focus();
+  }, [submit, router, pathname, searchParams, mainInputRef]);
 
   const handleBlur = useCallback(() => {
     if (mode === "edit") {
       queueMicrotask(() => {
-        submit();
+        submit(router, pathname, searchParams);
       });
     }
-  }, [submit, mode]);
+  }, [submit, mode, router, pathname, searchParams]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (mode === "edit") {
+        if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+          e.stopPropagation();
+          return;
+        }
+
         if (e.key === "Enter") {
           e.preventDefault();
           handleComplete();
@@ -63,20 +90,16 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
 
         if (e.key === "ArrowLeft") {
           if (input.selectionStart === null || input.selectionStart === 0) {
-            e.preventDefault();
-            e.stopPropagation();
             navigateWithinTag(tagId, "left");
+            return;
           }
-          return;
         }
 
         if (e.key === "ArrowRight") {
           if (input.selectionStart === null || input.selectionStart === input.value.length) {
-            e.preventDefault();
-            e.stopPropagation();
             navigateWithinTag(tagId, "right");
+            return;
           }
-          return;
         }
       }
     },

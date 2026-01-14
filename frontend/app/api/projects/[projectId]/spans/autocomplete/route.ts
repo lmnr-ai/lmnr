@@ -10,7 +10,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     const suggestions = await getAutocompleteSuggestions({
       projectId: params.projectId,
       entity: "spans",
-      prefix: searchParams.get("prefix") || "",
       field: searchParams.get("field") || undefined,
     });
 

@@ -1,12 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  FocusEvent,
-  KeyboardEvent,
+  type FocusEvent,
+  type KeyboardEvent,
   memo,
-  MouseEvent,
-  Ref,
+  type MouseEvent,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -18,9 +19,15 @@ import { Button } from "@/components/ui/button";
 import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
 
-import { useAutocompleteData, useFilterSearch } from "../context";
 import ValueInput from "../inputs";
-import { FilterTag as FilterTagType, FilterTagRef, FocusableRef, getColumnFilter, TagFocusPosition } from "../types";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import {
+  type FilterTag as FilterTagType,
+  type FilterTagRef,
+  type FocusableRef,
+  getColumnFilter,
+  type TagFocusPosition,
+} from "../types";
 import FilterSelect from "./select";
 
 interface FilterTagProps {
@@ -31,10 +38,23 @@ interface FilterTagProps {
 }
 
 const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: FilterTagProps) => {
-  const { filters, removeTag, focusMainInput, setTagFocusState, getTagFocusState, navigateWithinTag } =
-    useFilterSearch();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const { data } = useAutocompleteData();
+  const filters = useAdvancedSearchContext((state) => state.filters);
+  const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
+
+  const { removeTag, setTagFocusState, getTagFocusState, selectAllTags } = useAdvancedSearchContext((state) => ({
+    removeTag: state.removeTag,
+    setTagFocusState: state.setTagFocusState,
+    getTagFocusState: state.getTagFocusState,
+    selectAllTags: state.selectAllTags,
+  }));
+
+  const { mainInputRef } = useAdvancedSearchRefsContext();
+
+  const { navigateWithinTag } = useAdvancedSearchNavigation();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldSelectRef = useRef<FocusableRef>(null);
@@ -46,6 +66,11 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
 
   const columnFilter = getColumnFilter(filters, tag.field);
   const dataType = columnFilter?.dataType || "string";
+
+  const focusMainInput = useCallback(() => {
+    mainInputRef.current?.focus();
+    setTagFocusState(tag.id, { type: "idle" });
+  }, [mainInputRef, tag.id, setTagFocusState]);
 
   useImperativeHandle(ref, () => ({
     focusPosition: (position: TagFocusPosition) => {
@@ -60,7 +85,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
   const filteredValueSuggestions = useMemo(() => {
     if (dataType !== "string" || !AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field)) return [];
 
-    const preloadedValues = data.get(tag.field) || [];
+    const preloadedValues = autocompleteData.get(tag.field) || [];
 
     if (!tag.value) {
       return preloadedValues;
@@ -68,7 +93,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
 
     const lowerQuery = tag.value.toLowerCase();
     return preloadedValues.filter((value) => value.toLowerCase().includes(lowerQuery));
-  }, [dataType, resource, tag.field, tag.value, data]);
+  }, [dataType, resource, tag.field, tag.value, autocompleteData]);
 
   useEffect(() => {
     if (focusState.type !== "idle" && "mode" in focusState && focusState.mode === "edit") {
@@ -95,10 +120,10 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     (e: MouseEvent | KeyboardEvent) => {
       e.stopPropagation();
       if ("key" in e && e.key !== "Enter" && e.key !== " ") return;
-      removeTag(tag.id);
+      removeTag(tag.id, router, pathname, searchParams);
       focusMainInput();
     },
-    [removeTag, tag.id, focusMainInput]
+    [removeTag, tag.id, focusMainInput, router, pathname, searchParams]
   );
 
   const handleRemoveClick = useCallback(() => {
@@ -139,20 +164,23 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     }
   }, [focusState, tag.id, setTagFocusState, focusMainInput]);
 
-  // Container keyboard handler for nav mode and Enter/Escape
   const handleContainerKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (focusState.type === "idle") return;
 
-      // Handle Enter key
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        selectAllTags();
+        focusMainInput();
+        return;
+      }
+
       if (e.key === "Enter") {
-        // Always handle Enter on remove button (regardless of mode)
         if (focusState.type === "remove") {
           e.preventDefault();
           handleRemove(e);
           return;
         }
-        // Handle Enter in nav mode for other focus types
         if ("mode" in focusState && focusState.mode === "nav") {
           e.preventDefault();
           handleEnterKey(e);
@@ -180,7 +208,16 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         }
       }
     },
-    [focusState, handleEnterKey, handleEscapeKey, handleRemove, navigateWithinTag, tag.id]
+    [
+      focusMainInput,
+      focusState,
+      handleEnterKey,
+      handleEscapeKey,
+      handleRemove,
+      navigateWithinTag,
+      selectAllTags,
+      tag.id,
+    ]
   );
 
   if (!columnFilter) return null;

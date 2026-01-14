@@ -1,16 +1,16 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { memo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { memo, useMemo } from "react";
 import useSWR from "swr";
 
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { Filter } from "@/lib/actions/common/filters";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
 import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
-import { AutocompleteProvider, FilterSearchProvider, useAutocompleteData } from "./context";
-import { ColumnFilter } from "./types";
+import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
+import { type ColumnFilter, createTagFromFilter, type FilterTag } from "./types";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
@@ -20,16 +20,18 @@ interface AdvancedSearchProps {
   onSubmit?: (filters: Filter[], search: string) => void;
 }
 
-const AdvancedSearchInner = ({
-  filters,
-  resource = "traces",
+const AdvancedSearchContent = ({
+  resource,
   placeholder = "Search...",
   className,
-  onSubmit,
-}: AdvancedSearchProps) => {
+}: {
+  resource: "traces" | "spans";
+  placeholder?: string;
+  className?: string;
+}) => {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { setData } = useAutocompleteData();
+  const setAutocompleteData = useAdvancedSearchContext((state) => state.setAutocompleteData);
 
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {
     onSuccess: (data) => {
@@ -41,25 +43,55 @@ const AdvancedSearchInner = ({
         }
         cache.set(suggestion.field, existing);
       });
-      setData(cache);
+      setAutocompleteData(cache);
     },
     fallbackData: { suggestions: [] },
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
-  return (
-    <FilterSearchProvider filters={filters} onSubmit={onSubmit}>
-      <FilterSearchInput placeholder={placeholder} className={className} resource={resource} />
-    </FilterSearchProvider>
-  );
+  return <FilterSearchInput placeholder={placeholder} className={className} resource={resource} />;
 };
 
-const AdvancedSearch = (props: AdvancedSearchProps) => (
-  <AutocompleteProvider>
-    <AdvancedSearchInner {...props} />
-  </AutocompleteProvider>
-);
+const AdvancedSearch = ({ filters, resource, placeholder, className, onSubmit }: AdvancedSearchProps) => {
+  const searchParams = useSearchParams();
+
+  const { tags, search } = useMemo(() => {
+    const search = searchParams.get("search") ?? "";
+    const filterParams = searchParams.getAll("filter");
+    const tags: FilterTag[] = filterParams.flatMap((f) => {
+      try {
+        const parsed = JSON.parse(f);
+        const result = FilterSchema.safeParse(parsed);
+
+        if (!result.success) {
+          return [];
+        }
+
+        const filter = result.data;
+        const columnFilter = filters.find((col) => col.key === filter.column);
+
+        if (columnFilter) {
+          return [createTagFromFilter(filter)];
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    });
+
+    return {
+      tags,
+      search,
+    };
+  }, [searchParams, filters]);
+
+  return (
+    <AdvancedSearchStoreProvider filters={filters} tags={tags} search={search} onSubmit={onSubmit}>
+      <AdvancedSearchContent resource={resource} placeholder={placeholder} className={className} />
+    </AdvancedSearchStoreProvider>
+  );
+};
 
 AdvancedSearch.displayName = "AdvancedSearch";
 

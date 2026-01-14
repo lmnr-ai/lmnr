@@ -15,6 +15,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
@@ -288,6 +289,7 @@ function TracesTableContent() {
         lockedColumns={["status"]}
       >
         <div className="flex flex-1 w-full h-full gap-2">
+          <DataTableFilter columns={filters} />
           <ColumnsMenu
             lockedColumns={["status"]}
             columnLabels={columns.map((column) => ({

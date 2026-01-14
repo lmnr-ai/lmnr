@@ -1,7 +1,8 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import React, { ChangeEvent, FocusEvent, KeyboardEvent, memo, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useAutocompleteData, useFilterSearch } from "../context";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
@@ -20,54 +21,74 @@ interface FilterSearchInputProps {
 }
 
 const FilterSearchInput = ({ placeholder = "Search...", className, resource = "traces" }: FilterSearchInputProps) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tags = useAdvancedSearchContext((state) => state.tags);
+  const inputValue = useAdvancedSearchContext((state) => state.inputValue);
+  const isOpen = useAdvancedSearchContext((state) => state.isOpen);
+  const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
+  const selectedTagIds = useAdvancedSearchContext((state) => state.selectedTagIds);
+  const openSelectId = useAdvancedSearchContext((state) => state.openSelectId);
+  const filters = useAdvancedSearchContext((state) => state.filters);
+  const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
+  const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
+
   const {
-    state,
-    filters,
-    activeTagId,
     setInputValue,
     setIsOpen,
     setActiveIndex,
-    removeTag,
-    mainInputRef,
-    submit,
     addTag,
     addCompleteTag,
+    removeTag,
     selectAllTags,
     clearSelection,
     removeSelectedTags,
+    submit,
     clearAll,
-    registerTagHandle,
-    navigateToTag,
-  } = useFilterSearch();
+  } = useAdvancedSearchContext((state) => ({
+    setInputValue: state.setInputValue,
+    setIsOpen: state.setIsOpen,
+    setActiveIndex: state.setActiveIndex,
+    addTag: state.addTag,
+    addCompleteTag: state.addCompleteTag,
+    removeTag: state.removeTag,
+    selectAllTags: state.selectAllTags,
+    clearSelection: state.clearSelection,
+    removeSelectedTags: state.removeSelectedTags,
+    submit: state.submit,
+    clearAll: state.clearAll,
+  }));
 
-  const { data } = useAutocompleteData();
+  const { mainInputRef } = useAdvancedSearchRefsContext();
+  const { navigateToTag, registerTagHandle } = useAdvancedSearchNavigation();
+
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
-      if (state.selectedTagIds.size > 0) {
-        removeSelectedTags();
+      if (selectedTagIds.size > 0) {
+        removeSelectedTags(router, pathname, searchParams);
       }
       setInputValue(e.target.value);
       setIsOpen(true);
     },
-    [setInputValue, setIsOpen, state.selectedTagIds.size, removeSelectedTags]
+    [setInputValue, setIsOpen, selectedTagIds.size, removeSelectedTags, router, pathname, searchParams]
   );
 
   const handleInputBlur = useCallback(() => {
     // Don't close if there's an active tag (focus is transferring to it)
     if (activeTagId) return;
-    if (state.openSelectId) return;
+    if (openSelectId) return;
     setIsOpen(false);
-    // Submit is handled by tag blur or explicit actions (Enter, removeTag, etc.)
-  }, [setIsOpen, activeTagId, state.openSelectId]);
+  }, [setIsOpen, activeTagId, openSelectId]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, state.inputValue, data);
+      const count = getSuggestionsCount(filters, inputValue, autocompleteData);
 
-      // Cmd+A / Ctrl+A to select all tags
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
-        if (state.tags.length > 0) {
+        if (tags.length > 0) {
           e.preventDefault();
           selectAllTags();
           input?.select();
@@ -76,12 +97,11 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       }
 
       // Handle selection mode
-      if (state.selectedTagIds.size > 0) {
+      if (selectedTagIds.size > 0) {
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
-          if (state.inputValue) setInputValue("");
-          removeSelectedTags();
-          // submit is called internally by removeSelectedTags
+          if (inputValue) setInputValue("");
+          removeSelectedTags(router, pathname, searchParams);
           return;
         }
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -92,18 +112,18 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
 
       // Arrow down
       if (e.key === "ArrowDown") {
-        if (state.isOpen && count > 0) {
+        if (isOpen && count > 0) {
           e.preventDefault();
-          setActiveIndex(Math.min(state.activeIndex + 1, count - 1));
+          setActiveIndex(Math.min(activeIndex + 1, count - 1));
         }
         return;
       }
 
       // Arrow up
       if (e.key === "ArrowUp") {
-        if (state.isOpen && count > 0) {
+        if (isOpen && count > 0) {
           e.preventDefault();
-          setActiveIndex(Math.max(state.activeIndex - 1, 0));
+          setActiveIndex(Math.max(activeIndex - 1, 0));
         }
         return;
       }
@@ -111,29 +131,29 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       // Enter
       if (e.key === "Enter") {
         e.preventDefault();
-        if (state.isOpen && count > 0 && state.activeIndex >= 0) {
-          const suggestion = getSuggestionAtIndex(filters, state.inputValue, state.activeIndex, data);
+        if (isOpen && count > 0 && activeIndex >= 0) {
+          const suggestion = getSuggestionAtIndex(filters, inputValue, activeIndex, autocompleteData);
           if (suggestion) {
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              addCompleteTag(suggestion.field, Operator.Eq, suggestion.value);
+              addCompleteTag(suggestion.field, Operator.Eq, suggestion.value, router, pathname, searchParams);
             } else {
               setInputValue(`"${suggestion.value}"`);
               setIsOpen(false);
-              submit();
+              submit(router, pathname, searchParams);
             }
           }
         } else {
           setIsOpen(false);
-          submit();
+          submit(router, pathname, searchParams);
         }
         return;
       }
 
       // Escape
       if (e.key === "Escape") {
-        if (state.selectedTagIds.size > 0) {
+        if (selectedTagIds.size > 0) {
           clearSelection();
         } else {
           setIsOpen(false);
@@ -144,34 +164,30 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
 
       // Arrow left
       if (e.key === "ArrowLeft") {
-        if (input?.selectionStart === 0 && state.tags.length > 0) {
+        if (input?.selectionStart === 0 && tags.length > 0) {
           e.preventDefault();
-          const lastTag = state.tags[state.tags.length - 1];
+          const lastTag = tags[tags.length - 1];
           navigateToTag(lastTag.id, "remove");
         }
         return;
       }
 
       // Backspace
-      if (
-        e.key === "Backspace" &&
-        state.inputValue === "" &&
-        state.tags.length > 0 &&
-        state.selectedTagIds.size === 0
-      ) {
+      if (e.key === "Backspace" && inputValue === "" && tags.length > 0 && selectedTagIds.size === 0) {
         e.preventDefault();
-        removeTag(state.tags[state.tags.length - 1].id);
+        removeTag(tags[tags.length - 1].id, router, pathname, searchParams);
         return;
       }
     },
     [
       mainInputRef,
       filters,
-      state.inputValue,
-      state.tags,
-      state.selectedTagIds.size,
-      state.isOpen,
-      state.activeIndex,
+      inputValue,
+      tags,
+      selectedTagIds.size,
+      isOpen,
+      activeIndex,
+      autocompleteData,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -182,8 +198,10 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       addTag,
       addCompleteTag,
       submit,
-      data,
       navigateToTag,
+      router,
+      pathname,
+      searchParams,
     ]
   );
 
@@ -191,14 +209,14 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
 
   const handleContainerBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget) && state.selectedTagIds.size > 0) {
+      if (!e.currentTarget.contains(e.relatedTarget) && selectedTagIds.size > 0) {
         clearSelection();
       }
     },
-    [state.selectedTagIds.size, clearSelection]
+    [selectedTagIds.size, clearSelection]
   );
 
-  const hasContent = state.tags.length > 0 || state.inputValue.length > 0;
+  const hasContent = tags.length > 0 || inputValue.length > 0;
 
   return (
     <div
@@ -213,27 +231,26 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
       <span className="p-1">
         <Search className="text-secondary-foreground size-4 shrink-0" />
       </span>
-
-      <div className="flex items-center gap-2 flex-wrap flex-1">
-        {state.tags.map((tag) => (
+      <div className="flex items-center gap-1 flex-wrap flex-1">
+        {tags.map((tag) => (
           <FilterTag
             key={tag.id}
             ref={(handle) => registerTagHandle(tag.id, handle)}
             tag={tag}
             resource={resource}
-            isSelected={state.selectedTagIds.has(tag.id)}
+            isSelected={selectedTagIds.has(tag.id)}
           />
         ))}
 
         <input
           ref={mainInputRef}
           type="text"
-          value={state.inputValue}
+          value={inputValue}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
-          placeholder={state.tags.length === 0 ? placeholder : ""}
+          placeholder={tags.length === 0 ? placeholder : ""}
           className={cn(
             "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",
             "placeholder:text-muted-foreground"
@@ -245,7 +262,7 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
         <Button
           type="button"
           variant="ghost"
-          onClick={clearAll}
+          onClick={() => clearAll(router, pathname, searchParams)}
           className="text-secondary-foreground h-6 px-1 py-1 w-fit hover:bg-muted"
           aria-label="Clear all filters"
         >
