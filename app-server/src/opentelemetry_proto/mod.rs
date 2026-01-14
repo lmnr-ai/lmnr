@@ -2,6 +2,11 @@
 pub mod opentelemetry {
     pub mod proto {
         pub mod collector {
+            pub mod logs {
+                pub mod v1 {
+                    include!("opentelemetry.proto.collector.logs.v1.rs");
+                }
+            }
             pub mod trace {
                 pub mod v1 {
                     include!("opentelemetry.proto.collector.trace.v1.rs");

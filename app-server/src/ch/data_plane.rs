@@ -13,6 +13,7 @@ use crate::cache::Cache;
 use crate::data_plane::{auth::generate_auth_token, crypto};
 use crate::db::workspaces::WorkspaceDeployment;
 
+use super::logs::CHLog;
 use super::spans::CHSpan;
 use super::tags::CHTag;
 use super::traces::CHTrace;
@@ -26,6 +27,7 @@ pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
     TracesReplacing(Vec<CHTrace>),
     Tags(Vec<CHTag>),
+    Logs(Vec<CHLog>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.
