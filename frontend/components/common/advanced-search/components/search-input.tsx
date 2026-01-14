@@ -206,7 +206,10 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     ]
   );
 
-  useHotkeys("meta+k", () => mainInputRef.current?.focus());
+  useHotkeys("meta+k", (keyboardEvent: KeyboardEvent) => {
+    keyboardEvent.preventDefault();
+    mainInputRef.current?.focus();
+  });
 
   const handleContainerBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {

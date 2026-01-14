@@ -11,6 +11,7 @@ import {
   useRef,
 } from "react";
 
+import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
@@ -23,10 +24,8 @@ interface NumberValueInputProps {
 }
 
 const inputClassName = cn(
-  "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary min-w-fit max-w-60",
-  "[field-sizing:content]",
-  "hide-arrow"
+  "h-5.5 px-2 py-0 text-xs bg-transparent text-primary outline-none",
+  "placeholder:text-primary hide-arrow"
 );
 
 const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
@@ -47,10 +46,19 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
   const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const autosizeRef = useSizeInput(tag?.value);
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
   }));
+
+  const combinedRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      inputRef.current = node;
+      autosizeRef(node);
+    },
+    [autosizeRef]
+  );
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -109,19 +117,17 @@ const NumberValueInput = ({ tagId, mode, ref }: NumberValueInputProps) => {
   if (!tag) return null;
 
   return (
-    <div className="relative flex items-center">
-      <input
-        ref={inputRef}
-        type="number"
-        value={tag.value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        placeholder="..."
-        className={inputClassName}
-        tabIndex={mode === "edit" ? 0 : -1}
-      />
-    </div>
+    <input
+      ref={combinedRef}
+      type="number"
+      value={tag.value}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
+      placeholder="..."
+      className={inputClassName}
+      tabIndex={mode === "edit" ? 0 : -1}
+    />
   );
 };
 

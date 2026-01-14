@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 
 export interface ComboboxOption {
@@ -57,6 +58,16 @@ const NativeCombobox = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  const autosizeRef = useSizeInput(value);
+
+  const combinedRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      inputRef.current = node;
+      autosizeRef(node);
+    },
+    [autosizeRef]
+  );
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -150,7 +161,7 @@ const NativeCombobox = ({
   return (
     <div className={cn("relative flex items-center", className)}>
       <input
-        ref={inputRef}
+        ref={combinedRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}

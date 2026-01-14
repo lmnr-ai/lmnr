@@ -11,6 +11,7 @@ import {
   useRef,
 } from "react";
 
+import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
@@ -24,8 +25,7 @@ interface JsonValueInputProps {
 
 const inputClassName = cn(
   "h-6 px-2 py-0 text-xs bg-transparent text-primary outline-none",
-  "placeholder:text-primary min-w-fit max-w-60 font-medium",
-  "[field-sizing:content]"
+  "placeholder:text-primary font-medium"
 );
 
 const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
@@ -58,6 +58,25 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
     const idx = tag.value.indexOf("=");
     return idx === -1 ? [tag.value, ""] : [tag.value.substring(0, idx), tag.value.substring(idx + 1)];
   }, [tag]);
+
+  const keyAutosizeRef = useSizeInput(jsonKey);
+  const valueAutosizeRef = useSizeInput(jsonValue);
+
+  const combinedKeyRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      keyInputRef.current = node;
+      keyAutosizeRef(node);
+    },
+    [keyAutosizeRef]
+  );
+
+  const combinedValueRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      valueInputRef.current = node;
+      valueAutosizeRef(node);
+    },
+    [valueAutosizeRef]
+  );
 
   const handleKeyChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -154,24 +173,26 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
   return (
     <div className="flex items-center divide-x divide-primary/20">
       <input
-        ref={keyInputRef}
+        ref={combinedKeyRef}
         type="text"
         value={jsonKey}
         onChange={handleKeyChange}
         onKeyDown={handleKeyKeyDown}
         placeholder="key"
-        className={cn(inputClassName, "min-w-10 max-w-32")}
+        style={{ minWidth: "40px", maxWidth: "128px" }}
+        className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
       />
       <input
-        ref={valueInputRef}
+        ref={combinedValueRef}
         type="text"
         value={jsonValue}
         onChange={handleValueChange}
         onKeyDown={handleValueKeyDown}
         onBlur={handleBlur}
         placeholder="value"
-        className={cn(inputClassName, "min-w-10 max-w-32")}
+        style={{ minWidth: "40px", maxWidth: "128px" }}
+        className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
       />
     </div>
