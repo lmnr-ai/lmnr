@@ -22,7 +22,7 @@ const booleanOptions: FilterSelectOption[] = [
   { value: "false", label: "false" },
 ];
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs text-primary";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
 
 const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
   const router = useRouter();
