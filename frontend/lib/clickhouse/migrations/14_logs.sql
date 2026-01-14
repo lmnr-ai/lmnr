@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS default.logs
     attributes String CODEC(ZSTD(3)),
     trace_id UUID,
     span_id UUID,
+    flags UInt32 DEFAULT 0,
+    event_name String DEFAULT '',
+    dropped_attributes_count UInt32 DEFAULT 0,
     size_bytes UInt64 DEFAULT 0
 )
 ENGINE = MergeTree()

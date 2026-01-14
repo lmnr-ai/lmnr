@@ -31,6 +31,9 @@ pub struct Log {
     pub attributes: Value,
     pub trace_id: Option<Uuid>,
     pub span_id: Option<Uuid>,
+    pub flags: u32,
+    pub event_name: String,
+    pub dropped_attributes_count: u32,
 }
 
 impl Log {
@@ -77,6 +80,9 @@ impl Log {
             attributes,
             trace_id,
             span_id,
+            flags: log_record.flags,
+            event_name: log_record.event_name,
+            dropped_attributes_count: log_record.dropped_attributes_count,
         }
     }
 
@@ -92,7 +98,10 @@ impl Log {
         self.body.to_string().len() +
         self.attributes.to_string().len() +
         16 + // trace_id
-        16 // span_id
+        16 + // span_id
+        4 + // flags
+        self.event_name.len() +
+        4 // dropped_attributes_count
     }
 }
 
