@@ -1,11 +1,11 @@
 import { isEqual } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { memo, PropsWithChildren, useCallback, useMemo } from "react";
+import { memo, type PropsWithChildren, useCallback, useMemo } from "react";
 
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { type Filter } from "@/lib/actions/common/filters";
 
 interface FilterProps {
   columns: ColumnFilter[];

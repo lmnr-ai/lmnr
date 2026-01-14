@@ -29,7 +29,7 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
-import { Workspace, WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
+import { type Workspace, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
 interface WorkspaceSidebarHeaderProps {
   workspace: WorkspaceWithOptionalUsers;
@@ -78,7 +78,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
             >
               <DropdownMenuLabel className="flex gap-2 p-1">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.image ?? ''} alt="avatar" />
+                  <AvatarImage src={user.image ?? ""} alt="avatar" />
                   <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left leading-tight">

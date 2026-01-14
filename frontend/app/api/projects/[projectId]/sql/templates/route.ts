@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createSqlTemplate, getSqlTemplates } from "@/lib/actions/sql/templates";

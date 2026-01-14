@@ -1,6 +1,14 @@
 "use client";
 
-import React, { createContext, PropsWithChildren, UIEvent, useCallback, useContext, useRef, useState } from "react";
+import React, {
+  createContext,
+  type PropsWithChildren,
+  type UIEvent,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 
 interface State {
   totalHeight: number;

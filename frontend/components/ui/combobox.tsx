@@ -1,7 +1,7 @@
 "use client";
 import { Check, ChevronsUpDown } from "lucide-react";
 import * as React from "react";
-import { FC } from "react";
+import { type FC } from "react";
 
 import { Button } from "@/components/ui/button.tsx";
 import {

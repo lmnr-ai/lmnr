@@ -11,8 +11,8 @@ import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.
 import {
   MAX_ZOOM,
   MIN_ZOOM,
-  TraceViewSpan,
-  TraceViewTrace,
+  type TraceViewSpan,
+  type TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SearchRolloutSessionSpansInput from "@/components/rollout-sessions/rollout-session-view/search";
@@ -37,7 +37,7 @@ import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-dat
 import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils.ts";
@@ -248,7 +248,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         }
 
         const results = (await response.json()) as TraceViewSpan[];
-        let spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
+        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
 

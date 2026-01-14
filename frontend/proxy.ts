@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { NextRequestWithAuth, withAuth } from "next-auth/middleware";
+import { type NextRequestWithAuth, withAuth } from "next-auth/middleware";
 
 import { isTracePublic } from "@/lib/actions/trace";
 import { isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorization";
@@ -8,7 +8,7 @@ export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
     const token = req.nextauth.token;
 
-    const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^\/]+))?/);
+    const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
     if (projectIdMatch) {
       if (!token) {
         return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
@@ -28,7 +28,7 @@ export default withAuth(
       }
     }
 
-    const workspaceIdMatch = req.nextUrl.pathname.match(/^\/api\/workspaces(?:\/([^\/]+))?/);
+    const workspaceIdMatch = req.nextUrl.pathname.match(/^\/api\/workspaces(?:\/([^/]+))?/);
     if (workspaceIdMatch) {
       if (!token) {
         return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
@@ -48,7 +48,7 @@ export default withAuth(
       }
     }
 
-    const traceMatch = req.nextUrl.pathname.match(/^\/api\/shared\/traces\/([^\/]+)/);
+    const traceMatch = req.nextUrl.pathname.match(/^\/api\/shared\/traces\/([^/]+)/);
     if (traceMatch) {
       const traceId = traceMatch[1];
       const isPublic = await isTracePublic(traceId);
@@ -84,5 +84,4 @@ export const config = {
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
   ],
-  runtime: "nodejs",
 };

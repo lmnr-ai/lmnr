@@ -1,7 +1,7 @@
 import { differenceInHours, differenceInMinutes, subHours } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { DateRange as ReactDateRange } from "react-day-picker";
+import { type DateRange as ReactDateRange } from "react-day-picker";
 
 export type DateRange = {
   name: string;

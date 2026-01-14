@@ -12,7 +12,7 @@ import rrwebPlayer from "rrweb-player";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SpanImagesVideoPlayer from "@/components/rollout-sessions/rollout-session-view/span-images-video-player";
-import { fetchBrowserSessionEvents, UrlChange } from "@/components/session-player/utils";
+import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
@@ -362,4 +362,3 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 SessionPlayer.displayName = "SessionPlayer";
 
 export default memo(SessionPlayer);
-

@@ -1,12 +1,10 @@
 import { useCallback, useState } from "react";
 import { v4 } from "uuid";
 
-import { SQLTemplate } from "@/components/sql/sql-editor-store.ts";
+import { type SQLTemplate } from "@/components/sql/sql-editor-store.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
-type Params =
-  | { type: "span"; spanId: string }
-  | { type: "trace"; traceId: string };
+type Params = { type: "span"; spanId: string } | { type: "trace"; traceId: string };
 
 function buildQuery(params: Params): { query: string; name: string } {
   switch (params.type) {
@@ -23,12 +21,10 @@ function buildQuery(params: Params): { query: string; name: string } {
   }
 }
 
-export const useOpenInSql = ({ projectId, params }: { projectId: string, params: Params })=> {
+export const useOpenInSql = ({ projectId, params }: { projectId: string; params: Params }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { query, name } = buildQuery(params);
-
-
 
   const openInSql = useCallback(async () => {
     try {

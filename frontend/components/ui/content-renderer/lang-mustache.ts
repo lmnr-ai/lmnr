@@ -1,5 +1,5 @@
-import { Extension } from "@codemirror/state";
-import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
+import { type Extension } from "@codemirror/state";
+import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 
 function findMustacheTags(text: string) {
   const tags: Array<{ from: number; to: number; type: string }> = [];
@@ -22,7 +22,7 @@ function findMustacheTags(text: string) {
         tags.push({
           from: start + 2 + keyword.length,
           to: end - 2,
-          type: "variable"
+          type: "variable",
         });
       }
     } else {
@@ -58,9 +58,7 @@ const mustachePlugin = ViewPlugin.fromClass(
 
       for (const tag of tags) {
         const className = `cm-mustache-${tag.type}`;
-        decorations.push(
-          Decoration.mark({ class: className }).range(tag.from, tag.to)
-        );
+        decorations.push(Decoration.mark({ class: className }).range(tag.from, tag.to));
       }
 
       return Decoration.set(decorations, true);

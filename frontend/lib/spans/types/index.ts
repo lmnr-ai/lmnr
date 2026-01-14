@@ -1,9 +1,9 @@
-import { ModelMessage } from "ai";
+import { type ModelMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
-import { Message } from "@/lib/playground/types";
+import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
-import { ChatMessage, ChatMessageContentPart, ChatMessageImage } from "@/lib/types";
+import { type ChatMessage, type ChatMessageContentPart, type ChatMessageImage } from "@/lib/types";
 
 /**
  * Downloads images of internal messages format
@@ -26,7 +26,7 @@ export const downloadImages = async (
             const processedContent = await Promise.all(
               (message.content as ChatMessageContentPart[]).map(async (part) => {
                 switch (part.type) {
-                  case "image_url":
+                  case "image_url": {
                     try {
                       const imageUrl =
                         "image_url" in part && part.image_url ? part.image_url.url : "url" in part ? part.url : null;
@@ -49,6 +49,7 @@ export const downloadImages = async (
                       console.error("Error downloading image:", error);
                       return part;
                     }
+                  }
                   default:
                     return part;
                 }
@@ -96,12 +97,13 @@ const processContentPart = (
         image: part.url,
       };
 
-    case "image":
+    case "image": {
       const dataUrl = part.data.startsWith("data:") ? part.data : `data:${part.mediaType};base64,${part.data}`;
       return {
         type: "image" as const,
         image: dataUrl,
       };
+    }
 
     case "document_url":
       return {
@@ -110,7 +112,7 @@ const processContentPart = (
         mimeType: part.mediaType,
       };
 
-    case "tool_call":
+    case "tool_call": {
       const toolCallId = part.id;
       const toolName = part.name;
       if (toolCallId) {
@@ -122,6 +124,7 @@ const processContentPart = (
         toolName,
         input: part.arguments,
       };
+    }
 
     default:
       if (role === "tool") {

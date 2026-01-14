@@ -1,13 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
-import { memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import {
   BOOLEAN_OPERATIONS,
-  ColumnFilter,
+  type ColumnFilter,
   dataTypeOperationsMap,
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
 
@@ -329,7 +329,10 @@ const PureFilterList = ({
               <span className="text-xs text-primary truncate font-mono">
                 {f.column}{" "}
                 {get(
-                  find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS], ["key", f.operator]),
+                  find(
+                    [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
+                    ["key", f.operator]
+                  ),
                   "label",
                   f.operator
                 )}{" "}
@@ -344,7 +347,10 @@ const PureFilterList = ({
             <TooltipContent>
               {f.column}{" "}
               {get(
-                find([...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS], ["key", f.operator]),
+                find(
+                  [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
+                  ["key", f.operator]
+                ),
                 "label",
                 f.operator
               )}{" "}

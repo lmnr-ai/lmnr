@@ -3,13 +3,13 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useState } from "react";
+import { type PropsWithChildren, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Dataset } from "@/lib/dataset/types";
+import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface ExportJobDialogProps {
@@ -93,10 +93,7 @@ export default function ExportJobDialog({ sqlQuery, children }: PropsWithChildre
       <DialogContent className="max-w-md bg-background">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle>Export SQL Results as Job</DialogTitle>
-          <Button
-            onClick={exportToDatasetAsJob}
-            disabled={isExporting || !selectedDataset}
-          >
+          <Button onClick={exportToDatasetAsJob} disabled={isExporting || !selectedDataset}>
             {isExporting && <Loader2 className="mr-2 animate-spin w-4 h-4" />}
             Start Export Job
           </Button>

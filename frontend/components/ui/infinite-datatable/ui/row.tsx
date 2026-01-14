@@ -1,11 +1,11 @@
-import { RowData } from "@tanstack/react-table";
+import { type RowData } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
-import { MouseEvent, useCallback } from "react";
+import { type MouseEvent, useCallback } from "react";
 
 import { TableRow } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { InfiniteDataTableRowProps } from "../model/types.ts";
+import { type InfiniteDataTableRowProps } from "../model/types.ts";
 import { InfiniteTableCell } from "./cell.tsx";
 
 export function InfiniteDatatableRow<TData extends RowData>({

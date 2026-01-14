@@ -1,4 +1,4 @@
-import { Message } from "@/lib/playground/types";
+import { type Message } from "@/lib/playground/types";
 import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
 import {
   convertLangChainToPlaygroundMessages,

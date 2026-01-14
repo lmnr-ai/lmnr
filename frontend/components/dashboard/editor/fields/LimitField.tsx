@@ -2,7 +2,7 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QueryStructure } from "@/lib/actions/sql/types";
+import { type QueryStructure } from "@/lib/actions/sql/types";
 
 const LimitField = () => {
   const { control } = useFormContext<QueryStructure>();

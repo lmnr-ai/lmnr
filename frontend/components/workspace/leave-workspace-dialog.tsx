@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface LeaveWorkspaceDialog {
   open: boolean;

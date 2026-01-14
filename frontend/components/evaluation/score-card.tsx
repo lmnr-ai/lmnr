@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 
-import { EvaluationScoreStatistics } from "@/lib/evaluation/types";
+import { type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";

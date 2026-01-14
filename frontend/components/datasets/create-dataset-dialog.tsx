@@ -1,12 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DatasetInfo } from "@/lib/dataset/types";
+import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 

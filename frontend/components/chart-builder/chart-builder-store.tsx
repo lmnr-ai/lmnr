@@ -1,12 +1,12 @@
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
-import { createStore, StoreApi, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, type ChartType } from "@/components/chart-builder/types";
 import {
   canSelectForYAxis as utilCanSelectForYAxis,
-  ColumnInfo,
-  DataRow,
+  type ColumnInfo,
+  type DataRow,
   getAvailableBreakdownColumns as utilGetAvailableBreakdownColumns,
   isValidChartConfiguration as utilIsValidChartConfiguration,
   transformDataToColumns,
@@ -64,7 +64,10 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     data: props?.data || [],
   };
 
-  const storeConfig = (set: StoreApi<ChartBuilderStore>["setState"], get: StoreApi<ChartBuilderStore>["getState"]): ChartBuilderStore => ({
+  const storeConfig = (
+    set: StoreApi<ChartBuilderStore>["setState"],
+    get: StoreApi<ChartBuilderStore>["getState"]
+  ): ChartBuilderStore => ({
     ...chartState,
     setChartConfig: (config) =>
       set((state: ChartBuilderState) => ({

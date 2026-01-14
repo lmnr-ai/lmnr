@@ -59,8 +59,7 @@ const buttonVariants = cva(
         destructiveOutline:
           "border border-destructive text-destructive shadow-sm hover:bg-destructive/90 hover:text-destructive-foreground",
         warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
-        warningOutline:
-          "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
+        warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
         outline: "border border-input bg-background hover:bg-accent",
         outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
@@ -158,7 +157,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
 
     const handleKeysUp = React.useMemo(() => {
-      let handleKeysUp = new Set<HandledKey>();
+      const handleKeysUp = new Set<HandledKey>();
       if (handleEnter !== undefined) {
         handleKeysUp.add({ key: "Enter" });
       }

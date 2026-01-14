@@ -1,7 +1,7 @@
 import { isNil } from "lodash";
 import React from "react";
 
-import { TimeSeriesChartConfig, TimeSeriesDataPoint } from "./types";
+import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "./types";
 
 interface CustomBarProps {
   fill?: string;

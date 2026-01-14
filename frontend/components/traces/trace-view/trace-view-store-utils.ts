@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
 
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { SpanType } from "@/lib/traces/types.ts";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
 export interface TreeSpan {
@@ -333,9 +333,9 @@ export const buildSpanNameMap = (
     const commonParentIndex =
       parentChains.length > 0
         ? parentChains[0].reduce(
-          (maxIndex, spanId, i) => (parentChains.every((chain) => chain[i] === spanId) ? i : maxIndex),
-          0
-        )
+            (maxIndex, spanId, i) => (parentChains.every((chain) => chain[i] === spanId) ? i : maxIndex),
+            0
+          )
         : 0;
 
     const spansInContext = new Set<string>(parentChains.flatMap((chain) => chain.slice(commonParentIndex)));
@@ -396,10 +396,10 @@ export const buildPathInfo = (
     enrichedParents.length <= 3
       ? enrichedParents
       : [
-        { spanId: "...", name: "..." },
-        enrichedParents[enrichedParents.length - 2],
-        enrichedParents[enrichedParents.length - 1],
-      ];
+          { spanId: "...", name: "..." },
+          enrichedParents[enrichedParents.length - 2],
+          enrichedParents[enrichedParents.length - 1],
+        ];
 
   return {
     display: displayPath,

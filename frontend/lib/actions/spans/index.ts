@@ -1,10 +1,10 @@
 import { compact, groupBy } from "lodash";
 import { z } from "zod/v4";
 
-import { TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Filter } from "@/lib/actions/common/filters";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
-import { buildSelectQuery, SelectQueryOptions } from "@/lib/actions/common/query-builder";
+import { buildSelectQuery, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import {
   aggregateSpanMetrics,
@@ -15,9 +15,9 @@ import {
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
-import { SpanSearchType } from "@/lib/clickhouse/types";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
-import { Span } from "@/lib/traces/types";
+import { type Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
@@ -110,14 +110,14 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
-  let spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = spanHits.map((span) => span.span_id);
 
   if (search) {
     if (spanIds?.length === 0) {
@@ -291,14 +291,14 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId,
-      searchQuery: search,
-      ...(timeRange && { timeRange }),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId,
+        searchQuery: search,
+        ...(timeRange && { timeRange }),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
-  let spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
     return [];
@@ -328,9 +328,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
       ? createParentRewiring(
-        spans.map((span) => span.spanId),
-        treeStructure
-      )
+          spans.map((span) => span.spanId),
+          treeStructure
+        )
       : new Map<string, string | undefined>();
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);

@@ -1,6 +1,6 @@
 "use client";
 
-import { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -12,7 +12,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
-import { RolloutSession, RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
+import { type RolloutSession, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const FETCH_SIZE = 50;

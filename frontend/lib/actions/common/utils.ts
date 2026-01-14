@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 export const parseUrlParams = <T>(
   searchParams: URLSearchParams,
@@ -35,7 +35,7 @@ export const tryParseJson = (value: string) => {
 };
 
 export const deepParseJson = (value: unknown): unknown => {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
       return deepParseJson(parsed);
@@ -48,10 +48,8 @@ export const deepParseJson = (value: unknown): unknown => {
     return value.map(deepParseJson);
   }
 
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([k, v]) => [k, deepParseJson(v)])
-    );
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, deepParseJson(v)]));
   }
 
   return value;

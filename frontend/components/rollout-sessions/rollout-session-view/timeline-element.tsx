@@ -1,13 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { VirtualItem } from "@tanstack/react-virtual";
+import { type VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
-  TraceViewSpan,
+  type TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import { TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { type TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";

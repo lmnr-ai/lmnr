@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "l
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  TraceViewSpan,
+  type TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";

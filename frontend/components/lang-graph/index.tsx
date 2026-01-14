@@ -4,7 +4,7 @@ import "@xyflow/react/dist/style.css";
 
 import { ConnectionLineType, ReactFlow, useEdgesState, useNodesState } from "@xyflow/react";
 
-import { LangGraphStructure } from "@/lib/lang-graph/types";
+import { type LangGraphStructure } from "@/lib/lang-graph/types";
 import { convertToReactFlow, getLayoutedElements } from "@/lib/lang-graph/utils";
 import { cn } from "@/lib/utils";
 

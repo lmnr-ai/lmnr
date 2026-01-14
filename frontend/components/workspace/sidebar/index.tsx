@@ -6,7 +6,7 @@ import SidebarFooter from "@/components/projects/sidebar-footer";
 import { Sidebar } from "@/components/ui/sidebar";
 import { WorkspaceSidebarContent } from "@/components/workspace/sidebar/content";
 import WorkspaceSidebarHeader from "@/components/workspace/sidebar/header";
-import { WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
+import { type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 interface WorkspaceSidebarProps {
   workspace: WorkspaceWithOptionalUsers;

@@ -1,5 +1,5 @@
 import { getServerSession } from "next-auth";
-import { PropsWithChildren } from "react";
+import { type PropsWithChildren } from "react";
 
 import Footer from "@/components/landing/footer";
 import LandingHeader from "@/components/landing/landing-header";

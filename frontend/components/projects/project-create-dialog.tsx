@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Project } from "@/lib/workspaces/types";
+import { type Project } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";

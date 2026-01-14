@@ -1,13 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { BracesIcon, X } from "lucide-react";
-import { PropsWithChildren, useCallback } from "react";
+import { type PropsWithChildren, useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm } from "@/lib/playground/types";
 import { cn } from "@/lib/utils";
 
 const exampleStructuredOutput = {

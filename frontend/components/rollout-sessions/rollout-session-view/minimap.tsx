@@ -3,7 +3,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
-  TraceViewSpan,
+  type TraceViewSpan,
   useRolloutSessionStore,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
@@ -39,15 +39,21 @@ function Minimap({ onSpanSelect }: Props) {
     [trace?.endTime, trace?.startTime]
   );
 
-  const minimapSpans = useMemo(() => tab === "reader" ? getListMinimapSpans() : getMinimapSpans(), [tab, getMinimapSpans, getListMinimapSpans, spans]);
+  const minimapSpans = useMemo(
+    () => (tab === "reader" ? getListMinimapSpans() : getMinimapSpans()),
+    [tab, getMinimapSpans, getListMinimapSpans, spans]
+  );
 
   // Helper to get display span type (original type for CACHED spans)
-  const getDisplaySpanType = useCallback((spanId: string, spanType: SpanType) => {
-    if (spanType === SpanType.CACHED) {
-      return (getSpanAttribute(spanId, "lmnr.span.original_type") as SpanType) || spanType;
-    }
-    return spanType;
-  }, [getSpanAttribute]);
+  const getDisplaySpanType = useCallback(
+    (spanId: string, spanType: SpanType) => {
+      if (spanType === SpanType.CACHED) {
+        return (getSpanAttribute(spanId, "lmnr.span.original_type") as SpanType) || spanType;
+      }
+      return spanType;
+    },
+    [getSpanAttribute]
+  );
 
   // Dynamic PIXELS_PER_SECOND based on trace duration
   const pixelsPerSecond = useMemo(() => {
@@ -299,7 +305,10 @@ function Minimap({ onSpanSelect }: Props) {
                 <div
                   className="w-2 cursor-pointer rounded-[2px] h-full transition-opacity"
                   style={{
-                    backgroundColor: span.status === "error" ? "rgb(204, 51, 51)" : SPAN_TYPE_TO_COLOR[getDisplaySpanType(span.spanId, span.spanType)],
+                    backgroundColor:
+                      span.status === "error"
+                        ? "rgb(204, 51, 51)"
+                        : SPAN_TYPE_TO_COLOR[getDisplaySpanType(span.spanId, span.spanType)],
                     marginTop: 2,
                     paddingBottom: 0,
                   }}

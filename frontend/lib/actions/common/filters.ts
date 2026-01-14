@@ -1,4 +1,4 @@
-import { eq, gt, gte, lt, lte, ne, SQL } from "drizzle-orm";
+import { eq, gt, gte, lt, lte, ne, type SQL } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS } from "./operators";

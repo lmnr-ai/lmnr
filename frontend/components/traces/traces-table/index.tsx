@@ -1,5 +1,5 @@
 "use client";
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
-import { TraceRow } from "@/lib/traces/types";
+import { type TraceRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;

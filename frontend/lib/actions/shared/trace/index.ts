@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";

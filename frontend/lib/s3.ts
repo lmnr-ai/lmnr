@@ -104,7 +104,7 @@ export const urlToBase64 = async (url: string): Promise<string> => {
     }
 
     // Extract projectId and payloadId from URL
-    const matches = url.match(/\/api\/projects\/([^\/]+)\/payloads\/([^\/]+)/);
+    const matches = url.match(/\/api\/projects\/([^/]+)\/payloads\/([^/]+)/);
     if (!matches) {
       throw new Error("Invalid URL format");
     }
@@ -169,7 +169,9 @@ export const streamExportDataByPath = async (path: string): Promise<ReadableStre
   return stream;
 };
 
-export const getExportsMetadataByPath = async (path: string): Promise<{
+export const getExportsMetadataByPath = async (
+  path: string
+): Promise<{
   size: number;
 }> => {
   const request = new HeadObjectCommand({
@@ -186,4 +188,3 @@ export const getExportsMetadataByPath = async (path: string): Promise<{
     size: response.ContentLength ?? 0,
   };
 };
-

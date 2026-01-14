@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { calculateOptimalInterval, getTargetBarsForWidth, Interval } from "./utils";
+import { calculateOptimalInterval, getTargetBarsForWidth, type Interval } from "./utils";
 
 interface UseTimeSeriesStatsUrlOptions {
   baseUrl: string;
@@ -24,9 +24,7 @@ export function useTimeSeriesStatsUrl({
   defaultTargetBars = 24,
 }: UseTimeSeriesStatsUrlOptions): string | null {
   const interval = useMemo((): Interval => {
-    const targetBars = chartContainerWidth
-      ? getTargetBarsForWidth(chartContainerWidth)
-      : defaultTargetBars;
+    const targetBars = chartContainerWidth ? getTargetBarsForWidth(chartContainerWidth) : defaultTargetBars;
 
     let range: { start: Date; end: Date } | null = null;
 
@@ -87,4 +85,3 @@ export function useTimeSeriesStatsUrl({
     additionalParams,
   ]);
 }
-

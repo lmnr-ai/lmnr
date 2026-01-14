@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { apiKeyToProvider, Provider, providers } from "@/components/playground/types";
+import { apiKeyToProvider, type Provider, providers } from "@/components/playground/types";
 import { providerIconMap, providerNameMap } from "@/components/playground/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { IconAnthropic, IconGemini, IconOpenAI } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
-import { EnvVars } from "@/lib/env/utils";
-import { ProviderApiKey } from "@/lib/settings/types";
+import { type EnvVars } from "@/lib/env/utils";
+import { type ProviderApiKey } from "@/lib/settings/types";
 import { cn } from "@/lib/utils";
 
 interface LlmSelectNewProps {

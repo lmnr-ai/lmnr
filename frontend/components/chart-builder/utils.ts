@@ -1,4 +1,4 @@
-import { ChartConfig, ChartType } from "./types";
+import { type ChartConfig, ChartType } from "./types";
 
 export interface ColumnInfo {
   name: string;

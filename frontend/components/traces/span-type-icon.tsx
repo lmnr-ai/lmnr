@@ -9,7 +9,7 @@ import {
   MessageCircle,
   PersonStanding,
 } from "lucide-react";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";

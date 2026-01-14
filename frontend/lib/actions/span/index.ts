@@ -6,7 +6,7 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
-import { Span } from "@/lib/traces/types.ts";
+import { type Span } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.string(),

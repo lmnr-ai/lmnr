@@ -1,11 +1,11 @@
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EvaluationResultsInfo } from "@/lib/evaluation/types";
+import { type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";

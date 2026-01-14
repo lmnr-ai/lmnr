@@ -3,7 +3,7 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-import { ProjectDetails } from "@/lib/actions/project";
+import { type ProjectDetails } from "@/lib/actions/project";
 
 export default function ProjectUsageBanner({
   details: { workspaceId, gbUsedThisMonth, gbLimit },

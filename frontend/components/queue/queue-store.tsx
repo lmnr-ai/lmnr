@@ -1,10 +1,10 @@
 "use client";
 
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
+import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 
 export interface AnnotationField {
   key: string;
@@ -16,15 +16,15 @@ export interface AnnotationField {
 export type QueueState = {
   queue: LabelingQueue | null;
   currentItem:
-  | (LabelingQueueItem & {
-    count: number;
-    position: number;
-    payload: {
-      data: Record<string, unknown>;
-      target: Record<string, unknown>;
-    };
-  })
-  | null;
+    | (LabelingQueueItem & {
+        count: number;
+        position: number;
+        payload: {
+          data: Record<string, unknown>;
+          target: Record<string, unknown>;
+        };
+      })
+    | null;
   isLoading: "skip" | "move" | "first-load" | false;
   isValid: boolean;
   dataset: string | undefined;

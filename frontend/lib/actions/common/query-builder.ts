@@ -1,5 +1,5 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 
 export interface QueryParams {
   [key: string]: string | number | string[] | number[];
@@ -159,38 +159,38 @@ const createStringFilter: ColumnFilterProcessor = (filter, paramKey) => {
 
 const createNumberFilter =
   (clickHouseType: "Int64" | "Float64" = "Float64"): ColumnFilterProcessor =>
-    (filter, paramKey) => {
-      const { column, operator, value } = filter;
-      const opSymbol = OperatorLabelMap[operator];
-      const numValue = clickHouseType === "Int64" ? parseInt(String(value)) : parseFloat(String(value));
+  (filter, paramKey) => {
+    const { column, operator, value } = filter;
+    const opSymbol = OperatorLabelMap[operator];
+    const numValue = clickHouseType === "Int64" ? parseInt(String(value)) : parseFloat(String(value));
 
-      return {
-        condition: `${column} ${opSymbol} {${paramKey}:${clickHouseType}}`,
-        params: { [paramKey]: numValue },
-      };
+    return {
+      condition: `${column} ${opSymbol} {${paramKey}:${clickHouseType}}`,
+      params: { [paramKey]: numValue },
     };
+  };
 
 const createArrayFilter =
   (clickHouseType: string): ColumnFilterProcessor =>
-    (filter, paramKey) => {
-      const { column, value } = filter;
-      const values: (string | number)[] = Array.isArray(value) ? value : [value];
+  (filter, paramKey) => {
+    const { column, value } = filter;
+    const values: (string | number)[] = Array.isArray(value) ? value : [value];
 
-      return {
-        condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
-        params: { [paramKey]: values as string[] | number[] },
-      };
+    return {
+      condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
+      params: { [paramKey]: values as string[] | number[] },
     };
+  };
 
 const createCustomFilter =
   (
     conditionBuilder: (filter: Filter, paramKey: string) => string,
     paramBuilder?: (filter: Filter, paramKey: string) => QueryParams
   ): ColumnFilterProcessor =>
-    (filter, paramKey) => ({
-      condition: conditionBuilder(filter, paramKey),
-      params: paramBuilder ? paramBuilder(filter, paramKey) : {},
-    });
+  (filter, paramKey) => ({
+    condition: conditionBuilder(filter, paramKey),
+    params: paramBuilder ? paramBuilder(filter, paramKey) : {},
+  });
 
 const buildColumnFilters = (filters: Filter[], config: ColumnFilterConfig): ConditionResult => {
   const results = filters

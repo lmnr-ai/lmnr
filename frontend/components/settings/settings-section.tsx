@@ -1,5 +1,5 @@
 import { times } from "lodash";
-import { PropsWithChildren, ReactNode } from "react";
+import { type PropsWithChildren, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -41,23 +41,23 @@ export function SettingsTable({
     <div className="border rounded-md">
       <table className="w-full">
         <tbody>
-          {isLoading
-            ? times(loadingRowCount, (i) => (
+          {isLoading ? (
+            times(loadingRowCount, (i) => (
               <SettingsTableRow key={i}>
                 <td className="p-2">
                   <Skeleton className="h-8 w-full" />
                 </td>
               </SettingsTableRow>
             ))
-            : isEmpty
-              ? (
-                <SettingsTableRow>
-                  <td align="center" className="p-2">
-                    <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
-                  </td>
-                </SettingsTableRow>
-              )
-              : children}
+          ) : isEmpty ? (
+            <SettingsTableRow>
+              <td align="center" className="p-2">
+                <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
+              </td>
+            </SettingsTableRow>
+          ) : (
+            children
+          )}
         </tbody>
       </table>
     </div>

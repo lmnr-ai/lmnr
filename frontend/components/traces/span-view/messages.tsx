@@ -1,9 +1,9 @@
-import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
-import { ModelMessage } from "ai";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { type ModelMessage } from "ai";
 import { isEqual, isNil } from "lodash";
 import { ChevronDown } from "lucide-react";
-import React, { memo, PropsWithChildren, Ref, useMemo, useRef } from "react";
-import { z } from "zod/v4";
+import React, { memo, type PropsWithChildren, type Ref, useMemo, useRef } from "react";
+import { type z } from "zod/v4";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
 import ContentParts from "@/components/traces/span-view/generic-parts";

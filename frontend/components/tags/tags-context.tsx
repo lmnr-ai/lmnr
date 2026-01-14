@@ -1,10 +1,10 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo } from "react";
-import useSWR, { KeyedMutator } from "swr";
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo } from "react";
+import useSWR, { type KeyedMutator } from "swr";
 
-import { SpanTag, TagClass } from "@/lib/traces/types";
+import { type SpanTag, type TagClass } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
 type TagsContextType = {
@@ -61,7 +61,6 @@ const TagsContextProvider = ({ children, spanId }: PropsWithChildren<{ spanId: s
     // new tag classes from the tags, if those classes don't exist yet.
     createNewTagClasses();
   }, [tags, createNewTagClasses]);
-
 
   const value = useMemo<TagsContextType>(
     () => ({

@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import React, { PropsWithChildren } from "react";
+import React, { type PropsWithChildren } from "react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { cn } from "@/lib/utils.ts";

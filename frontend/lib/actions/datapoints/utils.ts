@@ -1,4 +1,9 @@
-import { buildSelectQuery, QueryParams, QueryResult, SelectQueryOptions } from "@/lib/actions/common/query-builder";
+import {
+  buildSelectQuery,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
+} from "@/lib/actions/common/query-builder";
 
 // Datapoint table column mapping
 const datapointSelectColumns = [
@@ -61,9 +66,7 @@ export interface BuildDatapointsByIdsQueryOptions {
   datasetId?: string;
 }
 
-export const buildDatapointsByIdsQueryWithParams = (
-  options: BuildDatapointsByIdsQueryOptions
-): QueryResult => {
+export const buildDatapointsByIdsQueryWithParams = (options: BuildDatapointsByIdsQueryOptions): QueryResult => {
   const { datapointIds, datasetId } = options;
 
   if (datapointIds.length === 0) {
@@ -94,10 +97,12 @@ export const buildDatapointsByIdsQueryWithParams = (
     },
     customConditions,
     // https://clickhouse.com/docs/sql-reference/data-types/uuid
-    orderBy: [{
-      column: "toUInt128(id)",
-      direction: "ASC",
-    }],
+    orderBy: [
+      {
+        column: "toUInt128(id)",
+        direction: "ASC",
+      },
+    ],
   };
 
   return buildSelectQuery(queryOptions);
@@ -139,10 +144,12 @@ export const buildDatapointsQueryWithParams = (options: BuildDatapointsQueryOpti
     },
     customConditions,
     // https://clickhouse.com/docs/sql-reference/data-types/uuid
-    orderBy: [{
-      column: "toUInt128(id)",
-      direction: "ASC",
-    }],
+    orderBy: [
+      {
+        column: "toUInt128(id)",
+        direction: "ASC",
+      },
+    ],
     pagination: {
       limit: pageSize,
       offset,
@@ -157,9 +164,7 @@ export interface BuildDatapointCountQueryOptions {
   searchQuery?: string;
 }
 
-export const buildDatapointCountQueryWithParams = (
-  options: BuildDatapointCountQueryOptions
-): QueryResult => {
+export const buildDatapointCountQueryWithParams = (options: BuildDatapointCountQueryOptions): QueryResult => {
   const { datasetId, searchQuery } = options;
 
   const customConditions: Array<{
@@ -197,9 +202,7 @@ export interface BuildAllDatapointsQueryOptions {
   datasetId: string;
 }
 
-export const buildAllDatapointsQueryWithParams = (
-  options: BuildAllDatapointsQueryOptions
-): QueryResult => {
+export const buildAllDatapointsQueryWithParams = (options: BuildAllDatapointsQueryOptions): QueryResult => {
   const { datasetId } = options;
 
   const customConditions: Array<{
@@ -219,10 +222,12 @@ export const buildAllDatapointsQueryWithParams = (
     },
     customConditions,
     // https://clickhouse.com/docs/sql-reference/data-types/uuid
-    orderBy: [{
-      column: "toUInt128(id)",
-      direction: "ASC",
-    }],
+    orderBy: [
+      {
+        column: "toUInt128(id)",
+        direction: "ASC",
+      },
+    ],
   };
 
   return buildSelectQuery(queryOptions);

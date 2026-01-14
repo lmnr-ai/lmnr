@@ -1,8 +1,8 @@
 import { jsonSchema, tool } from "ai";
 import { get, pickBy } from "lodash";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
-import { Provider, providers } from "@/components/playground/types";
+import { type Provider, providers } from "@/components/playground/types";
 import {
   IconAmazonBedrock,
   IconAnthropic,
@@ -17,8 +17,8 @@ import { EnvVars } from "@/lib/env/utils";
 import { anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
-import { ProviderOptions } from "@/lib/playground/types";
-import { Span } from "@/lib/traces/types";
+import { type ProviderOptions } from "@/lib/playground/types";
+import { type Span } from "@/lib/traces/types";
 
 export const providerIconMap: Record<Provider, ReactNode> = {
   openai: <IconOpenAI />,
@@ -76,7 +76,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
             },
           },
         };
-      case "gemini":
+      case "gemini": {
         const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
         return {
           google: {
@@ -86,6 +86,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
             },
           },
         };
+      }
       case "openai":
         return {
           openai: {
@@ -123,17 +124,17 @@ export const parseToolsFromSpan = (
 ) =>
   tools
     ? JSON.stringify(
-      tools.reduce(
-        (acc, tool) => ({
-          ...acc,
-          [tool.name]: {
-            description: tool.description || "",
-            parameters: tool.parameters,
-          },
-        }),
-        {}
+        tools.reduce(
+          (acc, tool) => ({
+            ...acc,
+            [tool.name]: {
+              description: tool.description || "",
+              parameters: tool.parameters,
+            },
+          }),
+          {}
+        )
       )
-    )
     : undefined;
 
 export const parseToolChoiceFromSpan = (toolChoice?: string) => {
@@ -195,17 +196,17 @@ export const parseToolsFromLLMRequest = (span: Span) => {
   // If we found any functions, format them the same way as parseToolsFromSpan
   return functions.length > 0
     ? JSON.stringify(
-      functions.reduce(
-        (acc, tool) => ({
-          ...acc,
-          [tool.name]: {
-            description: tool.description || "",
-            parameters: tool.parameters,
-          },
-        }),
-        {}
+        functions.reduce(
+          (acc, tool) => ({
+            ...acc,
+            [tool.name]: {
+              description: tool.description || "",
+              parameters: tool.parameters,
+            },
+          }),
+          {}
+        )
       )
-    )
     : undefined;
 };
 

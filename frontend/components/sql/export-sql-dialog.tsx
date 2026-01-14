@@ -3,7 +3,7 @@
 import {
   closestCenter,
   DndContext,
-  DragEndEvent,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -12,9 +12,9 @@ import {
 import { ChevronDown, Database, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 
-import { CategoryDropZone, ColumnCategory } from "@/components/sql/dnd-components";
+import { CategoryDropZone, type ColumnCategory } from "@/components/sql/dnd-components";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { Dataset } from "@/lib/dataset/types";
+import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ExportJobDialog from "./export-job-dialog";

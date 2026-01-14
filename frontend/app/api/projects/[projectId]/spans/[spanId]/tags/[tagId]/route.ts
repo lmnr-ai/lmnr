@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
 import { getSpanTags, removeTagFromCHSpan } from "@/lib/actions/tags";
 import { clickhouseClient } from "@/lib/clickhouse/client";
@@ -17,7 +17,7 @@ export async function DELETE(
     projectId,
   });
 
-  const deletedTagName = chTags.find(tag => tag.id === tagId)?.name;
+  const deletedTagName = chTags.find((tag) => tag.id === tagId)?.name;
 
   await clickhouseClient.exec({
     query: `
@@ -36,7 +36,7 @@ export async function DELETE(
     await removeTagFromCHSpan({
       spanId,
       projectId,
-      tag: deletedTagName
+      tag: deletedTagName,
     });
   }
 
