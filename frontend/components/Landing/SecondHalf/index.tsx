@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { sectionHeaderLarge, bodyLarge } from "../classNames";
+import { subsectionTitle, bodySQL, sectionHeaderLarge } from "../classNames";
 import DocsButton from "../DocsButton";
 import SystemDiagram from "./SystemDiagram";
 import LocalToScaleImage from "./LocalToScaleImage";
@@ -34,18 +34,16 @@ const SecondHalf = ({ className }: Props) => {
         <div className="flex flex-col gap-[240px] w-[500px] pb-[100px] pt-[20px]">
           {/* Try it local, free section */}
           <div className="flex flex-col gap-6 items-start">
-            <h2 className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>Try it local, free</h2>
+            <h2 className={sectionHeaderLarge}>Try it local, free</h2>
             <div className="flex flex-col items-start w-[380px]">
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>
-                  Set up with Docker in three lines
-                </p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Set up with Docker in three lines</p>
               </div>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Open source</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Open source</p>
               </div>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Self-host anywhere</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Self-host anywhere</p>
               </div>
             </div>
             <DocsButton href="https://docs.laminar.sh/hosting-options" />
@@ -53,20 +51,20 @@ const SecondHalf = ({ className }: Props) => {
 
           {/* Ready to scale section */}
           <div className="flex flex-col gap-6 items-start w-[437px]">
-            <h2 className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>
+            <h2 className={sectionHeaderLarge}>
               Ready to scale?
               <br />
               We got you.
             </h2>
-            <div className="flex flex-col items-start w-full">
+            <div className="flex flex-col items-start w-[380px]">
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Affordable hosted solution</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Affordable hosted solution</p>
               </div>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Workspace members and roles</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Workspace members and roles</p>
               </div>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Terabytes of data with ease</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
               </div>
             </div>
             <DocsButton href="/pricing" label="PRICING" />
@@ -88,7 +86,7 @@ const SecondHalf = ({ className }: Props) => {
       <div className="flex gap-10 items-center relative shrink-0 w-full pl-[calc((100%-1142px)/2)] ">
         <div className="basis-0 flex flex-col gap-[37px] grow items-start min-h-px min-w-px relative shrink-0">
           <div className="flex flex-col items-start relative shrink-0">
-            <h2 className={cn(sectionHeaderLarge, "leading-[54px] whitespace-nowrap")}>
+            <h2 className={cn(sectionHeaderLarge)}>
               Production-grade
               <br />
               to the core
