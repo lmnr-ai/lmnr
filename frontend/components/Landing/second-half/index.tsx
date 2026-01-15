@@ -1,13 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { subsectionTitle, bodySQL, sectionHeaderLarge } from "../classNames";
-import DocsButton from "../DocsButton";
-import SystemDiagram from "./SystemDiagram";
-import LocalToScaleImage from "./LocalToScaleImage";
 import { useScroll } from "framer-motion";
+import Image from "next/image";
 import { useRef } from "react";
+import { bodySQL, sectionHeaderLarge } from "../class-names";
+import DocsButton from "../docs-button";
+import LocalToScaleImage from "./local-to-scale-image";
+import SystemDiagram from "./system-diagram";
 
 interface Props {
   className?: string;

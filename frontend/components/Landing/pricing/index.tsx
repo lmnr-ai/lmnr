@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 
-import Footer from "@/components/Landing/Footer";
-import LandingButton from "@/components/Landing/LandingButton";
+import Footer from "@/components/Landing/footer";
+import LandingButton from "@/components/Landing/landing-button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-import PricingCalculator from "./PricingCalculator";
-import PricingCard from "./PricingCard";
+import PricingCalculator from "./pricing-calculator";
+import PricingCard from "./pricing-card";
 
 export default function Pricing() {
   const posthog = usePostHog();
@@ -113,8 +113,8 @@ export default function Pricing() {
       {/* Calculator Section */}
       <PricingCalculator />
 
-      <div className="w-full max-w-3xl mt-16 mb-32 px-4">
-        <h2 className="text-2xl font-bold mb-4 text-center font-space-grotesk text-landing-text-100">
+      <div className="w-full max-w-3xl mt-[180px] mb-32 px-4">
+        <h2 className="text-2xl font-semibold mb-6 text-center font-space-grotesk text-landing-text-100">
           Frequently Asked Questions
         </h2>
         <Accordion type="single" collapsible className="w-full">

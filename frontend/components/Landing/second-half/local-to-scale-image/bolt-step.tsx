@@ -1,5 +1,5 @@
 import { ChevronRight, Bolt } from "lucide-react";
-import Skeleton from "./Skeleton";
+import Skeleton from "./skeleton";
 
 interface BoltStepProps {
   text: string;

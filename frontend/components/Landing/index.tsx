@@ -1,12 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import Hero from "./Hero";
-import ThreeCategories from "./ThreeCategories";
-import Blurb from "./Blurb";
-import SecondHalf from "./SecondHalf";
-import Footer from "./Footer";
-import LenisProvider from "./LenisProvider";
+import Hero from "./hero";
+import ThreeCategories from "./three-categories";
+import Blurb from "./blurb";
+import SecondHalf from "./second-half";
+import Footer from "./footer";
+import LenisProvider from "./lenis-provider";
 
 interface Props {
   className?: string;

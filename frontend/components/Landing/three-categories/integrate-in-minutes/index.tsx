@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import DocsButton from "../../DocsButton";
-import LogoButton from "../../LogoButton";
-import { bodyLarge, subsectionTitle } from "../../classNames";
+import DocsButton from "../../docs-button";
+import LogoButton from "../../logo-button";
+import { bodyLarge, subsectionTitle } from "../../class-names";
 import { type Integration } from "./snippets";
 
 // Import all logos
@@ -24,7 +24,7 @@ import pinecone from "@/assets/landing/logos/pinecone.svg";
 import playwright from "@/assets/landing/logos/playwright.svg";
 import qdrant from "@/assets/landing/logos/qdrant.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
-import IntegrationCodeSnippet from "./IntegrationCodeSnippet";
+import IntegrationCodeSnippet from "./integration-code-snippet";
 
 interface Props {
   className?: string;

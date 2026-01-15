@@ -7,16 +7,24 @@ import { cn } from "@/lib/utils";
 
 import logo from "@/assets/logo/logo.svg";
 
-import LandingButton from "../LandingButton";
-import { navLink } from "../classNames";
+import LandingButton from "../landing-button";
+import { navLink } from "../class-names";
 
 interface LandingHeaderProps {
   hasSession: boolean;
+  className?: string;
+  isIncludePadding?: boolean;
 }
 
-export default function LandingHeader({ hasSession }: LandingHeaderProps) {
+export default function LandingHeader({ hasSession, className, isIncludePadding = false }: LandingHeaderProps) {
   return (
-    <header className="flex items-center justify-between w-full relative z-50">
+    <header
+      className={cn(
+        "flex items-center justify-between w-full relative z-50",
+        { "pt-8 px-[48px]": isIncludePadding },
+        className
+      )}
+    >
       <div className="h-[21.203px] relative shrink-0 w-[120px]">
         <Link href="/" className="block">
           <Image alt="Laminar logo" src={logo} width={120} height={21} priority />

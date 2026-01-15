@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform, MotionValue } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { quoteText, quoteSize, quoteAttributionName, quoteAttributionRole } from "../classNames";
+import { quoteText, quoteSize, quoteAttributionName, quoteAttributionRole } from "../class-names";
 
 interface Props {
   className?: string;

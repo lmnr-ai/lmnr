@@ -18,10 +18,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-import BoltStep from "./BoltStep";
-import LLMStep from "./LLMStep";
-import PricingStep from "./PricingStep";
-import { traceSteps } from "./traceSteps";
+import BoltStep from "./bolt-step";
+import LLMStep from "./llm-step";
+import PricingStep from "./pricing-step";
+import { traceSteps } from "./trace-steps";
 
 interface Props {
   className?: string;

@@ -1,5 +1,5 @@
 import { ChevronDown, MessageCircle } from "lucide-react";
-import Skeleton from "./Skeleton";
+import Skeleton from "./skeleton";
 
 const PricingStep = () => (
   <>

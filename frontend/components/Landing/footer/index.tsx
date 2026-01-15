@@ -5,8 +5,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import laminarTextLogo from "@/assets/landing/laminar-text.svg";
-import LandingButton from "../LandingButton";
-import { sectionHeaderMedium } from "../classNames";
+import LandingButton from "../landing-button";
+import { sectionHeaderMedium } from "../class-names";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 

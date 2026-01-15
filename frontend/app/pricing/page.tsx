@@ -1,12 +1,12 @@
-import { Metadata } from 'next';
-import { getServerSession } from 'next-auth';
+import { Metadata } from "next";
+import { getServerSession } from "next-auth";
 
-import LandingHeader from '@/components/Landing/Header';
-import Pricing from '@/components/Landing/Pricing';
-import { authOptions } from '@/lib/auth';
+import LandingHeader from "@/components/Landing/header";
+import Pricing from "@/components/Landing/pricing";
+import { authOptions } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: 'Pricing – Laminar'
+  title: "Pricing – Laminar",
 };
 
 export default async function PricingPage() {
@@ -14,7 +14,11 @@ export default async function PricingPage() {
 
   return (
     <>
-      <LandingHeader hasSession={session !== null && session !== undefined} />
+      <LandingHeader
+        hasSession={session !== null && session !== undefined}
+        isIncludePadding
+        className="bg-landing-surface-800"
+      />
       <Pricing />
     </>
   );

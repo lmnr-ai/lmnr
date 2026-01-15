@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
-import Skeleton from "./Skeleton";
+import Skeleton from "./skeleton";
 
 interface LLMStepProps {
   expanded?: boolean;

@@ -1,21 +1,21 @@
 import { cn } from "@/lib/utils";
 
-import DocsButton from "../DocsButton";
-import PlaceholderImage from "../PlaceholderImage";
-import SectionName from "../SectionName";
-import SQLImage from "./SQLImage";
-import IntegrateInMinutes from "./IntegrateInMinutes";
-import PlaygroundImage from "./PlaygroundImage";
-import EventDefinitionImage from "./EventDefinitionImage";
-import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../classNames";
-import FullContextImage from "./FullContextImage";
-import BrowserScreenRecordingImage from "./BrowserScreenRecordingImage";
-import DashboardImage from "./DashboardImage";
-import EvalsImage from "./EvalsImage";
-import GranularEvalsImage from "./GranularEvalsImage";
-import EvalsSDKImage from "./EvalsSDKImage";
-import ClusteringImage from "./ClusteringImage";
-import AskAIImage from "./AskAIImage";
+import DocsButton from "../docs-button";
+import PlaceholderImage from "../placeholder-image";
+import SectionName from "../section-name";
+import SQLImage from "./sql-image";
+import IntegrateInMinutes from "./integrate-in-minutes";
+import PlaygroundImage from "./playground-image";
+import EventDefinitionImage from "./event-definition-image";
+import { sectionHeaderLarge, bodyLarge, subsectionTitle, cardTitle, bodyMedium, bodySQL } from "../class-names";
+import FullContextImage from "./full-context-image";
+import BrowserScreenRecordingImage from "./browser-screen-recording-image";
+import DashboardImage from "./dashboard-image";
+import EvalsImage from "./evals-image";
+import GranularEvalsImage from "./granular-evals-image";
+import EvalsSDKImage from "./evals-sdk-image";
+import ClusteringImage from "./clustering-image";
+import AskAIImage from "./ask-ai-image";
 
 interface Props {
   className?: string;

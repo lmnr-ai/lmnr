@@ -50,7 +50,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable, chivoMono.variable)}>
+    <html
+      lang="en"
+      className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable, chivoMono.variable)}
+    >
       <PHProvider>
         <body className="flex flex-col h-full">
           <Suspense fallback={null}>

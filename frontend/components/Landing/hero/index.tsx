@@ -5,10 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 
-import Header from "../Header";
-import LandingButton from "../LandingButton";
-import InfiniteLogoCarousel from "./InfiniteLogoCarousel";
-import ScreenshotToggleButton from "./ScreenshotToggleButton";
+import Header from "../header";
+import LandingButton from "../landing-button";
+import InfiniteLogoCarousel from "./infinite-logo-carousel";
+import ScreenshotToggleButton from "./screenshot-toggle-button";
 
 interface Props {
   className?: string;
