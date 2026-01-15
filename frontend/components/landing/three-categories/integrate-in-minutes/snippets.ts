@@ -13,6 +13,7 @@ export interface IntegrationData {
   alt: string;
   typescript?: string;
   python?: string;
+  highlightedLines: number[]; // 0-indexed line numbers
 }
 
 export const integrations: Record<Integration, IntegrationData> = {
@@ -20,12 +21,13 @@ export const integrations: Record<Integration, IntegrationData> = {
     name: "Browser Use",
     logoSrc: browserUse,
     alt: "Browser Use",
+    highlightedLines: [4, 6],
     python: `from langchain_anthropic import ChatAnthropic
 from browser_use import Agent
 import asyncio
 
 from lmnr import Laminar
-# this line instruments Browser Use and playwright browser
+
 Laminar.initialize(project_api_key="...")
 
 async def main():
@@ -42,6 +44,7 @@ asyncio.run(main())`,
     name: "Claude",
     logoSrc: claude,
     alt: "Claude",
+    highlightedLines: [3, 8, 10],
     python: `import asyncio
 import os
 from dotenv import load_dotenv
@@ -49,7 +52,7 @@ from lmnr import Laminar, observe
 from claude_agent_sdk import ClaudeSDKClient
 
 load_dotenv()
-del os.environ["ANTHROPIC_API_KEY"]  
+del os.environ["ANTHROPIC_API_KEY"]
 Laminar.initialize()
 
 @observe()
@@ -65,6 +68,7 @@ asyncio.run(main())`,
     name: "Vercel AI SDK",
     logoSrc: vercel,
     alt: "Vercel AI SDK",
+    highlightedLines: [2, 9],
     typescript: `import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { getTracer } from '@lmnr-ai/lmnr';
@@ -82,6 +86,7 @@ const { text } = await generateText({
     name: "LangChain",
     logoSrc: langgraph,
     alt: "LangChain",
+    highlightedLines: [1, 6],
     python: `from dotenv import load_dotenv
 from lmnr import Laminar
 from langchain_openai import ChatOpenAI
@@ -103,6 +108,7 @@ print(response.content)`,
     name: "LiteLLM",
     logoSrc: lightLlm,
     alt: "LiteLLM",
+    highlightedLines: [2, 5, 6],
     python: `from dotenv import load_dotenv
 import litellm
 from lmnr import Laminar, LaminarLiteLLMCallback
