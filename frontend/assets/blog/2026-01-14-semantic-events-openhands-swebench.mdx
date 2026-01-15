@@ -1,0 +1,58 @@
+---
+title: "Gaining Insights from All of your Traces: Semantic Events + OpenHands + SWE Bench"
+date: "2026-01-14"
+description: "How semantic events and clustering surface recurring run shapes in OpenHands SWE-bench traces."
+author:
+  name: Sam Komesarook
+  url: https://x.com/komesarook
+tags: ["semantic-events", "tracing", "openhands", "swebench"]
+---
+> **TL;DR:** Traces show you everything, but semantic events tell you what it meant. Extract a few typed events at the right moments, then cluster them to surface the recurring run shapes that drive most failures and costs.
+
+Teams that operate frontier agents eventually hit the same wall. You can trace every call, plot timelines, and still struggle to answer the questions that matter: why did outcomes drift, why are costs creeping, and why does a certain kind of run keep failing in the same way? The fix isn’t more data, but to add meaning and grouping.
+
+Semantic events capture what the run meant, and clustering gathers similar runs so you can see the few recurring shapes that drive most of the pain.
+
+## What a semantic event actually is
+
+To talk about what semantic events are, we must first explain what an event is, and how it differs from a span. While a span is something that happens with a start and end time, an event only has a single timestamp. You can think of it as an action that happens during the runtime of an agent.
+
+A semantic event is a filtered group of events by an LLM-powered process that analyses the entire trace by some plaintext condition. You define an event name, a prompt, a JSON output schema, and a target span. When that specific span is detected, the extractor runs over the entire trace context with the prompt, and if the prompt is deemed "fulfilled", returns the structured attributes you asked for. Later, those events are vectorised, and you cluster those vectors to find cohorts that behave alike.
+
+## An example that matters: OpenHands on SWEBench
+
+Take an OpenHands agent tackling SWEBench tasks. A typical run looks like: set up an environment, fetch the repo, run baseline tests, plan, search the codebase, edit files, apply a patch, re‑run tests, and verify the outcome. The interesting failures aren’t single errors; they’re run shapes that repeat across tasks. One cluster will be runs that propose fixes without reproducing or validating, another will be attempts to “get green” by weakening tests or CI, another will be deeper reasoning/tool‑use mistakes that keep the run from converging, and so on. We want to make those shapes explicit.
+
+The first step is to add a trigger span. You can use any span, and may choose to select spans corresponding to more specific prompts you'd like to run. But in our case, let's just manually send an "end" span at the end of the swebench test, which we will use as our trigger.
+
+## Define three semantic events
+
+You don’t need many. A small, stable set will cover most behavior and give you clean input for clustering.
+
+Use the error template, and define two additional ones:
+
+![Semantic event definition 1](/blog/2026-01-14-event1.png)
+
+![Semantic event definition 2](/blog/2026-01-14-event2.png)
+
+![Semantic event definition 3](/blog/2026-01-14-event3.png)
+
+Within each of these events, click to enable clustering, and enter the analysis value. This will vectorise the `analysis` field on each event output, and cluster around that.
+
+![Clustering analysis value](/blog/2026-01-14-value.png)
+
+## What problems this surfaces on SWEBench
+
+Once these events exist, repeated run shapes stand out.
+
+Let's take the generic error event. We can see that clustering found a trend of inefficient tool usage and workflow evidence. If we click on the cluster, we can see the traces that aligned with that cluster, and examine them one by one to get a better understanding of the individual trends that contributed to the whole.
+
+<video
+  controls
+  className="w-full rounded-lg border mb-8"
+  src="/blog/2026-01-14-result.mp4"
+/>
+
+## Why this feels different
+
+If the spans give you fidelity, the semantic events give you consensus. With a small set of immutable, typed records extracted at the right moments, you can compare thousands of runs as easily as a handful. Clustering turns a wall of timelines into a small map of recurring shapes. From there, improvement is a matter of knocking out cohorts until what remains is the stable, predictable, and robust flow you wanted.
