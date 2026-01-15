@@ -32,10 +32,10 @@ interface Props {
 
 const logos: { src: string; alt: string; name: string; integration?: Integration }[] = [
   { src: browserUse, alt: "Browser Use", name: "browser-use", integration: "browser-use" },
+  { src: claude, alt: "Claude", name: "claude", integration: "claude" },
   { src: vercel, alt: "Vercel", name: "vercel", integration: "vercel" },
   { src: langgraph, alt: "LangGraph", name: "langgraph", integration: "langgraph" },
   { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
-  { src: claude, alt: "Claude", name: "claude" },
   { src: gemini, alt: "Gemini", name: "gemini" },
   { src: openAi, alt: "OpenAI", name: "open-ai" },
   { src: crewAi, alt: "Crew AI", name: "crew-ai" },

@@ -1,10 +1,11 @@
 // Import logos
 import browserUse from "@/assets/landing/logos/browser-use.svg";
+import claude from "@/assets/landing/logos/claude.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 import langgraph from "@/assets/landing/logos/langgraph.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
 
-export type Integration = "browser-use" | "vercel" | "langgraph" | "light-llm";
+export type Integration = "browser-use" | "claude" | "vercel" | "langgraph" | "light-llm";
 
 export interface IntegrationData {
   name: string;
@@ -37,6 +38,29 @@ async def main():
 
 asyncio.run(main())`,
   },
+  claude: {
+    name: "Claude",
+    logoSrc: claude,
+    alt: "Claude",
+    python: `import asyncio
+import os
+from dotenv import load_dotenv
+from lmnr import Laminar, observe
+from claude_agent_sdk import ClaudeSDKClient
+
+load_dotenv()
+del os.environ["ANTHROPIC_API_KEY"]  # Use Claude Code's OAuth instead
+Laminar.initialize()
+
+@observe()
+async def main():
+    async with ClaudeSDKClient() as client:
+        await client.query("What is the capital of France?")
+        async for msg in client.receive_messages():
+            print(msg)
+
+asyncio.run(main())`,
+  },
   vercel: {
     name: "Vercel AI SDK",
     logoSrc: vercel,
@@ -58,42 +82,39 @@ const { text } = await generateText({
     name: "LangChain",
     logoSrc: langgraph,
     alt: "LangChain",
-    python: `from lmnr import Laminar
-from dotenv import load_dotenv
-# other imports...
+    python: `from dotenv import load_dotenv
+from lmnr import Laminar
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
-
-# Initialize Laminar - this single step enables automatic tracing
 Laminar.initialize()
 
-model = ChatOpenAI()
+model = ChatOpenAI(model="gpt-4o-mini")
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant."),
     ("human", "{question}")
 ])
-output_parser = StrOutputParser()
-
-chain = prompt | model | output_parser
-
+chain = prompt | model
 response = chain.invoke({"question": "What is the capital of France?"})
-print(response)`,
+print(response.content)`,
   },
   "light-llm": {
     name: "LiteLLM",
     logoSrc: lightLlm,
     alt: "LiteLLM",
-    python: `import litellm
+    python: `from dotenv import load_dotenv
+import litellm
 from lmnr import Laminar, LaminarLiteLLMCallback
 
-Laminar.initialize(project_api_key="LMNR_PROJECT_API_KEY")
+load_dotenv()
+Laminar.initialize()
 litellm.callbacks = [LaminarLiteLLMCallback()]
 
 response = litellm.completion(
-    model="gpt-4.1-nano",
-    messages=[
-      {"role": "user", "content": "What is the capital of France?"}
-    ],
-)`,
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is the capital of France?"}],
+)
+print(response.choices[0].message.content)`,
   },
 };
