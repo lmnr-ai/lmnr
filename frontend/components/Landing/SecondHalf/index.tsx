@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { sectionHeaderLarge, bodyLarge } from "../classNames";
 import DocsButton from "../DocsButton";
@@ -101,8 +102,8 @@ const SecondHalf = ({ className }: Props) => {
             SOC2 and HIPAA compliant.
           </p>
           <div className="flex gap-5 items-start relative shrink-0">
-            <div className="bg-landing-surface-600 size-[90px]" />
-            <div className="bg-landing-surface-600 size-[90px]" />
+            <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={90} height={90} />
+            <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={90} height={90} />
           </div>
         </div>
         {/* Architecture diagram placeholder */}
