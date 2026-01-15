@@ -1,4 +1,4 @@
-import { TracePreview } from "../traces/types";
+import { type TracePreview } from "../traces/types";
 
 export type Evaluation = {
   id: string;

@@ -1,8 +1,8 @@
 "use client";
 
-import MuxPlayer from '@mux/mux-player-react';
+import MuxPlayer from "@mux/mux-player-react";
 import { ArrowUpRight } from "lucide-react";
-import Image, { StaticImageData } from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
@@ -23,7 +23,6 @@ import FeatureCard from "./feature-card";
 import Footer from "./footer";
 import FrameworksGrid from "./frameworks-grid";
 import InfiniteLogoCarousel from "./infinite-logo-carousel";
-
 
 interface Section {
   id: string;
@@ -96,17 +95,17 @@ export default function Landing() {
 
   // Derived state
   const currentImageItem = allImages[currentImagePointer];
-  const currentSection = sections.find(section => section.id === currentImageItem?.sectionId) || sections[0];
+  const currentSection = sections.find((section) => section.id === currentImageItem?.sectionId) || sections[0];
 
   // Get images for current section for indicator dots
-  const currentSectionImages = allImages.filter(img => img.sectionId === currentSection.id);
+  const currentSectionImages = allImages.filter((img) => img.sectionId === currentSection.id);
   const currentImageIndexInSection = currentImageItem.indexInSection;
 
   const handleSectionSelect = (section: Section) => {
     if (section.id === currentSection.id) return;
 
     // Find the first image of the selected section
-    const firstImageOfSection = allImages.findIndex(img => img.sectionId === section.id);
+    const firstImageOfSection = allImages.findIndex((img) => img.sectionId === section.id);
     if (firstImageOfSection !== -1) {
       const targetImageItem = allImages[firstImageOfSection];
       setTransitionTargetImage(targetImageItem.image);
@@ -125,13 +124,12 @@ export default function Landing() {
     }
   };
 
-
   const handleImageIndicatorClick = (index: number) => {
     if (index === currentImageIndexInSection) return;
 
     // Find the specific image in the current section
     const targetImageItem = currentSectionImages[index];
-    const targetPointer = allImages.findIndex(img => img.id === targetImageItem.id);
+    const targetPointer = allImages.findIndex((img) => img.id === targetImageItem.id);
 
     if (targetPointer !== -1) {
       setTransitionTargetImage(targetImageItem.image);
@@ -165,7 +163,6 @@ export default function Landing() {
     return () => clearInterval(timer);
   }, [autoRotate]);
 
-
   return (
     <>
       <div className="flex flex-col z-30 items-center pt-28 space-y-8">
@@ -184,10 +181,7 @@ export default function Landing() {
                     <Button className="w-40 h-10 text-base border-none">Get started - free</Button>
                   </Link>
                   <Link target="_blank" href="https://docs.lmnr.ai">
-                    <Button
-                      className="w-40 h-10 border-none text-base"
-                      variant="secondary"
-                    >
+                    <Button className="w-40 h-10 border-none text-base" variant="secondary">
                       Read the docs
                     </Button>
                   </Link>
@@ -205,19 +199,15 @@ export default function Landing() {
         </div>
         <div className="flex flex-col items-center bg-[#de6f43] w-full">
           <div className="flex flex-col w-full max-w-full xl:max-w-[1000px] 2xl:max-w-[1400px]">
-
             <div className="flex flex-col w-full relative md:pb-0 rounded">
-              <div
-                className="z-20 col-span-2 pt-8"
-              >
+              <div className="z-20 col-span-2 pt-8">
                 <div className="flex flex-wrap border-none gap-2 sm:gap-4 col-span-1 overflow-x-auto justify-center text-sm md:text-lg font-semibold tracking-wide font-title">
                   {sections.map((section, i) => (
                     <button
                       key={i}
                       onClick={() => handleSectionSelect(section)}
-                      className={`h-6 md:h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${currentSection.id === section.id
-                        ? "bg-white/20 text-white"
-                        : "text-white/80 hover:text-white"
+                      className={`h-6 md:h-8 px-2 sm:px-3 rounded-md transition-colors duration-200 items-center flex whitespace-nowrap ${
+                        currentSection.id === section.id ? "bg-white/20 text-white" : "text-white/80 hover:text-white"
                       }`}
                     >
                       {section.title}
@@ -231,9 +221,8 @@ export default function Landing() {
                         <button
                           key={index}
                           onClick={() => handleImageIndicatorClick(index)}
-                          className={`w-2 h-2 rounded-full transition-all duration-200 ${index === currentImageIndexInSection
-                            ? "bg-white"
-                            : "bg-white/40 hover:bg-white/60"
+                          className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                            index === currentImageIndexInSection ? "bg-white" : "bg-white/40 hover:bg-white/60"
                           }`}
                           aria-label={`View image ${index + 1}`}
                         />
@@ -256,7 +245,7 @@ export default function Landing() {
                       src={currentImageItem.image}
                       priority
                       quality={100}
-                      className={`absolute inset-0 rounded md:rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top transition-opacity duration-500 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+                      className={`absolute inset-0 rounded md:rounded-lg w-full bg-background xl:h-[700px] 2xl:h-[950px] object-cover object-top transition-opacity duration-500 ease-in-out ${isTransitioning ? "opacity-0" : "opacity-100"}`}
                     />
                   </div>
                 </div>
@@ -266,9 +255,7 @@ export default function Landing() {
                   With Laminar, teams monitor agents in production, <br />
                   understand failure modes, and create evals to improve agent performance
                 </h1>
-                <span className="text-white/80 text-base font-semibold font-title">
-                  Why teams choose Laminar
-                </span>
+                <span className="text-white/80 text-base font-semibold font-title">Why teams choose Laminar</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-16 my-8 md:mb-24 mb-16">
                   <FeatureCard
                     title="Fully Open-Source"
@@ -306,13 +293,14 @@ export default function Landing() {
         <div className="flex flex-col w-full max-w-full xl:max-w-[1200px] md:pt-8 2xl:pt-32">
           <div className="flex items-center justify-center flex-col">
             <div className="p-6 flex flex-col h-full gap-8 max-w-[900px]">
-              <p className="text-3xl md:text-[2.4rem] leading-normal text-white text-center font-title font-bold">"Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build."</p>
+              <p className="text-3xl md:text-[2.4rem] leading-normal text-white text-center font-title font-bold">
+                "Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based
+                feature we build."
+              </p>
             </div>
             <div>
               <p className="text-white font-medium">Hashim Rehman</p>
-              <p className="text-white/60 text-sm">
-                CTO, Remo
-              </p>
+              <p className="text-white/60 text-sm">CTO, Remo</p>
             </div>
           </div>
         </div>
@@ -327,10 +315,7 @@ export default function Landing() {
                 <Button className="w-40 h-10 text-base border-none">Get started - free</Button>
               </Link>
               <Link target="_blank" href="https://docs.lmnr.ai">
-                <Button
-                  className="w-40 h-10 border-none text-base"
-                  variant="secondary"
-                >
+                <Button className="w-40 h-10 border-none text-base" variant="secondary">
                   Read the docs
                 </Button>
               </Link>
@@ -402,34 +387,36 @@ function CoreSections() {
             muted={true}
             loop={true}
             thumbnailTime={0}
-            style={{
-              // Hide all controls at once
-              '--controls': 'none',
-              // Hide the error dialog
-              '--dialog': 'none',
-              // Hide the loading indicator
-              '--loading-indicator': 'none',
-              // Target all sections by excluding the section prefix
-              '--play-button': 'none',
-              '--live-button': 'none',
-              '--seek-backward-button': 'none',
-              '--seek-forward-button': 'none',
-              '--mute-button': 'none',
-              '--captions-button': 'none',
-              '--airplay-button': 'none',
-              '--pip-button': 'none',
-              '--fullscreen-button': 'none',
-              '--cast-button': 'none',
-              '--playback-rate-button': 'none',
-              '--volume-range': 'none',
-              '--time-range': 'none',
-              '--time-display': 'none',
-              '--duration-display': 'none',
-              '--rendition-menu-button': 'none',
-              // Target a specific section by prefixing the CSS var with (top|center|bottom)
-              '--center-controls': 'none',
-              '--bottom-play-button': 'none',
-            } as React.CSSProperties}
+            style={
+              {
+                // Hide all controls at once
+                "--controls": "none",
+                // Hide the error dialog
+                "--dialog": "none",
+                // Hide the loading indicator
+                "--loading-indicator": "none",
+                // Target all sections by excluding the section prefix
+                "--play-button": "none",
+                "--live-button": "none",
+                "--seek-backward-button": "none",
+                "--seek-forward-button": "none",
+                "--mute-button": "none",
+                "--captions-button": "none",
+                "--airplay-button": "none",
+                "--pip-button": "none",
+                "--fullscreen-button": "none",
+                "--cast-button": "none",
+                "--playback-rate-button": "none",
+                "--volume-range": "none",
+                "--time-range": "none",
+                "--time-display": "none",
+                "--duration-display": "none",
+                "--rendition-menu-button": "none",
+                // Target a specific section by prefixing the CSS var with (top|center|bottom)
+                "--center-controls": "none",
+                "--bottom-play-button": "none",
+              } as React.CSSProperties
+            }
             className="xl:w-[600px] xl:h-[570px] 2xl:w-[800px] 2xl:h-[850px] border border-white/15 rounded overflow-hidden "
           />
         </div>
@@ -470,16 +457,19 @@ function CoreSections() {
             <div className="order-1">
               <div className="sticky top-0 h-screen">
                 <div className="flex h-full transition-all duration-500 items-center justify-center">
-                  <div className="transition-all duration-500 overflow-hidden">
-                    {renderLeftContent()}
-                  </div>
+                  <div className="transition-all duration-500 overflow-hidden">{renderLeftContent()}</div>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col order-2 xl:max-w-[600px]">
-            <div ref={el => { sectionRefs.current["frameworks"] = el; }} className="flex flex-col md:h-screen justify-center my-8 md:my-0 pt-16 md:pt-0">
+            <div
+              ref={(el) => {
+                sectionRefs.current["frameworks"] = el;
+              }}
+              className="flex flex-col md:h-screen justify-center my-8 md:my-0 pt-16 md:pt-0"
+            >
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0">
                 Integrate in 2 minutes
               </h1>
@@ -490,23 +480,20 @@ function CoreSections() {
                 className="px-4 md:px-0"
               />
               <div className="md:hidden px-2 py-8">
-                <FrameworksGrid
-                  gridClassName="grid grid-cols-4"
-                  labelTextColor="text-white"
-                />
+                <FrameworksGrid gridClassName="grid grid-cols-4" labelTextColor="text-white" />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["observe"] = el; }} className="flex flex-col md:min-h-screen my-8 md:my-0">
+            <div
+              ref={(el) => {
+                sectionRefs.current["observe"] = el;
+              }}
+              className="flex flex-col md:min-h-screen my-8 md:my-0"
+            >
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Observe & Debug
               </h1>
               <div className="md:hidden w-full">
-                <Image
-                  src={observe}
-                  alt="Observe"
-                  className="w-full object-cover object-top"
-                  quality={100}
-                />
+                <Image src={observe} alt="Observe" className="w-full object-cover object-top" quality={100} />
               </div>
               <div className="px-4 md:px-0">
                 <InfoCard
@@ -531,7 +518,12 @@ function CoreSections() {
                 />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["browser"] = el; }} className="md:min-h-screen flex flex-col justify-center my-8 md:my-0">
+            <div
+              ref={(el) => {
+                sectionRefs.current["browser"] = el;
+              }}
+              className="md:min-h-screen flex flex-col justify-center my-8 md:my-0"
+            >
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 See what your browser agent sees
               </h1>
@@ -545,34 +537,36 @@ function CoreSections() {
                   muted={true}
                   loop={true}
                   thumbnailTime={0}
-                  style={{
-                    // Hide all controls at once
-                    '--controls': 'none',
-                    // Hide the error dialog
-                    '--dialog': 'none',
-                    // Hide the loading indicator
-                    '--loading-indicator': 'none',
-                    // Target all sections by excluding the section prefix
-                    '--play-button': 'none',
-                    '--live-button': 'none',
-                    '--seek-backward-button': 'none',
-                    '--seek-forward-button': 'none',
-                    '--mute-button': 'none',
-                    '--captions-button': 'none',
-                    '--airplay-button': 'none',
-                    '--pip-button': 'none',
-                    '--fullscreen-button': 'none',
-                    '--cast-button': 'none',
-                    '--playback-rate-button': 'none',
-                    '--volume-range': 'none',
-                    '--time-range': 'none',
-                    '--time-display': 'none',
-                    '--duration-display': 'none',
-                    '--rendition-menu-button': 'none',
-                    // Target a specific section by prefixing the CSS var with (top|center|bottom)
-                    '--center-controls': 'none',
-                    '--bottom-play-button': 'none',
-                  } as React.CSSProperties}
+                  style={
+                    {
+                      // Hide all controls at once
+                      "--controls": "none",
+                      // Hide the error dialog
+                      "--dialog": "none",
+                      // Hide the loading indicator
+                      "--loading-indicator": "none",
+                      // Target all sections by excluding the section prefix
+                      "--play-button": "none",
+                      "--live-button": "none",
+                      "--seek-backward-button": "none",
+                      "--seek-forward-button": "none",
+                      "--mute-button": "none",
+                      "--captions-button": "none",
+                      "--airplay-button": "none",
+                      "--pip-button": "none",
+                      "--fullscreen-button": "none",
+                      "--cast-button": "none",
+                      "--playback-rate-button": "none",
+                      "--volume-range": "none",
+                      "--time-range": "none",
+                      "--time-display": "none",
+                      "--duration-display": "none",
+                      "--rendition-menu-button": "none",
+                      // Target a specific section by prefixing the CSS var with (top|center|bottom)
+                      "--center-controls": "none",
+                      "--bottom-play-button": "none",
+                    } as React.CSSProperties
+                  }
                   className="w-full border border-white/15 overflow-hidden"
                 />
               </div>
@@ -580,7 +574,11 @@ function CoreSections() {
                 title=""
                 description={
                   <div className="flex flex-col gap-4">
-                    <p>Laminar automatically captures browser window recordings and syncs them with agent traces to help you see what the browser agent sees. Laminar automatically traces <span className="text-white font-semibold">Browser Use, Stagehand and Playwright</span>.</p>
+                    <p>
+                      Laminar automatically captures browser window recordings and syncs them with agent traces to help
+                      you see what the browser agent sees. Laminar automatically traces{" "}
+                      <span className="text-white font-semibold">Browser Use, Stagehand and Playwright</span>.
+                    </p>
                     <div className="flex items-center gap-4 pb-4">
                       <IconBrowserUse className="w-9 h-9 text-white" />
                       <div className="flex items-center justify-center w-10 h-10 rounded-full text-4xl">🤘</div>
@@ -592,21 +590,20 @@ function CoreSections() {
                 actionText="Learn about browser agent observability"
                 animationOrder={2}
                 className="items-center px-4 md:px-0"
-              >
-              </InfoCard>
+              ></InfoCard>
             </div>
 
-            <div ref={el => { sectionRefs.current["query"] = el; }} className="flex flex-col md:min-h-screen my-8 md:my-0">
+            <div
+              ref={(el) => {
+                sectionRefs.current["query"] = el;
+              }}
+              className="flex flex-col md:min-h-screen my-8 md:my-0"
+            >
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white pb-8 px-4 md:px-0">
                 Query & Analyze
               </h1>
               <div className="md:hidden w-full">
-                <Image
-                  src={query}
-                  alt="Query and analyze"
-                  className="w-full object-cover object-top"
-                  quality={100}
-                />
+                <Image src={query} alt="Query and analyze" className="w-full object-cover object-top" quality={100} />
               </div>
               <div className="px-4 md:px-0">
                 <InfoCard
@@ -632,7 +629,12 @@ function CoreSections() {
                 />
               </div>
             </div>
-            <div ref={el => { sectionRefs.current["iterate"] = el; }} className="flex flex-col min-h-screen justify-center my-8 md:my-0">
+            <div
+              ref={(el) => {
+                sectionRefs.current["iterate"] = el;
+              }}
+              className="flex flex-col min-h-screen justify-center my-8 md:my-0"
+            >
               <h1 className="text-3xl md:text-4xl font-bold tracking-normal font-title text-white px-4 md:px-0 pb-8">
                 Evaluate & Iterate
               </h1>
@@ -714,16 +716,18 @@ function InfoCard({
       }}
     >
       <div className="py-8 space-y-2 flex flex-col">
-        {title && title !== "" && <h3
-          className="text-2xl font-semibold transition-all tracking-normal font-title"
-          style={{
-            opacity: inView ? 1 : 0,
-            transform: inView ? "translateX(0)" : "translateX(-10px)",
-            transition: `opacity 500ms ease ${baseDelay + 100}ms, transform 500ms ease ${baseDelay + 100}ms`,
-          }}
-        >
-          {title}
-        </h3>}
+        {title && title !== "" && (
+          <h3
+            className="text-2xl font-semibold transition-all tracking-normal font-title"
+            style={{
+              opacity: inView ? 1 : 0,
+              transform: inView ? "translateX(0)" : "translateX(-10px)",
+              transition: `opacity 500ms ease ${baseDelay + 100}ms, transform 500ms ease ${baseDelay + 100}ms`,
+            }}
+          >
+            {title}
+          </h3>
+        )}
         <div
           className="text-secondary-foreground/80 transition-all text-base font-semibold tracking-normal font-title"
           style={{

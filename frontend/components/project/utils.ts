@@ -1,6 +1,7 @@
 import {
   Database,
   FlaskConical,
+  GitFork,
   Layers,
   LayoutGrid,
   Pen,
@@ -24,7 +25,7 @@ export const getSidebarMenus = (projectId: string) => [
   },
   {
     name: "events",
-    href: `/project/${projectId}/events`,
+    href: `/project/${projectId}/events/semantic`,
     icon: Layers,
   },
   {
@@ -56,6 +57,11 @@ export const getSidebarMenus = (projectId: string) => [
     name: "playgrounds",
     href: `/project/${projectId}/playgrounds`,
     icon: PlayCircle,
+  },
+  {
+    name: "rollout sessions",
+    href: `/project/${projectId}/rollout-sessions`,
+    icon: GitFork,
   },
   {
     name: "settings",

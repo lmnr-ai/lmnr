@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Queue from "@/components/queue/queue";

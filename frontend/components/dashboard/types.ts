@@ -1,4 +1,4 @@
-import { ChartConfig } from "@/components/chart-builder/types";
+import { type ChartConfig } from "@/components/chart-builder/types";
 
 export interface DashboardChart {
   id: string;

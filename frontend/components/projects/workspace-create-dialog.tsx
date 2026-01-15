@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { PropsWithChildren, useState } from "react";
+import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 

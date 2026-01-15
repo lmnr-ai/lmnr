@@ -1,6 +1,6 @@
 "use client";
 
-import { QueryStructure } from "@/lib/actions/sql/types";
+import { type QueryStructure } from "@/lib/actions/sql/types";
 
 export const getDefaultFormValues = (): QueryStructure => ({
   table: "spans",

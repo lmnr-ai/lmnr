@@ -7,8 +7,8 @@ import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
 import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import {
-  TraceViewListSpan,
-  TraceViewSpan,
+  type TraceViewListSpan,
+  type TraceViewSpan,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";

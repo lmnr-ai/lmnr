@@ -1,17 +1,10 @@
-import {
-  Heading,
-  Hr,
-  Html,
-  Link,
-  Preview,
-  Text
-} from '@react-email/components';
-import { Tailwind } from '@react-email/tailwind';
+import { Heading, Hr, Html, Link, Preview, Text } from "@react-email/components";
+import { Tailwind } from "@react-email/tailwind";
 
-import { ItemDescription } from '../checkout/utils';
+import { type ItemDescription } from "../checkout/utils";
 
-const boldClassName = 'w-full flex justify-start mb-1 mt-6';
-const textClassName = 'w-full flex justify-start';
+const boldClassName = "w-full flex justify-start mb-1 mt-6";
+const textClassName = "w-full flex justify-start";
 
 interface SubscriptionUpdatedEmailProps {
   itemDescriptions: ItemDescription[];
@@ -24,15 +17,11 @@ const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
     const { productDescription, shortDescription } = itemDescriptions[0];
     return `Payment for ${shortDescription ?? productDescription} is received.`;
   }
-  return 'Thanks for your payment!';
+  return "Thanks for your payment!";
 };
 
 // TODO: Import font through tailwind configs
-export default function SubscriptionUpdatedEmail({
-  itemDescriptions,
-  date,
-  billedTo
-}: SubscriptionUpdatedEmailProps) {
+export default function SubscriptionUpdatedEmail({ itemDescriptions, date, billedTo }: SubscriptionUpdatedEmailProps) {
   return (
     <Html lang="en">
       <Preview>{renderPreviewString(itemDescriptions)}</Preview>
@@ -66,11 +55,7 @@ export default function SubscriptionUpdatedEmail({
             </div>
             <div style={text} className="mt-6">
               Read more about the tier limits at
-              <Link
-                className="ml-1"
-                href="https://www.lmnr.ai/pricing"
-                target="_blank"
-              >
+              <Link className="ml-1" href="https://www.lmnr.ai/pricing" target="_blank">
                 our pricing page.
               </Link>
             </div>
@@ -89,28 +74,28 @@ export default function SubscriptionUpdatedEmail({
 const h1 = {
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '32px',
-  fontWeight: 'bold',
-  margin: '20px 0',
-  padding: '0'
+  fontSize: "32px",
+  fontWeight: "bold",
+  margin: "20px 0",
+  padding: "0",
 };
 
 const text = {
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '16px'
+  fontSize: "16px",
 };
 
 const boldText = {
-  fontWeight: 'bold'
+  fontWeight: "bold",
 };
 
 const footer = {
-  color: '#898989',
+  color: "#898989",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '12px',
-  lineHeight: '22px',
-  marginTop: '12px',
-  marginBottom: '24px'
+  fontSize: "12px",
+  lineHeight: "22px",
+  marginTop: "12px",
+  marginBottom: "24px",
 };

@@ -1,15 +1,15 @@
-import { and, desc, eq, getTableColumns, inArray, SQL, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, type SQL, sql } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
-import {tryParseJson} from "@/lib/actions/common/utils.ts";
+import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { db } from "@/lib/db/drizzle";
 import { evaluationResults, evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
-import { Evaluation } from "@/lib/evaluation/types";
+import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),

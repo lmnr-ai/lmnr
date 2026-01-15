@@ -1,4 +1,4 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { flow, isNil } from "lodash";
 import { ArrowRight, Check, X } from "lucide-react";
 
@@ -7,17 +7,17 @@ import {
   calculatePercentageChange,
   calculateTotalCost,
   createHeatmapStyle,
-  DisplayValue,
+  type DisplayValue,
   formatCostIntl,
   formatScoreValue,
   isValidScore,
-  ScoreRanges,
-  ScoreValue,
+  type ScoreRanges,
+  type ScoreValue,
   shouldShowHeatmap,
 } from "@/components/evaluation/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { type ScoreRange } from "@/lib/colors";
-import { EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { type EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/utils";
 
 const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>

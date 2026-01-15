@@ -22,5 +22,10 @@ pub async fn sse_endpoint(
 ) -> ActixResult<HttpResponse> {
     let project_id = path.into_inner();
 
-    create_sse_response(project_id, query.key.clone(), connections.get_ref().clone())
+    create_sse_response(
+        project_id,
+        query.key.clone(),
+        connections.get_ref().clone(),
+        None,
+    )
 }

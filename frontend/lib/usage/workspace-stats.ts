@@ -4,7 +4,7 @@ import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
-import { WorkspaceStats } from "./types";
+import { type WorkspaceStats } from "./types";
 
 const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 

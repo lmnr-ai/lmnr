@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp } from "@/lib/utils";
-import { WorkspaceInvitation } from "@/lib/workspaces/types";
+import { type WorkspaceInvitation } from "@/lib/workspaces/types";
 
 interface InvitationsTableProps {
   workspaceId: string;
@@ -66,17 +66,19 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invitations.filter((invitation) => invitation.email !== null).map((invitation) => (
-            <TableRow className="border-b last:border-b-0 h-12" key={invitation.id}>
-              <TableCell className="font-medium px-3">{invitation.email}</TableCell>
-              <TableCell className="text-muted-foreground px-3">{formatTimestamp(invitation.createdAt)}</TableCell>
-              <TableCell className="px-3">
-                <Button onClick={() => handleRevokeInvitation(invitation.id, invitation.email!)} variant="outline">
-                  Revoke invite
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {invitations
+            .filter((invitation) => invitation.email !== null)
+            .map((invitation) => (
+              <TableRow className="border-b last:border-b-0 h-12" key={invitation.id}>
+                <TableCell className="font-medium px-3">{invitation.email}</TableCell>
+                <TableCell className="text-muted-foreground px-3">{formatTimestamp(invitation.createdAt)}</TableCell>
+                <TableCell className="px-3">
+                  <Button onClick={() => handleRevokeInvitation(invitation.id, invitation.email!)} variant="outline">
+                    Revoke invite
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
         </TableBody>
       </Table>
     </div>

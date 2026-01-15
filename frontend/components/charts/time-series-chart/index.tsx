@@ -3,13 +3,13 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
-import { CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import RoundedBar from "./bar";
-import { TimeSeriesChartProps, TimeSeriesDataPoint } from "./types";
+import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
 const formatter = new Intl.DateTimeFormat("en-US", {

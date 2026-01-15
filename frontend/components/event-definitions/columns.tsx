@@ -1,11 +1,11 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { EventDefinitionRow } from "@/lib/actions/event-definitions";
-import { SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { type EventDefinitionRow } from "@/lib/actions/event-definitions";
+import { type SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
 
 export const columns: ColumnDef<EventDefinitionRow>[] = [
   {
@@ -22,11 +22,7 @@ export const columns: ColumnDef<EventDefinitionRow>[] = [
   },
 ];
 
-export const defaultEventDefinitionsColumnOrder = [
-  "__row_selection",
-  "name",
-  "createdAt",
-];
+export const defaultEventDefinitionsColumnOrder = ["__row_selection", "name", "createdAt"];
 
 export const eventsDefinitionsTableFilters: ColumnFilter[] = [
   {
@@ -72,9 +68,4 @@ export const semanticEventDefinitionsColumns: ColumnDef<SemanticEventDefinitionR
   },
 ];
 
-export const defaultSemanticEventDefinitionsColumnOrder = [
-  "__row_selection",
-  "name",
-  "triggerSpans",
-  "createdAt",
-];
+export const defaultSemanticEventDefinitionsColumnOrder = ["__row_selection", "name", "triggerSpans", "createdAt"];

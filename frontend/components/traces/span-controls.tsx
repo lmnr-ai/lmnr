@@ -2,7 +2,7 @@ import { get } from "lodash";
 import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { PropsWithChildren, useCallback, useMemo } from "react";
+import React, { type PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
@@ -20,10 +20,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Event } from "@/lib/events/types";
+import { type Event } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Span, SpanType } from "@/lib/traces/types";
-import { ErrorEventAttributes } from "@/lib/types";
+import { type Span, SpanType } from "@/lib/traces/types";
+import { type ErrorEventAttributes } from "@/lib/types";
 
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
@@ -81,15 +81,17 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             </DropdownMenuContent>
           </DropdownMenu>
           {span.spanType === SpanType.LLM && (
-            <Link
-              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-              passHref
-            >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                <PlayCircle className="mr-1" size={14} />
-                Experiment in playground
-              </Button>
-            </Link>
+            <>
+              <Link
+                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                passHref
+              >
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                  <PlayCircle className="mr-1" size={14} />
+                  Experiment in playground
+                </Button>
+              </Link>
+            </>
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">

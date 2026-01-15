@@ -1,12 +1,12 @@
 import React, { memo } from "react";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 import {
-  OpenAIFilePartSchema,
-  OpenAIImagePartSchema,
-  OpenAIMessageSchema,
-  OpenAITextPartSchema,
-  OpenAIToolCallPartSchema,
+  type OpenAIFilePartSchema,
+  type OpenAIImagePartSchema,
+  type OpenAIMessageSchema,
+  type OpenAITextPartSchema,
+  type OpenAIToolCallPartSchema,
 } from "@/lib/spans/types/openai";
 
 import {

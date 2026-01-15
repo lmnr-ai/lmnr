@@ -1,4 +1,4 @@
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
@@ -24,9 +24,9 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Switch } from "@/components/ui/switch";
-import { EvaluationDatapointPreview, EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { type EvaluationDatapointPreview, type EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 
 interface EvaluationDatapointsTableProps {
   isLoading: boolean;
@@ -102,12 +102,12 @@ const EvaluationDatapointsTableContent = ({
 
         return allValues.length > 0
           ? {
-            ...ranges,
-            [scoreName]: {
-              min: Math.min(...allValues),
-              max: Math.max(...allValues),
-            },
-          }
+              ...ranges,
+              [scoreName]: {
+                min: Math.min(...allValues),
+                max: Math.max(...allValues),
+              },
+            }
           : ranges;
       },
       {} as Record<string, { min: number; max: number }>

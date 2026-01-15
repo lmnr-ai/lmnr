@@ -1,9 +1,9 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Button } from "@/components/ui/button";
-import { EventCluster } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export interface ClusterRow extends EventCluster {
@@ -14,11 +14,15 @@ interface ClusterTableMeta {
   totalCount: number;
 }
 
-export const getClusterColumns = (projectId: string, eventType: "SEMANTIC" | "CODE", eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
+export const getClusterColumns = (
+  projectId: string,
+  eventType: "SEMANTIC" | "CODE",
+  eventDefinitionId: string
+): ColumnDef<ClusterRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
-      (row.original.numChildrenClusters > 0 && row.original.level > 1) ? (
+      row.original.numChildrenClusters > 0 && row.original.level > 1 ? (
         <Button
           icon={row.getIsExpanded() ? "chevronDown" : "chevronRight"}
           variant="ghost"
@@ -65,7 +69,7 @@ export const getClusterColumns = (projectId: string, eventType: "SEMANTIC" | "CO
     size: 350,
   },
   {
-    accessorFn: (row) => row.level > 1 ? String(row.numChildrenClusters) : '',
+    accessorFn: (row) => (row.level > 1 ? String(row.numChildrenClusters) : ""),
     header: "Sub clusters",
     id: "children_clusters",
     size: 120,

@@ -5,7 +5,7 @@ import React from "react";
 
 import ChartBuilder from "@/components/dashboard/editor/Builder";
 import { DashboardEditorStoreProvider } from "@/components/dashboard/editor/dashboard-editor-store";
-import { DashboardChart } from "@/components/dashboard/types";
+import { type DashboardChart } from "@/components/dashboard/types";
 import Header from "@/components/ui/header";
 
 const DashboardEditor = ({ chart }: { chart?: DashboardChart }) => {

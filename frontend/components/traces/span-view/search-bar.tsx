@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import React, { RefObject } from "react";
+import React, { type RefObject } from "react";
 
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button.tsx";

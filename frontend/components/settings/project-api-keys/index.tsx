@@ -3,7 +3,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { GenerateProjectApiKeyResponse, ProjectApiKey } from "@/lib/api-keys/types";
+import { type GenerateProjectApiKeyResponse, type ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "../../ui/button";
@@ -127,11 +127,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           <SettingsTableRow key={id}>
             <td className="px-4 text-sm font-medium">{apiKey.name}</td>
             <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
-            <td className="px-4">
-              {apiKey.isIngestOnly && (
-                <Badge variant="outline">Ingest Only</Badge>
-              )}
-            </td>
+            <td className="px-4">{apiKey.isIngestOnly && <Badge variant="outline">Ingest Only</Badge>}</td>
             <td className="px-4">
               <div className="flex justify-end">
                 <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />

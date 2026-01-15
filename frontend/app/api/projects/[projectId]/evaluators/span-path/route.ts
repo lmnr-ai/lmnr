@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod/v4";
 
 import { getEvaluatorsBySpanPath } from "@/lib/actions/evaluators/span-path";

@@ -3,10 +3,10 @@
 import { Key, Settings2, Sparkles, Unplug } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CSSProperties, ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 
 import { useProjectContext } from "@/contexts/project-context.tsx";
-import { ProjectApiKey } from "@/lib/api-keys/types";
+import { type ProjectApiKey } from "@/lib/api-keys/types";
 
 import Header from "../ui/header";
 import {
@@ -51,8 +51,7 @@ export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slack
   const { workspace } = useProjectContext();
 
   const menuTabs = useMemo(
-    () =>
-      tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled))),
+    () => tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled))),
     [workspace, isSlackEnabled]
   );
 

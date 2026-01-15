@@ -3,7 +3,7 @@
 import React from "react";
 
 import TraceView from "@/components/traces/trace-view";
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 

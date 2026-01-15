@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    return Response.json({ items: [] });
   }
 
   try {
@@ -28,10 +28,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string }> }
-): Promise<Response> {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   const traceIds = req.nextUrl.searchParams.getAll("traceId");

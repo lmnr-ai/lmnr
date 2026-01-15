@@ -4,10 +4,10 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboard/chart-header";
-import { DashboardChart } from "@/components/dashboard/types";
+import { type DashboardChart } from "@/components/dashboard/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
 interface ChartProps {

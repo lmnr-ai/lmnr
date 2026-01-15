@@ -1,0 +1,84 @@
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RolloutSessionStatus {
+    Pending,
+    Running,
+    Finished,
+    Stopped,
+}
+
+impl RolloutSessionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "PENDING",
+            Self::Running => "RUNNING",
+            Self::Finished => "FINISHED",
+            Self::Stopped => "STOPPED",
+        }
+    }
+}
+
+pub async fn create_or_update_rollout_session(
+    pool: &PgPool,
+    session_id: &Uuid,
+    project_id: &Uuid,
+    params: Value,
+    name: Option<String>,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO rollout_sessions (id, project_id, params, name)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id) DO UPDATE SET params = $3, name = $4",
+    )
+    .bind(session_id)
+    .bind(project_id)
+    .bind(params)
+    .bind(name)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn delete_rollout_session(
+    pool: &PgPool,
+    session_id: &Uuid,
+    project_id: &Uuid,
+) -> Result<()> {
+    sqlx::query(
+        "DELETE FROM rollout_sessions
+        WHERE id = $1 AND project_id = $2",
+    )
+    .bind(session_id)
+    .bind(project_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn update_session_status(
+    pool: &PgPool,
+    session_id: &Uuid,
+    project_id: &Uuid,
+    status: RolloutSessionStatus,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE rollout_sessions
+        SET status = $1
+        WHERE id = $2 AND project_id = $3",
+    )
+    .bind(status.as_str())
+    .bind(session_id)
+    .bind(project_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}

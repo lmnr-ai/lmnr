@@ -6,7 +6,7 @@ import { useFieldArray, useFormContext } from "react-hook-form";
 import Message from "@/components/playground/messages/message";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlaygroundForm } from "@/lib/playground/types";
+import { type PlaygroundForm } from "@/lib/playground/types";
 
 const defaultMessage: PlaygroundForm["messages"]["0"] = {
   role: "user",

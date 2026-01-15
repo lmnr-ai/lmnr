@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -28,18 +28,21 @@ export default async function BlogsPage() {
       {posts.map((post, index) => (
         <Link href={`/blog/${post.slug}`} key={index}>
           <Card className="overflow-hidden h-[300px] bg-background flex flex-col">
-            {post.data.image && <Image src={post.data.image} alt={post.data.title} width={400} height={200} className="object-cover mx-auto" />}
+            {post.data.image && (
+              <Image
+                src={post.data.image}
+                alt={post.data.title}
+                width={400}
+                height={200}
+                className="object-cover mx-auto"
+              />
+            )}
             <CardHeader>
-              <CardTitle className="font-title text-2xl text-white">
-                {post.data.title}
-              </CardTitle>
+              <CardTitle className="font-title text-2xl text-white">{post.data.title}</CardTitle>
             </CardHeader>
-            <CardContent className="flex grow">
-            </CardContent>
+            <CardContent className="flex grow"></CardContent>
             <CardFooter className="flex align-bottom">
-              <Label className="text-secondary-foreground">
-                {formatUTCDate(post.data.date)}
-              </Label>
+              <Label className="text-secondary-foreground">{formatUTCDate(post.data.date)}</Label>
             </CardFooter>
           </Card>
         </Link>

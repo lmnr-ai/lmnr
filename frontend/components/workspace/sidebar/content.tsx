@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, FolderClosed, LucideIcon, Settings, Users } from "lucide-react";
+import { Activity, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -13,7 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar.tsx";
-import { useWorkspaceMenuContext, WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
+import { useWorkspaceMenuContext, type WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { cn } from "@/lib/utils.ts";
 
 const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [

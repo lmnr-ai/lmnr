@@ -1,10 +1,10 @@
 import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
-import { RealtimeSpan, SpanType } from "@/lib/traces/types";
+import { type RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -160,78 +160,78 @@ export const onRealtimeUpdateSpans =
     setTrace: (trace?: TraceViewTrace | ((prevTrace?: TraceViewTrace) => TraceViewTrace | undefined)) => void,
     setShowBrowserSession: (show: boolean) => void
   ) =>
-    (newSpan: RealtimeSpan) => {
-      if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
-        setShowBrowserSession(true);
-      }
+  (newSpan: RealtimeSpan) => {
+    if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
+      setShowBrowserSession(true);
+    }
 
-      const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
-      const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
-      const totalTokens = inputTokens + outputTokens;
-      const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
-      const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
-      const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
-      const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
+    const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
+    const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+    const totalTokens = inputTokens + outputTokens;
+    const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
+    const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
+    const totalCost = get(newSpan.attributes, "gen_ai.usage.cost", inputCost + outputCost);
+    const model = get(newSpan.attributes, "gen_ai.response.model") ?? get(newSpan.attributes, "gen_ai.request.model");
 
-      setTrace((trace) => {
-        if (!trace) return trace;
+    setTrace((trace) => {
+      if (!trace) return trace;
 
-        const newTrace = { ...trace };
+      const newTrace = { ...trace };
 
-        newTrace.startTime =
+      newTrace.startTime =
         new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
           ? newTrace.startTime
           : newSpan.startTime;
-        newTrace.endTime =
+      newTrace.endTime =
         new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
-        newTrace.totalTokens += totalTokens;
-        newTrace.inputTokens += inputTokens;
-        newTrace.outputTokens += outputTokens;
-        newTrace.inputCost += inputCost;
-        newTrace.outputCost += outputCost;
-        newTrace.totalCost += totalCost;
-        return newTrace;
-      });
+      newTrace.totalTokens += totalTokens;
+      newTrace.inputTokens += inputTokens;
+      newTrace.outputTokens += outputTokens;
+      newTrace.inputCost += inputCost;
+      newTrace.outputCost += outputCost;
+      newTrace.totalCost += totalCost;
+      return newTrace;
+    });
 
-      setSpans((spans) => {
-        const newSpans = [...spans];
-        const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
-        if (index !== -1) {
+    setSpans((spans) => {
+      const newSpans = [...spans];
+      const index = newSpans.findIndex((span) => span.spanId === newSpan.spanId);
+      if (index !== -1) {
         // Always replace existing span, regardless of pending status
-          newSpans[index] = {
-            ...newSpan,
-            totalTokens,
-            inputTokens,
-            outputTokens,
-            inputCost,
-            outputCost,
-            totalCost,
-            model,
-            collapsed: newSpans[index].collapsed || false,
-            events: [],
-            path: "",
-          };
-        } else {
-          newSpans.push({
-            ...newSpan,
-            totalTokens,
-            inputTokens,
-            outputTokens,
-            inputCost,
-            outputCost,
-            totalCost,
-            model,
-            collapsed: false,
-            events: [],
-            path: "",
-          });
-        }
+        newSpans[index] = {
+          ...newSpan,
+          totalTokens,
+          inputTokens,
+          outputTokens,
+          inputCost,
+          outputCost,
+          totalCost,
+          model,
+          collapsed: newSpans[index].collapsed || false,
+          events: [],
+          path: "",
+        };
+      } else {
+        newSpans.push({
+          ...newSpan,
+          totalTokens,
+          inputTokens,
+          outputTokens,
+          inputCost,
+          outputCost,
+          totalCost,
+          model,
+          collapsed: false,
+          events: [],
+          path: "",
+        });
+      }
 
-        newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-        return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
-      });
-    };
+      return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
+    });
+  };
 
 export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
   if (!path1 || !path2) return false;
@@ -267,7 +267,7 @@ export const findSpanToSelect = (
 
 export const getSpanDisplayName = (span: TraceViewSpan) => {
   const modelName = span.model;
-  return span.spanType === "LLM" && modelName ? modelName : span.name;
+  return (span.spanType === "LLM" || span.spanType === "CACHED") && modelName ? modelName : span.name;
 };
 
 export const getLLMMetrics = (span: TraceViewSpan) => {

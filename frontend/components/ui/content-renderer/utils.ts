@@ -6,7 +6,7 @@ import { yaml } from "@codemirror/lang-yaml";
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
-import { createTheme, CreateThemeOptions } from "@uiw/codemirror-themes";
+import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 import YAML from "yaml";
 
 import { inferImageType } from "@/lib/utils";

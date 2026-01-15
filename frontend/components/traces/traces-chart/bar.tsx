@@ -2,7 +2,7 @@ import { isNil } from "lodash";
 import React from "react";
 
 import { chartConfig } from "@/components/traces/traces-chart/utils.ts";
-import { TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
 
 interface CustomBarProps {
   fill?: string;

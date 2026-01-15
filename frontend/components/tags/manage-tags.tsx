@@ -1,5 +1,5 @@
 "use client";
-import { PropsWithChildren, useMemo, useState } from "react";
+import { type PropsWithChildren, useMemo, useState } from "react";
 
 import CreateTag from "@/components/tags/create-tag";
 import PickTag from "@/components/tags/pick-tag";

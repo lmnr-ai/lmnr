@@ -1,20 +1,20 @@
-import {scaleUtc} from "d3-scale";
+import { scaleUtc } from "d3-scale";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
-  ColumnFilterConfig,
+  type ColumnFilterConfig,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
-  QueryParams,
-  QueryResult,
-  SelectQueryOptions,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import {TracesStatsDataPoint} from "@/lib/actions/traces/stats.ts";
-import {TimeRange} from "@/lib/clickhouse/utils.ts";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
+import { type TimeRange } from "@/lib/clickhouse/utils.ts";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -86,8 +86,10 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}`
-              + ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
+            return (
+              `(simpleJSONExtractString(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+              ` OR simpleJSONExtractRaw(metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`
+            );
           }
           return "";
         },
@@ -226,7 +228,7 @@ export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataP
   let start: Date;
   let end: Date;
 
-  if ('pastHours' in timeRange) {
+  if ("pastHours" in timeRange) {
     end = new Date();
     start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
   } else {
@@ -237,9 +239,12 @@ export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataP
   const scale = scaleUtc().domain([start, end]);
   const ticks = scale.ticks(24);
 
-  return ticks.map(tick => ({
-    timestamp: tick.toISOString(),
-    successCount: 0,
-    errorCount: 0,
-  }) as TracesStatsDataPoint);
+  return ticks.map(
+    (tick) =>
+      ({
+        timestamp: tick.toISOString(),
+        successCount: 0,
+        errorCount: 0,
+      }) as TracesStatsDataPoint
+  );
 };

@@ -1,16 +1,16 @@
 import { and, eq } from "drizzle-orm";
 import { compact, keyBy } from "lodash";
 
-import { Filter } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
-  ColumnFilterConfig,
+  type ColumnFilterConfig,
   createCustomFilter,
   createStringFilter,
-  QueryParams,
-  QueryResult,
-  SelectQueryOptions,
+  type QueryParams,
+  type QueryResult,
+  type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import { db } from "@/lib/db/drizzle";
 import { eventClusters } from "@/lib/db/migrations/schema";
@@ -39,8 +39,10 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
-            return `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}`
-              + ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`;
+            return (
+              `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+              ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`
+            );
           }
           return "";
         },

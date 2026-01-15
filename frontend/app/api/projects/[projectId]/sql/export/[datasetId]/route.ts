@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
 import { db } from "@/lib/db/drizzle";
@@ -41,9 +41,9 @@ const downloadImage = async (
   projectId: string
 ): Promise<
   | {
-    blob: Blob;
-    mediaType?: string;
-  }
+      blob: Blob;
+      mediaType?: string;
+    }
   | undefined
 > => {
   const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}";
@@ -133,7 +133,9 @@ export async function POST(
       ...datapoint,
       data: await materializeAttachments(datapoint.data as JSONValue, projectId),
       target: await materializeAttachments(datapoint.target as JSONValue, projectId),
-      metadata: await materializeAttachments(datapoint.metadata as JSONValue, projectId) as Record<string, any> | undefined,
+      metadata: (await materializeAttachments(datapoint.metadata as JSONValue, projectId)) as
+        | Record<string, any>
+        | undefined,
     }))
   );
 

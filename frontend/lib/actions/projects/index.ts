@@ -5,7 +5,7 @@ import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects } from "@/lib/db/migrations/schema";
-import { Project } from "@/lib/workspaces/types";
+import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),

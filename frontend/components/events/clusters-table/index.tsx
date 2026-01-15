@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  ClusterRow,
+  type ClusterRow,
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/events/clusters-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { EventCluster } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
 interface ClustersTableProps {
@@ -22,7 +22,10 @@ interface ClustersTableProps {
 
 const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) => {
   const { toast } = useToast();
-  const columns = useMemo(() => getClusterColumns(projectId, eventType, eventDefinitionId), [projectId, eventDefinitionId, eventType]);
+  const columns = useMemo(
+    () => getClusterColumns(projectId, eventType, eventDefinitionId),
+    [projectId, eventDefinitionId, eventType]
+  );
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +34,9 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/events/${eventDefinitionName}/clusters?eventSource=${eventType}`);
+      const res = await fetch(
+        `/api/projects/${projectId}/events/${eventDefinitionName}/clusters?eventSource=${eventType}`
+      );
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
@@ -94,7 +99,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
       hasMore={false}
       isFetching={false}
       isLoading={isLoading}
-      fetchNextPage={() => { }}
+      fetchNextPage={() => {}}
       meta={{ totalCount }}
     >
       <div className="flex flex-1 w-full space-x-2">
@@ -110,7 +115,12 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
   );
 };
 
-export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) {
+export default function ClustersTable({
+  projectId,
+  eventDefinitionId,
+  eventDefinitionName,
+  eventType,
+}: ClustersTableProps) {
   return (
     <DataTableStateProvider storageKey="clusters-table" uniqueKey="id" defaultColumnOrder={defaultClustersColumnOrder}>
       <PureClustersTable

@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { get, head } from "lodash";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 

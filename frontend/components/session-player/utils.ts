@@ -1,5 +1,5 @@
 import pako from "pako";
-import { eventWithTime as EventWithTime } from "rrweb";
+import { type eventWithTime as EventWithTime } from "rrweb";
 
 export interface ProcessedEvent {
   data: any;

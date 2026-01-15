@@ -1,7 +1,7 @@
-import { and, getTableColumns, SQL, sql } from "drizzle-orm";
-import { PgTable, SelectedFields, TableConfig } from "drizzle-orm/pg-core";
+import { and, getTableColumns, type SQL, sql } from "drizzle-orm";
+import { type PgTable, type SelectedFields, type TableConfig } from "drizzle-orm/pg-core";
 
-import { PaginatedResponse } from "../types";
+import { type PaginatedResponse } from "../types";
 import { db } from "./drizzle";
 
 interface PaginatedGetParams<T extends TableConfig, R> {
@@ -29,17 +29,17 @@ export const paginatedGet = async <T extends TableConfig, R>({
   const itemsQuery =
     pageNumber !== undefined && pageSize !== undefined
       ? db
-        .select(columns ?? getTableColumns(table))
-        .from(table)
-        .where(and(...filters))
-        .orderBy(...orderBy)
-        .limit(pageSize)
-        .offset(pageNumber * pageSize)
+          .select(columns ?? getTableColumns(table))
+          .from(table)
+          .where(and(...filters))
+          .orderBy(...orderBy)
+          .limit(pageSize)
+          .offset(pageNumber * pageSize)
       : db
-        .select(columns ?? getTableColumns(table))
-        .from(table)
-        .where(and(...filters))
-        .orderBy(...orderBy);
+          .select(columns ?? getTableColumns(table))
+          .from(table)
+          .where(and(...filters))
+          .orderBy(...orderBy);
 
   const countQuery = async () =>
     db

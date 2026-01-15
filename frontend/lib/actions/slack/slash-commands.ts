@@ -1,9 +1,10 @@
-import { and, eq } from "drizzle-orm";
-import { z } from "zod/v4";
+import { and, eq, inArray } from "drizzle-orm";
+import { isEmpty } from "lodash";
+import { type z } from "zod/v4";
 
 import { SlackSlashCommandSchema } from "@/lib/actions/slack/types";
 import { db } from "@/lib/db/drizzle";
-import { eventDefinitions, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
+import { semanticEventDefinitions, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
 
 interface SlackCommandResponse {
   response_type: "ephemeral" | "in_channel";
@@ -65,48 +66,83 @@ async function handleSubscribeCommand(
   eventName: string
 ): Promise<SlackCommandResponse> {
   try {
-    const integration = await db.query.slackIntegrations.findFirst({
+    const integrations = await db.query.slackIntegrations.findMany({
       where: eq(slackIntegrations.teamId, teamId),
       columns: {
         id: true,
         projectId: true,
       },
+      with: {
+        project: {
+          columns: {
+            name: true,
+          },
+        },
+      },
     });
 
-    if (!integration) {
+    if (isEmpty(integrations)) {
       return {
         response_type: "ephemeral",
-        text: "❌ Laminar is not connected to this workspace. Please install the Laminar app first.",
+        text: "❌ Laminar is not connected to workspace. Please install the Laminar app first.",
       };
     }
 
-    const dbEvents = (
-      await db.query.eventDefinitions.findMany({
-        where: eq(eventDefinitions.projectId, integration.projectId),
-        columns: { name: true },
-      })
-    ).map((event) => event.name);
+    const projectIds = integrations.map((i) => i.projectId);
 
-    if (![...availableEvents, ...dbEvents].includes(eventName)) {
+    const dbEvents = await db.query.semanticEventDefinitions.findMany({
+      where: inArray(semanticEventDefinitions.projectId, projectIds),
+      columns: {
+        name: true,
+        projectId: true,
+      },
+    });
+
+    const matchedIntegration = availableEvents.includes(eventName)
+      ? integrations[0]
+      : integrations.find((i) => dbEvents.some((event) => event.name === eventName && event.projectId === i.projectId));
+
+    if (!matchedIntegration) {
       return {
         response_type: "ephemeral",
-        text: `❌ Event \`${eventName}\` not found.`,
+        text: `❌ Event \`${eventName}\` not found in any connected projects.`,
+      };
+    }
+
+    // Check if already subscribed
+    const existingSubscription = await db.query.slackChannelToEvents.findFirst({
+      where: and(
+        eq(slackChannelToEvents.integrationId, matchedIntegration.id),
+        eq(slackChannelToEvents.channelId, channelId),
+        eq(slackChannelToEvents.eventName, eventName)
+      ),
+    });
+
+    if (existingSubscription) {
+      const projectName = matchedIntegration.project?.name || "Unknown Project";
+      return {
+        response_type: "ephemeral",
+        text: `ℹ️ Already subscribed to event \`${eventName}\` for project *${projectName}*.`,
       };
     }
 
     await db
       .insert(slackChannelToEvents)
       .values({
-        integrationId: integration.id,
-        projectId: integration.projectId,
+        integrationId: matchedIntegration.id,
+        projectId: matchedIntegration.projectId,
         channelId,
         eventName,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing({
+        target: [slackChannelToEvents.channelId, slackChannelToEvents.eventName, slackChannelToEvents.integrationId],
+      });
+
+    const projectName = matchedIntegration.project?.name || "Unknown Project";
 
     return {
       response_type: "in_channel",
-      text: `✅ Successfully subscribed to event \`${eventName}\`!\n\nThis channel will receive notifications when this event is triggered.`,
+      text: `✅ Successfully subscribed to event \`${eventName}\` for project *${projectName}*!\n\nThis channel will receive notifications when this event is triggered.`,
     };
   } catch (error) {
     console.error("Error handling subscribe command:", error);
@@ -123,26 +159,55 @@ async function handleUnsubscribeCommand(
   eventName: string | null
 ): Promise<SlackCommandResponse> {
   try {
-    const integration = await db.query.slackIntegrations.findFirst({
+    const integrations = await db.query.slackIntegrations.findMany({
       where: eq(slackIntegrations.teamId, teamId),
       columns: {
         id: true,
+        projectId: true,
+      },
+      with: {
+        project: {
+          columns: {
+            name: true,
+          },
+        },
       },
     });
 
-    if (!integration) {
+    if (isEmpty(integrations)) {
       return {
         response_type: "ephemeral",
         text: "❌ Laminar is not connected to this workspace. Please install the Laminar app first.",
       };
     }
 
+    const integrationIds = integrations.map((i) => i.id);
+
     if (eventName) {
+      const existingSubscription = await db.query.slackChannelToEvents.findFirst({
+        where: and(
+          inArray(slackChannelToEvents.integrationId, integrationIds),
+          eq(slackChannelToEvents.channelId, channelId),
+          eq(slackChannelToEvents.eventName, eventName)
+        ),
+      });
+
+      if (!existingSubscription) {
+        return {
+          response_type: "ephemeral",
+          text: `❌ No subscription found for event \`${eventName}\` in this channel.`,
+        };
+      }
+
+      const integration = integrations.find((i) => i.id === existingSubscription.integrationId);
+      const projectName = integration?.project?.name || "Unknown Project";
+
       await db
         .delete(slackChannelToEvents)
         .where(
           and(
-            eq(slackChannelToEvents.integrationId, integration.id),
+            eq(slackChannelToEvents.id, existingSubscription.id),
+            eq(slackChannelToEvents.integrationId, existingSubscription.integrationId),
             eq(slackChannelToEvents.channelId, channelId),
             eq(slackChannelToEvents.eventName, eventName)
           )
@@ -150,21 +215,35 @@ async function handleUnsubscribeCommand(
 
       return {
         response_type: "in_channel",
-        text: `✅ Successfully unsubscribed from event \`${eventName}\`.`,
-      };
-    } else {
-      await db
-        .delete(slackChannelToEvents)
-        .where(
-          and(eq(slackChannelToEvents.integrationId, integration.id), eq(slackChannelToEvents.channelId, channelId))
-        )
-        .returning();
-
-      return {
-        response_type: "in_channel",
-        text: `✅ Successfully unsubscribed from events.`,
+        text: `✅ Successfully unsubscribed from event \`${eventName}\` for project *${projectName}*.`,
       };
     }
+
+    // Count all subscriptions before deleting
+    const allSubscriptions = await db.query.slackChannelToEvents.findMany({
+      where: and(
+        inArray(slackChannelToEvents.integrationId, integrationIds),
+        eq(slackChannelToEvents.channelId, channelId)
+      ),
+    });
+
+    if (allSubscriptions.length === 0) {
+      return {
+        response_type: "ephemeral",
+        text: "ℹ️ No subscriptions found in this channel.",
+      };
+    }
+
+    await db
+      .delete(slackChannelToEvents)
+      .where(
+        and(inArray(slackChannelToEvents.integrationId, integrationIds), eq(slackChannelToEvents.channelId, channelId))
+      );
+
+    return {
+      response_type: "in_channel",
+      text: `✅ Successfully unsubscribed from ${allSubscriptions.length} event(s).`,
+    };
   } catch (error) {
     console.error("Error handling unsubscribe command:", error);
     return {

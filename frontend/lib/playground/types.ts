@@ -1,9 +1,9 @@
-import { AnthropicProviderOptions } from "@ai-sdk/anthropic";
-import { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
-import { DataContent, ToolChoice, ToolSet } from "ai";
+import { type AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import { type GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import { type DataContent, type ToolChoice, type ToolSet } from "ai";
 
-import { Provider } from "@/components/playground/types";
-import { playgrounds } from "@/lib/db/migrations/schema";
+import { type Provider } from "@/components/playground/types";
+import { type playgrounds } from "@/lib/db/migrations/schema";
 
 export type Playground = typeof playgrounds.$inferSelect & {
   promptMessages: Message[];
@@ -28,40 +28,40 @@ export interface ToolResultPart {
   toolCallId: string;
   toolName: string;
   output:
-  | {
-    type: "text";
-    value: string;
-  }
-  | {
-    type: "json";
-    value: string;
-  }
-  | {
-    type: "error-text";
-    value: string;
-  }
-  | {
-    type: "error-json";
-    value: string;
-  }
-  | {
-    type: "content";
-    value: Array<
-      | {
+    | {
         type: "text";
-        text: string;
+        value: string;
       }
-      | {
-        type: "media";
-        data: string;
-        /**
+    | {
+        type: "json";
+        value: string;
+      }
+    | {
+        type: "error-text";
+        value: string;
+      }
+    | {
+        type: "error-json";
+        value: string;
+      }
+    | {
+        type: "content";
+        value: Array<
+          | {
+              type: "text";
+              text: string;
+            }
+          | {
+              type: "media";
+              data: string;
+              /**
  IANA media type.
  @see https://www.iana.org/assignments/media-types/media-types.xhtml
  */
-        mediaType: string;
-      }
-    >;
-  };
+              mediaType: string;
+            }
+        >;
+      };
 }
 
 export interface ToolCallPart {
@@ -86,7 +86,7 @@ export type ProviderOptions =
   | { anthropic: AnthropicProviderOptions }
   | OpenAIProviderOptions
   | { google: GoogleGenerativeAIProviderOptions }
-  | {};
+  | Record<string, never>;
 
 export interface PlaygroundForm<T extends ToolSet = ToolSet> {
   model: `${Provider}:${string}`;

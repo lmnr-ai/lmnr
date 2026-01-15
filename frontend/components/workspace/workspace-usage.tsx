@@ -3,9 +3,9 @@ import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts"
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
-import { WorkspaceStats } from "@/lib/usage/types";
+import { type WorkspaceStats } from "@/lib/usage/types";
 import { cn } from "@/lib/utils";
-import { Workspace } from "@/lib/workspaces/types";
+import { type Workspace } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";

@@ -9,8 +9,8 @@ import {
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
-import { ChartConfig, ChartType } from "@/components/chart-builder/types";
-import { ColumnInfo } from "@/components/chart-builder/utils";
+import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ColumnInfo } from "@/components/chart-builder/utils";
 
 interface ChartRendererCoreProps {
   config: ChartConfig;

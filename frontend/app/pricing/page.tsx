@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import { type Metadata } from "next";
 import { getServerSession } from "next-auth";
 
 import LandingHeader from "@/components/Landing/header";

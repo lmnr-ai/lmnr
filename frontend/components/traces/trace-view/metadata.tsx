@@ -1,6 +1,6 @@
 import React from "react";
 
-import { TraceViewTrace } from "@/components/traces/trace-view/trace-view-store";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 
 interface MetadataProps {

@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export default async function SignUpPage(props: {
-  params: Promise<{}>;
+  params: Promise<Record<string, never>>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await getServerSession(authOptions);
@@ -25,7 +25,9 @@ export default async function SignUpPage(props: {
       if (url.pathname === "/" || url.pathname === "") {
         callbackUrl = "/onboarding";
       }
-    } catch {}
+    } catch {
+      // Invalid URL, use default
+    }
   }
 
   return (

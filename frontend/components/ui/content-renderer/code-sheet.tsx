@@ -1,4 +1,4 @@
-import CodeMirror, { Extension } from "@uiw/react-codemirror";
+import CodeMirror, { type Extension } from "@uiw/react-codemirror";
 import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 

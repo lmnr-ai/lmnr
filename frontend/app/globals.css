@@ -1,4 +1,5 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+@import "tw-shimmer";
 
 @plugin 'tailwindcss-animate';
 
@@ -111,6 +112,10 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
+    &[type='number'] {
+     -moz-appearance: textfield
+    }
 }
 
 @layer base {

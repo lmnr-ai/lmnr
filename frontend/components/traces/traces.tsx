@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { Resizable, ResizeCallback } from "re-resizable";
+import { Resizable, type ResizeCallback } from "re-resizable";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
@@ -28,9 +28,9 @@ enum TracesTab {
 type NavigationItem =
   | string
   | {
-    traceId: string;
-    spanId: string;
-  };
+      traceId: string;
+      spanId: string;
+    };
 
 function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
   const searchParams = useSearchParams();
@@ -154,6 +154,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
                   setTraceId(null);
                 }}
                 traceId={traceId}
+                initialSearch={searchParams.get("search") || undefined}
               />
             </FiltersContextProvider>
           </Resizable>

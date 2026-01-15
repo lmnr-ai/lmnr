@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject } from "react";
+import { type RefObject } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";

@@ -1,15 +1,15 @@
 "use client";
 
-import { Row, RowSelectionState } from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { Evaluator } from "@/lib/evaluators/types";
+import { type Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 import { columns } from "./lib/consts";

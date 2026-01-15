@@ -1,7 +1,7 @@
 import "@/app/globals.css";
 
 import { cookies } from "next/headers";
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
