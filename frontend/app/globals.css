@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @import "tw-shimmer";
 
 @plugin 'tailwindcss-animate';
@@ -113,9 +113,9 @@
     margin: 0;
   }
 
-    &[type='number'] {
-     -moz-appearance: textfield
-    }
+  &[type="number"] {
+    -moz-appearance: textfield;
+  }
 }
 
 @layer base {
@@ -196,8 +196,7 @@
   }
 
   ::selection {
-    background-color: var(--color-landing-primary-300);
+    background-color: var(--color-landing-primary-400-50);
     color: white;
   }
 }
-

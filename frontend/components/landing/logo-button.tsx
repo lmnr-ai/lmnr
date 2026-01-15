@@ -1,7 +1,8 @@
 "use client";
 
-import * as React from "react";
 import Image from "next/image";
+import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 interface LogoButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -44,12 +45,18 @@ const LogoButton = React.forwardRef<HTMLButtonElement, LogoButtonProps>(
           isClickable
             ? "bg-landing-surface-600 border-landing-text-600 hover:bg-landing-surface-500 hover:border-landing-text-500"
             : "bg-landing-surface-700 border-landing-surface-400",
-          { "border-landing-primary-400 hover:border-landing-primary-400": isActive },
+          { "border-landing-primary-400 hover:border-landing-primary-400 bg-landing-surface-500": isActive },
           className
         )}
         {...props}
       >
-        <Image src={logoSrc} alt={alt} width={24} height={24} className={cn("object-contain", sizeStyle.image)} />
+        <Image
+          src={logoSrc}
+          alt={alt}
+          width={24}
+          height={24}
+          className={cn("object-contain opacity-75", { "opacity-100": isActive }, sizeStyle.image)}
+        />
       </button>
     );
   }

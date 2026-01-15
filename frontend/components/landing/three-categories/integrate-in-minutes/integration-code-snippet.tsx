@@ -5,16 +5,18 @@ import { tags as t } from "@lezer/highlight";
 import { createTheme } from "@uiw/codemirror-themes";
 import CodeMirror from "@uiw/react-codemirror";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
-import { integrations, type Integration } from "./snippets";
 
-const screenshotMap: Record<Integration, string> = {
-  "browser-use": "/assets/landing/snippet-screenshots/browser-use.png",
-  claude: "/assets/landing/snippet-screenshots/claude-agent-sdk.png",
-  vercel: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png",
-  langgraph: "/assets/landing/snippet-screenshots/lang-chain.png",
-  "light-llm": "/assets/landing/snippet-screenshots/lite-llm.png",
-};
+import { cn } from "@/lib/utils";
+
+import { type Integration, integrations } from "./snippets";
+
+const screenshots: { integration: Integration; src: string }[] = [
+  { integration: "browser-use", src: "/assets/landing/snippet-screenshots/browser-use.png" },
+  { integration: "claude", src: "/assets/landing/snippet-screenshots/claude-agent-sdk.png" },
+  { integration: "vercel", src: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png" },
+  { integration: "langgraph", src: "/assets/landing/snippet-screenshots/lang-chain.png" },
+  { integration: "light-llm", src: "/assets/landing/snippet-screenshots/lite-llm.png" },
+];
 
 // Ayu-inspired dark theme with landing colors
 const darkTheme = createTheme({
@@ -82,10 +84,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
     <div className="flex gap-4 items-stretch w-full h-[400px]">
       <div className="flex flex-col flex-1 rounded-[8px] overflow-hidden h-full">
         {/* CodeMirror */}
-        <div
-          className="bg-landing-surface-700 overflow-auto flex-1 min-h-0 border border-landing-surface-500"
-          data-lenis-prevent
-        >
+        <div className="bg-landing-surface-700 overflow-auto flex-1 min-h-0 border border-landing-surface-500">
           <CodeMirror
             value={code || ""}
             theme={darkTheme}
@@ -99,24 +98,35 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
 
       {/* Screenshot container */}
       <div className="bg-landing-surface-700 flex-1 rounded-[8px] h-full overflow-hidden relative border border-landing-surface-500">
-        {Object.entries(screenshotMap).map(([integration, src]) => (
-          <div
-            key={integration}
-            className={cn(
-              "absolute top-[30px] left-[40px] w-[110%] h-[110%]",
-              integration !== selectedIntegration && "invisible"
-            )}
-          >
-            <Image
-              src={src}
-              alt={`${integration} screenshot`}
-              fill
-              priority
-              className="object-cover object-top rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
-            />
-          </div>
-        ))}
-        <div className="bg-gradient-to-t w-full h-[40%] from-landing-surface-700/100 to-landing-surface-700/0 absolute bottom-0 left-0" />
+        <div
+          className="flex transition-transform duration-500 ease-in-out h-full"
+          // NOTE: THIS 20...
+          style={{
+            transform: `translateX(-${screenshots.findIndex((s) => s.integration === selectedIntegration) * 20}%)`,
+          }}
+        >
+          {screenshots.map(({ integration, src }) => (
+            <div
+              key={integration}
+              // NOTE: AND THIS 80 need to add to 100
+              className={cn(
+                "min-w-full h-full relative transition-opacity duration-500 mr-[-80%]",
+                integration === selectedIntegration ? "opacity-100" : "opacity-0"
+              )}
+            >
+              <div className="absolute top-[30px] left-[40px] w-[110%] h-[110%]">
+                <Image
+                  src={src}
+                  alt={`${integration} screenshot`}
+                  fill
+                  priority
+                  className="object-cover object-top rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-gradient-to-t w-full h-[40%] from-landing-surface-700/100 to-landing-surface-700/0 absolute bottom-0 left-0 z-10" />
       </div>
     </div>
   );

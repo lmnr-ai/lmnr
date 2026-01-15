@@ -126,19 +126,6 @@ const ThreeCategories = ({ className }: Props) => (
         </div>
         <div className="flex gap-[30px] h-[481px] items-start w-full">
           <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
-            <ClusteringImage className="absolute inset-0" />
-            <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
-              <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
-                <p className={cn(bodyMedium, "w-full")}>
-                  Calling the wrong tool? Clicking the wrong button? Laminar categorizes traces based on agent behavior
-                  so you can debug faster.
-                </p>
-              </div>
-              <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
-            </div>
-          </div>
-          <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
             <EventDefinitionImage className="absolute inset-0" />
             <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
               <div className="flex flex-col gap-1 items-start w-full">
@@ -148,6 +135,18 @@ const ThreeCategories = ({ className }: Props) => (
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/events/semantic-events" />
+            </div>
+          </div>
+          <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
+            <ClusteringImage className="absolute inset-0" />
+            <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
+              <div className="flex flex-col gap-1 items-start w-full">
+                <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
+                <p className={cn(bodyMedium, "w-full")}>
+                  Calling the wrong tool? Clicking the wrong button? Laminar categorizes traces based on agent behavior
+                </p>
+              </div>
+              <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
             </div>
           </div>
         </div>

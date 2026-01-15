@@ -1,22 +1,23 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { motion, MotionValue, useTransform } from "framer-motion";
+import { motion, type MotionValue, useTransform } from "framer-motion";
 import {
+  ArrowRight,
   ChevronDown,
   ChevronsRight,
-  PlayCircle,
-  Share2,
-  Maximize,
   Clock,
   DollarSign,
-  List,
-  Filter,
-  Search,
   FileText,
+  Filter,
+  List,
+  Maximize,
+  PlayCircle,
+  Search,
+  Share2,
   Sparkles,
-  ArrowRight,
 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 
 import BoltStep from "./bolt-step";
 import LLMStep from "./llm-step";
@@ -167,18 +168,18 @@ const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
       <div className="absolute -left-[80px] bottom-[80px] z-30 h-[160px] w-[calc(100%+40px)] overflow-hidden">
         <div className="h-full w-[40px] absolute left-0 top-0 bg-gradient-to-r from-landing-surface-800 to-landing-surface-800/0 z-40" />
         <motion.div className="absolute h-full w-[80%]" style={{ x: terminalX, opacity: terminalOpacity }}>
-          <div className="bg-landing-surface-600 border border-landing-surface-400 rounded-lg px-5 py-4 size-full  shadow-2xl">
-            <div className="flex flex-col font-mono text-sm text-landing-text-300">
+          <div className="bg-landing-surface-500 border border-landing-text-600 rounded-lg px-4 py-3 size-full  shadow-2xl">
+            <div className="flex flex-col font-mono text-sm text-landing-text-200">
               <div className="flex items-center gap-2">
-                <ArrowRight className="w-3 h-3 text-landing-text-500" />
+                <ArrowRight className="w-3 h-3 text-landing-primary-400" />
                 <span>git clone https://github.com/lmnr-ai/lmnr</span>
               </div>
               <div className="flex items-center gap-2">
-                <ArrowRight className="w-3 h-3 text-landing-text-500" />
+                <ArrowRight className="w-3 h-3 text-landing-primary-400" />
                 <span>cd lmnr</span>
               </div>
               <div className="flex items-center gap-2">
-                <ArrowRight className="w-3 h-3 text-landing-text-500" />
+                <ArrowRight className="w-3 h-3 text-landing-primary-400" />
                 <span>docker compose up -d</span>
               </div>
             </div>

@@ -1,9 +1,11 @@
 "use client";
 
+import { motion, type MotionValue, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
-import { motion, useScroll, useTransform, MotionValue } from "framer-motion";
+
 import { cn } from "@/lib/utils";
-import { quoteText, quoteSize, quoteAttributionName, quoteAttributionRole } from "../class-names";
+
+import { quoteAttributionName, quoteAttributionRole, quoteSize, quoteText } from "../class-names";
 
 interface Props {
   className?: string;
@@ -20,7 +22,7 @@ const AnimatedWord = ({ word, wordIndex, totalWords, scrollYProgress }: Animated
   const wordProgress = useTransform(scrollYProgress, (v) => 1.2 * v - wordIndex / totalWords - 0.1);
 
   const color = useTransform(wordProgress, (progress) => {
-    if (progress < 0) return "var(--color-landing-text-200)"; // text-landing-text-200
+    if (progress < 0) return "var(--color-landing-text-400)"; // text-landing-text-200
     return "rgb(255 255 255)"; // text-landing-text-100
   });
 
