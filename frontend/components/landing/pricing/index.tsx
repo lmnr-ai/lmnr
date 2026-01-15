@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 
-import Footer from "@/components/Landing/footer";
-import LandingButton from "@/components/Landing/landing-button";
+import Footer from "@/components/landing/footer";
+import LandingButton from "@/components/landing/landing-button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 import PricingCalculator from "./pricing-calculator";

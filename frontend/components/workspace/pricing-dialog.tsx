@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 
-import PricingCard from "../Landing/pricing/pricing-card";
+import PricingCard from "../landing/pricing/pricing-card";
 
 const TIER_LINKS = {
   hobby: "/checkout?type=workspace&lookupKey=hobby_monthly_2025_04",

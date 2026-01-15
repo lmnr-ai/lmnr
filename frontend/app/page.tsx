@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import Landing from "@/components/Landing";
+import Landing from "@/components/landing";
 
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);

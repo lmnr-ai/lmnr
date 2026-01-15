@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { type PropsWithChildren } from "react";
 
-import Footer from "@/components/Landing/footer";
-import LandingHeader from "@/components/Landing/header";
+import Footer from "@/components/landing/footer";
+import LandingHeader from "@/components/landing/header";
 import { authOptions } from "@/lib/auth";
 
 export default async function BlogLayout({ children }: PropsWithChildren) {
