@@ -43,12 +43,14 @@ export type TraceViewSpan = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
   aggregatedMetrics?: {
     totalCost: number;
     totalTokens: number;
+    cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
 };
@@ -62,6 +64,7 @@ export type TraceViewListSpan = {
   startTime: string;
   endTime: string;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
   pathInfo: {
@@ -77,6 +80,7 @@ export type TraceViewTrace = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
@@ -257,6 +261,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
               startTime: span.startTime,
               endTime: span.endTime,
               totalTokens: span.totalTokens,
+              cacheReadInputTokens: span.cacheReadInputTokens,
               totalCost: span.totalCost,
               pending: span.pending,
               pathInfo: buildPathInfo(parentChain, spanNameMap),

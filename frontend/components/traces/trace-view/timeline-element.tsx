@@ -1,5 +1,5 @@
 import { type VirtualItem } from "@tanstack/react-virtual";
-import { CircleDollarSign, Coins } from "lucide-react";
+import { CircleDollarSign, Coins, Gauge } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -77,7 +77,12 @@ const TimelineElement = ({
               <Coins className="min-w-1" size={12} />
               {numberFormatter.format(llmMetrics.tokens)}
             </span>
-
+            {llmMetrics.cacheReadInputTokens && llmMetrics.cacheReadInputTokens > 0 && (
+              <span className={"text-blue-300 inline-flex items-center gap-1"}>
+                <Gauge className="min-w-1" size={12} />
+                {numberFormatter.format(llmMetrics.cacheReadInputTokens)}
+              </span>
+            )}
             <span className={"text-white/70 flex w-fit items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
               {llmMetrics.cost.toFixed(3)}

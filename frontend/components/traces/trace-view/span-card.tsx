@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
@@ -122,31 +122,30 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <>
-              <div className="text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs">
-                {getDurationString(span.startTime, span.endTime)}
+            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex flex-shrink-0 animate-in fade-in duration-200">
+              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                <Clock3 size={12} className="min-w-3 min-h-3" />
+                <span>{getDurationString(span.startTime, span.endTime)}</span>
               </div>
               {llmMetrics && (
                 <>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <Coins className="min-w-3" size={12} />
-                    {numberFormatter.format(llmMetrics.tokens)}
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <Coins size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>{numberFormatter.format(llmMetrics.tokens)}</span>
+                    {!!llmMetrics.cacheReadInputTokens && (
+                      <span className="text-success-bright">
+                        ({numberFormatter.format(llmMetrics.cacheReadInputTokens)})
+                      </span>
+                    )}
                   </div>
-                  <div
-                    className={
-                      "text-secondary-foreground px-2 py-0.5 bg-muted rounded-full text-xs inline-flex items-center gap-1"
-                    }
-                  >
-                    <CircleDollarSign className="min-w-3" size={12} />
-                    {llmMetrics.cost.toFixed(3)}
+
+                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+                    <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
+                    <span>${llmMetrics.cost.toFixed(4)}</span>
                   </div>
                 </>
               )}
-            </>
+            </div>
           )}
           {hasChildren && (
             <button
