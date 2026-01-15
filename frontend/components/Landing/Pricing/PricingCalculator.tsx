@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { toFixedIfFloat } from "@/lib/utils";
 
 export default function PricingCalculator() {
   const [tokens, setTokens] = useState(100_000_000); // Default 100 million tokens
@@ -191,7 +190,9 @@ export default function PricingCalculator() {
             >
               {tier}
             </Badge>
-            <span className="text-2xl font-bold font-space-grotesk text-landing-text-100">${toFixedIfFloat(price)} / month</span>
+            <span className="text-2xl font-bold font-space-grotesk text-landing-text-100">
+              ${price.toFixed(2)} / month
+            </span>
           </div>
         </div>
 
@@ -201,7 +202,7 @@ export default function PricingCalculator() {
               <span className="font-medium text-landing-text-100">Tokens per month</span>
               <span className="font-medium text-landing-text-100">{formatTokens(tokens)} tokens</span>
             </div>
-            <div className="text-sm text-landing-text-300 mb-2 font-semibold">≈ {toFixedIfFloat(estimatedGB)} GB</div>
+            <div className="text-sm text-landing-text-300 mb-2 font-semibold">≈ {estimatedGB.toFixed(2)} GB</div>
             <div className="text-xs text-landing-text-300 mb-2">
               * Based on ~4 bytes per token (approximation, excludes stored images)
             </div>
@@ -233,24 +234,23 @@ export default function PricingCalculator() {
         {/* Pricing Breakdown */}
         {breakdown && (
           <div className="border-t border-landing-surface-400 pt-4 space-y-3">
-            <h4 className="font-medium text-sm text-landing-text-300">Price Breakdown</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-landing-text-100">
                 <span>{breakdown.baseTier} tier (base)</span>
-                <span>${toFixedIfFloat(breakdown.basePrice)}</span>
+                <span>${breakdown.basePrice.toFixed(2)}</span>
               </div>
 
               {breakdown.additionalData > 0 && (
                 <div className="flex justify-between text-landing-text-300">
-                  <span>Additional data ({toFixedIfFloat(breakdown.additionalData / 2)}GB)</span>
-                  <span>+${toFixedIfFloat(breakdown.additionalData)}</span>
+                  <span>Additional data ({(breakdown.additionalData / 2).toFixed(2)}GB)</span>
+                  <span>+${breakdown.additionalData.toFixed(2)}</span>
                 </div>
               )}
 
               {breakdown.additionalMembers > 0 && (
                 <div className="flex justify-between text-landing-text-300">
                   <span>Additional team members ({teamMembers - 5})</span>
-                  <span>+${toFixedIfFloat(breakdown.additionalMembers)}</span>
+                  <span>+${breakdown.additionalMembers.toFixed(2)}</span>
                 </div>
               )}
 
@@ -259,14 +259,14 @@ export default function PricingCalculator() {
                   <span>
                     Additional agent steps ({Math.ceil((agentSteps - (tier === "Hobby" ? 2500 : 5000)) / 100) * 100})
                   </span>
-                  <span>+${toFixedIfFloat(breakdown.additionalSteps)}</span>
+                  <span>+${breakdown.additionalSteps.toFixed(2)}</span>
                 </div>
               )}
 
               {(breakdown.additionalData > 0 || breakdown.additionalMembers > 0 || breakdown.additionalSteps > 0) && (
                 <div className="flex justify-between font-medium pt-2 border-t border-landing-surface-400 text-landing-text-100">
                   <span>Total</span>
-                  <span>${toFixedIfFloat(breakdown.total)}</span>
+                  <span>${breakdown.total.toFixed(2)}</span>
                 </div>
               )}
             </div>
