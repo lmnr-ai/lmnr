@@ -30,9 +30,6 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.LOCAL_DB) {
-    if (process.env.SKIP_LOCAL_DB === "true") {
-      return false;
-    }
     return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_RUN_MIGRATIONS === "true";
   }
 
