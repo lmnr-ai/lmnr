@@ -1,12 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-interface LandingButtonProps extends React.HTMLAttributes<HTMLDivElement> {
+interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
   variant?: "minimal" | "outline" | "primary";
   size?: "sm" | "md";
 }
 
-const LandingButton = React.forwardRef<HTMLDivElement, LandingButtonProps>(
+const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
   ({ className, variant = "minimal", size = "md", children, ...props }, ref) => {
     const baseStyles =
       "font-chivo-mono font-normal text-sm text-landing-text-300 tracking-[1.68px] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors";
@@ -24,9 +24,9 @@ const LandingButton = React.forwardRef<HTMLDivElement, LandingButtonProps>(
     };
 
     return (
-      <div ref={ref} className={cn(baseStyles, variantStyles[variant], className)} {...props}>
+      <button type="button" ref={ref} className={cn(baseStyles, variantStyles[variant], className)} {...props}>
         {children}
-      </div>
+      </button>
     );
   }
 );

@@ -33,7 +33,7 @@ const SecondHalf = ({ className }: Props) => {
         <div className="flex flex-col gap-[240px] w-[500px] pb-[100px] pt-[20px]">
           {/* Try it local, free section */}
           <div className="flex flex-col gap-6 items-start">
-            <p className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>Try it local, free</p>
+            <h2 className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>Try it local, free</h2>
             <div className="flex flex-col items-start w-[380px]">
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>
@@ -52,10 +52,11 @@ const SecondHalf = ({ className }: Props) => {
 
           {/* Ready to scale section */}
           <div className="flex flex-col gap-6 items-start w-[437px]">
-            <div className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>
-              <p className="mb-0">Ready to scale?</p>
-              <p>We got you.</p>
-            </div>
+            <h2 className={cn(sectionHeaderLarge, "text-justify whitespace-nowrap")}>
+              Ready to scale?
+              <br />
+              We got you.
+            </h2>
             <div className="flex flex-col items-start w-full">
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Affordable hosted solution</p>
@@ -86,10 +87,11 @@ const SecondHalf = ({ className }: Props) => {
       <div className="flex gap-10 items-center relative shrink-0 w-full pl-[calc((100%-1142px)/2)] ">
         <div className="basis-0 flex flex-col gap-[37px] grow items-start min-h-px min-w-px relative shrink-0">
           <div className="flex flex-col items-start relative shrink-0">
-            <div className={cn(sectionHeaderLarge, "leading-[54px] whitespace-nowrap")}>
-              <p className="mb-0">Production-grade</p>
-              <p>to the core</p>
-            </div>
+            <h2 className={cn(sectionHeaderLarge, "leading-[54px] whitespace-nowrap")}>
+              Production-grade
+              <br />
+              to the core
+            </h2>
           </div>
           <p className="font-sans font-normal leading-6 text-base text-landing-text-200 w-[394px]">
             Built in Rust and mega-optimized for performance. Terabytes of trace data in production without slowing

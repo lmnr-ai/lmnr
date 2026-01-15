@@ -32,11 +32,13 @@ const ThreeCategories = ({ className }: Props) => {
       <div className="flex flex-col gap-[240px] items-start w-[1080px] max-w-[1186px]">
         {/* Header */}
         <div className="flex flex-col gap-10 items-start w-full">
-          <div className={cn(sectionHeaderLarge, "w-[1160px]")}>
-            <p>Features for </p>
-            <p>every step of </p>
-            <p>the development cycle</p>
-          </div>
+          <h2 className={cn(sectionHeaderLarge, "w-[1160px]")}>
+            Features for
+            <br />
+            every step of
+            <br />
+            the development cycle
+          </h2>
           <div className={cn(bodyLarge, "min-w-full w-full flex flex-col items-end")}>
             <p className="mb-0">Our comprehensive platform gives </p>
             <p className="mb-0">you the tools you need to build </p>
@@ -52,7 +54,7 @@ const ThreeCategories = ({ className }: Props) => {
         {/* Understand traces easily */}
         <div className="flex flex-col gap-[54px] items-start w-full">
           <div className="flex flex-col gap-1 items-start w-full">
-            <p className={subsectionTitle}>Understand traces easily</p>
+            <h2 className={subsectionTitle}>Understand traces easily</h2>
             <p className={bodyLarge}>Get used to insights being front and center</p>
           </div>
           <div className="flex gap-[30px] h-[481px] items-start w-full">
@@ -86,10 +88,11 @@ const ThreeCategories = ({ className }: Props) => {
         <div className="flex items-start gap-[40px] w-full">
           <div className="flex flex-col gap-[50px] items-start w-[380px]">
             <div className="flex flex-col gap-6 items-start w-full">
-              <div className={cn(subsectionTitle, "w-full")}>
-                <p className="mb-0">Activate Playground </p>
-                <p>from any context</p>
-              </div>
+              <h2 className={cn(subsectionTitle, "w-full")}>
+                Activate Playground
+                <br />
+                from any context
+              </h2>
               <p className={cn(bodyMedium, "w-full")}>
                 Move any span straight into Playground, context preserved. Change models, tweak prompts, and validate
                 improvements all without starting from scratch.
@@ -104,7 +107,7 @@ const ThreeCategories = ({ className }: Props) => {
         <div className="flex items-start justify-between w-full">
           <div className="flex flex-col gap-[50px] items-start w-[380px] pt-[40px]">
             <div className="flex flex-col gap-6 items-start w-full">
-              <p className={subsectionTitle}>Capture what your agent sees</p>
+              <h2 className={subsectionTitle}>Capture what your agent sees</h2>
               <p className={bodyMedium}>
                 Browser screen recordings automatically synced with your agent traces. Works with BrowserUse, Stagehand,
                 and Playwright
@@ -120,7 +123,7 @@ const ThreeCategories = ({ className }: Props) => {
 
         <div className="flex flex-col gap-[54px] items-start w-full">
           <div className="flex flex-col gap-1 items-start w-full">
-            <p className={subsectionTitle}>More signal, less noise</p>
+            <h2 className={subsectionTitle}>More signal, less noise</h2>
             <p className={bodyLarge}>Get used to insights being front and center</p>
           </div>
           <div className="flex gap-[30px] h-[481px] items-start w-full">
@@ -157,7 +160,7 @@ const ThreeCategories = ({ className }: Props) => {
         <div className="flex items-start justify-between w-full">
           <div className="flex flex-col gap-[50px] items-start w-[380px]">
             <div className="flex flex-col gap-6 items-start w-full">
-              <p className={subsectionTitle}>Custom dashboards</p>
+              <h2 className={subsectionTitle}>Custom dashboards</h2>
               <div className={bodyMedium}>
                 <p className="mb-0">Track what's important to you, with all platform data ready for action. </p>
                 <p className="mb-0"> </p>
@@ -174,7 +177,7 @@ const ThreeCategories = ({ className }: Props) => {
 
         <div className="flex flex-col gap-[54px] items-start w-full">
           <div className="flex flex-col gap-1 items-start w-full">
-            <p className={subsectionTitle}>Did someone say Evals?</p>
+            <h2 className={subsectionTitle}>Did someone say Evals?</h2>
             <p className={bodyLarge}>Verify progress, catch regressions, and iterate with confidence</p>
           </div>
           <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
@@ -206,7 +209,7 @@ const ThreeCategories = ({ className }: Props) => {
           <div className="flex items-start justify-between w-full">
             <div className="flex flex-col gap-[50px] items-start w-[380px]">
               <div className="flex flex-col gap-6 items-start w-full">
-                <p className={subsectionTitle}>By the power of SQL</p>
+                <h2 className={subsectionTitle}>By the power of SQL</h2>
                 <div className="flex flex-col items-start w-[380px]">
                   <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                     <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>

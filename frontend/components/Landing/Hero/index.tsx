@@ -32,15 +32,16 @@ const Hero = ({ className }: Props) => {
         <Header hasSession={true} />
         <div className="flex flex-col gap-10 items-center left-1/2 top-[247px]  w-full">
           <div className="flex flex-col items-start">
-            <div
+            <h1
               className={cn(
-                "font-space-grotesk font-normal text-[64px] text-center text-white tracking-[-1.28px]",
+                "font-space-grotesk font-normal text-[64px] text-center text-white tracking-[-1.28px] leading-[72px]",
                 "w-[833px]"
               )}
             >
-              <p className="leading-[72px]">Developers build reliable</p>
-              <p className="leading-[72px]">agents with Laminar</p>
-            </div>
+              Developers build reliable
+              <br />
+              agents with Laminar
+            </h1>
           </div>
           <div className="flex gap-5 items-center justify-center">
             <Link href="https://docs.lmnr.ai" target="_blank">
