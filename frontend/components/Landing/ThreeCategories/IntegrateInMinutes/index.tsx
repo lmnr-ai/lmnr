@@ -85,7 +85,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
         ))}
       </div>
       <IntegrationCodeSnippet selectedIntegration={selectedIntegration} />
-      <DocsButton />
+      <DocsButton href="https://docs.laminar.sh/tracing/integrations/overview" />
     </div>
   );
 };

@@ -66,7 +66,7 @@ const ThreeCategories = ({ className }: Props) => {
                     us find the story in your data.
                   </p>
                 </div>
-                <DocsButton />
+                <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
               </div>
             </div>
             <div className="bg-landing-surface-700 flex h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 w-[432px] relative">
@@ -76,7 +76,7 @@ const ThreeCategories = ({ className }: Props) => {
                   <p className={cn(cardTitle, "w-full")}>Convoluted Trace? Ask AI</p>
                   <p className={cn(bodyMedium, "w-full")}>Ask AI to summarize and interpret your trace data.</p>
                 </div>
-                <DocsButton />
+                <DocsButton href="https://docs.laminar.sh/platform/viewing-traces#ask-ai" />
               </div>
             </div>
           </div>
@@ -95,7 +95,7 @@ const ThreeCategories = ({ className }: Props) => {
                 improvements all without starting from scratch.
               </p>
             </div>
-            <DocsButton />
+            <DocsButton href="https://docs.laminar.sh/playground" />
           </div>
           <PlaygroundImage className="relative shrink-0 w-[720px] h-[450px]" />
         </div>
@@ -110,7 +110,7 @@ const ThreeCategories = ({ className }: Props) => {
                 and Playwright
               </p>
             </div>
-            <DocsButton />
+            <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
           </div>
           <BrowserScreenRecordingImage className="relative shrink-0 w-[500px] inset-0" />
         </div>
@@ -134,7 +134,7 @@ const ThreeCategories = ({ className }: Props) => {
                     behavior so you can debug faster.
                   </p>
                 </div>
-                <DocsButton />
+                <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
               </div>
             </div>
             <div className="basis-0 bg-landing-surface-700 flex grow h-full items-end justify-center overflow-hidden p-8 rounded-lg shrink-0 relative">
@@ -147,7 +147,7 @@ const ThreeCategories = ({ className }: Props) => {
                     automatically.
                   </p>
                 </div>
-                <DocsButton />
+                <DocsButton href="https://docs.laminar.sh/tracing/events/semantic-events" />
               </div>
             </div>
           </div>
@@ -164,7 +164,7 @@ const ThreeCategories = ({ className }: Props) => {
                 <p>Powered by our state-of-the-art SQL query engine.</p>
               </div>
             </div>
-            <DocsButton />
+            <DocsButton href="https://docs.laminar.sh/custom-dashboards/overview" />
           </div>
           <DashboardImage className="relative shrink-0 w-[664px] h-[415px]" />
         </div>
@@ -177,7 +177,7 @@ const ThreeCategories = ({ className }: Props) => {
             <p className={subsectionTitle}>Did someone say Evals?</p>
             <p className={bodyLarge}>Verify progress, catch regressions, and iterate with confidence</p>
           </div>
-          <DocsButton />
+          <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
           <div className="flex flex-col gap-16 items-start w-full">
             <EvalsImage />
             <div className="flex gap-10 items-start w-full">
@@ -223,7 +223,7 @@ const ThreeCategories = ({ className }: Props) => {
                   </div>
                 </div>
               </div>
-              <DocsButton />
+              <DocsButton href="https://docs.laminar.sh/platform/sql-editor" />
             </div>
             <SQLImage className="relative shrink-0 w-[664px] h-[415px]" />
           </div>

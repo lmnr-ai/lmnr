@@ -47,7 +47,7 @@ const SecondHalf = ({ className }: Props) => {
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Self-host anywhere</p>
               </div>
             </div>
-            <DocsButton />
+            <DocsButton href="https://docs.laminar.sh/hosting-options" />
           </div>
 
           {/* Ready to scale section */}
@@ -67,7 +67,7 @@ const SecondHalf = ({ className }: Props) => {
                 <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px shrink-0")}>Terabytes of data with ease</p>
               </div>
             </div>
-            <DocsButton />
+            <DocsButton href="/pricing" label="PRICING" />
           </div>
         </div>
 

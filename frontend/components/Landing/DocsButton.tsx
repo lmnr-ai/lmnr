@@ -8,7 +8,7 @@ interface Props {
   href?: string;
 }
 
-const DocsButton = ({ className, label = "DOCS", href = "https://docs.lmnr.ai" }: Props) => {
+const DocsButton = ({ className, label = "DOCS", href = "https://docs.laminar.sh" }: Props) => {
   return (
     <Link
       href={href}
@@ -19,7 +19,7 @@ const DocsButton = ({ className, label = "DOCS", href = "https://docs.lmnr.ai" }
       )}
     >
       <p className="font-chivo-mono leading-normal text-sm  tracking-[1.68px]">{label}</p>
-      <ArrowRight className="relative shrink-0 size-4 group-hover:-rotate-45 transition-all duration-100 group-hover:translate-x-1" />
+      <ArrowRight className="relative shrink-0 size-4 transition-all duration-100 group-hover:translate-x-2" />
     </Link>
   );
 };

@@ -189,5 +189,10 @@
   button {
     cursor: pointer;
   }
+
+  ::selection {
+    background-color: var(--color-landing-primary-300);
+    color: white;
+  }
 }
 

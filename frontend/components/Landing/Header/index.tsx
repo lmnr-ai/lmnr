@@ -25,7 +25,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
       <div className="flex gap-[60px] items-center justify-center">
         <nav className={cn("flex gap-10 items-center", navLink)}>
           <Link
-            href="https://docs.lmnr.ai"
+            href="https://docs.laminar.sh"
             target="_blank"
             className="no-underline text-landing-text-300 hover:text-landing-text-200"
           >

@@ -28,7 +28,7 @@ const Footer = ({ className }: Props) => {
               <p>AI agents today</p>
             </div>
             <div className="flex gap-5 items-center">
-              <Link href="https://docs.lmnr.ai" target="_blank">
+              <Link href="https://docs.laminar.sh" target="_blank">
                 <LandingButton
                   variant="outline"
                   className="border-[#555] border-[0.5px] text-base tracking-[1.28px] font-light"
@@ -71,7 +71,7 @@ const Footer = ({ className }: Props) => {
               </Link>
             </div>
             <div className="flex flex-col gap-[20px] items-start">
-              <Link href="/privacy">
+              <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
                   className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
@@ -79,7 +79,7 @@ const Footer = ({ className }: Props) => {
                   PRIVACY POLICY
                 </LandingButton>
               </Link>
-              <Link href="/terms">
+              <Link href="/policies/terms" target="_blank">
                 <LandingButton
                   variant="minimal"
                   className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
@@ -87,7 +87,7 @@ const Footer = ({ className }: Props) => {
                   TERMS OF SERVICE
                 </LandingButton>
               </Link>
-              <Link href="/status">
+              <Link href="https://status.laminar.sh" target="_blank">
                 <LandingButton
                   variant="minimal"
                   className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
