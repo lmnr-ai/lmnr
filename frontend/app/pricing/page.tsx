@@ -1,8 +1,8 @@
 import { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 
-import LandingHeader from '@/components/landing/landing-header';
-import Pricing from '@/components/landing/pricing';
+import LandingHeader from '@/components/Landing/Header';
+import Pricing from '@/components/landing-old/pricing';
 import { authOptions } from '@/lib/auth';
 
 export const metadata: Metadata = {

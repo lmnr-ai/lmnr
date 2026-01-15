@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 
-import Footer from "@/components/landing/footer";
+import Footer from "@/components/Landing/Footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
