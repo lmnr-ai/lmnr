@@ -13,7 +13,7 @@ use crate::{
     db::utils::span_id_to_uuid,
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::logs::v1::{
-        ExportLogsServiceRequest, ExportLogsServiceResponse, LogRecord,
+        ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse, LogRecord,
     },
     traces::utils::convert_any_value_to_json_value,
 };
@@ -51,7 +51,7 @@ impl Log {
             };
 
         // Convert span_id (8 bytes) to UUID (padded)
-        let span_id = if log_record.span_id.is_empty() || log_record.span_id.iter().all(|&b| b == 0)
+        let span_id = if log_record.span_id.len() != 8 || log_record.span_id.iter().all(|&b| b == 0)
         {
             None
         } else {
@@ -129,6 +129,7 @@ pub async fn push_logs_to_queue(
         })
         .collect();
 
+    let log_count = messages.len();
     let mq_message = serde_json::to_vec(&messages)?;
 
     if mq_message.len() >= mq_max_payload() {
@@ -136,18 +137,26 @@ pub async fn push_logs_to_queue(
             "[LOGS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]. Log count: [{}]",
             project_id,
             mq_message.len(),
-            messages.len()
+            log_count
         );
-        // Don't return error for now, skip publishing
-    } else {
-        queue
-            .publish(&mq_message, LOGS_EXCHANGE, LOGS_ROUTING_KEY)
-            .await?;
+        // Return partial success to inform client that logs were rejected
+        return Ok(ExportLogsServiceResponse {
+            partial_success: Some(ExportLogsPartialSuccess {
+                rejected_log_records: log_count as i64,
+                error_message: format!(
+                    "Payload size {} exceeds limit. All {} log records rejected.",
+                    mq_message.len(),
+                    log_count
+                ),
+            }),
+        });
     }
 
-    let response = ExportLogsServiceResponse {
-        partial_success: None,
-    };
+    queue
+        .publish(&mq_message, LOGS_EXCHANGE, LOGS_ROUTING_KEY)
+        .await?;
 
-    Ok(response)
+    Ok(ExportLogsServiceResponse {
+        partial_success: None,
+    })
 }
