@@ -975,11 +975,15 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn logs workers
                     {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
                             num_logs_workers as usize,
                             move || LogsHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
                             },
                             QueueConfig {
