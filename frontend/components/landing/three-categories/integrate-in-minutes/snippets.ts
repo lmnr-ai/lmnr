@@ -1,9 +1,9 @@
 // Import logos
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
-import vercel from "@/assets/landing/logos/vercel.svg";
 import langgraph from "@/assets/landing/logos/langgraph.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import vercel from "@/assets/landing/logos/vercel.svg";
 
 export type Integration = "browser-use" | "claude" | "vercel" | "langgraph" | "light-llm";
 
@@ -49,7 +49,7 @@ from lmnr import Laminar, observe
 from claude_agent_sdk import ClaudeSDKClient
 
 load_dotenv()
-del os.environ["ANTHROPIC_API_KEY"]  # Use Claude Code's OAuth instead
+del os.environ["ANTHROPIC_API_KEY"]  
 Laminar.initialize()
 
 @observe()
