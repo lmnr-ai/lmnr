@@ -32,7 +32,7 @@ export default function LandingHeader({ hasSession }: LandingHeaderProps) {
             DOCS
           </Link>
           <Link href="/blog" className="no-underline text-landing-text-300 hover:text-landing-text-200">
-            BLOGS
+            BLOG
           </Link>
           <Link href="/pricing" className="no-underline text-landing-text-300 hover:text-landing-text-200">
             PRICING

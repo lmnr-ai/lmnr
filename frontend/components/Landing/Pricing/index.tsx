@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toFixedIfFloat } from "@/lib/utils";
 
-import PricingCard from "./pricing-card";
+import PricingCard from "./PricingCard";
 
 function PricingCalculator() {
   const [tokens, setTokens] = useState(100_000_000); // Default 100 million tokens
