@@ -7,11 +7,11 @@ import ListItem from "@/components/rollout-sessions/rollout-session-view/list/li
 import MustacheTemplateSheet from "@/components/rollout-sessions/rollout-session-view/list/mustache-template-sheet.tsx";
 import {
   type TraceViewListSpan,
-  type TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {

@@ -3,10 +3,8 @@ import { type VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import {
-  type TraceViewSpan,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button.tsx";

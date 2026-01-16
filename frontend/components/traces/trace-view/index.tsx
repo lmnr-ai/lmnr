@@ -239,20 +239,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         setSpans(spans);
 
-        // Calculate total cache read input tokens from all spans
-        const totalCacheReadInputTokens = spans.reduce((sum, span) => sum + (span.cacheReadInputTokens || 0), 0);
-
-        // Update trace with calculated cache tokens
-        if (totalCacheReadInputTokens > 0) {
-          setTrace((prevTrace) => {
-            if (!prevTrace) return prevTrace;
-            return {
-              ...prevTrace,
-              cacheReadInputTokens: totalCacheReadInputTokens,
-            };
-          });
-        }
-
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);

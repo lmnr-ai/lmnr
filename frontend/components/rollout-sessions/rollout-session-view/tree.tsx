@@ -2,11 +2,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
-import {
-  type TraceViewSpan,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 
 import { SpanCard } from "./span-card";
 

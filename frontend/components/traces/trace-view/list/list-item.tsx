@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Gauge, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
@@ -90,12 +90,9 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                 <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
                   <Coins size={14} className="min-w-[14px] min-h-[14px]" />
                   <span>{numberFormatter.format(span.totalTokens)}</span>
-                </div>
-              )}
-              {span.cacheReadInputTokens && span.cacheReadInputTokens > 0 && (
-                <div className="py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                  <Gauge size={14} className="min-w-[14px] min-h-[14px] text-blue-500" />
-                  <span className="text-blue-500">{numberFormatter.format(span.cacheReadInputTokens)}</span>
+                  {!!span.cacheReadInputTokens && (
+                    <span className="text-success-bright">({numberFormatter.format(span.cacheReadInputTokens)})</span>
+                  )}
                 </div>
               )}
               {span.totalCost > 0 && (

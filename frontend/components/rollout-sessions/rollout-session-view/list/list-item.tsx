@@ -168,6 +168,9 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
                   <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
                     <Coins size={14} className="min-w-[14px] min-h-[14px]" />
                     <span>{numberFormatter.format(span.totalTokens)}</span>
+                    {!!span.cacheReadInputTokens && (
+                      <span className="text-success-bright">({numberFormatter.format(span.cacheReadInputTokens)})</span>
+                    )}
                   </div>
                 )}
                 {span.totalCost > 0 && (

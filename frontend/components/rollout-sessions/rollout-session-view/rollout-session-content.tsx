@@ -11,8 +11,6 @@ import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.
 import {
   MAX_ZOOM,
   MIN_ZOOM,
-  type TraceViewSpan,
-  type TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SearchRolloutSessionSpansInput from "@/components/rollout-sessions/rollout-session-view/search";
@@ -31,6 +29,7 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";

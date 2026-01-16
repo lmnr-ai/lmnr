@@ -1,14 +1,12 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete.tsx";
-import {
-  type TraceViewSpan,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import {
   extractSpanSuggestions,
   STATIC_SPAN_SUGGESTIONS,
 } from "@/components/rollout-sessions/rollout-session-view/search/utils.ts";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { Operator } from "@/lib/actions/common/operators.ts";

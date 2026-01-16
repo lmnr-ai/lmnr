@@ -10,23 +10,30 @@ import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const params = await props.params;
-  const { data } = getBlogPost(params.slug);
-  return {
-    title: data.title,
-    description: data.description,
-    authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
-    icons: ["https://www.lmnr.ai/favicon.ico"],
-    openGraph: {
-      images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
-      type: "article",
-      publishedTime: data.date,
-    },
-    twitter: {
+  try {
+    const { data } = getBlogPost(params.slug);
+    return {
       title: data.title,
       description: data.description,
-      images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
-    },
-  };
+      authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
+      icons: ["https://www.lmnr.ai/favicon.ico"],
+      openGraph: {
+        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        type: "article",
+        publishedTime: data.date,
+      },
+      twitter: {
+        title: data.title,
+        description: data.description,
+        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+      },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (error) {
+    return {
+      title: "Post Not Found",
+    };
+  }
 };
 
 export default async function BlogPostPage(props0: { params: Promise<{ slug: string }> }) {

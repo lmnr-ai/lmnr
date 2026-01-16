@@ -2,13 +2,11 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  type TraceViewSpan,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
