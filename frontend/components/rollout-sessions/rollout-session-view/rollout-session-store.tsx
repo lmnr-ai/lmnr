@@ -296,6 +296,7 @@ const createRolloutSessionStore = ({
               endTime: span.endTime,
               totalTokens: span.totalTokens,
               totalCost: span.totalCost,
+              cacheReadInputTokens: span.cacheReadInputTokens,
               pending: span.pending,
               pathInfo: buildPathInfo(parentChain, spanNameMap),
             };

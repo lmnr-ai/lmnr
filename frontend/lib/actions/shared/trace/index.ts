@@ -65,7 +65,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
   ]);
 
   if (!trace) {
-    throw new Error("Trace not found.");
+    return undefined;
   }
 
   return {
