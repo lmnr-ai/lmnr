@@ -162,7 +162,8 @@ pub async fn upsert_trace_statistics_batch(
                 top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
                 top_span_type = COALESCE(EXCLUDED.top_span_type, traces.top_span_type),
                 session_id = COALESCE(EXCLUDED.session_id, traces.session_id),
-                metadata = COALESCE(EXCLUDED.metadata, traces.metadata),
+                -- `||` operator shallowly merges the metadata; coalesce prevents None from overwriting the existing metadata
+                metadata = COALESCE(traces.metadata || EXCLUDED.metadata, EXCLUDED.metadata, traces.metadata),
                 user_id = COALESCE(EXCLUDED.user_id, traces.user_id),
                 input_token_count = traces.input_token_count + EXCLUDED.input_token_count,
                 output_token_count = traces.output_token_count + EXCLUDED.output_token_count,
