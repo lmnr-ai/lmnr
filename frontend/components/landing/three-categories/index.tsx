@@ -29,20 +29,13 @@ const ThreeCategories = ({ className }: Props) => (
   >
     <div className="flex flex-col gap-[240px] items-start w-[1080px] max-w-[1186px]">
       {/* Header */}
-      <div className="flex flex-col gap-10 items-start w-full">
-        <h2 className={cn(sectionHeaderLarge, "w-[1160px]")}>
-          Features for
-          <br />
-          every step of
-          <br />
-          the development cycle
-        </h2>
-        <div className={cn(bodyLarge, "min-w-full w-full flex flex-col items-end")}>
-          <p className="mb-0">Our comprehensive platform gives </p>
-          <p className="mb-0">you the tools you need to build </p>
-          <p className="font-normal text-white">modern AI agents</p>
-        </div>
-      </div>
+      <h2 className={cn(sectionHeaderLarge, "w-[1160px]")}>
+        Features for
+        <br />
+        every step of
+        <br />
+        the development cycle
+      </h2>
 
       {/* TRACING Section */}
       <SectionName label="TRACING" index={1} />
@@ -143,12 +136,40 @@ const ThreeCategories = ({ className }: Props) => (
               <div className="flex flex-col gap-1 items-start w-full">
                 <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Calling the wrong tool? Clicking the wrong button? Laminar categorizes traces based on agent behavior
+                  Calling the wrong tool? Clicking the wrong button? Laminar categorizes traces based on agent behavior.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* By the power of SQL */}
+      <div className="flex flex-col items-start w-full">
+        <div className="flex items-start justify-between w-full">
+          <div className="flex flex-col gap-[50px] items-start w-[380px]">
+            <div className="flex flex-col gap-6 items-start w-full">
+              <h2 className={subsectionTitle}>By the power of SQL</h2>
+              <div className="flex flex-col items-start w-[380px]">
+                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                    Feed your Evals with Datasets straight from SQL queries
+                  </p>
+                </div>
+                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
+                </div>
+                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                    SQL API to pull data into your application
+                  </p>
+                </div>
+              </div>
+            </div>
+            <DocsButton href="https://docs.laminar.sh/platform/sql-editor" />
+          </div>
+          <SQLImage className="relative shrink-0 w-[664px] h-[415px]" />
         </div>
       </div>
 
@@ -159,7 +180,7 @@ const ThreeCategories = ({ className }: Props) => (
             <h2 className={subsectionTitle}>Custom dashboards</h2>
             <div className={bodyMedium}>
               <p className="mb-0">Track what's important to you, with all platform data ready for action. </p>
-              <p className="mb-0"> </p>
+              <br />
               <p>Powered by our state-of-the-art SQL query engine.</p>
             </div>
           </div>
@@ -197,34 +218,6 @@ const ThreeCategories = ({ className }: Props) => (
               <GranularEvalsImage className="h-[283px] w-full" />
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* By the power of SQL */}
-      <div className="flex flex-col items-start w-full">
-        <div className="flex items-start justify-between w-full">
-          <div className="flex flex-col gap-[50px] items-start w-[380px]">
-            <div className="flex flex-col gap-6 items-start w-full">
-              <h2 className={subsectionTitle}>By the power of SQL</h2>
-              <div className="flex flex-col items-start w-[380px]">
-                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                    Feed your Evals with Datasets straight from SQL queries
-                  </p>
-                </div>
-                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
-                </div>
-                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                    SQL API to pull data into your application
-                  </p>
-                </div>
-              </div>
-            </div>
-            <DocsButton href="https://docs.laminar.sh/platform/sql-editor" />
-          </div>
-          <SQLImage className="relative shrink-0 w-[664px] h-[415px]" />
         </div>
       </div>
     </div>

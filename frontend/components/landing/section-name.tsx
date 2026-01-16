@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -8,19 +10,25 @@ interface Props {
 
 const SectionName = ({ className, label, index }: Props) => {
   const formattedIndex = String(index).padStart(2, "0");
-  
+
   return (
     <div
       className={cn(
-        "border-t border-landing-text-600 flex font-chivo-mono gap-[30px] items-center leading-normal px-0 py-1 text-sm text-landing-text-600 tracking-[1.68px] whitespace-nowrap w-[216px] relative",
+        "flex font-chivo-mono gap-[30px] items-center leading-normal px-0 py-1 text-sm text-landing-text-600 tracking-[1.68px] whitespace-nowrap w-[216px] relative",
         className
       )}
     >
-      <p className="absolute left-[-44px] top-[3px]">{formattedIndex}.</p>
+      <motion.div
+        className="absolute top-0 left-0 h-[1px] bg-landing-text-600"
+        initial={{ width: "50%" }}
+        whileInView={{ width: "100%" }}
+        viewport={{ once: false }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+      <p className="absolute left-[-44px] top-[4px]">{formattedIndex}.</p>
       <p className="relative shrink-0">{label}</p>
     </div>
   );
 };
 
 export default SectionName;
-

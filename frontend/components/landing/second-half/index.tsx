@@ -1,13 +1,14 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { useScroll } from "framer-motion";
 import Image from "next/image";
 import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
+
 import { bodySQL, sectionHeaderLarge } from "../class-names";
 import DocsButton from "../docs-button";
 import LocalToScaleImage from "./local-to-scale-image";
-import SystemDiagram from "./system-diagram";
 
 interface Props {
   className?: string;
@@ -31,7 +32,7 @@ const SecondHalf = ({ className }: Props) => {
       {/* Local to Scale combined section */}
       <div ref={containerRef} className="relative w-[1164px] flex justify-between">
         {/* Left column - scrolls normally */}
-        <div className="flex flex-col gap-[240px] w-[500px] pb-[100px] pt-[20px]">
+        <div className="flex flex-col gap-[240px] w-[500px] pb-[0px] pt-[20px]">
           {/* Try it local, free section */}
           <div className="flex flex-col gap-6 items-start">
             <h2 className={sectionHeaderLarge}>Try it local, free</h2>
@@ -69,6 +70,26 @@ const SecondHalf = ({ className }: Props) => {
             </div>
             <DocsButton href="/pricing" label="PRICING" />
           </div>
+
+          {/* Production-grade section */}
+          <div className="flex flex-col gap-[37px] items-start">
+            <h2 className={sectionHeaderLarge}>
+              Production-grade
+              <br />
+              to the core
+            </h2>
+            <p className="font-sans font-normal leading-6 text-base text-landing-text-200 w-[394px]">
+              Built in Rust and mega-optimized for performance. Terabytes of trace data in production without slowing
+              down.
+              <br />
+              <br />
+              SOC2 and HIPAA compliant.
+            </p>
+            <div className="flex gap-5 items-start">
+              <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={90} height={90} />
+              <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={90} height={90} />
+            </div>
+          </div>
         </div>
 
         {/* Right column - sticky */}
@@ -80,32 +101,6 @@ const SecondHalf = ({ className }: Props) => {
             />
           </div>
         </div>
-      </div>
-
-      {/* Production-grade section */}
-      <div className="flex gap-10 items-center relative shrink-0 w-full pl-[calc((100%-1142px)/2)] ">
-        <div className="basis-0 flex flex-col gap-[37px] grow items-start min-h-px min-w-px relative shrink-0">
-          <div className="flex flex-col items-start relative shrink-0">
-            <h2 className={cn(sectionHeaderLarge)}>
-              Production-grade
-              <br />
-              to the core
-            </h2>
-          </div>
-          <p className="font-sans font-normal leading-6 text-base text-landing-text-200 w-[394px]">
-            Built in Rust and mega-optimized for performance. Terabytes of trace data in production without slowing
-            down.
-            <br />
-            <br />
-            SOC2 and HIPAA compliant.
-          </p>
-          <div className="flex gap-5 items-start relative shrink-0">
-            <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={90} height={90} />
-            <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={90} height={90} />
-          </div>
-        </div>
-        {/* Architecture diagram placeholder */}
-        <SystemDiagram className="flex-1" />
       </div>
     </div>
   );

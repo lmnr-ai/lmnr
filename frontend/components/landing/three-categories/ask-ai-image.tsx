@@ -1,9 +1,10 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
 import { ArrowRight } from "lucide-react";
+import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
@@ -24,28 +25,28 @@ const AskAIImage = ({ className }: Props) => {
       xOffset: 360,
       hasButton: false,
       opacity: useTransform(scrollYProgress, [0.0, 0.2], [0, 1]),
-      x: useTransform(scrollYProgress, [0.0, 0.2], [100, 0]),
+      x: useTransform(scrollYProgress, [0.0, 0.3], [100, 0]),
     },
     {
       text: "Diagnose the core cause of the issue",
       xOffset: 400,
       hasButton: false,
       opacity: useTransform(scrollYProgress, [0.1, 0.3], [0, 1]),
-      x: useTransform(scrollYProgress, [0.1, 0.3], [100, 0]),
+      x: useTransform(scrollYProgress, [0.1, 0.4], [100, 0]),
     },
     {
       text: "Summarize my trace for me and explain the root cause of the error",
       xOffset: 440,
       hasButton: false,
       opacity: useTransform(scrollYProgress, [0.2, 0.5], [0, 1]),
-      x: useTransform(scrollYProgress, [0.2, 0.5], [100, 0]),
+      x: useTransform(scrollYProgress, [0.2, 0.6], [100, 0]),
     },
     {
       text: "Summarize my trace for me and explain the root cause of the error",
       xOffset: 0,
       hasButton: true,
       opacity: useTransform(scrollYProgress, [0, 0.3], [0, 1]),
-      x: useTransform(scrollYProgress, [0, 0.3], [100, 0]),
+      x: useTransform(scrollYProgress, [0.2, 0.4], [-40, 0]),
     },
   ];
 

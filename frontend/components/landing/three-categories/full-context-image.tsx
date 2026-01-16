@@ -1,8 +1,10 @@
 "use client";
 
+import { motion, useScroll, useTransform } from "framer-motion";
+import { Bolt, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
+import { useRef } from "react";
+
 import { cn } from "@/lib/utils";
-import { useScroll, useTransform, motion } from "framer-motion";
-import { useRef, useState, useEffect } from "react";
 
 interface Props {
   className?: string;
@@ -11,30 +13,14 @@ interface Props {
 const FullContextImage = ({ className }: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const [scrollRange, setScrollRange] = useState(400);
 
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "center start"],
   });
 
-  useEffect(() => {
-    const calculateScrollRange = () => {
-      if (contentRef.current && ref.current) {
-        const contentHeight = contentRef.current.scrollHeight;
-        const containerHeight = ref.current.clientHeight;
-        const range = contentHeight - containerHeight;
-        setScrollRange(range > 0 ? range : 0);
-      }
-    };
-
-    calculateScrollRange();
-    window.addEventListener("resize", calculateScrollRange);
-    return () => window.removeEventListener("resize", calculateScrollRange);
-  }, []);
-
   const opacity = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
-  const translateY = useTransform(scrollYProgress, [0, 1], [0, -scrollRange]);
+  const translateY = useTransform(scrollYProgress, [0, 1], [0, -600]);
 
   return (
     <motion.div
@@ -47,27 +33,15 @@ const FullContextImage = ({ className }: Props) => {
         style={{ y: translateY }}
         ref={contentRef}
       >
-        <div className="bg-landing-surface-600 flex items-start h-full w-full">
+        <div className="bg-landing-surface-600 flex items-start w-full">
           {/* Main content area */}
           <div className="flex flex-col items-start grow min-w-0 h-full">
             {/* Message row 1 - Navigation */}
             <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                {/* Chevron right */}
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M3.75 2.5L6.25 5L3.75 7.5"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {/* Bolt icon */}
+                <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6.5 2L3 7h3l-.5 3 3.5-5H6l.5-3z" fill="rgb(146 148 156)" />
-                  </svg>
+                  <Bolt size={12} className="text-landing-text-300" />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">navigated to https://laminar.sh</p>
               </div>
@@ -76,24 +50,9 @@ const FullContextImage = ({ className }: Props) => {
             {/* Message row 2 - LLM response */}
             <div className="flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                {/* Chevron down */}
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M2.5 3.75L5 6.25L7.5 3.75"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {/* Message icon */}
+                <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M10.5 5.5c0 2.5-2.5 4.5-5 4.5-.5 0-1-.1-1.5-.2L2 11l1.2-2c-.8-.8-1.2-1.8-1.2-2.5 0-2.5 2.5-4.5 5-4.5s5 2 5 4.5z"
-                      fill="rgb(146 148 156)"
-                    />
-                  </svg>
+                  <MessageCircle size={12} className="text-landing-text-300" />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
               </div>
@@ -110,19 +69,9 @@ const FullContextImage = ({ className }: Props) => {
             {/* Message row 3 - Click action */}
             <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M3.75 2.5L6.25 5L3.75 7.5"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6.5 2L3 7h3l-.5 3 3.5-5H6l.5-3z" fill="rgb(146 148 156)" />
-                  </svg>
+                  <Bolt size={12} className="text-landing-text-300" />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">click</p>
               </div>
@@ -131,45 +80,20 @@ const FullContextImage = ({ className }: Props) => {
             {/* Message row 5 - Extract action */}
             <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M3.75 2.5L6.25 5L3.75 7.5"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6.5 2L3 7h3l-.5 3 3.5-5H6l.5-3z" fill="rgb(146 148 156)" />
-                  </svg>
+                  <Bolt size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">
-                  extracted pricing plans and their details on Laminar Pr...
-                </p>
+                <p className="font-sans text-xs text-landing-text-300">extracted pricing plans</p>
               </div>
             </div>
 
             {/* Message row 6 - LLM response */}
             <div className="flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M2.5 3.75L5 6.25L7.5 3.75"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M10.5 5.5c0 2.5-2.5 4.5-5 4.5-.5 0-1-.1-1.5-.2L2 11l1.2-2c-.8-.8-1.2-1.8-1.2-2.5 0-2.5 2.5-4.5 5-4.5s5 2 5 4.5z"
-                      fill="rgb(146 148 156)"
-                    />
-                  </svg>
+                  <MessageCircle size={12} className="text-landing-text-300" />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
               </div>
@@ -202,22 +126,9 @@ const FullContextImage = ({ className }: Props) => {
             <div className="bg-landing-primary-400/10 border-l border-landing-primary-400 flex flex-col items-start w-full">
               <div className="flex h-7 items-center px-3 w-full">
                 <div className="flex gap-2 items-center">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                    <path
-                      d="M2.5 3.75L5 6.25L7.5 3.75"
-                      stroke="rgb(95 97 102)"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                   <div className="bg-[rgba(116,63,227,0.5)] flex items-center p-1 rounded shrink-0">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M10.5 5.5c0 2.5-2.5 4.5-5 4.5-.5 0-1-.1-1.5-.2L2 11l1.2-2c-.8-.8-1.2-1.8-1.2-2.5 0-2.5 2.5-4.5 5-4.5s5 2 5 4.5z"
-                        fill="rgb(146 148 156)"
-                      />
-                    </svg>
+                    <MessageCircle size={12} className="text-landing-text-300" />
                   </div>
                   <p className="font-sans text-xs text-landing-primary-400">gpt-05-nano-2025-08-07</p>
                 </div>
@@ -234,45 +145,20 @@ const FullContextImage = ({ className }: Props) => {
             {/* Message row 5 - Extract action */}
             <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M3.75 2.5L6.25 5L3.75 7.5"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6.5 2L3 7h3l-.5 3 3.5-5H6l.5-3z" fill="rgb(146 148 156)" />
-                  </svg>
+                  <Bolt size={12} className="text-landing-text-300 " />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">
-                  extracted pricing plans and their details on Laminar Pr...
-                </p>
+                <p className="font-sans text-xs text-landing-text-300">Extracted pricing plans</p>
               </div>
             </div>
 
             {/* Message row 6 - LLM response */}
             <div className="flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M2.5 3.75L5 6.25L7.5 3.75"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M10.5 5.5c0 2.5-2.5 4.5-5 4.5-.5 0-1-.1-1.5-.2L2 11l1.2-2c-.8-.8-1.2-1.8-1.2-2.5 0-2.5 2.5-4.5 5-4.5s5 2 5 4.5z"
-                      fill="rgb(146 148 156)"
-                    />
-                  </svg>
+                  <MessageCircle size={12} className="text-landing-text-300 " />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
               </div>
@@ -304,22 +190,9 @@ const FullContextImage = ({ className }: Props) => {
             {/* More messages */}
             <div className="flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M2.5 3.75L5 6.25L7.5 3.75"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M10.5 5.5c0 2.5-2.5 4.5-5 4.5-.5 0-1-.1-1.5-.2L2 11l1.2-2c-.8-.8-1.2-1.8-1.2-2.5 0-2.5 2.5-4.5 5-4.5s5 2 5 4.5z"
-                      fill="rgb(146 148 156)"
-                    />
-                  </svg>
+                  <MessageCircle size={12} className="text-landing-text-300 " />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
               </div>
@@ -335,19 +208,9 @@ const FullContextImage = ({ className }: Props) => {
             {/* Writing action */}
             <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
               <div className="flex gap-2 items-center">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                  <path
-                    d="M3.75 2.5L6.25 5L3.75 7.5"
-                    stroke="rgb(95 97 102)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6.5 2L3 7h3l-.5 3 3.5-5H6l.5-3z" fill="rgb(146 148 156)" />
-                  </svg>
+                  <Bolt size={12} className="text-landing-text-300 " />
                 </div>
                 <p className="font-sans text-xs text-landing-text-300">writing to pricing_summary.md</p>
               </div>

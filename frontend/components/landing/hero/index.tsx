@@ -1,9 +1,10 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import Header from "../header";
 import LandingButton from "../landing-button";
@@ -12,6 +13,7 @@ import ScreenshotToggleButton from "./screenshot-toggle-button";
 
 interface Props {
   className?: string;
+  hasSession: boolean;
 }
 
 type TabType = "TRACING" | "EVALS" | "ANALYSIS";
@@ -22,36 +24,38 @@ const tabImages: Record<TabType, string> = {
   ANALYSIS: "/assets/landing/dashboards.png",
 };
 
-const Hero = ({ className }: Props) => {
+const Hero = ({ className, hasSession }: Props) => {
   const [activeTab, setActiveTab] = useState<TabType>("TRACING");
 
   return (
     <div className={cn("bg-landing-surface-900 flex flex-col items-center justify-between w-full gap-4", className)}>
       <div className="flex flex-col items-center justify-between pt-8 px-[48px] h-[calc(75dvh)] w-full">
-        {/*TODO: hasSession for real*/}
-        <Header hasSession={true} />
+        <Header hasSession={hasSession} />
         <div className="flex flex-col gap-10 items-center left-1/2 top-[247px]  w-full">
-          <div className="flex flex-col items-start">
+          <div className="flex flex-col items-start w-full">
             <h1
               className={cn(
-                "font-space-grotesk font-normal text-[64px] text-center text-white tracking-[-1.28px] leading-[72px]",
-                "w-[833px]"
+                "font-space-grotesk font-normal text-[52px] text-center text-white tracking-[-0.02em] leading-[68px]",
+                "w-full text-center"
               )}
             >
-              Developers build reliable
+              Understand why your agent failed.
               <br />
-              agents with Laminar
+              Iterate fast to fix it
             </h1>
           </div>
+          <p className="text-landing-text-400 text-center text-lg leading-7 max-w-[500px]">
+            Open source observability for comprehensive tracing, execution replay, and trace analysis for AI agents.
+          </p>
           <div className="flex gap-5 items-center justify-center">
-            <Link href="https://docs.lmnr.ai" target="_blank">
-              <LandingButton variant="outline" className="w-[206px]">
-                READ THE DOCS
-              </LandingButton>
-            </Link>
             <Link href="/sign-up">
               <LandingButton variant="primary" className="w-[206px]">
                 GET STARTED FREE
+              </LandingButton>
+            </Link>
+            <Link href="https://docs.lmnr.ai" target="_blank">
+              <LandingButton variant="outline" className="w-[206px]">
+                READ THE DOCS
               </LandingButton>
             </Link>
           </div>

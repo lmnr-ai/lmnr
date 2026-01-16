@@ -1,67 +1,17 @@
+import { flatMap, times } from "lodash";
+
 export type TraceStep =
   | { type: "bolt"; text: string }
   | { type: "llm"; expanded?: boolean; content?: string }
   | { type: "pricing" };
 
-export const traceSteps: TraceStep[] = [
+const baseSteps: TraceStep[] = [
   { type: "bolt", text: "navigated to https://laminar.sh" },
-  {
-    type: "llm",
-    expanded: true,
-    content:
-      "Current state shows we are on https://laminar.sh with several top navigation links, including a visible Pricing link at index 4.",
-  },
-  { type: "bolt", text: "click" },
-  {
-    type: "llm",
-    expanded: true,
-    content: "Current task: on the Pricing page for laminar.sh and need to extract and describe pricing plans.",
-  },
-  { type: "bolt", text: "extracted pricing plans and their details on Laminar Pr..." },
-  { type: "pricing" },
-  { type: "bolt", text: "navigated to https://laminar.sh" },
-  {
-    type: "llm",
-    expanded: true,
-    content: "Current state shows we are on https://laminar.sh with several top navigation links.",
-  },
-  { type: "bolt", text: "click" },
-  {
-    type: "llm",
-    expanded: true,
-    content: "Current task: on the Pricing page for laminar.sh and need to extract pricing plans.",
-  },
-  { type: "bolt", text: "extracted pricing plans and their details on Laminar Pr..." },
-  { type: "pricing" },
-  { type: "bolt", text: "navigated to https://laminar.sh" },
-  { type: "llm", expanded: true, content: "Current state shows we are on https://laminar.sh with navigation links." },
+  { type: "llm", expanded: true, content: "Current state shows navigation links including Pricing." },
   { type: "bolt", text: "click" },
   { type: "llm", expanded: true, content: "Extracting pricing information from the page..." },
-  { type: "bolt", text: "extracted pricing plans and their details on Laminar Pr..." },
+  { type: "bolt", text: "extracted pricing plans" },
   { type: "pricing" },
-  { type: "bolt", text: "writing to pricing_summary.md" },
-  { type: "llm", expanded: true, content: "Reviewing the agent history shows step-by-step progress." },
-  { type: "bolt", text: "navigated to https://laminar.sh/docs" },
-  { type: "llm", expanded: true, content: "Navigating to documentation page to gather more information." },
-  { type: "bolt", text: "click" },
-  { type: "llm", expanded: true, content: "Clicking on the API reference section." },
-  { type: "bolt", text: "extracted API documentation" },
-  { type: "pricing" },
-  { type: "bolt", text: "writing to api_docs.md" },
-  { type: "llm", expanded: true, content: "Completed extraction of API documentation." },
-  { type: "bolt", text: "navigated to https://laminar.sh/blog" },
-  { type: "llm", expanded: true, content: "Navigating to blog section for additional content." },
-  { type: "bolt", text: "click" },
-  { type: "llm", expanded: true, content: "Reading latest blog post about new features." },
-  { type: "bolt", text: "extracted blog content" },
-  { type: "pricing" },
-  { type: "bolt", text: "writing to blog_summary.md" },
-  { type: "llm", expanded: true, content: "Summarizing key points from blog posts." },
-  { type: "bolt", text: "navigated to https://laminar.sh/changelog" },
-  { type: "llm", expanded: true, content: "Checking changelog for recent updates." },
-  { type: "bolt", text: "click" },
-  { type: "llm", expanded: true, content: "Extracting version history and release notes." },
-  { type: "bolt", text: "extracted changelog entries" },
-  { type: "pricing" },
-  { type: "bolt", text: "writing to changelog_summary.md" },
 ];
+
+export const traceSteps: TraceStep[] = flatMap(times(13), () => baseSteps);

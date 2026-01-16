@@ -1,29 +1,29 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import Hero from "./hero";
-import ThreeCategories from "./three-categories";
+
 import Blurb from "./blurb";
-import SecondHalf from "./second-half";
 import Footer from "./footer";
+import Hero from "./hero";
 import LenisProvider from "./lenis-provider";
+import SecondHalf from "./second-half";
+import ThreeCategories from "./three-categories";
 
 interface Props {
   className?: string;
+  hasSession: boolean;
 }
 
-const Landing = ({ className }: Props) => {
-  return (
-    <LenisProvider>
-      <div className={cn("", className)}>
-        <Hero />
-        <ThreeCategories />
-        <Blurb />
-        <SecondHalf />
-        <Footer />
-      </div>
-    </LenisProvider>
-  );
-};
+const Landing = ({ className, hasSession }: Props) => (
+  <LenisProvider>
+    <div className={cn("", className)}>
+      <Hero hasSession={hasSession} />
+      <ThreeCategories />
+      <Blurb />
+      <SecondHalf />
+      <Footer />
+    </div>
+  </LenisProvider>
+);
 
 export default Landing;

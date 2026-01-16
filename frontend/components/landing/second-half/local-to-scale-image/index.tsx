@@ -31,34 +31,39 @@ interface Props {
 
 const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
   // Terminal animations - stays visible during "local" section, slides out during transition
-  const terminalX = useTransform(scrollYProgress, [0.4, 0.5], [40, -600]);
-  const terminalOpacity = useTransform(scrollYProgress, [0.4, 0.7], [1, 0.6]);
+  const terminalX = useTransform(scrollYProgress, [0.15, 0.25], [40, -600]);
+  const terminalOpacity = useTransform(scrollYProgress, [0.15, 0.45], [1, 0.6]);
+  const terminalBackground = useTransform(
+    scrollYProgress,
+    [0.15, 0.25],
+    ["var(--color-landing-surface-500)", "var(--color-landing-surface-700)"]
+  );
 
   // Gradient animations - fade in as terminal leaves
-  const gradientOpacity = useTransform(scrollYProgress, [0.4, 0.8], [0, 1]);
+  const gradientOpacity = useTransform(scrollYProgress, [0.15, 0.55], [0, 1]);
 
   // Trace content scroll - the entire trace panel scrolls up including header
-  const traceY = useTransform(scrollYProgress, [0.3, 1], [0, -1400]);
+  const traceY = useTransform(scrollYProgress, [0.1, 1], [0, -3000]);
 
   // Height expansion - grow by ~40% on scroll to emphasize scale
-  const containerHeight = useTransform(scrollYProgress, [0.3, 0.8], [400, "500"]);
+  const containerHeight = useTransform(scrollYProgress, [0.1, 0.8], [400, 700]);
 
   // Width shrinks to 80% on scroll
-  const containerWidth = useTransform(scrollYProgress, [0.3, 0.8], [500, 480]);
+  const containerWidth = useTransform(scrollYProgress, [0.1, 0.55], [500, 480]);
 
   // Border fades away during transition
-  const borderColor = useTransform(scrollYProgress, [0.4, 0.6], ["rgba(58, 58, 58, 1)", "rgba(58, 58, 58, 0)"]);
+  const borderColor = useTransform(scrollYProgress, [0.15, 0.25], ["rgba(58, 58, 58, 1)", "rgba(58, 58, 58, 0)"]);
 
   // Background transitions from surface-600 to surface-700
   const backgroundColor = useTransform(
     scrollYProgress,
-    [0.4, 0.8],
+    [0.15, 0.55],
     ["var(--color-landing-surface-700)", "var(--color-landing-surface-800)"]
   );
 
   // Text to skeleton transition - text fades out, skeletons fade in
-  const textOpacity = useTransform(scrollYProgress, [0.3, 0.6], [1, 0]);
-  const skeletonOpacity = useTransform(scrollYProgress, [0.3, 0.6], [0, 1]);
+  const textOpacity = useTransform(scrollYProgress, [0.1, 0.3], [1, 0]);
+  const skeletonOpacity = useTransform(scrollYProgress, [0.2, 0.3], [0, 1]);
 
   return (
     <div className={cn("relative", className)}>
@@ -168,7 +173,10 @@ const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
       <div className="absolute -left-[80px] bottom-[80px] z-30 h-[160px] w-[calc(100%+40px)] overflow-hidden">
         <div className="h-full w-[40px] absolute left-0 top-0 bg-gradient-to-r from-landing-surface-800 to-landing-surface-800/0 z-40" />
         <motion.div className="absolute h-full w-[80%]" style={{ x: terminalX, opacity: terminalOpacity }}>
-          <div className="bg-landing-surface-500 border border-landing-text-600 rounded-lg px-4 py-3 size-full  shadow-2xl">
+          <motion.div
+            className="border border-landing-text-600 rounded-lg px-4 py-3 size-full shadow-2xl"
+            style={{ backgroundColor: terminalBackground }}
+          >
             <div className="flex flex-col font-mono text-sm text-landing-text-200">
               <div className="flex items-center gap-2">
                 <ArrowRight className="w-3 h-3 text-landing-primary-400" />
@@ -183,7 +191,7 @@ const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
                 <span>docker compose up -d</span>
               </div>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
       </div>
     </div>
