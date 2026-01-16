@@ -25,7 +25,7 @@ struct RealtimeTrace {
     input_cost: f64,
     output_cost: f64,
     total_cost: f64,
-    metadata: Option<Value>,
+    metadata: String,
     top_span_id: Option<Uuid>,
     trace_type: String,
     top_span_name: Option<String>,
@@ -33,6 +33,7 @@ struct RealtimeTrace {
     status: Option<String>,
     user_id: Option<String>,
     tags: Vec<String>,
+    has_browser_session: Option<bool>,
 }
 
 /// Realtime span data for frontend consumption (lightweight, no input/output)
@@ -146,6 +147,27 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
 
     // Send batched traces to "traces" subscription key for traces table
     send_to_key(pubsub, &project_id, "traces", trace_message).await;
+
+    // for each trace, if it has a rollout.session_id in the metadata, send a trace update event to the rollout_session_<session_id> subscription key
+    for trace in traces {
+        if let Some(metadata) = trace.metadata() {
+            if let Some(session_id) = metadata.get("rollout.session_id").and_then(|v| v.as_str()) {
+                let rollout_session_trace_message = SseMessage {
+                    event_type: "trace_update".to_string(),
+                    data: serde_json::json!({
+                        "trace": RealtimeTrace::from_trace(trace)
+                    }),
+                };
+                send_to_key(
+                    pubsub,
+                    &project_id,
+                    &format!("rollout_session_{}", session_id),
+                    rollout_session_trace_message,
+                )
+                .await;
+            }
+        }
+    }
 }
 
 impl RealtimeTrace {
@@ -162,7 +184,7 @@ impl RealtimeTrace {
             input_cost: trace.input_cost(),
             output_cost: trace.output_cost(),
             total_cost: trace.cost(),
-            metadata: trace.metadata().cloned(),
+            metadata: trace.metadata().cloned().unwrap_or_default().to_string(),
             top_span_id: trace.top_span_id(),
             trace_type: trace.trace_type().to_string(),
             top_span_name: trace.top_span_name(),
@@ -172,6 +194,7 @@ impl RealtimeTrace {
             status: trace.status(),
             user_id: trace.user_id(),
             tags: trace.tags().clone(),
+            has_browser_session: trace.has_browser_session(),
         }
     }
 }

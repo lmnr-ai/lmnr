@@ -1,14 +1,13 @@
 import React from "react";
 
-import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 
 interface MetadataProps {
-  trace: TraceViewTrace;
+  metadata: string;
 }
 
-const Metadata = ({ trace }: MetadataProps) => {
-  const metadataValue = trace.metadata || "{}";
+const Metadata = ({ metadata }: MetadataProps) => {
+  const metadataValue = metadata || "{}";
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
