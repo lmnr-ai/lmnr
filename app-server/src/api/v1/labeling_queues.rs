@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DB, project_api_keys::ProjectApiKey},
+    db::{self, DB, labeling_queues::NewLabelingQueueItem, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
 };
 
@@ -60,19 +60,18 @@ pub async fn create_labeling_queues_items(
         })));
     }
 
-    // Convert request items to (metadata, payload) tuples for DB insertion
+    // Convert request items to LabelingQueueItemData for DB insertion
     // Queue item metadata is empty for API-ingested items (no source)
-    let items: Vec<(serde_json::Value, serde_json::Value)> = request
+    let items: Vec<NewLabelingQueueItem> = request
         .items
         .into_iter()
-        .map(|item| {
-            let queue_item_metadata = serde_json::json!({});
-            let payload = serde_json::json!({
+        .map(|item| NewLabelingQueueItem {
+            metadata: serde_json::json!({}),
+            payload: serde_json::json!({
                 "data": item.data,
                 "target": item.target,
                 "metadata": item.metadata,
-            });
-            (queue_item_metadata, payload)
+            }),
         })
         .collect();
 

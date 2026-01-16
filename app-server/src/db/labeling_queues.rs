@@ -14,6 +14,13 @@ pub struct LabelingQueueItem {
     pub payload: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewLabelingQueueItem {
+    pub metadata: serde_json::Value,
+    pub payload: serde_json::Value,
+}
+
 /// Check if a labeling queue exists and belongs to the given project.
 pub async fn queue_exists(pool: &PgPool, queue_id: Uuid, project_id: Uuid) -> Result<bool> {
     let exists = sqlx::query_scalar::<_, bool>(
@@ -32,30 +39,25 @@ pub async fn queue_exists(pool: &PgPool, queue_id: Uuid, project_id: Uuid) -> Re
 pub async fn insert_labeling_queue_items(
     pool: &PgPool,
     queue_id: Uuid,
-    items: Vec<(serde_json::Value, serde_json::Value)>, // (metadata, payload)
+    items: Vec<NewLabelingQueueItem>,
 ) -> Result<Vec<LabelingQueueItem>> {
     if items.is_empty() {
         return Ok(vec![]);
     }
 
-    let mut queue_ids: Vec<Uuid> = Vec::with_capacity(items.len());
-    let mut metadatas: Vec<serde_json::Value> = Vec::with_capacity(items.len());
-    let mut payloads: Vec<serde_json::Value> = Vec::with_capacity(items.len());
-
-    for (metadata, payload) in items {
-        queue_ids.push(queue_id);
-        metadatas.push(metadata);
-        payloads.push(payload);
-    }
+    let (metadatas, payloads): (Vec<serde_json::Value>, Vec<serde_json::Value>) = items
+        .into_iter()
+        .map(|item| (item.metadata, item.payload))
+        .unzip();
 
     let created_items = sqlx::query_as::<_, LabelingQueueItem>(
         r#"
         INSERT INTO labeling_queue_items (queue_id, metadata, payload)
-        SELECT * FROM UNNEST($1::uuid[], $2::jsonb[], $3::jsonb[])
+        SELECT $1, metadata, payload FROM UNNEST($2::jsonb[], $3::jsonb[]) AS t(metadata, payload)
         RETURNING id, created_at, queue_id, metadata, payload
         "#,
     )
-    .bind(&queue_ids)
+    .bind(&queue_id)
     .bind(&metadatas)
     .bind(&payloads)
     .fetch_all(pool)
