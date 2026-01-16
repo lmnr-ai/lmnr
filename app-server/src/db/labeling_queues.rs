@@ -17,6 +17,7 @@ pub struct LabelingQueueItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewLabelingQueueItem {
+    pub id: Uuid,
     pub metadata: serde_json::Value,
     pub payload: serde_json::Value,
 }
@@ -45,19 +46,26 @@ pub async fn insert_labeling_queue_items(
         return Ok(vec![]);
     }
 
-    let (metadatas, payloads): (Vec<serde_json::Value>, Vec<serde_json::Value>) = items
-        .into_iter()
-        .map(|item| (item.metadata, item.payload))
-        .unzip();
+    let len = items.len();
+    let mut ids = Vec::with_capacity(len);
+    let mut metadatas = Vec::with_capacity(len);
+    let mut payloads = Vec::with_capacity(len);
+
+    for item in items {
+        ids.push(item.id);
+        metadatas.push(item.metadata);
+        payloads.push(item.payload);
+    }
 
     let created_items = sqlx::query_as::<_, LabelingQueueItem>(
         r#"
-        INSERT INTO labeling_queue_items (queue_id, metadata, payload)
-        SELECT $1, metadata, payload FROM UNNEST($2::jsonb[], $3::jsonb[]) AS t(metadata, payload)
+        INSERT INTO labeling_queue_items (id, queue_id, metadata, payload)
+        SELECT id, $1, metadata, payload FROM UNNEST($2::uuid[], $3::jsonb[], $4::jsonb[]) AS t(id, metadata, payload)
         RETURNING id, created_at, queue_id, metadata, payload
         "#,
     )
     .bind(&queue_id)
+    .bind(&ids)
     .bind(&metadatas)
     .bind(&payloads)
     .fetch_all(pool)

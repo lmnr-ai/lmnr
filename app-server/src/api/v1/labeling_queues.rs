@@ -66,6 +66,7 @@ pub async fn create_labeling_queues_items(
         .items
         .into_iter()
         .map(|item| NewLabelingQueueItem {
+            id: Uuid::now_v7(),
             metadata: serde_json::json!({}),
             payload: serde_json::json!({
                 "data": item.data,
