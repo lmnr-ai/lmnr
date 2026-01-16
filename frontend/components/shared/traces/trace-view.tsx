@@ -43,10 +43,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   const router = useRouter();
   const pathName = usePathname();
 
-  console.log(
-    "spans",
-    spans?.map((span) => span.attributes?.["gen_ai.usage.cache_read_input_tokens"])
-  );
   const {
     tab,
     setTab,
