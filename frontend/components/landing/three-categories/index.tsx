@@ -89,7 +89,7 @@ const ThreeCategories = ({ className }: Props) => (
               things went wrong.
               <br />
               <br />
-              Hot module replacement for agent development.
+              The AI Agent development experience you've been waiting for.
             </p>
           </div>
           <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
