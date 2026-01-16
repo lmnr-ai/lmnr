@@ -13,7 +13,7 @@ import EventDefinitionImage from "./event-definition-image";
 import FullContextImage from "./full-context-image";
 import GranularEvalsImage from "./granular-evals-image";
 import IntegrateInMinutes from "./integrate-in-minutes";
-import PlaygroundImage from "./playground-image";
+import RolloutImage from "./rollout-image";
 import SQLImage from "./sql-image";
 
 interface Props {
@@ -75,23 +75,26 @@ const ThreeCategories = ({ className }: Props) => (
         </div>
       </div>
 
-      {/* Activate Playground */}
+      {/* Error? Restart right where it left off */}
       <div className="flex items-start gap-[40px] w-full">
         <div className="flex flex-col gap-[50px] items-start w-[380px]">
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={cn(subsectionTitle, "w-full")}>
-              Activate Playground
+              Error? Restart
               <br />
-              from any context
+              right where it left off
             </h2>
             <p className={cn(bodyMedium, "w-full")}>
-              Move any span straight into Playground, context preserved. Change models, tweak prompts, and validate
-              improvements all without starting from scratch.
+              See traces as they&apos;re running, not when they finish. Make changes, and restart execution right before
+              things went wrong.
+              <br />
+              <br />
+              Hot module replacement for agent development.
             </p>
           </div>
-          <DocsButton href="https://docs.laminar.sh/playground" />
+          <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
         </div>
-        <PlaygroundImage className="relative shrink-0 w-[720px] h-[450px]" />
+        <RolloutImage className="relative shrink-0 w-[720px] h-[450px]" />
       </div>
 
       {/* Capture what your agent sees */}
