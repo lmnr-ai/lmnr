@@ -14,7 +14,7 @@ const SectionName = ({ className, label, index }: Props) => {
   return (
     <div
       className={cn(
-        "flex font-chivo-mono gap-[30px] items-center leading-normal px-0 py-1 text-sm text-landing-text-600 tracking-[1.68px] whitespace-nowrap w-[216px] relative",
+        "flex font-chivo-mono gap-[30px] items-center leading-normal px-0 py-1 text-sm text-landing-text-600 tracking-[0.02em] whitespace-nowrap w-[216px] relative my-[-60px]",
         className
       )}
     >

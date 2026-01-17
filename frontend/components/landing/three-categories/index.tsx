@@ -153,7 +153,7 @@ const ThreeCategories = ({ className }: Props) => (
         <div className="flex items-start justify-between w-full">
           <div className="flex flex-col gap-[50px] items-start w-[380px]">
             <div className="flex flex-col gap-6 items-start w-full">
-              <h2 className={subsectionTitle}>By the power of SQL</h2>
+              <h2 className={subsectionTitle}>Platform-wide SQL</h2>
               <div className="flex flex-col items-start w-[380px]">
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
@@ -197,10 +197,9 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className="flex flex-col gap-[54px] items-start w-full">
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>Did someone say Evals?</h2>
+          <h2 className={subsectionTitle}>Robust Evals</h2>
           <p className={bodyLarge}>Verify progress, catch regressions, and iterate with confidence</p>
         </div>
-        <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
         <div className="flex flex-col gap-16 items-start w-full">
           <EvalsImage />
           <div className="flex gap-10 items-start w-full">
@@ -222,6 +221,7 @@ const ThreeCategories = ({ className }: Props) => (
             </div>
           </div>
         </div>
+        <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
       </div>
     </div>
     <div className="w-full sticky left-0 bottom-0 h-[100px] bg-gradient-to-t from-landing-surface-800 to-transparent z-30" />

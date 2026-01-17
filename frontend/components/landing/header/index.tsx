@@ -3,12 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import GitHubButton from "react-github-btn";
-import { cn } from "@/lib/utils";
 
 import logo from "@/assets/logo/logo.svg";
+import { cn } from "@/lib/utils";
 
-import LandingButton from "../landing-button";
 import { navLink } from "../class-names";
+import LandingButton from "../landing-button";
 
 interface LandingHeaderProps {
   hasSession: boolean;
@@ -31,7 +31,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
         </Link>
       </div>
       <div className="flex gap-[60px] items-center justify-center">
-        <nav className={cn("flex gap-10 items-center", navLink)}>
+        <nav className={cn("flex gap-[40px] items-center", navLink)}>
           <Link
             href="https://docs.laminar.sh"
             target="_blank"

@@ -18,7 +18,7 @@ const DocsButton = ({ className, label = "DOCS", href = "https://docs.laminar.sh
         className
       )}
     >
-      <p className="font-chivo-mono leading-normal text-sm  tracking-[1.68px]">{label}</p>
+      <p className="font-chivo-mono leading-normal text-sm  tracking-[0.02em]">{label}</p>
       <ArrowRight className="relative shrink-0 size-4 transition-all duration-100 group-hover:translate-x-2" />
     </Link>
   );

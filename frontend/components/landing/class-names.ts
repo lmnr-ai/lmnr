@@ -21,8 +21,8 @@ export const bodySQL = "font-sans font-normal leading-7 text-[22px] text-landing
 export const quoteText = "font-space-grotesk text-white text-center";
 export const quoteSize = "text-[36px] leading-normal";
 export const quoteAttributionName = "font-sans text-landing-text-100 text-2xl leading-8";
-export const quoteAttributionRole = "font-chivo-mono text-landing-text-300 text-sm leading-normal tracking-[1.68px]";
+export const quoteAttributionRole = "font-chivo-mono text-landing-text-300 text-sm leading-normal tracking-[0.02em]";
 
 // Navigation
 export const navLink =
-  "font-chivo-mono font-light text-sm text-landing-text-300 tracking-[1.68px] leading-normal whitespace-nowrap";
+  "font-chivo-mono font-light text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap";

@@ -9,7 +9,7 @@ interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
 const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
   ({ className, variant = "minimal", size = "md", children, ...props }, ref) => {
     const baseStyles =
-      "font-chivo-mono font-normal text-sm text-landing-text-300 tracking-[1.68px] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors";
+      "font-chivo-mono font-normal text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors";
 
     const variantStyles = {
       minimal: size === "sm" ? "px-2 py-2 hover:text-landing-text-100" : "px-4 py-1 hover:text-landing-text-100",

@@ -1,14 +1,15 @@
 "use client";
 
+import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { useRef } from "react";
 
 import laminarTextLogo from "@/assets/landing/laminar-text.svg";
+import { cn } from "@/lib/utils";
+
+import { subsectionTitle } from "../class-names";
 import LandingButton from "../landing-button";
-import { sectionHeaderMedium } from "../class-names";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
 
 interface Props {
   className?: string;
@@ -25,9 +26,10 @@ const Footer = ({ className }: Props) => {
       <div className="flex flex-col items-end justify-end pb-20 pt-[120px] px-20 w-full">
         <div className="flex items-end justify-between w-full">
           <div className="flex flex-col gap-8 items-start">
-            <div className={sectionHeaderMedium}>
-              <p className="mb-0">Build reliable </p>
-              <p>AI agents today</p>
+            <div className={subsectionTitle}>
+              Understand why your agent failed.
+              <br />
+              Iterate fast to fix it.
             </div>
             <div className="flex gap-5 items-center">
               <Link href="https://docs.laminar.sh" target="_blank">
