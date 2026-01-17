@@ -106,12 +106,17 @@ const ScreenshotToggleButton = ({
   const segments = Array.from({ length: imageCount }, (_, i) => i);
 
   return (
-    <div className={cn("flex flex-col gap-[2px] w-[140px]", className)}>
+    <div className={cn(
+      "flex flex-col gap-[2px] md:w-[140px]",
+      "w-[90px]",
+      className
+    )}>
       <button
         className={cn(
-          "font-chivo-mono font-normal text-sm tracking-[0.02em] leading-normal whitespace-nowrap",
-          "cursor-pointer flex items-center justify-center px-5 py-1 rounded-sm",
+          "font-chivo-mono font-normal md:text-sm tracking-[0.02em] leading-normal whitespace-nowrap",
+          "cursor-pointer flex items-center justify-center md:px-5 md:py-1 rounded-sm",
           "transition-colors duration-500",
+          "text-xs px-2 py-0.5",
           isActive
             ? "bg-landing-surface-700 text-landing-text-100"
             : "text-landing-text-300 hover:text-landing-text-100"

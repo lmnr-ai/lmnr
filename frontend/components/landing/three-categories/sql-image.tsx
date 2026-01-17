@@ -1,7 +1,8 @@
-import { cn } from "@/lib/utils";
 import { motion, useScroll, useSpring, useTransform } from "framer-motion";
 import { Play } from "lucide-react";
 import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
@@ -13,17 +14,21 @@ const SQLImage = ({ className }: Props) => {
     target: ref,
     offset: ["start end", "end start"],
   });
-  const offset = useSpring(useTransform(scrollYProgress, [0, 0.5, 1], [80, 20, 0]));
+  const x = useSpring(useTransform(scrollYProgress, [0, 0.5, 1], [80, 20, -20]));
 
   const opacity = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
 
-  // Combine the -50% centering with the scroll offset
-  const x = useTransform(offset, (v) => `calc(-50% + ${360 + v}px)`);
-
   return (
-    <div className={cn("bg-landing-surface-700 overflow-hidden relative rounded-sm", className)} ref={ref}>
+    <div
+      className={cn(
+        "bg-landing-surface-700 overflow-hidden relative rounded-sm md:pl-[80px] md:pt-[40px]",
+        "pl-[40px] pt-[20px]",
+        className
+      )}
+      ref={ref}
+    >
       {/* Fixed-size content container - centered, then transformed right and down */}
-      <motion.div className="absolute left-1/2 top-1/2 flex translate-y-[calc(-50%+160px)]" style={{ x, opacity }}>
+      <motion.div className="flex" style={{ x, opacity }}>
         <div className="bg-landing-surface-600 border border-landing-surface-400 flex flex-col gap-3 items-start justify-center px-6 py-4 rounded-sm shrink-0 w-[1179px]">
           {/* SQL Editor Label */}
           <p className="font-sans font-normal leading-normal text-base text-landing-text-300 whitespace-nowrap shrink-0">

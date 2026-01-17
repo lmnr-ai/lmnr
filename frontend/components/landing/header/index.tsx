@@ -21,17 +21,26 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
     <header
       className={cn(
         "flex items-center justify-between w-full relative z-50",
-        { "pt-8 px-[48px]": isIncludePadding },
+        { "md:pt-8 md:px-[48px] pt-4 px-4": isIncludePadding },
         className
       )}
     >
-      <div className="h-[21.203px] relative shrink-0 w-[120px]">
+      <div className={cn(
+        "relative shrink-0 md:w-[120px] md:h-[21px]",
+        "w-[90px] h-[16px]"
+      )}>
         <Link href="/" className="block">
-          <Image alt="Laminar logo" src={logo} width={120} height={21} priority />
+          <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
         </Link>
       </div>
-      <div className="flex gap-[60px] items-center justify-center">
-        <nav className={cn("flex gap-[40px] items-center", navLink)}>
+      <div className={cn(
+        "flex md:gap-[60px] items-center justify-center",
+        "gap-4"
+      )}>
+        <nav className={cn(
+          "hidden md:flex md:gap-[40px] items-center",
+          navLink
+        )}>
           <Link
             href="https://docs.laminar.sh"
             target="_blank"
@@ -64,7 +73,10 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             </GitHubButton>
           </div>
         </nav>
-        <div className="flex gap-3 items-center">
+        <div className={cn(
+          "flex md:gap-3 items-center",
+          "gap-2"
+        )}>
           {hasSession ? (
             <Link href="/projects">
               <LandingButton variant="outline">DASHBOARD</LandingButton>

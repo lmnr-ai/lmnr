@@ -18,7 +18,7 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -28,16 +28,32 @@ interface Props {
 
 const RolloutImage = ({ className }: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
+  const traceRef = useRef<HTMLDivElement | null>(null);
+  const [traceHeight, setTraceHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const updateHeight = () => {
+      if (traceRef.current) {
+        setTraceHeight(traceRef.current.getBoundingClientRect().height);
+      }
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
   });
 
-  const traceY = useTransform(scrollYProgress, [0, 0.2, 1], [0, -40, -700]);
+  // Based on the trace container (motion.div) height
+  const traceY = useTransform(scrollYProgress, [0, 0.2, 1], [0, traceHeight * -0.24, traceHeight * -0.5]);
 
   return (
     <div className={cn("bg-landing-surface-700 overflow-hidden relative rounded-sm", className)} ref={ref}>
-      <motion.div className="flex flex-row w-full pl-[200px] pt-[60px]" style={{ y: traceY }}>
+      <motion.div ref={traceRef} className="flex flex-row w-full pl-[200px] pt-[60px]" style={{ y: traceY }}>
         <div className="w-[600px] flex flex-col shadow-[0px_8px_120px_0px_var(--color-landing-surface-800)] z-30">
           {/* Trace Header */}
           <div className="border-b border-landing-surface-400 bg-landing-surface-600 flex flex-col gap-3 px-4 py-3 w-full rounded-t-lg border-t border-x">

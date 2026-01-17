@@ -37,10 +37,15 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
   );
 
   return (
-    <div className="flex gap-4 items-stretch w-full h-[400px]">
+    <div className={cn("flex gap-4 items-stretch w-full md:h-[400px] md:flex-row", "flex-col h-[750px]")}>
       <div className="flex flex-col flex-1 rounded-[8px] overflow-hidden h-full">
         {/* CodeMirror */}
-        <div className="bg-landing-surface-700 overflow-auto flex-1 min-h-0 border border-landing-surface-500">
+        <div
+          className={cn(
+            "bg-landing-surface-700 overflow-auto flex-1 min-h-0 border border-landing-surface-500",
+            "[&_.cm-editor]:md:text-sm [&_.cm-editor]:text-xs [&_.cm-content]:md:py-3 [&_.cm-content]:py-2 [&_.cm-line]:md:px-4 [&_.cm-line]:px-3"
+          )}
+        >
           <CodeMirror
             value={code || ""}
             theme={darkTheme}

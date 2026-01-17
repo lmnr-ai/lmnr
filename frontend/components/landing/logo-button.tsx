@@ -15,16 +15,16 @@ interface LogoButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 
 const sizeStyles = {
   sm: {
-    container: "size-[28px]",
-    image: "size-[16px]",
+    container: "md:size-[28px] size-[24px]",
+    image: "md:size-[16px] size-[14px]",
   },
   md: {
-    container: "size-[40px]",
-    image: "size-[24px]",
+    container: "md:size-[40px] size-[32px]",
+    image: "md:size-[24px] size-[18px]",
   },
   lg: {
-    container: "size-[48px]",
-    image: "size-[28px]",
+    container: "md:size-[48px] size-[40px]",
+    image: "md:size-[28px] size-[24px]",
   },
 };
 

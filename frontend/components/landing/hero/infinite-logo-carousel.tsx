@@ -21,37 +21,37 @@ const logos: Logo[] = [
     id: "amplitude",
     name: "Amplitude",
     image: amplitude,
-    className: "w-32 h-8",
+    className: "md:w-32 md:h-8 w-24 h-6",
   },
   {
     id: "browser-use",
     name: "Browser Use",
     component: LogoBrowserUse,
-    className: "w-32 h-8",
+    className: "md:w-32 md:h-8 w-24 h-6",
   },
   {
     id: "rye",
     name: "Rye",
     component: LogoRye,
-    className: "w-16 h-5",
+    className: "md:w-16 md:h-5 w-12 h-4",
   },
   {
     id: "skyvern",
     name: "Skyvern",
     image: skyvern,
-    className: "w-24 h-8",
+    className: "md:w-24 md:h-8 w-18 h-6",
   },
   {
     id: "axion-ray",
     name: "Axion Ray",
     component: LogoAxionRay,
-    className: "w-24 h-8",
+    className: "md:w-24 md:h-8 w-18 h-6",
   },
   {
     id: "remo",
     name: "Remo",
     component: LogoRemo,
-    className: "w-20 h-7",
+    className: "md:w-20 md:h-7 w-14 h-5",
   },
 ];
 
@@ -112,7 +112,10 @@ export default function InfiniteLogoCarousel() {
       {/* Scrolling container */}
       <div
         ref={scrollRef}
-        className="flex items-center gap-12 overflow-hidden whitespace-nowrap py-8"
+        className={cn(
+          "flex items-center md:gap-12 overflow-hidden whitespace-nowrap md:py-8",
+          "gap-8 py-6"
+        )}
         style={{ scrollBehavior: "auto" }}
       >
         {/* First set of logos */}

@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Bolt, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,19 @@ interface Props {
 const FullContextImage = ({ className }: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const [containerHeight, setContainerHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const updateHeight = () => {
+      if (ref.current) {
+        setContainerHeight(ref.current.getBoundingClientRect().height);
+      }
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
 
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -20,7 +33,7 @@ const FullContextImage = ({ className }: Props) => {
   });
 
   const opacity = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
-  const translateY = useTransform(scrollYProgress, [0, 1], [0, -600]);
+  const translateY = useTransform(scrollYProgress, [0, 1], [containerHeight % -1, containerHeight * -2.4]);
 
   return (
     <motion.div

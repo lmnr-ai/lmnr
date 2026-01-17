@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
@@ -8,19 +9,30 @@ interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
 
 const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
   ({ className, variant = "minimal", size = "md", children, ...props }, ref) => {
-    const baseStyles =
-      "font-chivo-mono font-normal text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors";
+    const baseStyles = cn(
+      "font-chivo-mono font-normal md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors",
+      "text-xs"
+    );
 
     const variantStyles = {
-      minimal: size === "sm" ? "px-2 py-2 hover:text-landing-text-100" : "px-4 py-1 hover:text-landing-text-100",
+      minimal:
+        size === "sm"
+          ? "px-2 py-2 hover:text-landing-text-100"
+          : cn("md:px-4 md:py-1 hover:text-landing-text-100", "px-3 py-0.5"),
       outline:
         size === "sm"
           ? "border border-landing-text-600 px-4 py-2 hover:text-landing-text-100 hover:border-landing-text-400"
-          : "border border-landing-text-600 px-5 py-2.5 hover:text-landing-text-100 hover:border-landing-text-400",
+          : cn(
+              "border border-landing-text-600 md:px-5 md:py-2.5 hover:text-landing-text-100 hover:border-landing-text-400",
+              "px-3 py-1.5"
+            ),
       primary:
         size === "sm"
           ? "bg-landing-primary-400 text-white px-4 py-2 border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200"
-          : "bg-landing-primary-400 text-white px-5 py-2.5 border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",
+          : cn(
+              "bg-landing-primary-400 text-white md:px-5 md:py-2.5 border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",
+              "px-3 py-1.5"
+            ),
     };
 
     return (

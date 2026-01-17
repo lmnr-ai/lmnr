@@ -83,13 +83,20 @@ const IntegrateInMinutes = ({ className }: Props) => {
   }, [startInterval]);
 
   return (
-    <div className={cn("flex flex-col gap-[54px] items-start w-full", className)}>
+    <div className={cn(
+      "flex flex-col md:gap-[54px] items-start w-full",
+      "gap-8",
+      className
+    )}>
       <div className="flex flex-col gap-1 items-start w-full">
         <p className={subsectionTitle}>Integrate in minutes</p>
         <p className={bodyLarge}>Compatible with all your favorites</p>
       </div>
       {/* Logo grid */}
-      <div className="flex flex-wrap gap-3 items-center w-full">
+      <div className={cn(
+        "flex flex-wrap md:gap-3 items-center w-full",
+        "gap-2"
+      )}>
         {/* Clickable integration buttons */}
         {logos
           .filter((logo) => logo.integration)
@@ -103,8 +110,14 @@ const IntegrateInMinutes = ({ className }: Props) => {
             />
           ))}
         {/* Divider */}
-        <div className="px-[12px]">
-          <div className="h-[40px] w-0 border-l border-landing-text-600" />
+        <div className={cn(
+          "md:px-[12px]",
+          "px-[8px]"
+        )}>
+          <div className={cn(
+            "md:h-[40px] w-0 border-l border-landing-text-600",
+            "h-[32px]"
+          )} />
         </div>
         {/* Non-clickable logo buttons */}
         {logos
