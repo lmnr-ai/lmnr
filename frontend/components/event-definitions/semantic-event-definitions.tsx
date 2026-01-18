@@ -142,11 +142,18 @@ function SemanticEventDefinitionsContent({ isSemanticEventsEnabled }: { isSemant
   const tableContent = (
     <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
       {!isFreeTier && (
-        <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-          <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-            Event Definition
-          </Button>
-        </ManageEventDefinitionSheet>
+        <div className="flex items-center gap-2">
+          <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+              Event Definition
+            </Button>
+          </ManageEventDefinitionSheet>
+          <Link href={`/project/${projectId}/events/semantic/backfill`}>
+            <Button variant="outline" className="w-fit" icon="history">
+              Retroactive Analysis
+            </Button>
+          </Link>
+        </div>
       )}
       <InfiniteDataTable<SemanticEventDefinitionRow>
         columns={semanticEventDefinitionsColumns}
