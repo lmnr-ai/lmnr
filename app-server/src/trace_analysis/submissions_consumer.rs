@@ -11,11 +11,12 @@ use crate::{
         CHTraceAnalysisMessage, get_trace_analysis_messages_for_task,
         insert_trace_analysis_messages,
     },
-    db::{DB, semantic_event_definitions::get_semantic_event_definition},
+    db::DB,
     mq::{MessageQueue, MessageQueueTrait},
     trace_analysis::{
-        Payload, RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage,
+        RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage,
         TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
+        Task,
         gemini::{Content, GeminiClient, GenerateContentRequest, GenerationConfig, Part},
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         tools::build_tool_definitions,
@@ -65,27 +66,38 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
 
 async fn process(
     msg: RabbitMqLLMBatchSubmissionMessage,
-    db: Arc<DB>,
+    _db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
 ) -> Result<(), HandlerError> {
     let project_id = msg.project_id;
     let job_id = msg.job_id;
+    let prompt = &msg.prompt;
+    let structured_output_schema = &msg.structured_output_schema;
 
     let mut requests: Vec<GenerateContentRequest> = Vec::new();
     let mut all_new_messages: Vec<CHTraceAnalysisMessage> = Vec::new();
 
-    for payload in msg.payloads.iter() {
-        match process_payload(&payload, project_id, job_id, db.clone(), clickhouse.clone()).await {
+    for task in msg.tasks.iter() {
+        match process_task(
+            task,
+            project_id,
+            job_id,
+            prompt,
+            structured_output_schema,
+            clickhouse.clone(),
+        )
+        .await
+        {
             Ok((request, new_messages)) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
             }
             Err(e) => {
                 log::error!(
-                    "[TRACE_ANALYSIS] Failed to process payload for task {}: {:?}",
-                    payload.task_id,
+                    "[TRACE_ANALYSIS] Failed to process task {}: {:?}",
+                    task.task_id,
                     e
                 );
             }
@@ -93,15 +105,9 @@ async fn process(
     }
 
     // Submit batch to Gemini API
-    let model = msg
-        .payloads
-        .first()
-        .map(|p| p.model.as_str())
-        .unwrap_or("gemini-2.5-pro");
-
     match gemini
         .create_batch(
-            model,
+            &msg.model,
             requests,
             Some(format!("trace_analysis_job_{}", job_id)),
         )
@@ -120,8 +126,13 @@ async fn process(
             let pending_message = RabbitMqLLMBatchPendingMessage {
                 project_id,
                 job_id,
-                batch_id: batch_id.clone(),
-                payloads: msg.payloads,
+                event_definition_id: msg.event_definition_id,
+                prompt: msg.prompt,
+                structured_output_schema: msg.structured_output_schema,
+                model: msg.model,
+                provider: msg.provider,
+                tasks: msg.tasks,
+                batch_id,
             };
 
             let serialized = serde_json::to_vec(&pending_message).map_err(|e| {
@@ -159,31 +170,18 @@ async fn process(
     Ok(())
 }
 
-async fn process_payload(
-    payload: &Payload,
+async fn process_task(
+    task: &Task,
     project_id: uuid::Uuid,
     job_id: uuid::Uuid,
-    db: Arc<DB>,
+    prompt: &str,
+    structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
 ) -> Result<(GenerateContentRequest, Vec<CHTraceAnalysisMessage>), HandlerError> {
-    let task_id = payload.task_id;
-    let trace_id = payload.trace_id;
-    let event_definition_id = payload.event_defintion_id;
+    let task_id = task.task_id;
+    let trace_id = task.trace_id;
 
-    // 1. Query event definition
-    let event_def = get_semantic_event_definition(&db.pool, event_definition_id, project_id)
-        .await
-        .map_err(|e| {
-            HandlerError::Permanent(anyhow::anyhow!("Failed to query event definition: {}", e))
-        })?
-        .ok_or_else(|| {
-            HandlerError::Permanent(anyhow::anyhow!(
-                "Event definition {} not found",
-                event_definition_id
-            ))
-        })?;
-
-    // 2. Query existing messages for this task
+    // 1. Query existing messages for this task
     let existing_messages =
         get_trace_analysis_messages_for_task(clickhouse.clone(), project_id, job_id, task_id)
             .await
@@ -202,7 +200,7 @@ async fn process_payload(
 
         let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
 
-        let user_prompt = IDENTIFICATION_PROMPT.replace("{{developer_prompt}}", &event_def.prompt);
+        let user_prompt = IDENTIFICATION_PROMPT.replace("{{developer_prompt}}", prompt);
 
         let now = Utc::now();
         let user_time = now + chrono::Duration::milliseconds(1);
@@ -292,10 +290,10 @@ async fn process_payload(
         (contents, system_instruction, vec![])
     };
 
-    // 3. Build tool definitions
-    let tools = vec![build_tool_definitions(&payload.structured_output_schema)];
+    // 2. Build tool definitions
+    let tools = vec![build_tool_definitions(structured_output_schema)];
 
-    // 4. Create GenerateContentRequest
+    // 3. Create GenerateContentRequest
     let request = GenerateContentRequest {
         contents,
         generation_config: Some(GenerationConfig {

@@ -32,25 +32,31 @@ pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY: &str =
 pub struct RabbitMqLLMBatchSubmissionMessage {
     pub project_id: Uuid,
     pub job_id: Uuid,
-    pub payloads: Vec<Payload>,
+    pub event_definition_id: Uuid,
+    pub prompt: String,
+    pub structured_output_schema: Value,
+    pub model: String,
+    pub provider: String,
+    pub tasks: Vec<Task>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RabbitMqLLMBatchPendingMessage {
     pub project_id: Uuid,
     pub job_id: Uuid,
-    pub batch_id: String, // Gemini Batch API operation name (e.g., "batches/abc123")
-    pub payloads: Vec<Payload>,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Payload {
-    pub task_id: Uuid,
-    pub trace_id: Uuid,
-    pub event_defintion_id: Uuid,
+    pub event_definition_id: Uuid,
+    pub prompt: String,
     pub structured_output_schema: Value,
     pub model: String,
     pub provider: String,
+    pub tasks: Vec<Task>,
+    pub batch_id: String, // LLM Request Batch ID that can be used to track the completion of the batch
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Task {
+    pub task_id: Uuid,
+    pub trace_id: Uuid,
 }
 
 async fn push_to_pending_queue(
@@ -76,6 +82,7 @@ pub async fn push_to_submissions_queue(
     trace_ids: Vec<String>,
     job_id: Uuid,
     event_definition_id: Uuid,
+    prompt: String,
     structured_output_schema: Value,
     model: String,
     provider: String,
@@ -88,22 +95,23 @@ pub async fn push_to_submissions_queue(
         .unwrap_or(DEFAULT_BATCH_SIZE);
 
     for batch in trace_ids.chunks(batch_size) {
-        let payloads: Vec<Payload> = batch
+        let tasks: Vec<Task> = batch
             .iter()
-            .map(|trace_id| Payload {
+            .map(|trace_id| Task {
                 task_id: Uuid::new_v4(),
                 trace_id: trace_id.parse::<Uuid>().unwrap(),
-                event_defintion_id: event_definition_id,
-                structured_output_schema: structured_output_schema.clone(),
-                model: model.clone(),
-                provider: provider.clone(),
             })
             .collect();
 
         let message = RabbitMqLLMBatchSubmissionMessage {
             project_id,
             job_id,
-            payloads,
+            event_definition_id,
+            prompt: prompt.clone(),
+            structured_output_schema: structured_output_schema.clone(),
+            model: model.clone(),
+            provider: provider.clone(),
+            tasks,
         };
 
         let serialized = serde_json::to_vec(&message)?;

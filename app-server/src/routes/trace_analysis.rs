@@ -116,6 +116,7 @@ pub async fn submit_trace_analysis_job(
         trace_ids,
         job.id,
         event_definition_id,
+        event_definition.prompt,
         event_definition.structured_output_schema,
         "gemini-2.5-pro".to_string(),
         "gemini".to_string(),
