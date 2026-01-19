@@ -1,5 +1,7 @@
 mod client;
 
+pub use client::GeminiClient;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

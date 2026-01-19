@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 pub mod gemini;
 pub mod pendings_consumer;
+pub mod producer;
 pub mod submissions_consumer;
 pub mod utils;
 

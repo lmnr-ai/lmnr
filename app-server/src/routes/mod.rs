@@ -5,6 +5,7 @@ pub mod realtime;
 pub mod rollouts;
 pub mod spans;
 pub mod sql;
+pub mod trace_analysis;
 pub mod types;
 use serde::Serialize;
 use types::*;

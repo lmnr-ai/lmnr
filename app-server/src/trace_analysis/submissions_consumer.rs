@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::{
     db::DB,
     mq::MessageQueue,
-    trace_analysis::RabbitMqLLMBatchSubmissionMessage,
+    trace_analysis::{RabbitMqLLMBatchSubmissionMessage, gemini::GeminiClient},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -16,14 +16,21 @@ pub struct LLMBatchSubmissionsHandler {
     pub db: Arc<DB>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
+    pub gemini: Arc<GeminiClient>,
 }
 
 impl LLMBatchSubmissionsHandler {
-    pub fn new(db: Arc<DB>, queue: Arc<MessageQueue>, clickhouse: clickhouse::Client) -> Self {
+    pub fn new(
+        db: Arc<DB>,
+        queue: Arc<MessageQueue>,
+        clickhouse: clickhouse::Client,
+        gemini: Arc<GeminiClient>,
+    ) -> Self {
         Self {
             db,
             queue,
             clickhouse,
+            gemini,
         }
     }
 }
@@ -38,6 +45,7 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
             self.db.clone(),
             self.clickhouse.clone(),
             self.queue.clone(),
+            self.gemini.clone(),
         )
         .await
     }
@@ -48,8 +56,7 @@ async fn process(
     _: Arc<DB>,
     _: clickhouse::Client,
     _: Arc<MessageQueue>,
+    _: Arc<GeminiClient>,
 ) -> Result<(), HandlerError> {
-    // TODO: Implement
-
     Ok(())
 }

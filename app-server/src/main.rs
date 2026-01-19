@@ -751,6 +751,24 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
+        // == Gemini client ==
+        let gemini_client = if is_feature_enabled(Feature::TraceAnalysis) {
+            log::info!("Initializing Gemini client for trace analysis");
+            match trace_analysis::gemini::GeminiClient::new() {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    log::warn!(
+                        "Failed to create Gemini client (trace analysis will be disabled): {:?}",
+                        e
+                    );
+                    None
+                }
+            }
+        } else {
+            log::info!("Trace analysis feature disabled - skipping Gemini client initialization");
+            None
+        };
+
         let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
             env::var("PYTHON_ONLINE_EVALUATOR_URL")
                 .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
@@ -1007,10 +1025,11 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM batch submissions workers
-                    {
+                    if let Some(gemini) = gemini_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let gemini_clone = gemini.clone();
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchSubmissions,
                             num_trace_analysis_llm_batch_submissions_workers as usize,
@@ -1019,6 +1038,7 @@ fn main() -> anyhow::Result<()> {
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
+                                    gemini_clone.clone(),
                                 )
                             },
                             QueueConfig {
@@ -1026,6 +1046,10 @@ fn main() -> anyhow::Result<()> {
                                 exchange_name: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
                                 routing_key: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
                             },
+                        );
+                    } else {
+                        log::warn!(
+                            "Gemini client not available - skipping LLM batch submissions workers"
                         );
                     }
 
@@ -1168,7 +1192,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
-                                    .service(routes::rollouts::update_status),
+                                    .service(routes::rollouts::update_status)
+                                    .service(routes::trace_analysis::submit_trace_analysis_job),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
