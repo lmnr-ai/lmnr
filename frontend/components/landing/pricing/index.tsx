@@ -72,13 +72,14 @@ export default function Pricing() {
             </LandingButton>
           </Link>
         </div>
-        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-landing-text-600 bg-landing-surface-600 rounded-lg">
+        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-landing-primary-400 bg-landing-primary-400 rounded-lg">
           <PricingCard
             className="z-20"
             title="Pro"
             price="$50 / month"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
+            titleClassName="text-landing-text-100"
+            featureClassName="text-landing-text-100"
+            subfeatureClassName="text-landing-text-100"
             features={[
               "5GB data / month included",
               "90 day data retention",
@@ -88,7 +89,7 @@ export default function Pricing() {
             subfeatures={["then $2 per 1GB of additional data", null, "then $25 per additional team member"]}
           />
           <Link href="/projects" className="w-full z-20">
-            <LandingButton variant="primary" className="w-full">
+            <LandingButton variant="primary" className="w-full bg-landing-text-100 text-landing-surface-900 hover:bg-landing-text-200">
               GET STARTED
             </LandingButton>
           </Link>
