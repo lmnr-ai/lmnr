@@ -1,14 +1,14 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use uuid::Uuid;
 
-use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 
 pub mod gemini;
 pub mod pendings_consumer;
-pub mod producer;
+pub mod prompts;
 pub mod submissions_consumer;
 pub mod tools;
 pub mod utils;
@@ -39,13 +39,14 @@ pub struct RabbitMqLLMBatchSubmissionMessage {
 pub struct RabbitMqLLMBatchPendingMessage {
     pub project_id: Uuid,
     pub job_id: Uuid,
-    pub batch_id: Uuid, // LLM Request Batch ID that can be used to track the completion of the batch
+    pub batch_id: String, // Gemini Batch API operation name (e.g., "batches/abc123")
     pub payloads: Vec<Payload>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Payload {
     pub task_id: Uuid,
+    pub trace_id: Uuid,
     pub event_defintion_id: Uuid,
     pub structured_output_schema: Value,
     pub model: String,
@@ -69,19 +70,64 @@ async fn push_to_pending_queue(
     Ok(())
 }
 
-async fn push_to_submissions_queue(
-    queue: Arc<MessageQueue>,
-    message: &RabbitMqLLMBatchSubmissionMessage,
-) -> Result<()> {
-    let mq_message = serde_json::to_vec(message)?;
+const DEFAULT_BATCH_SIZE: usize = 1;
 
-    queue
-        .publish(
-            &mq_message,
-            TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
-            TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
-        )
-        .await?;
+pub async fn push_to_submissions_queue(
+    trace_ids: Vec<String>,
+    job_id: Uuid,
+    event_definition_id: Uuid,
+    structured_output_schema: Value,
+    model: String,
+    provider: String,
+    project_id: Uuid,
+    queue: Arc<MessageQueue>,
+) -> Result<()> {
+    let batch_size = env::var("TRACE_ANALYSIS_BATCH_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_BATCH_SIZE);
+
+    for batch in trace_ids.chunks(batch_size) {
+        let payloads: Vec<Payload> = batch
+            .iter()
+            .map(|trace_id| Payload {
+                task_id: Uuid::new_v4(),
+                trace_id: trace_id.parse::<Uuid>().unwrap(),
+                event_defintion_id: event_definition_id,
+                structured_output_schema: structured_output_schema.clone(),
+                model: model.clone(),
+                provider: provider.clone(),
+            })
+            .collect();
+
+        let message = RabbitMqLLMBatchSubmissionMessage {
+            project_id,
+            job_id,
+            payloads,
+        };
+
+        let serialized = serde_json::to_vec(&message)?;
+
+        if serialized.len() >= mq_max_payload() {
+            log::warn!(
+                "[TRACE_ANALYSIS] MQ payload limit exceeded. Project ID: [{}], Job ID: [{}], payload size: [{}]. Batch size: [{}]",
+                project_id,
+                job_id,
+                serialized.len(),
+                batch.len()
+            );
+            // Skip publishing this batch
+            continue;
+        }
+
+        queue
+            .publish(
+                &serialized,
+                TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+            )
+            .await?;
+    }
 
     Ok(())
 }

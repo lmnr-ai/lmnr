@@ -42,10 +42,6 @@ pub async fn insert_trace_analysis_messages(
     clickhouse: clickhouse::Client,
     messages: &[CHTraceAnalysisMessage],
 ) -> Result<()> {
-    if messages.is_empty() {
-        return Ok(());
-    }
-
     let ch_insert = clickhouse
         .insert::<CHTraceAnalysisMessage>("trace_analysis_messages")
         .await;
@@ -70,4 +66,22 @@ pub async fn insert_trace_analysis_messages(
             e
         )),
     }
+}
+
+#[instrument(skip(clickhouse))]
+pub async fn get_trace_analysis_messages_for_task(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    job_id: Uuid,
+    task_id: Uuid,
+) -> Result<Vec<CHTraceAnalysisMessage>> {
+    let messages = clickhouse
+        .query("SELECT project_id, job_id, task_id, time, message FROM trace_analysis_messages WHERE project_id = ? AND job_id = ? AND task_id = ? ORDER BY time ASC")
+        .bind(project_id)
+        .bind(job_id)
+        .bind(task_id)
+        .fetch_all::<CHTraceAnalysisMessage>()
+        .await?;
+
+    Ok(messages)
 }

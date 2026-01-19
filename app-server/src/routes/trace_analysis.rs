@@ -9,7 +9,7 @@ use crate::{
     mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient},
-    trace_analysis::producer,
+    trace_analysis,
 };
 
 use super::{ResponseResult, error::Error};
@@ -112,11 +112,11 @@ pub async fn submit_trace_analysis_job(
         Error::InternalAnyhowError(anyhow::anyhow!("Failed to create trace analysis job"))
     })?;
 
-    producer::push_trace_analysis_to_queue(
+    trace_analysis::push_to_submissions_queue(
         trace_ids,
         job.id,
-        event_definition,
         event_definition_id,
+        event_definition.structured_output_schema,
         "gemini-2.5-pro".to_string(),
         "gemini".to_string(),
         project_id,

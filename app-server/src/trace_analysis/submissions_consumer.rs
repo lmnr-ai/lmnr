@@ -3,12 +3,24 @@
 //! - Pushes results to the LLM Batch Pending Queue for polling
 
 use async_trait::async_trait;
+use chrono::Utc;
 use std::sync::Arc;
 
 use crate::{
-    db::DB,
-    mq::MessageQueue,
-    trace_analysis::{RabbitMqLLMBatchSubmissionMessage, gemini::GeminiClient},
+    ch::trace_analysis_messages::{
+        CHTraceAnalysisMessage, get_trace_analysis_messages_for_task,
+        insert_trace_analysis_messages,
+    },
+    db::{DB, semantic_event_definitions::get_semantic_event_definition},
+    mq::{MessageQueue, MessageQueueTrait},
+    trace_analysis::{
+        Payload, RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage,
+        TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
+        gemini::{Content, GeminiClient, GenerateContentRequest, GenerationConfig, Part},
+        prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        tools::build_tool_definitions,
+        utils::{extract_batch_id_from_operation, get_trace_structure_as_string},
+    },
     worker::{HandlerError, MessageHandler},
 };
 
@@ -37,11 +49,11 @@ impl LLMBatchSubmissionsHandler {
 
 #[async_trait]
 impl MessageHandler for LLMBatchSubmissionsHandler {
-    type Message = Vec<RabbitMqLLMBatchSubmissionMessage>;
+    type Message = RabbitMqLLMBatchSubmissionMessage;
 
-    async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
+    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         process(
-            messages,
+            message,
             self.db.clone(),
             self.clickhouse.clone(),
             self.queue.clone(),
@@ -52,11 +64,247 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
 }
 
 async fn process(
-    _: Vec<RabbitMqLLMBatchSubmissionMessage>,
-    _: Arc<DB>,
-    _: clickhouse::Client,
-    _: Arc<MessageQueue>,
-    _: Arc<GeminiClient>,
+    msg: RabbitMqLLMBatchSubmissionMessage,
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
+    gemini: Arc<GeminiClient>,
 ) -> Result<(), HandlerError> {
+    let project_id = msg.project_id;
+    let job_id = msg.job_id;
+
+    let mut requests: Vec<GenerateContentRequest> = Vec::new();
+    let mut all_new_messages: Vec<CHTraceAnalysisMessage> = Vec::new();
+
+    for payload in msg.payloads.iter() {
+        match process_payload(&payload, project_id, job_id, db.clone(), clickhouse.clone()).await {
+            Ok((request, new_messages)) => {
+                requests.push(request);
+                all_new_messages.extend(new_messages);
+            }
+            Err(e) => {
+                log::error!(
+                    "[TRACE_ANALYSIS] Failed to process payload for task {}: {:?}",
+                    payload.task_id,
+                    e
+                );
+            }
+        }
+    }
+
+    // Submit batch to Gemini API
+    let model = msg
+        .payloads
+        .first()
+        .map(|p| p.model.as_str())
+        .unwrap_or("gemini-2.5-pro");
+
+    match gemini
+        .create_batch(
+            model,
+            requests,
+            Some(format!("trace_analysis_job_{}", job_id)),
+        )
+        .await
+    {
+        Ok(operation) => {
+            log::debug!(
+                "[TRACE_ANALYSIS] Batch submitted successfully. Operation name: {}",
+                operation.name
+            );
+
+            let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
+                HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e))
+            })?;
+
+            let pending_message = RabbitMqLLMBatchPendingMessage {
+                project_id,
+                job_id,
+                batch_id: batch_id.clone(),
+                payloads: msg.payloads,
+            };
+
+            let serialized = serde_json::to_vec(&pending_message).map_err(|e| {
+                HandlerError::Permanent(anyhow::anyhow!("Failed to serialize message: {}", e))
+            })?;
+
+            queue
+                .publish(
+                    &serialized,
+                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
+                    TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
+                )
+                .await
+                .map_err(|e| {
+                    HandlerError::Transient(anyhow::anyhow!("Failed to publish message: {}", e))
+                })?;
+        }
+        Err(e) => {
+            log::error!("[TRACE_ANALYSIS] Failed to submit batch to Gemini: {:?}", e);
+            return Err(HandlerError::Transient(anyhow::anyhow!(
+                "Gemini API error: {}",
+                e
+            )));
+        }
+    }
+
+    if !all_new_messages.is_empty() {
+        insert_trace_analysis_messages(clickhouse, &all_new_messages)
+            .await
+            .map_err(|e| {
+                HandlerError::Transient(anyhow::anyhow!("Failed to insert messages: {}", e))
+            })?;
+    }
+
     Ok(())
+}
+
+async fn process_payload(
+    payload: &Payload,
+    project_id: uuid::Uuid,
+    job_id: uuid::Uuid,
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+) -> Result<(GenerateContentRequest, Vec<CHTraceAnalysisMessage>), HandlerError> {
+    let task_id = payload.task_id;
+    let trace_id = payload.trace_id;
+    let event_definition_id = payload.event_defintion_id;
+
+    // 1. Query event definition
+    let event_def = get_semantic_event_definition(&db.pool, event_definition_id, project_id)
+        .await
+        .map_err(|e| {
+            HandlerError::Permanent(anyhow::anyhow!("Failed to query event definition: {}", e))
+        })?
+        .ok_or_else(|| {
+            HandlerError::Permanent(anyhow::anyhow!(
+                "Event definition {} not found",
+                event_definition_id
+            ))
+        })?;
+
+    // 2. Query existing messages for this task
+    let existing_messages =
+        get_trace_analysis_messages_for_task(clickhouse.clone(), project_id, job_id, task_id)
+            .await
+            .map_err(|e| {
+                HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
+            })?;
+
+    let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
+        // No messages exist - build initial prompts
+        let trace_structure =
+            get_trace_structure_as_string(clickhouse.clone(), project_id, trace_id)
+                .await
+                .map_err(|e| {
+                    HandlerError::Transient(anyhow::anyhow!("Failed to get trace structure: {}", e))
+                })?;
+
+        let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
+
+        let user_prompt = IDENTIFICATION_PROMPT.replace("{{developer_prompt}}", &event_def.prompt);
+
+        let now = Utc::now();
+        let user_time = now + chrono::Duration::milliseconds(1);
+
+        // Create messages to store
+        let system_message = CHTraceAnalysisMessage::new(
+            project_id,
+            job_id,
+            task_id,
+            now,
+            serde_json::json!({
+                "role": "system",
+                "content": system_prompt
+            })
+            .to_string(),
+        );
+
+        let user_message = CHTraceAnalysisMessage::new(
+            project_id,
+            job_id,
+            task_id,
+            user_time,
+            serde_json::json!({
+                "role": "user",
+                "content": user_prompt
+            })
+            .to_string(),
+        );
+
+        let contents = vec![Content {
+            role: Some("user".to_string()),
+            parts: vec![Part {
+                text: Some(user_prompt.clone()),
+                function_call: None,
+            }],
+        }];
+
+        let system_instruction_content = Content {
+            role: None,
+            parts: vec![Part {
+                text: Some(system_prompt.clone()),
+                function_call: None,
+            }],
+        };
+
+        (
+            contents,
+            Some(system_instruction_content),
+            vec![system_message, user_message],
+        )
+    } else {
+        let mut contents = Vec::new();
+        let mut system_instruction = None;
+
+        for msg in existing_messages {
+            let parsed: serde_json::Value = serde_json::from_str(&msg.message).map_err(|e| {
+                HandlerError::Permanent(anyhow::anyhow!("Failed to parse message JSON: {}", e))
+            })?;
+
+            let role = parsed
+                .get("role")
+                .and_then(|v| v.as_str())
+                .unwrap_or("user");
+            let content = parsed.get("content").and_then(|v| v.as_str()).unwrap_or("");
+
+            if role == "system" {
+                // System instruction
+                system_instruction = Some(Content {
+                    role: None,
+                    parts: vec![Part {
+                        text: Some(content.to_string()),
+                        function_call: None,
+                    }],
+                });
+            } else {
+                // User or assistant message
+                contents.push(Content {
+                    role: Some(role.to_string()),
+                    parts: vec![Part {
+                        text: Some(content.to_string()),
+                        function_call: None,
+                    }],
+                });
+            }
+        }
+
+        (contents, system_instruction, vec![])
+    };
+
+    // 3. Build tool definitions
+    let tools = vec![build_tool_definitions(&payload.structured_output_schema)];
+
+    // 4. Create GenerateContentRequest
+    let request = GenerateContentRequest {
+        contents,
+        generation_config: Some(GenerationConfig {
+            temperature: Some(1.0),
+            ..Default::default()
+        }),
+        system_instruction,
+        tools: Some(tools),
+    };
+
+    Ok((request, new_messages))
 }
