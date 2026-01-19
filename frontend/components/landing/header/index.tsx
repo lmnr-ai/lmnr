@@ -4,13 +4,13 @@ import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import GitHubButton from "react-github-btn";
 
 import logo from "@/assets/logo/logo.svg";
 import { cn } from "@/lib/utils";
 
 import { navLink } from "../class-names";
 import LandingButton from "../landing-button";
+import GitHubStarsButton from "./github-stars-button";
 
 interface LandingHeaderProps {
   hasSession: boolean;
@@ -43,8 +43,8 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
           </Link>
         </div>
-        <div className={cn("flex md:gap-[60px] items-center justify-center", "gap-4")}>
-          <nav className={cn("hidden md:flex md:gap-[40px] items-center", navLink)}>
+        <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
+          <nav className={cn("hidden md:flex md:gap-[32px] items-center", navLink)}>
             <Link
               href="https://docs.laminar.sh"
               target="_blank"
@@ -65,17 +65,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             >
               DISCORD
             </Link>
-            <div className="hidden lg:block">
-              <GitHubButton
-                href="https://github.com/lmnr-ai/lmnr"
-                data-color-scheme="no-preference: dark; light: dark; dark: dark;"
-                data-size="large"
-                data-show-count="true"
-                aria-label="Star lmnr-ai/lmnr on GitHub"
-              >
-                Star
-              </GitHubButton>
-            </div>
+            <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="hidden lg:flex" />
           </nav>
           <div className={cn("flex md:gap-3 items-center", "gap-2")}>
             {hasSession ? (

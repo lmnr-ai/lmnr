@@ -25,8 +25,18 @@ const Footer = ({ className }: Props) => {
 
   return (
     <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full", className)}>
-      <div className={cn("flex flex-col items-end justify-end md:pb-20 pt-[120px] md:px-20 w-full", "px-2 pb-5")}>
-        <div className={cn("flex items-end justify-between w-full md:flex-row md:gap-0", "flex-col gap-[60px]")}>
+      <div
+        className={cn(
+          "flex flex-col items-end justify-end pt-[120px] w-full md:pb-12 md:px-12 lg:pb-20 lg:px-20",
+          "px-2 pb-5"
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-end justify-between w-full md:flex-row md:gap-0 border border-green-500",
+            "flex-col gap-[60px]"
+          )}
+        >
           <div className={cn("flex flex-col gap-8 md:items-start w-full", "items-center")}>
             <div className={cn("md:text-left text-center", subsectionTitle)}>
               Understand
@@ -42,13 +52,18 @@ const Footer = ({ className }: Props) => {
               </Link>
               <Link href="/sign-up" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                 <LandingButton variant="primary" className="w-full">
-                  GET STARTED FREE
+                  GET STARTED
                 </LandingButton>
               </Link>
             </div>
           </div>
-          <div className={cn("flex md:gap-[120px] items-start md:w-auto", "w-full gap-0")}>
-            <div className={cn("flex flex-col md:gap-[20px] items-start", "flex-1 basis-0 gap-3")}>
+          <div
+            className={cn(
+              "flex items-start md:w-auto md:gap-[40px] lg:gap-[120px] border border-red-500",
+              "w-full gap-0"
+            )}
+          >
+            <div className={cn("flex flex-col items-start md:gap-[14px] lg:gap-[20px]", "flex-1 basis-0 gap-3")}>
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
@@ -74,7 +89,7 @@ const Footer = ({ className }: Props) => {
                 </LandingButton>
               </Link>
             </div>
-            <div className={cn("flex flex-col gap-[20px] items-start", "flex-1 basis-0 gap-3")}>
+            <div className={cn("flex flex-col items-start md:gap-[14px] lg:gap-[20px]", "flex-1 basis-0 gap-3")}>
               <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
@@ -108,7 +123,7 @@ const Footer = ({ className }: Props) => {
         ref={ref}
       >
         <motion.div
-          className={cn("relative w-full md:p-20 overflow-hidden", "p-6")}
+          className={cn("relative w-full overflow-hidden md:p-12 lg:p-20", "p-6")}
           style={{
             y: offset,
             opacity,

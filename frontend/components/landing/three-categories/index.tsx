@@ -23,14 +23,12 @@ interface Props {
 const ThreeCategories = ({ className }: Props) => (
   <div
     className={cn(
-      "bg-landing-surface-800 flex flex-col items-center justify-center px-0 md:py-[220px] w-full relative md:px-0",
+      "bg-landing-surface-800 flex flex-col items-center justify-center md:py-[220px] w-full relative lg:px-0 overflow-hidden",
       "px-3 py-[120px]",
       className
     )}
   >
-    <div
-      className={cn("flex flex-col md:gap-[240px] items-start w-[1080px] md:max-w-[1186px]", "max-w-full gap-[180px]")}
-    >
+    <div className={cn("flex flex-col md:gap-[240px] items-start w-[1080px]", "max-w-full gap-[180px]")}>
       {/* Header */}
       <h2
         className={

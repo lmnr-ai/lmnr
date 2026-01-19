@@ -88,91 +88,65 @@ const Hero = ({ className, hasSession }: Props) => {
   }, [activeTab, activeImageIndex]);
 
   return (
-    <div className={cn(
-      "bg-landing-surface-900 flex flex-col items-center justify-between w-full md:gap-[160px]",
-      "gap-[80px]",
-      className
-    )}>
+    <div
+      className={cn(
+        "bg-landing-surface-900 flex flex-col items-center justify-between w-full md:gap-[160px]",
+        "gap-[80px]",
+        className
+      )}
+    >
       <div className="flex flex-col h-[100dvh] w-full">
         <Header hasSession={hasSession} isIncludePadding />
-        <div className={cn(
-          "flex flex-col items-center justify-between flex-1 md:px-[48px]",
-          "px-4"
-        )}>
-          <div className={cn(
-            "flex flex-col md:gap-[60px] items-center flex-1 justify-center",
-            "gap-8"
-          )}>
-          <div className={cn(
-            "flex flex-col md:gap-4 items-center",
-            "gap-3"
-          )}>
-            <Link
-              href="https://www.ycombinator.com/companies/laminar"
-              target="_blank"
-              className={cn(
-                "flex gap-3 items-center bg-landing-surface-700 md:px-5 md:py-2 rounded-sm",
-                "px-3 py-1.5"
-              )}
-            >
-              <Image src="/assets/landing/y-combinator.svg" alt="Y Combinator" width={20} height={20} />
-              <span className={cn(
-                "font-chivo-mono md:text-sm text-landing-text-300 tracking-[0.02em]",
-                "text-xs"
-              )}>
-                BACKED BY Y COMBINATOR
-              </span>
-            </Link>
-            <h1 className={cn(
-              "font-space-grotesk font-normal md:text-[48px] text-center text-white md:tracking-[-0.96px] md:leading-[64px]",
-              "text-[28px] tracking-[-0.56px] leading-[38px]"
-            )}>
-              Understand why your agent failed.
-              <br />
-              Iterate fast to fix it.
-            </h1>
-            <p className={cn(
-              "text-landing-text-300 text-center md:text-base md:leading-6",
-              "text-sm leading-5"
-            )}>
-              Open source observability for comprehensive tracing, execution replay,
-              <br className="hidden md:block" />
-              and trace analysis for AI agents.
-            </p>
-          </div>
-          <div className={cn(
-            "flex md:flex-row md:gap-5 items-center justify-center",
-            "gap-2"
-          )}>
-            <Link href="/sign-up" className="md:w-auto w-full">
-              <LandingButton variant="primary" className={cn(
-                "md:w-[206px]",
-                "flex-1 basis-0"
-              )}>
-                GET STARTED FREE
-              </LandingButton>
-            </Link>
-            <Link href="https://docs.lmnr.ai" target="_blank" className="md:w-auto w-full">
-              <LandingButton variant="outline" className={cn(
-                "md:w-[206px]",
-                "flex-1 basis-0"
-              )}>
-                READ THE DOCS
-              </LandingButton>
-            </Link>
-          </div>
+        <div className={cn("flex flex-col items-center justify-between flex-1 md:px-[48px]", "px-4")}>
+          <div className={cn("flex flex-col md:gap-[60px] items-center flex-1 justify-center", "gap-8")}>
+            <div className={cn("flex flex-col md:gap-4 items-center", "gap-3")}>
+              <Link
+                href="https://www.ycombinator.com/companies/laminar"
+                target="_blank"
+                className={cn(
+                  "flex gap-3 items-center bg-landing-surface-700 md:px-5 md:py-2 rounded-sm",
+                  "px-3 py-1.5"
+                )}
+              >
+                <Image src="/assets/landing/y-combinator.svg" alt="Y Combinator" width={20} height={20} />
+                <span className={cn("font-chivo-mono md:text-sm text-landing-text-300 tracking-[0.02em]", "text-xs")}>
+                  BACKED BY Y COMBINATOR
+                </span>
+              </Link>
+              <h1
+                className={cn(
+                  "font-space-grotesk font-normal md:text-[48px] text-center text-white md:tracking-[-0.96px] md:leading-[64px]",
+                  "text-[28px] tracking-[-0.56px] leading-[38px]"
+                )}
+              >
+                Understand why your agent failed.
+                <br />
+                Iterate fast to fix it.
+              </h1>
+              <p className={cn("text-landing-text-300 text-center md:text-lg md:leading-6", "text-sm leading-5")}>
+                Open source observability for comprehensive tracing, execution replay,
+                <br className="hidden md:block" />
+                and trace analysis for AI agents.
+              </p>
+            </div>
+            <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>
+              <Link href="/sign-up" className="md:w-auto w-full">
+                <LandingButton variant="primary" className={cn("md:w-[206px]", "flex-1 basis-0")}>
+                  GET STARTED
+                </LandingButton>
+              </Link>
+              <Link href="https://docs.lmnr.ai" target="_blank" className="md:w-auto w-full">
+                <LandingButton variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
+                  READ THE DOCS
+                </LandingButton>
+              </Link>
+            </div>
           </div>
           <InfiniteLogoCarousel />
         </div>
       </div>
-      <div className={cn(
-        "flex flex-col w-full md:pb-[120px] md:gap-[40px] items-center",
-        "pb-[60px] gap-[24px] px-4"
-      )}>
-        <div className={cn(
-          "flex md:gap-5 items-center",
-          "gap-2"
-        )}>
+      <div className={cn("flex flex-col w-full md:pb-[120px] md:gap-[40px] items-center", "pb-[60px] gap-[24px] px-4")}>
+        <div className={cn("flex md:gap-5 items-center", "gap-2")}>
           {TABS.map((tab) => (
             <ScreenshotToggleButton
               key={`${tab}-${activeTab === tab ? activeImageIndex : 0}`}
@@ -188,10 +162,12 @@ const Hero = ({ className, hasSession }: Props) => {
             </ScreenshotToggleButton>
           ))}
         </div>
-        <div className={cn(
-          "relative md:w-[990px] md:h-[700px] rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
-          "w-full aspect-[990/700] outline-[2px] outline-offset-2"
-        )}>
+        <div
+          className={cn(
+            "relative md:w-[990px] md:h-[700px] rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
+            "w-full aspect-[990/700] outline-[2px] outline-offset-2"
+          )}
+        >
           {/* Background image - shows the target image during transition */}
           <Image src={currentImage} alt={`${activeTab} screenshot`} fill className="object-cover" priority />
           {/* Foreground image - fades out to reveal background */}
@@ -199,10 +175,7 @@ const Hero = ({ className, hasSession }: Props) => {
             src={displayedImage}
             alt={`${activeTab} screenshot`}
             fill
-            className={cn(
-              "object-cover transition-opacity ease-in-out",
-              isTransitioning ? "opacity-0" : "opacity-100"
-            )}
+            className={cn("object-cover transition-opacity ease-in-out", isTransitioning ? "opacity-0" : "opacity-100")}
             style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
             priority
           />
