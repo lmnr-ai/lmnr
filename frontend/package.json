@@ -130,7 +130,7 @@
     "react-hotkeys-hook": "^5.1.0",
     "react-intersection-observer": "^9.16.0",
     "react-pdf": "^10.1.0",
-    "react-resizable-panels": "^2.1.9",
+    "react-resizable-panels": "^4.4.1",
     "react-syntax-highlighter": "^15.6.4",
     "react-textarea-autosize": "^8.5.9",
     "recharts": "^2.15.4",
