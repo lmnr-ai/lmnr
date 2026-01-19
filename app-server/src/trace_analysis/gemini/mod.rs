@@ -1,4 +1,4 @@
-mod client;
+pub mod client;
 
 pub use client::GeminiClient;
 
@@ -99,8 +99,18 @@ pub struct Content {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Part {
-    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<FunctionCall>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCall {
+    pub name: String,
+    pub args: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
