@@ -1,0 +1,44 @@
+---
+title: "How Rye Debugs Agentic Checkout at Scale"
+date: "2026-01-18"
+description: "How Rye uses semantic events and session replays to find edge cases in agentic checkout."
+author:
+  name: "Sam Komesarook"
+  url: "https://x.com/raymondmarkable"
+tags: ["semantic-events", "observability", "agents", "case-study", "rye"]
+---
+
+## Overview
+
+[Rye's Universal Checkout API](https://rye.com/) completes purchases on any merchant site. Give it a product URL and it handles the rest. Under the hood, browser agents navigate unpredictable checkout flows, merchant fraud detection, and constantly changing UIs.
+
+When you're processing [X] checkout attempts per day across [X] merchant sites, the question shifts from "what happened?" to "what's new and worth attention right now?"
+
+## Reliability came at a cost
+
+Rye added logic to wait for network activity to die down before proceeding with checkout. Reliability jumped ~50%. Latency exploded.
+
+When you want an agent to find and purchase a product in less than 10-seconds, that does not work. They needed to know which network requests were safe to skip without manually auditing thousands of traces.
+
+## Finding the signal
+
+[Semantic events](https://docs.laminar.sh/tracing/events/semantic-events) solved the detection problem. Rye defines behavior they want to surface. When a match occurs, it emits structured data they can filter, chart, and alert on.
+
+They created an event to catch traces where the agent waited for network idle, but the blocking requests were non-essential. Here is an example:
+
+![Semantic event alert in Slack with linked trace](/blog/2025-01-18-slack.png)
+
+The alert links directly to the trace. No digging through logs. No guessing which session broke.
+
+## Seeing what the agent saw
+
+Semantic events tell you where to look. [Session replays](https://docs.laminar.sh/tracing/browser-agent-observability) give you more details of exactly what the agent saw when it encountered the issue.
+
+Laminar captures native browser recordings synced to the trace timeline. Rye opens the trace, scrubs the replay, and sees exactly what the agent saw. They use this daily to debug errors. Having the infrastructure built-in saved them from building it themselves.
+
+<video className="w-full rounded-lg border" controls playsInline>
+  <source src="/blog/2025-01-18-browser.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+Rye is able to utilise agents to their maximum potential because they can always see what is happening, and crucially, why.
