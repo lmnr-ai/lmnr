@@ -93,15 +93,16 @@ const Hero = ({ className, hasSession }: Props) => {
       "gap-[80px]",
       className
     )}>
-      <div className={cn(
-        "flex flex-col items-center justify-between md:pt-8 md:px-[48px] h-[100dvh] w-full",
-        "pt-4 px-4"
-      )}>
-        <Header hasSession={hasSession} />
+      <div className="flex flex-col h-[100dvh] w-full">
+        <Header hasSession={hasSession} isIncludePadding />
         <div className={cn(
-          "flex flex-col md:gap-[60px] items-center",
-          "gap-8"
+          "flex flex-col items-center justify-between flex-1 md:px-[48px]",
+          "px-4"
         )}>
+          <div className={cn(
+            "flex flex-col md:gap-[60px] items-center flex-1 justify-center",
+            "gap-8"
+          )}>
           <div className={cn(
             "flex flex-col md:gap-4 items-center",
             "gap-3"
@@ -160,8 +161,9 @@ const Hero = ({ className, hasSession }: Props) => {
               </LandingButton>
             </Link>
           </div>
+          </div>
+          <InfiniteLogoCarousel />
         </div>
-        <InfiniteLogoCarousel />
       </div>
       <div className={cn(
         "flex flex-col w-full md:pb-[120px] md:gap-[40px] items-center",

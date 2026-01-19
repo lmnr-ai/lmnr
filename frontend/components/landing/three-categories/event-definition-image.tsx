@@ -1,8 +1,9 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { useScroll, useTransform, useMotionValueEvent, motion } from "framer-motion";
+import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
 import { useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
@@ -38,30 +39,59 @@ const EventDefinitionImage = ({ className }: Props) => {
       style={{ opacity }}
       ref={ref}
     >
-      <div className="absolute left-[72px] top-[53px] bg-landing-surface-600 border border-landing-surface-400 flex flex-col gap-3 items-start justify-center px-6 py-4 rounded-sm w-[1179px]">
+      <div
+        className={cn(
+          "absolute bg-landing-surface-600 border border-landing-surface-400 flex flex-col items-start justify-center rounded-sm w-[1179px] md:left-[72px] md:top-[53px] md:gap-3 md:px-6 md:py-4",
+          "left-[52px] top-[32px] gap-2 px-4 py-3"
+        )}
+      >
         {/* Title */}
-        <p className="font-sans font-medium leading-normal text-[20px] text-landing-text-300 whitespace-nowrap shrink-0">
+        <p className={cn(
+          "font-sans font-medium leading-normal text-landing-text-300 whitespace-nowrap shrink-0 md:text-[20px]",
+          "text-[16px]"
+        )}>
           LLM_logic_error
         </p>
 
         {/* Definition Section */}
-        <div className="flex flex-col gap-2 items-start relative shrink-0 w-full">
-          <p className="font-sans font-normal leading-normal text-base text-landing-text-300 whitespace-nowrap shrink-0">
+        <div className={cn(
+          "flex flex-col items-start relative shrink-0 w-full md:gap-2",
+          "gap-1.5"
+        )}>
+          <p className={cn(
+            "font-sans font-normal leading-normal text-landing-text-300 whitespace-nowrap shrink-0 md:text-base",
+            "text-sm"
+          )}>
             Definition
           </p>
-          <div className="bg-landing-primary-400/10 border border-landing-primary-400/50 flex items-center justify-center px-3 py-2 rounded-sm shrink-0 w-full">
-            <p className="basis-0 font-sans font-normal grow leading-[22px] min-h-px min-w-px relative shrink-0 text-base text-landing-primary-400 whitespace-pre-wrap">
+          <div className={cn(
+            "bg-landing-primary-400/10 border border-landing-primary-400/50 flex items-center justify-center rounded-sm shrink-0 w-full md:px-3 md:py-2",
+            "px-2 py-1.5"
+          )}>
+            <p className={cn(
+              "basis-0 font-sans font-normal grow min-h-px min-w-px relative shrink-0 text-landing-primary-400 whitespace-pre-wrap md:leading-[22px] md:text-base",
+              "leading-[18px] text-sm"
+            )}>
               {displayText}
             </p>
           </div>
         </div>
 
         {/* Structured Output Section */}
-        <div className="flex flex-col gap-2 items-start relative shrink-0 w-full">
-          <p className="font-sans font-normal leading-normal text-base text-landing-text-300 whitespace-nowrap shrink-0">
+        <div className={cn(
+          "flex flex-col items-start relative shrink-0 w-full md:gap-2",
+          "gap-1.5"
+        )}>
+          <p className={cn(
+            "font-sans font-normal leading-normal text-landing-text-300 whitespace-nowrap shrink-0 md:text-base",
+            "text-sm"
+          )}>
             Structured Output
           </p>
-          <div className="bg-landing-surface-500 border border-landing-text-600 flex font-mono gap-[14px] items-start leading-normal overflow-hidden px-2 py-1 rounded-sm text-base text-nowrap w-full">
+          <div className={cn(
+            "bg-landing-surface-500 border border-landing-text-600 flex font-mono items-start leading-normal overflow-hidden rounded-sm text-nowrap w-full md:gap-[14px] md:px-2 md:py-1 md:text-base",
+            "gap-2 px-1.5 py-0.5 text-xs"
+          )}>
             {/* Line Numbers */}
             <div className="leading-normal relative shrink-0 text-right text-landing-text-500">
               <p className="mb-0">1</p>

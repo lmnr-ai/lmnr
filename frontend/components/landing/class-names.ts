@@ -7,7 +7,7 @@
 
 // Hero & Large Headings
 export const sectionHeaderLarge =
-  "font-space-grotesk font-normal md:leading-[58px] md:text-[48px] text-white text-[36px] leading-[46px]";
+  "font-space-grotesk font-normal md:leading-[58px] md:text-[48px] text-white text-[32px] leading-[38px]";
 
 export const sectionHeaderMedium =
   "font-space-grotesk font-normal md:leading-tight md:text-[42px] text-white md:tracking-[-0.84px] text-[32px] leading-[40px] tracking-[-0.64px]";

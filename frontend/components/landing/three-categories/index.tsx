@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, bodyMedium, bodySQL, cardTitle, sectionHeaderLarge, subsectionTitle } from "../class-names";
+import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names";
 import DocsButton from "../docs-button";
 import SectionName from "../section-name";
 import AskAIImage from "./ask-ai-image";
@@ -32,7 +32,11 @@ const ThreeCategories = ({ className }: Props) => (
       className={cn("flex flex-col md:gap-[240px] items-start w-[1080px] md:max-w-[1186px]", "max-w-full gap-[180px]")}
     >
       {/* Header */}
-      <h2 className={cn(sectionHeaderLarge, "w-[1160px]")}>
+      <h2
+        className={
+          "font-space-grotesk font-normal md:leading-[52px] md:text-[48px] text-white text-[28px] leading-[34px]"
+        }
+      >
         Features for
         <br />
         every step of

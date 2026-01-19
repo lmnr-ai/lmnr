@@ -51,22 +51,36 @@ const AskAIImage = ({ className }: Props) => {
   ];
 
   return (
-    <div ref={containerRef} className={cn("bg-landing-surface-700 overflow-clip p-8 rounded-lg relative", className)}>
-      <div className="bg-landing-surface-600 border border-landing-surface-400 flex flex-col gap-4 items-end justify-end px-7 py-5 rounded w-[685px] absolute right-[100px] -top-[10px]">
+    <div ref={containerRef} className={cn(
+      "bg-landing-surface-700 overflow-clip rounded-lg relative md:p-8",
+      "p-6",
+      className
+    )}>
+      <div className={cn(
+        "bg-landing-surface-600 border border-landing-surface-400 flex flex-col items-end justify-end rounded w-[685px] absolute md:gap-4 md:px-7 md:py-5 md:right-[100px] md:-top-[10px]",
+        "gap-3 px-5 py-4 right-[80px] -top-[8px]"
+      )}>
         {messages.map((message, index) => (
           <motion.div
             key={index}
             className={cn(
-              "bg-landing-surface-500 border border-landing-surface-400 flex gap-[14px] items-center pl-3 pr-2 py-2 rounded-lg w-[593px]"
+              "bg-landing-surface-500 border border-landing-surface-400 flex items-center rounded-lg w-[593px] md:gap-[14px] md:pl-3 md:pr-2 md:py-2",
+              "gap-2 pl-2 pr-1.5 py-1.5"
             )}
             style={{
               opacity: message.opacity,
               x: useTransform(message.x, (val) => val + message.xOffset),
             }}
           >
-            <p className="flex-1 text-base leading-[22px] text-landing-text-500">{message.text}</p>
+            <p className={cn(
+              "flex-1 text-landing-text-500 md:text-base md:leading-[22px]",
+              "text-sm leading-[18px]"
+            )}>{message.text}</p>
             {message.hasButton && (
-              <div className="bg-landing-primary-400-10 border border-landing-primary-400-50 flex items-center justify-center p-2 rounded shrink-0">
+              <div className={cn(
+                "bg-landing-primary-400-10 border border-landing-primary-400-50 flex items-center justify-center rounded shrink-0 md:p-2",
+                "p-1.5"
+              )}>
                 <ArrowRight className="w-4 h-4 text-landing-primary-400" />
               </div>
             )}

@@ -50,71 +50,92 @@ const FullContextImage = ({ className }: Props) => {
           {/* Main content area */}
           <div className="flex flex-col items-start grow min-w-0 h-full">
             {/* Message row 1 - Navigation */}
-            <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "border-b border-landing-surface-400 flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
                   <Bolt size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">navigated to https://laminar.sh</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>navigated to https://laminar.sh</p>
               </div>
             </div>
 
             {/* Message row 2 - LLM response */}
-            <div className="flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
                   <MessageCircle size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>gpt-05-nano-2025-08-07</p>
               </div>
             </div>
 
             {/* Expanded content */}
-            <div className="flex items-start justify-between pb-3 pl-[58px] pr-2 w-full">
-              <p className="font-sans text-xs text-landing-text-500 leading-normal">
+            <div className={cn(
+              "flex items-start justify-between w-full md:pb-3 md:pl-[58px] md:pr-2",
+              "pb-2 pl-[46px] pr-1.5"
+            )}>
+              <p className={cn("font-sans text-landing-text-500 leading-normal md:text-xs", "text-[10px]")}>
                 Plan: From the Laminar homepage, click the Pricing link to load the pricing page. The on the pricing
                 page, I will extract and describe the pricing plans.
               </p>
             </div>
 
             {/* Message row 3 - Click action */}
-            <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "border-b border-landing-surface-400 flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
                   <Bolt size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">click</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>click</p>
               </div>
             </div>
 
             {/* Message row 5 - Extract action */}
-            <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "border-b border-landing-surface-400 flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
                   <Bolt size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">extracted pricing plans</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>extracted pricing plans</p>
               </div>
             </div>
 
             {/* Message row 6 - LLM response */}
-            <div className="flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
                   <MessageCircle size={12} className="text-landing-text-300" />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>gpt-05-nano-2025-08-07</p>
               </div>
             </div>
 
             {/* Pricing data */}
-            <div className="flex items-start justify-between pb-3 pl-[58px] pr-2 w-full">
-              <div className="font-sans text-xs text-landing-text-500 leading-normal">
+            <div className={cn(
+              "flex items-start justify-between w-full md:pb-3 md:pl-[58px] md:pr-2",
+              "pb-2 pl-[46px] pr-1.5"
+            )}>
+              <div className={cn("font-sans text-landing-text-500 leading-normal md:text-xs", "text-[10px]")}>
                 <p className="mb-0">Free</p>
                 <ul className="list-disc mb-0 ml-[18px]">
                   <li className="mb-0">Price: $0 / month</li>
@@ -137,17 +158,23 @@ const FullContextImage = ({ className }: Props) => {
 
             {/* Message row 4 - LLM response (highlighted) */}
             <div className="bg-landing-primary-400/10 border-l border-landing-primary-400 flex flex-col items-start w-full">
-              <div className="flex h-7 items-center px-3 w-full">
-                <div className="flex gap-2 items-center">
+              <div className={cn(
+                "flex items-center w-full md:h-7 md:px-3",
+                "h-6 px-2"
+              )}>
+                <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                   <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                   <div className="bg-[rgba(116,63,227,0.5)] flex items-center p-1 rounded shrink-0">
                     <MessageCircle size={12} className="text-landing-text-300" />
                   </div>
-                  <p className="font-sans text-xs text-landing-primary-400">gpt-05-nano-2025-08-07</p>
+                  <p className={cn("font-sans text-landing-primary-400 md:text-xs", "text-[10px]")}>gpt-05-nano-2025-08-07</p>
                 </div>
               </div>
-              <div className="flex items-start justify-between pb-3 pl-[58px] pr-2 w-full">
-                <p className="font-sans text-xs text-landing-primary-400 leading-normal">
+              <div className={cn(
+                "flex items-start justify-between w-full md:pb-3 md:pl-[58px] md:pr-2",
+                "pb-2 pl-[46px] pr-1.5"
+              )}>
+                <p className={cn("font-sans text-landing-primary-400 leading-normal md:text-xs", "text-[10px]")}>
                   From the prior steps, we navigated to the Laminar pricing page and are now positioned to extract
                   pricing data. The user request to describe their pricing plans, so the immediate next action should be
                   to extract structured pricing.
@@ -156,30 +183,39 @@ const FullContextImage = ({ className }: Props) => {
             </div>
 
             {/* Message row 5 - Extract action */}
-            <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "border-b border-landing-surface-400 flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
                   <Bolt size={12} className="text-landing-text-300 " />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">Extracted pricing plans</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>Extracted pricing plans</p>
               </div>
             </div>
 
             {/* Message row 6 - LLM response */}
-            <div className="flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
                   <MessageCircle size={12} className="text-landing-text-300 " />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>gpt-05-nano-2025-08-07</p>
               </div>
             </div>
 
             {/* Pricing data */}
-            <div className="flex items-start justify-between pb-3 pl-[58px] pr-2 w-full">
-              <div className="font-sans text-xs text-landing-text-500 leading-normal">
+            <div className={cn(
+              "flex items-start justify-between w-full md:pb-3 md:pl-[58px] md:pr-2",
+              "pb-2 pl-[46px] pr-1.5"
+            )}>
+              <div className={cn("font-sans text-landing-text-500 leading-normal md:text-xs", "text-[10px]")}>
                 <p className="mb-0">Free</p>
                 <ul className="list-disc mb-0 ml-[18px]">
                   <li className="mb-0">Price: $0 / month</li>
@@ -201,31 +237,40 @@ const FullContextImage = ({ className }: Props) => {
             </div>
 
             {/* More messages */}
-            <div className="flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronDown size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded shrink-0">
                   <MessageCircle size={12} className="text-landing-text-300 " />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">gpt-05-nano-2025-08-07</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>gpt-05-nano-2025-08-07</p>
               </div>
             </div>
 
-            <div className="flex items-start justify-between pb-3 pl-[58px] pr-2 w-full">
-              <p className="font-sans text-xs text-landing-text-500 leading-normal">
+            <div className={cn(
+              "flex items-start justify-between w-full md:pb-3 md:pl-[58px] md:pr-2",
+              "pb-2 pl-[46px] pr-1.5"
+            )}>
+              <p className={cn("font-sans text-landing-text-500 leading-normal md:text-xs", "text-[10px]")}>
                 We are on the Laminar pricing page nad have already retrieved detailed pricing data from the pagestate
                 and read_state. The user asked to describe the pricing plans.
               </p>
             </div>
 
             {/* Writing action */}
-            <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full">
-              <div className="flex gap-2 items-center">
+            <div className={cn(
+              "border-b border-landing-surface-400 flex items-center w-full md:h-7 md:px-3",
+              "h-6 px-2"
+            )}>
+              <div className={cn("flex items-center md:gap-2", "gap-1.5")}>
                 <ChevronRight size={10} className="shrink-0 text-landing-text-500" />
                 <div className="bg-landing-primary-400/30 flex items-center p-1 rounded shrink-0">
                   <Bolt size={12} className="text-landing-text-300 " />
                 </div>
-                <p className="font-sans text-xs text-landing-text-300">writing to pricing_summary.md</p>
+                <p className={cn("font-sans text-landing-text-300 md:text-xs", "text-[10px]")}>writing to pricing_summary.md</p>
               </div>
             </div>
           </div>

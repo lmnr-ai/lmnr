@@ -25,7 +25,7 @@ const Footer = ({ className }: Props) => {
 
   return (
     <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full", className)}>
-      <div className={cn("flex flex-col items-end justify-end md:pb-20 pt-[120px] md:px-20 w-full", "px-2 pb-3")}>
+      <div className={cn("flex flex-col items-end justify-end md:pb-20 pt-[120px] md:px-20 w-full", "px-2 pb-5")}>
         <div className={cn("flex items-end justify-between w-full md:flex-row md:gap-0", "flex-col gap-[60px]")}>
           <div className={cn("flex flex-col gap-8 md:items-start w-full", "items-center")}>
             <div className={cn("md:text-left text-center", subsectionTitle)}>
