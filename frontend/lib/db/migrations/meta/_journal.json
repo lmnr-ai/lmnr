@@ -456,6 +456,20 @@
       "when": 1765817940399,
       "tag": "0064_open_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1768833620880,
+      "tag": "0065_magical_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1768843438222,
+      "tag": "0066_sturdy_quasimodo",
+      "breakpoints": true
     }
   ]
 }
