@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 
 import { bodySQL, sectionHeaderLarge } from "../class-names";
 import DocsButton from "../docs-button";
-import LocalToScaleImage from "./local-to-scale-image";
 
 interface Props {
   className?: string;
@@ -47,13 +46,16 @@ const SecondHalfMobile = ({ className }: Props) => {
           <DocsButton href="https://docs.laminar.sh/hosting-options" />
         </div>
 
-        {/* Animated Image - scroll-linked, in flow */}
+        {/*
+
         <div className="h-[350px] w-full relative overflow-hidden">
           <LocalToScaleImage
             className="absolute top-0 left-1/2 -translate-x-1/2"
             scrollYProgress={scrollYProgress}
           />
         </div>
+
+        */}
 
         {/* Section 2: Ready to scale */}
         <div className="flex flex-col gap-6 items-start w-full">
