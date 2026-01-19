@@ -52,7 +52,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   CONTACT US
                 </LandingButton>
@@ -60,7 +60,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   GITHUB
                 </LandingButton>
@@ -68,7 +68,7 @@ const Footer = ({ className }: Props) => {
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   JOIN DISCORD
                 </LandingButton>
@@ -78,7 +78,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   PRIVACY POLICY
                 </LandingButton>
@@ -86,7 +86,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/terms" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   TERMS OF SERVICE
                 </LandingButton>
@@ -94,7 +94,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://status.laminar.sh" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   STATUS
                 </LandingButton>
