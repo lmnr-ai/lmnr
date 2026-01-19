@@ -14,7 +14,7 @@ interface Props {
 }
 
 const Landing = ({ className, hasSession }: Props) => (
-  <div className={cn("", className)}>
+  <div className={cn("overflow-x-clip", className)}>
     <Hero hasSession={hasSession} />
     <ThreeCategories />
     <Blurb />

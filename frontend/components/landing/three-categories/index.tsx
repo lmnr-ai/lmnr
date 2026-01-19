@@ -23,12 +23,12 @@ interface Props {
 const ThreeCategories = ({ className }: Props) => (
   <div
     className={cn(
-      "bg-landing-surface-800 flex flex-col items-center justify-center md:py-[220px] w-full relative lg:px-0 overflow-hidden",
-      "px-3 py-[120px]",
+      "bg-landing-surface-800 flex flex-col items-center justify-center md:py-[220px] w-full relative md:px-8 overflow-hidden",
+      "py-[120px] px-3",
       className
     )}
   >
-    <div className={cn("flex flex-col md:gap-[240px] items-start w-[1080px]", "max-w-full gap-[180px]")}>
+    <div className={cn("flex flex-col md:gap-[240px] items-start w-[1104px]", "max-w-full gap-[180px]")}>
       {/* Header */}
       <h2
         className={
@@ -95,7 +95,7 @@ const ThreeCategories = ({ className }: Props) => (
 
       {/* Error? Restart right where it left off */}
       <div className={cn("flex md:flex-row md:items-start md:gap-[40px] w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:w-[380px]", "w-full")}>
+        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={cn(subsectionTitle, "w-full")}>
               Error? Restart
@@ -119,7 +119,7 @@ const ThreeCategories = ({ className }: Props) => (
 
       {/* Capture what your agent sees */}
       <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:w-[380px] md:pt-[40px]", "w-full pt-0")}>
+        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px] md:pt-[40px]", "w-full pt-0")}>
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={subsectionTitle}>Capture what your agent sees</h2>
             <p className={bodyMedium}>
@@ -183,10 +183,10 @@ const ThreeCategories = ({ className }: Props) => (
       {/* By the power of SQL */}
       <div className="flex flex-col items-start w-full">
         <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
-          <div className={cn("flex flex-col gap-[50px] items-start md:w-[380px]", "w-full")}>
+          <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
             <div className="flex flex-col gap-6 items-start w-full">
               <h2 className={subsectionTitle}>Platform-wide SQL</h2>
-              <div className={cn("flex flex-col items-start md:w-[380px]", "w-full")}>
+              <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
                 </div>
@@ -210,11 +210,11 @@ const ThreeCategories = ({ className }: Props) => (
 
       {/* Custom dashboards */}
       <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:w-[380px]", "w-full")}>
+        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={subsectionTitle}>Custom dashboards</h2>
 
-            <div className={cn("flex flex-col items-start md:w-[380px]", "w-full")}>
+            <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track what's important for you</p>
               </div>
