@@ -91,8 +91,8 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SemanticEvents => write!(f, "semantic_events"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
-            WorkerType::LLMBatchSubmissions => write!(f, "llm_batch_submissions"),
-            WorkerType::LLMBatchPending => write!(f, "llm_batch_pending"),
+            WorkerType::LLMBatchSubmissions => write!(f, "trace_analysis_llm_batch_submissions"),
+            WorkerType::LLMBatchPending => write!(f, "trace_analysis_llm_batch_pending"),
         }
     }
 }

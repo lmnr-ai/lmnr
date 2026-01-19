@@ -37,8 +37,9 @@ use query_engine::{
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
 use trace_analysis::{
-    LLM_BATCH_PENDING_EXCHANGE, LLM_BATCH_PENDING_QUEUE, LLM_BATCH_PENDING_ROUTING_KEY,
-    LLM_BATCH_SUBMISSIONS_EXCHANGE, LLM_BATCH_SUBMISSIONS_QUEUE, LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
+    TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
+    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
     pendings_consumer::LLMBatchPendingHandler, submissions_consumer::LLMBatchSubmissionsHandler,
 };
 use traces::{
@@ -480,10 +481,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.8 LLM Batch Submissions message queue ====
+            // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
             channel
                 .exchange_declare(
-                    LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -496,7 +497,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    LLM_BATCH_SUBMISSIONS_QUEUE,
+                    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -506,10 +507,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.9 LLM Batch Pending message queue ====
+            // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
             channel
                 .exchange_declare(
-                    LLM_BATCH_PENDING_EXCHANGE,
+                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -522,7 +523,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    LLM_BATCH_PENDING_QUEUE,
+                    TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -797,18 +798,20 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_llm_batch_submissions_workers = env::var("NUM_LLM_BATCH_SUBMISSIONS_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_trace_analysis_llm_batch_submissions_workers =
+            env::var("NUM_TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_WORKERS")
+                .unwrap_or(String::from("4"))
+                .parse::<u8>()
+                .unwrap_or(4);
 
-        let num_llm_batch_pending_workers = env::var("NUM_LLM_BATCH_PENDING_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_trace_analysis_llm_batch_pending_workers =
+            env::var("NUM_TRACE_ANALYSIS_LLM_BATCH_PENDING_WORKERS")
+                .unwrap_or(String::from("4"))
+                .parse::<u8>()
+                .unwrap_or(4);
 
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
@@ -816,7 +819,9 @@ fn main() -> anyhow::Result<()> {
             num_payload_workers,
             num_semantic_event_workers,
             num_notification_workers,
-            num_clustering_workers
+            num_clustering_workers,
+            num_trace_analysis_llm_batch_submissions_workers,
+            num_trace_analysis_llm_batch_pending_workers
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -1008,7 +1013,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchSubmissions,
-                            num_llm_batch_submissions_workers as usize,
+                            num_trace_analysis_llm_batch_submissions_workers as usize,
                             move || {
                                 LLMBatchSubmissionsHandler::new(
                                     db.clone(),
@@ -1017,9 +1022,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: LLM_BATCH_SUBMISSIONS_QUEUE,
-                                exchange_name: LLM_BATCH_SUBMISSIONS_EXCHANGE,
-                                routing_key: LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+                                queue_name: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE,
+                                exchange_name: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                                routing_key: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
                             },
                         );
                     }
@@ -1031,7 +1036,7 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchPending,
-                            num_llm_batch_pending_workers as usize,
+                            num_trace_analysis_llm_batch_pending_workers as usize,
                             move || {
                                 LLMBatchPendingHandler::new(
                                     db.clone(),
@@ -1040,9 +1045,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: LLM_BATCH_PENDING_QUEUE,
-                                exchange_name: LLM_BATCH_PENDING_EXCHANGE,
-                                routing_key: LLM_BATCH_PENDING_ROUTING_KEY,
+                                queue_name: TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
+                                exchange_name: TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
+                                routing_key: TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
                             },
                         );
                     }

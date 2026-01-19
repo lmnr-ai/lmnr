@@ -2,19 +2,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+pub mod gemini;
 pub mod pendings_consumer;
 pub mod submissions_consumer;
 pub mod utils;
 
 // Queue for LLM batch submissions that should be requested to LLM
-pub const LLM_BATCH_SUBMISSIONS_QUEUE: &str = "llm_batch_submissions_queue";
-pub const LLM_BATCH_SUBMISSIONS_EXCHANGE: &str = "llm_batch_submissions_exchange";
-pub const LLM_BATCH_SUBMISSIONS_ROUTING_KEY: &str = "llm_batch_submissions_routing_key";
+pub const TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE: &str = "trace_analysis_llm_batch_submissions_queue";
+pub const TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE: &str = "trace_analysis_llm_batch_submissions_exchange";
+pub const TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY: &str = "trace_analysis_llm_batch_submissions_routing_key";
 
 // Queue for LLM batch requests that are pending completion
-pub const LLM_BATCH_PENDING_QUEUE: &str = "llm_batch_pending_queue";
-pub const LLM_BATCH_PENDING_EXCHANGE: &str = "llm_batch_requests_exchange";
-pub const LLM_BATCH_PENDING_ROUTING_KEY: &str = "llm_batch_requests_routing_key";
+pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE: &str = "trace_analysis_llm_batch_pending_queue";
+pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE: &str = "trace_analysis_llm_batch_pending_exchange";
+pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY: &str = "trace_analysis_llm_batch_pending_routing_key";
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RabbitMqLLMBatchSubmissionMessage {
