@@ -6,8 +6,7 @@ import { useEffect } from "react";
 export default function LenisProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      duration: 0.7,
       orientation: "vertical",
       gestureOrientation: "vertical",
       smoothWheel: true,
