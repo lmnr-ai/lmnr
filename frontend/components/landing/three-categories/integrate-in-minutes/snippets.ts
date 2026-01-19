@@ -3,9 +3,10 @@ import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import langgraph from "@/assets/landing/logos/langgraph.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import openHands from "@/assets/landing/logos/open-hands.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 
-export type Integration = "browser-use" | "claude" | "vercel" | "langgraph" | "light-llm";
+export type Integration = "browser-use" | "claude" | "vercel" | "langgraph" | "light-llm" | "open-hands";
 
 export interface IntegrationData {
   name: string;
@@ -122,5 +123,36 @@ response = litellm.completion(
     messages=[{"role": "user", "content": "What is the capital of France?"}],
 )
 print(response.choices[0].message.content)`,
+  },
+  "open-hands": {
+    name: "OpenHands",
+    logoSrc: openHands,
+    alt: "OpenHands",
+    highlightedLines: [6, 7],
+    python: `import os
+from openhands.sdk import LLM, Agent, Conversation, Tool
+from openhands.tools.file_editor import FileEditorTool
+from openhands.tools.task_tracker import TaskTrackerTool
+from openhands.tools.terminal import TerminalTool
+
+from lmnr import Laminar
+Laminar.initialize()
+
+llm = LLM(
+    model="anthropic/claude-sonnet-4-20250514",
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+)
+
+agent = Agent(
+    llm=llm,
+    tools=[
+        Tool(name=TerminalTool.name),
+        Tool(name=FileEditorTool.name),
+        Tool(name=TaskTrackerTool.name),
+    ],
+)
+
+conversation = Conversation(agent=agent, workspace=os.getcwd())
+conversation.send_message("Build a simple todo app")`,
   },
 };

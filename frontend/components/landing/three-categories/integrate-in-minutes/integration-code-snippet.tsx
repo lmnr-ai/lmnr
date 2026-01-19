@@ -12,11 +12,12 @@ import { baseExtensions, createLineHighlightPlugin, darkTheme } from "./codemirr
 import { type Integration, integrations } from "./snippets";
 
 const screenshots: { integration: Integration; src: string }[] = [
+  { integration: "vercel", src: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png" },
+  { integration: "light-llm", src: "/assets/landing/snippet-screenshots/lite-llm.png" },
   { integration: "browser-use", src: "/assets/landing/snippet-screenshots/browser-use.png" },
   { integration: "claude", src: "/assets/landing/snippet-screenshots/claude-agent-sdk.png" },
-  { integration: "vercel", src: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png" },
   { integration: "langgraph", src: "/assets/landing/snippet-screenshots/lang-chain.png" },
-  { integration: "light-llm", src: "/assets/landing/snippet-screenshots/lite-llm.png" },
+  { integration: "open-hands", src: "/assets/landing/snippet-screenshots/open-hands.png" },
 ];
 
 interface Props {
@@ -61,19 +62,20 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
       <div className="bg-landing-surface-700 flex-1 rounded-[8px] h-full overflow-hidden relative border border-landing-surface-500">
         <div
           className="flex transition-transform duration-500 ease-in-out h-full"
-          // NOTE: THIS 20...
+          // NOTE: THIS 16.67...
           style={{
-            transform: `translateX(-${screenshots.findIndex((s) => s.integration === selectedIntegration) * 20}%)`,
+            transform: `translateX(-${screenshots.findIndex((s) => s.integration === selectedIntegration) * (100 / screenshots.length)}%)`,
           }}
         >
           {screenshots.map(({ integration, src }) => (
             <div
               key={integration}
-              // NOTE: AND THIS 80 need to add to 100
+              // NOTE: AND THIS 83.33 need to add to 100
               className={cn(
-                "min-w-full h-full relative transition-opacity duration-500 mr-[-80%]",
+                "min-w-full h-full relative transition-opacity duration-500",
                 integration === selectedIntegration ? "opacity-100" : "opacity-0"
               )}
+              style={{ marginRight: `-${100 - 100 / screenshots.length}%` }}
             >
               <div className="absolute top-[30px] left-[40px] w-[110%] h-[110%]">
                 <Image
@@ -81,7 +83,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
                   alt={`${integration} screenshot`}
                   fill
                   priority
-                  className="object-cover object-top rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
+                  className="object-cover object-top-left rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
                 />
               </div>
             </div>

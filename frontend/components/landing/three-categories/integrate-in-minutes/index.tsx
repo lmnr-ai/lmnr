@@ -34,6 +34,7 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   { src: vercel, alt: "Vercel", name: "vercel", integration: "vercel" },
   { src: langgraph, alt: "LangGraph", name: "langgraph", integration: "langgraph" },
   { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
+  { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
   { src: gemini, alt: "Gemini", name: "gemini" },
   { src: openAi, alt: "OpenAI", name: "open-ai" },
   { src: groq, alt: "Groq", name: "groq" },
@@ -41,7 +42,6 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   { src: bedrock, alt: "Bedrock", name: "bedrock" },
   { src: playwright, alt: "Playwright", name: "playwright" },
   { src: openTelemetry, alt: "Open Telemetry", name: "open-telemetry" },
-  { src: openHands, alt: "Open Hands", name: "open-hands" },
 ];
 
 const ROTATE_INTERVAL = 5000;
