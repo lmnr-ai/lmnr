@@ -21,6 +21,7 @@ pub mod spans;
 pub mod stats;
 pub mod tags;
 pub mod trace;
+pub mod trace_analysis_jobs;
 pub mod utils;
 
 #[derive(Clone, Debug)]

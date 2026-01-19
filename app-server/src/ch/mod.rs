@@ -8,5 +8,6 @@ pub mod events;
 pub mod limits;
 pub mod spans;
 pub mod tags;
+pub mod trace_analysis_messages;
 pub mod traces;
 pub mod utils;

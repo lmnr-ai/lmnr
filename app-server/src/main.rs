@@ -36,6 +36,11 @@ use query_engine::{
 };
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use tonic::transport::Server;
+use trace_analysis::{
+    LLM_BATCH_PENDING_EXCHANGE, LLM_BATCH_PENDING_QUEUE, LLM_BATCH_PENDING_ROUTING_KEY,
+    LLM_BATCH_SUBMISSIONS_EXCHANGE, LLM_BATCH_SUBMISSIONS_QUEUE, LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+    pendings_consumer::LLMBatchPendingHandler, submissions_consumer::LLMBatchSubmissionsHandler,
+};
 use traces::{
     EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SEMANTIC_EVENT_EXCHANGE,
@@ -93,6 +98,7 @@ mod routes;
 mod runtime;
 mod sql;
 mod storage;
+mod trace_analysis;
 mod traces;
 mod utils;
 mod worker;
@@ -474,6 +480,58 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.8 LLM Batch Submissions message queue ====
+            channel
+                .exchange_declare(
+                    LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    LLM_BATCH_SUBMISSIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.9 LLM Batch Pending message queue ====
+            channel
+                .exchange_declare(
+                    LLM_BATCH_PENDING_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    LLM_BATCH_PENDING_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -739,6 +797,16 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_llm_batch_submissions_workers = env::var("NUM_LLM_BATCH_SUBMISSIONS_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
+
+        let num_llm_batch_pending_workers = env::var("NUM_LLM_BATCH_PENDING_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
+
         log::info!(
             "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",
             num_spans_workers,
@@ -929,6 +997,52 @@ fn main() -> anyhow::Result<()> {
                                 queue_name: EVENT_CLUSTERING_QUEUE,
                                 exchange_name: EVENT_CLUSTERING_EXCHANGE,
                                 routing_key: EVENT_CLUSTERING_ROUTING_KEY,
+                            },
+                        );
+                    }
+
+                    // Spawn LLM batch submissions workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::LLMBatchSubmissions,
+                            num_llm_batch_submissions_workers as usize,
+                            move || {
+                                LLMBatchSubmissionsHandler::new(
+                                    db.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                )
+                            },
+                            QueueConfig {
+                                queue_name: LLM_BATCH_SUBMISSIONS_QUEUE,
+                                exchange_name: LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                                routing_key: LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+                            },
+                        );
+                    }
+
+                    // Spawn LLM batch pending workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::LLMBatchPending,
+                            num_llm_batch_pending_workers as usize,
+                            move || {
+                                LLMBatchPendingHandler::new(
+                                    db.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                )
+                            },
+                            QueueConfig {
+                                queue_name: LLM_BATCH_PENDING_QUEUE,
+                                exchange_name: LLM_BATCH_PENDING_EXCHANGE,
+                                routing_key: LLM_BATCH_PENDING_ROUTING_KEY,
                             },
                         );
                     }

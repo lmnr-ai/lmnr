@@ -76,6 +76,8 @@ pub enum WorkerType {
     SemanticEvents,
     Notifications,
     Clustering,
+    LLMBatchSubmissions,
+    LLMBatchPending,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -89,6 +91,8 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SemanticEvents => write!(f, "semantic_events"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
+            WorkerType::LLMBatchSubmissions => write!(f, "llm_batch_submissions"),
+            WorkerType::LLMBatchPending => write!(f, "llm_batch_pending"),
         }
     }
 }
