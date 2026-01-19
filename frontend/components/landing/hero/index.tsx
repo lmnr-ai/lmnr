@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ import InfiniteLogoCarousel from "./infinite-logo-carousel";
 import ScreenshotToggleButton from "./screenshot-toggle-button";
 
 const PROGRESS_DURATION_MS = 3000;
+const FADE_DURATION_MS = 300;
 
 interface Props {
   className?: string;
@@ -31,8 +32,36 @@ const TABS: TabType[] = ["TRACING", "EVALS", "ANALYSIS"];
 const Hero = ({ className, hasSession }: Props) => {
   const [activeTab, setActiveTab] = useState<TabType>("TRACING");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [displayedImage, setDisplayedImage] = useState(tabConfig["TRACING"].images[0]);
+  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentImage = tabConfig[activeTab].images[activeImageIndex];
+
+  // Handle fade transition when currentImage changes
+  useEffect(() => {
+    if (currentImage !== displayedImage) {
+      // Clear any pending transition
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+
+      // Start fade out
+      setIsTransitioning(true);
+
+      // After fade completes, update displayed image
+      transitionTimeoutRef.current = setTimeout(() => {
+        setDisplayedImage(currentImage);
+        setIsTransitioning(false);
+      }, FADE_DURATION_MS);
+    }
+
+    return () => {
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, [currentImage, displayedImage]);
 
   const handleTabClick = useCallback((tab: TabType) => {
     setActiveTab(tab);
@@ -161,7 +190,20 @@ const Hero = ({ className, hasSession }: Props) => {
           "relative md:w-[990px] md:h-[700px] rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
           "w-full aspect-[990/700] outline-[2px] outline-offset-2"
         )}>
+          {/* Background image - shows the target image during transition */}
           <Image src={currentImage} alt={`${activeTab} screenshot`} fill className="object-cover" priority />
+          {/* Foreground image - fades out to reveal background */}
+          <Image
+            src={displayedImage}
+            alt={`${activeTab} screenshot`}
+            fill
+            className={cn(
+              "object-cover transition-opacity ease-in-out",
+              isTransitioning ? "opacity-0" : "opacity-100"
+            )}
+            style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
+            priority
+          />
         </div>
       </div>
     </div>

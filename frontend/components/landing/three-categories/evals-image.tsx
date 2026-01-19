@@ -27,7 +27,7 @@ const EvalsImage = ({ className }: Props) => {
     <div
       ref={ref}
       className={cn(
-        "bg-landing-surface-700 aspect-[8/5] justify-center overflow-hidden rounded-lg w-full relative border border-landing-surface-400 pt-[40px] flex px-[72px]",
+        "bg-landing-surface-700 aspect-[8/5] justify-center overflow-hidden rounded-lg w-full relative border border-landing-surface-400 pt-[30px] flex px-[44px]",
         className
       )}
     >
