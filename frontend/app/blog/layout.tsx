@@ -10,9 +10,11 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <LandingHeader hasSession={session !== null && session !== undefined} />
+      <LandingHeader hasSession={session !== null && session !== undefined} isIncludePadding />
       <main className="flex-1">{children}</main>
-      <Footer />
+      {/* Spacer */}
+      <div className="w-full h-[160px]" />
+      <Footer className="pt-[160px]" />
     </div>
   );
 }
