@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Cell, flexRender, RowData } from "@tanstack/react-table";
-import { CSSProperties } from "react";
+import { type Cell, flexRender, type RowData } from "@tanstack/react-table";
+import { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
 import { TableCell } from "@/components/ui/table.tsx";

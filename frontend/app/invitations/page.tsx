@@ -1,6 +1,6 @@
 import { differenceInMinutes } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -42,21 +42,24 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 
         await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
+
+      revalidatePath(`/workspace/${workspaceId}`);
+      redirect(`/workspace/${workspaceId}`);
     }
 
     if (action === "decline") {
       await db
         .delete(workspaceInvitations)
         .where(and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)));
-    }
 
-    revalidatePath("/projects");
-    redirect("/projects");
+      revalidatePath("/projects");
+      redirect("/projects");
+    }
   }
 };
 
 export default async function InvitationsPage(props: {
-  params: Promise<{}>;
+  params: Promise<Record<string, never>>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;

@@ -1,10 +1,10 @@
 import { isArray } from "lodash";
-import { z } from "zod/v4";
+import { type z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
-import { ChatMessage, ChatMessageContentPart } from "@/lib/types";
+import { type ChatMessage, type ChatMessageContentPart } from "@/lib/types";
 
 export type TraceVisibility = "private" | "public";
 

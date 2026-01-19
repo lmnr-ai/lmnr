@@ -1,5 +1,5 @@
-import { Metadata } from "next";
-import { PropsWithChildren } from "react";
+import { type Metadata } from "next";
+import { type PropsWithChildren } from "react";
 
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -15,9 +15,7 @@ export default async function WorkspaceLayout(props: PropsWithChildren<{ params:
 
   return (
     <UserContextProvider user={session.user}>
-      <SessionSyncProvider>
-        {props.children}
-      </SessionSyncProvider>
+      <SessionSyncProvider>{props.children}</SessionSyncProvider>
     </UserContextProvider>
   );
 }

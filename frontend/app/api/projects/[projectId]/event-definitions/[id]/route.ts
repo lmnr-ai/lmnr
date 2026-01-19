@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getEventDefinition } from "@/lib/actions/event-definitions";

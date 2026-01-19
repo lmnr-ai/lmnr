@@ -1,6 +1,6 @@
-import { ModelMessage, SystemModelMessage } from "ai";
+import { type ModelMessage, type SystemModelMessage } from "ai";
 
-import { Message } from "@/lib/playground/types";
+import { type Message } from "@/lib/playground/types";
 
 import { tryParseJson } from "../utils";
 

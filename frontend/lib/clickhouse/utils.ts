@@ -1,10 +1,10 @@
-import { AggregationFunction } from "@/lib/clickhouse/types";
+import { type AggregationFunction } from "@/lib/clickhouse/types";
 
 const NANOS_PER_MILLISECOND = 1e6;
 
 export const dateToNanoseconds = (date: Date): number => date.getTime() * NANOS_PER_MILLISECOND;
 
-const validateSqlString = (str: string): boolean => /^[a-zA-Z0-9_\.]+$/.test(str);
+const validateSqlString = (str: string): boolean => /^[a-zA-Z0-9_.]+$/.test(str);
 
 type AbsoluteTimeRange = {
   start: Date;
@@ -52,6 +52,20 @@ export const getTimeRange = (
     return { start: new Date(startDate), end: new Date(endDate) };
   }
   throw new Error("Invalid time range");
+};
+
+export const getOptionalTimeRange = (
+  pastHours: string | undefined,
+  startDate: string | undefined,
+  endDate: string | undefined
+): TimeRange | undefined => {
+  if (pastHours) {
+    return { pastHours: parseInt(pastHours) };
+  }
+  if (startDate && endDate) {
+    return { start: new Date(startDate), end: new Date(endDate) };
+  }
+  return undefined;
 };
 
 export const addTimeRangeToQuery = (query: string, timeRange: TimeRange, column: string): string => {

@@ -5,11 +5,11 @@ import { python } from "@codemirror/lang-python";
 import CodeMirror from "@uiw/react-codemirror";
 import { Loader2, PlayIcon } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
-import { defaultValues, ManageEvaluatorForm } from "@/components/evaluators/evaluators";
+import { defaultValues, type ManageEvaluatorForm } from "@/components/evaluators/evaluators";
 import { Button } from "@/components/ui/button";
 import { theme } from "@/components/ui/content-renderer/utils";
 import { IconPython } from "@/components/ui/icons";
@@ -17,9 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Evaluator } from "@/lib/evaluators/types";
+import { type Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { PaginatedResponse } from "@/lib/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export default function ManageEvaluatorSheet({

@@ -1,30 +1,38 @@
-import { tool } from 'ai';
-import { and, desc, eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { tool } from "ai";
+import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
 
-import { db } from '@/lib/db/drizzle';
-import { tracesAgentChats, tracesAgentMessages } from '@/lib/db/migrations/schema';
+import { db } from "@/lib/db/drizzle";
+import { tracesAgentChats, tracesAgentMessages } from "@/lib/db/migrations/schema";
 
 export const ChatMessageSchema = z.object({
-  traceId: z.string().describe('The trace ID'),
-  projectId: z.string().describe('The project ID'),
-  messages: z.array(z.object({
-    role: z.enum(['user', 'assistant']),
-    content: z.string().optional(),
-    parts: z.array(z.object({
-      type: z.string(),
-      text: z.string().optional(),
-      toolCallId: z.string().optional(),
-      input: z.any().optional(),
-      output: z.any().optional(),
-      callProviderMetadata: z.any().optional(),
-    })).optional(),
-  })).describe('The conversation messages'),
+  traceId: z.string().describe("The trace ID"),
+  projectId: z.string().describe("The project ID"),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().optional(),
+        parts: z
+          .array(
+            z.object({
+              type: z.string(),
+              text: z.string().optional(),
+              toolCallId: z.string().optional(),
+              input: z.any().optional(),
+              output: z.any().optional(),
+              callProviderMetadata: z.any().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .describe("The conversation messages"),
 });
 
 export const GetChatMessagesSchema = z.object({
-  traceId: z.string().describe('The trace ID'),
-  projectId: z.string().describe('The project ID'),
+  traceId: z.string().describe("The trace ID"),
+  projectId: z.string().describe("The project ID"),
 });
 
 export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchema>) {
@@ -34,10 +42,7 @@ export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchem
   const chatRecord = await db
     .select()
     .from(tracesAgentChats)
-    .where(and(
-      eq(tracesAgentChats.traceId, traceId),
-      eq(tracesAgentChats.projectId, projectId)
-    ))
+    .where(and(eq(tracesAgentChats.traceId, traceId), eq(tracesAgentChats.projectId, projectId)))
     .orderBy(desc(tracesAgentChats.createdAt))
     .limit(1);
 
@@ -52,10 +57,7 @@ export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchem
   const messages = await db
     .select()
     .from(tracesAgentMessages)
-    .where(and(
-      eq(tracesAgentMessages.chatId, chatId),
-      eq(tracesAgentMessages.projectId, projectId)
-    ))
+    .where(and(eq(tracesAgentMessages.chatId, chatId), eq(tracesAgentMessages.projectId, projectId)))
     .orderBy(tracesAgentMessages.createdAt);
 
   return { messages: messages };
@@ -64,13 +66,10 @@ export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchem
 // for now, we only support one chat per trace and we create a new one if it doesn't exist
 export async function findOrCreateChatSession(traceId: string, projectId: string): Promise<string> {
   // Find the latest chat record for this trace
-  let chatRecord = await db
+  const chatRecord = await db
     .select()
     .from(tracesAgentChats)
-    .where(and(
-      eq(tracesAgentChats.traceId, traceId),
-      eq(tracesAgentChats.projectId, projectId)
-    ))
+    .where(and(eq(tracesAgentChats.traceId, traceId), eq(tracesAgentChats.projectId, projectId)))
     .orderBy(desc(tracesAgentChats.createdAt))
     .limit(1);
 
@@ -93,7 +92,7 @@ export async function saveChatMessage(params: {
   chatId: string;
   traceId: string;
   projectId: string;
-  role: 'user' | 'assistant' | 'tool';
+  role: "user" | "assistant" | "tool";
   parts: any;
 }) {
   const { chatId, traceId, projectId, role, parts } = params;
@@ -109,14 +108,17 @@ export async function saveChatMessage(params: {
 
 export async function createGetSpansDataTool(projectId: string, traceId: string, requestUrl: string, cookies: string) {
   return tool({
-    description: 'Get spans data for the current trace to analyze performance, errors, and execution flow',
+    description: "Get spans data for the current trace to analyze performance, errors, and execution flow",
     inputSchema: z.object({
-      traceId: z.string().describe('The trace ID to get spans for'),
-      filters: z.object({
-        spanType: z.string().optional().describe('Filter by span type (LLM or DEFAULT)'),
-        hasErrors: z.boolean().optional().describe('Filter spans with errors'),
-        minDuration: z.number().optional().describe('Minimum duration in ms'),
-      }).optional().describe('Optional filters for spans'),
+      traceId: z.string().describe("The trace ID to get spans for"),
+      filters: z
+        .object({
+          spanType: z.string().optional().describe("Filter by span type (LLM or DEFAULT)"),
+          hasErrors: z.boolean().optional().describe("Filter spans with errors"),
+          minDuration: z.number().optional().describe("Minimum duration in ms"),
+        })
+        .optional()
+        .describe("Optional filters for spans"),
     }),
     execute: async ({ traceId: toolTraceId, filters }) => {
       try {
@@ -125,19 +127,19 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
 
         // Add filters as query parameters
         if (filters?.spanType) {
-          spansUrl.searchParams.set('spanType', filters.spanType);
+          spansUrl.searchParams.set("spanType", filters.spanType);
         }
         if (filters?.hasErrors) {
-          spansUrl.searchParams.set('hasErrors', 'true');
+          spansUrl.searchParams.set("hasErrors", "true");
         }
         if (filters?.minDuration) {
-          spansUrl.searchParams.set('minDuration', filters.minDuration.toString());
+          spansUrl.searchParams.set("minDuration", filters.minDuration.toString());
         }
 
         // Fetch spans data using the existing API
         const response = await fetch(spansUrl.toString(), {
           headers: {
-            'Cookie': cookies,
+            Cookie: cookies,
           },
         });
 
@@ -151,22 +153,26 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
         const summary = {
           totalSpans: spans.length,
           spanTypes: [...new Set(spans.map((s: any) => s.spanType))],
-          totalDuration: spans.length > 0 ?
-            new Date(Math.max(...spans.map((s: any) => new Date(s.endTime).getTime()))).getTime() -
-            new Date(Math.min(...spans.map((s: any) => new Date(s.startTime).getTime()))).getTime()
-            : 0,
-          errorCount: spans.filter((s: any) => s.status === 'ERROR' || s.attributes?.['error.message']).length,
-          llmSpans: spans.filter((s: any) => s.spanType === 'LLM'),
-          tokenUsage: spans.reduce((acc: any, span: any) => {
-            const totalTokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
-            const inputTokens = span.inputTokens || 0;
-            const outputTokens = span.outputTokens || 0;
-            return {
-              input: acc.input + inputTokens,
-              output: acc.output + outputTokens,
-              total: acc.total + totalTokens,
-            };
-          }, { input: 0, output: 0, total: 0 }),
+          totalDuration:
+            spans.length > 0
+              ? new Date(Math.max(...spans.map((s: any) => new Date(s.endTime).getTime()))).getTime() -
+                new Date(Math.min(...spans.map((s: any) => new Date(s.startTime).getTime()))).getTime()
+              : 0,
+          errorCount: spans.filter((s: any) => s.status === "ERROR" || s.attributes?.["error.message"]).length,
+          llmSpans: spans.filter((s: any) => s.spanType === "LLM"),
+          tokenUsage: spans.reduce(
+            (acc: any, span: any) => {
+              const totalTokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+              const inputTokens = span.inputTokens || 0;
+              const outputTokens = span.outputTokens || 0;
+              return {
+                input: acc.input + inputTokens,
+                output: acc.output + outputTokens,
+                total: acc.total + totalTokens,
+              };
+            },
+            { input: 0, output: 0, total: 0 }
+          ),
           costs: spans.reduce((acc: number, span: any) => {
             const totalCost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
             return acc + totalCost;
@@ -178,10 +184,10 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
           spans: spans.slice(0, 10), // Return first 10 spans for detailed analysis
         };
       } catch (error) {
-        console.error('Error fetching spans data:', error);
+        console.error("Error fetching spans data:", error);
         return {
-          error: 'Failed to fetch spans data',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          error: "Failed to fetch spans data",
+          message: error instanceof Error ? error.message : "Unknown error",
         };
       }
     },

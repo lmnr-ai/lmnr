@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useEffect, useRef } from "react";
+import { type KeyboardEvent, useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { Button } from "@/components/ui/button";

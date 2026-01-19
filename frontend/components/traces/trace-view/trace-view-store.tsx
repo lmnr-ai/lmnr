@@ -1,6 +1,6 @@
 import { has } from "lodash";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
-import { createStore, StoreApi, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
@@ -8,17 +8,17 @@ import {
   buildPathInfo,
   buildSpanNameMap,
   groupIntoSections,
-  MinimapSpan,
-  TimelineData,
+  type MinimapSpan,
+  type TimelineData,
   transformSpansToFlatMinimap,
   transformSpansToMinimap,
   transformSpansToTimeline,
   transformSpansToTree,
-  TreeSpan,
+  type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { Event } from "@/lib/events/types";
+import { type Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
-import { SpanType } from "@/lib/traces/types";
+import { type SpanType } from "@/lib/traces/types";
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
@@ -106,6 +106,7 @@ interface TraceViewStoreState {
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
+  spanPathCounts: Map<string, number>; // Track count per span path for rollout sessions
 }
 
 interface TraceViewStoreActions {
@@ -143,32 +144,36 @@ interface TraceViewStoreActions {
   getHasLangGraph: () => boolean;
   getSpanBranch: <T extends { spanId: string; parentSpanId?: string }>(span: T) => T[];
   getSpanTemplate: (spanPathKey: string) => string | undefined;
+  getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
+  rebuildSpanPathCounts: () => void;
+  addSpanIfNew: (span: TraceViewSpan) => boolean;
 }
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = () =>
+const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
-        trace: undefined,
+        trace: initialTrace,
         isTraceLoading: false,
         traceError: undefined,
         spans: [],
         isSpansLoading: false,
         spansError: undefined,
         selectedSpan: undefined,
-        browserSession: false,
+        browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        search: "",
-        searchEnabled: false,
+        search: initialSearch || "",
+        searchEnabled: !!initialSearch,
         zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
-        hasBrowserSession: false,
+        hasBrowserSession: initialTrace?.hasBrowserSession || false,
         spanTemplates: {},
+        spanPathCounts: new Map(),
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -361,6 +366,44 @@ const createTraceViewStore = () =>
           return spanNameMap.get(spanId);
         },
         getSpanTemplate: (spanPathKey: string) => get().spanTemplates[spanPathKey],
+        getSpanAttribute: (spanId: string, attributeKey: string) => {
+          const span = get().spans.find((s) => s.spanId === spanId);
+          return span?.attributes?.[attributeKey];
+        },
+        rebuildSpanPathCounts: () => {
+          const spans = get().spans;
+          const pathCounts = new Map<string, number>();
+
+          spans.forEach((span) => {
+            const spanPath = span.attributes?.["lmnr.span.path"];
+            if (spanPath && Array.isArray(spanPath)) {
+              const pathKey = spanPath.join("/");
+              pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1);
+            }
+          });
+
+          set({ spanPathCounts: pathCounts });
+        },
+        addSpanIfNew: (incomingSpan: TraceViewSpan): boolean => {
+          const spanPath = incomingSpan.attributes?.["lmnr.span.path"];
+          if (!spanPath || !Array.isArray(spanPath)) {
+            // No span path, check by spanId
+            const exists = get().spans.some((s) => s.spanId === incomingSpan.spanId);
+            if (!exists) {
+              get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
+              return true;
+            }
+            return false;
+          }
+
+          const pathKey = spanPath.join("/");
+          const currentCount = get().spanPathCounts.get(pathKey) ?? 0;
+
+          // This is a new occurrence of this path
+          get().spanPathCounts.set(pathKey, currentCount + 1);
+          get().setSpans((prevSpans) => [...prevSpans, incomingSpan]);
+          return true;
+        },
       }),
       {
         name: "trace-view-state",
@@ -376,11 +419,15 @@ const createTraceViewStore = () =>
 
 const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined>(undefined);
 
-const TraceViewStoreProvider = ({ children }: PropsWithChildren) => {
+const TraceViewStoreProvider = ({
+  children,
+  initialSearch,
+  initialTrace,
+}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore();
+    storeRef.current = createTraceViewStore(initialSearch, initialTrace);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;

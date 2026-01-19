@@ -1,7 +1,7 @@
 "use client";
-import { Row } from "@tanstack/react-table";
+import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, ResizeCallback } from "re-resizable";
+import { Resizable, type ResizeCallback } from "re-resizable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
@@ -20,9 +20,9 @@ import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datata
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import {
-  Evaluation as EvaluationType,
-  EvaluationDatapointPreviewWithCompared,
-  EvaluationResultsInfo,
+  type Evaluation as EvaluationType,
+  type EvaluationDatapointPreviewWithCompared,
+  type EvaluationResultsInfo,
 } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
@@ -216,13 +216,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     [searchParams, tableData]
   );
 
-  const handleRowClick = useCallback(
-    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
-      setTraceId(row.original.traceId);
-      setDatapointId(row.original.id);
-    },
-    []
-  );
+  const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {
+    setTraceId(row.original.traceId);
+    setDatapointId(row.original.id);
+  }, []);
 
   const getRowHref = useCallback(
     (row: Row<EvaluationDatapointPreviewWithCompared>) => {
@@ -293,7 +290,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
         setDatapointId(item?.datapointId);
       }}
     >
-      <Header path={`evaluations/${statsData?.evaluation?.name || evaluationName}`} />
+      <Header
+        path={[
+          { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
+          { name: statsData?.evaluation?.name || evaluationName },
+        ]}
+      />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">

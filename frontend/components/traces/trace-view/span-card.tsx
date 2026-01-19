@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight, CircleDollarSign, Coins, X } from "lucide-re
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
-import { TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn, getDurationString } from "@/lib/utils";
@@ -102,7 +102,12 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
             className={cn("min-w-[22px]", { "text-muted-foreground bg-muted ": span.pending })}
           />
           <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
-            <div className={cn("text-ellipsis overflow-hidden whitespace-nowrap text-base truncate", span.pending && "text-muted-foreground")}>
+            <div
+              className={cn(
+                "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
+                span.pending && "text-muted-foreground"
+              )}
+            >
               {getSpanDisplayName(span)}
             </div>
           </SpanDisplayTooltip>

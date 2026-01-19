@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
 import { downloadS3ObjectHttp } from "@/lib/s3";
 

@@ -1,14 +1,14 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { format, subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject } from "lodash";
-import { createContext, PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
 import { ChartType } from "@/components/chart-builder/types.ts";
-import { DashboardChart } from "@/components/dashboard/types";
-import { SQLParameter } from "@/components/sql/sql-editor-store";
+import { type DashboardChart } from "@/components/dashboard/types";
+import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;

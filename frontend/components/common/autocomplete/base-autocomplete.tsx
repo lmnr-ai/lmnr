@@ -3,13 +3,13 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { isEmpty } from "lodash";
 import { Search } from "lucide-react";
-import { KeyboardEvent, memo, useCallback, useRef, useState } from "react";
+import { type KeyboardEvent, memo, useCallback, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AutocompleteSuggestion } from "@/lib/actions/autocomplete";
+import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { cn } from "@/lib/utils";
 
 interface BaseAutocompleteProps {

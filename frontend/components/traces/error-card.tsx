@@ -4,7 +4,7 @@ import React, { memo, useState } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { CopyButton } from "@/components/ui/copy-button.tsx";
-import { ErrorEventAttributes } from "@/lib/types";
+import { type ErrorEventAttributes } from "@/lib/types";
 
 interface ErrorCardProps {
   attributes: ErrorEventAttributes;

@@ -1,5 +1,5 @@
-import { SpanSearchType } from "@/lib/clickhouse/types";
-import { TimeRange } from "@/lib/clickhouse/utils";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
+import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
 
 export const searchSpans = async ({
@@ -12,7 +12,7 @@ export const searchSpans = async ({
   projectId: string;
   traceId?: string;
   searchQuery: string;
-  timeRange: TimeRange;
+  timeRange?: TimeRange;
   searchType?: SpanSearchType[];
 }): Promise<{ trace_id: string; span_id: string }[]> => {
   const trimmedQuery = searchQuery.trim();
@@ -23,14 +23,16 @@ export const searchSpans = async ({
   let startTime: string | undefined;
   let endTime: string | undefined;
 
-  if ("start" in timeRange && "end" in timeRange) {
-    startTime = timeRange.start.toISOString();
-    endTime = timeRange.end.toISOString();
-  } else if ("pastHours" in timeRange) {
-    const end = new Date();
-    const start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
-    startTime = start.toISOString();
-    endTime = end.toISOString();
+  if (timeRange) {
+    if ("start" in timeRange && "end" in timeRange) {
+      startTime = timeRange.start.toISOString();
+      endTime = timeRange.end.toISOString();
+    } else if ("pastHours" in timeRange) {
+      const end = new Date();
+      const start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
+      startTime = start.toISOString();
+      endTime = end.toISOString();
+    }
   }
 
   const body = {

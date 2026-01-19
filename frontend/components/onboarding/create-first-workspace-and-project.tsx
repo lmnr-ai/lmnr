@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { FormEvent, useState } from "react";
+import React, { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";

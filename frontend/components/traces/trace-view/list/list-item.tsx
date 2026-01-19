@@ -7,7 +7,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
-import { TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";

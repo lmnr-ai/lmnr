@@ -1,7 +1,7 @@
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useState } from "react";
 import useSWR from "swr";
 
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelingQueue } from "@/lib/queue/types";
-import { PaginatedResponse } from "@/lib/types";
+import { type LabelingQueue } from "@/lib/queue/types";
+import { type PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
@@ -25,6 +25,7 @@ interface AddToLabelingQueuePopoverProps {
   datapointIds?: string[];
   datasetId?: string;
   spanId?: string;
+  traceId?: string;
   buttonVariant?: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive";
   buttonSize?: "default" | "sm" | "lg" | "icon";
 }
@@ -34,6 +35,7 @@ export default function AddToLabelingQueuePopover({
   datapointIds,
   datasetId,
   spanId,
+  traceId,
   buttonVariant = "secondary",
   buttonSize = "sm",
   children,
@@ -69,6 +71,7 @@ export default function AddToLabelingQueuePopover({
               metadata: {
                 source: "span",
                 id: spanId,
+                traceId,
               },
             }),
           });
@@ -124,7 +127,7 @@ export default function AddToLabelingQueuePopover({
     } finally {
       setIsLoading(false);
     }
-  }, [data, datapointIds, datasetId, spanId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
+  }, [data, datapointIds, datasetId, spanId, traceId, projectId, selectedQueue, toast, isDatapointMode, isSpanMode]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -36,7 +36,7 @@ struct RealtimeTrace {
 }
 
 /// Realtime span data for frontend consumption (lightweight, no input/output)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RealtimeSpan {
     span_id: Uuid,
@@ -53,6 +53,7 @@ struct RealtimeSpan {
 }
 
 /// Send realtime span update events to SSE connections for specific traces
+/// lmnr.rollout.session_id
 pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     // All spans in a batch have the same project_id
     let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
@@ -61,12 +62,28 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     let mut spans_by_trace: std::collections::HashMap<Uuid, Vec<RealtimeSpan>> =
         std::collections::HashMap::new();
 
+    let mut spans_by_rollout_session: std::collections::HashMap<String, Vec<RealtimeSpan>> =
+        std::collections::HashMap::new();
+
     for span in spans {
         let span_data = RealtimeSpan::from_span(span);
+
         spans_by_trace
             .entry(span.trace_id)
             .or_insert_with(Vec::new)
-            .push(span_data);
+            .push(span_data.clone());
+
+        if let Some(rollout_session_id) = span
+            .attributes
+            .raw_attributes
+            .get("lmnr.rollout.session_id")
+            .and_then(|v| v.as_str())
+        {
+            spans_by_rollout_session
+                .entry(rollout_session_id.to_string())
+                .or_insert_with(Vec::new)
+                .push(span_data);
+        }
     }
 
     // Send batched span updates for each trace
@@ -81,6 +98,18 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
         // Send to specific trace subscription key
         let trace_key = format!("trace_{}", trace_id);
         send_to_key(pubsub, &project_id, &trace_key, span_message).await;
+    }
+
+    for (rollout_session_id, spans_data) in spans_by_rollout_session {
+        let span_message = SseMessage {
+            event_type: "span_update".to_string(),
+            data: serde_json::json!({
+                "spans": spans_data
+            }),
+        };
+
+        let rollout_session_key = format!("rollout_session_{}", rollout_session_id);
+        send_to_key(pubsub, &project_id, &rollout_session_key, span_message).await;
     }
 }
 

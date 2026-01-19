@@ -1,6 +1,5 @@
-import React, { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import Header from "@/components/ui/header";
 
 interface SqlLayoutProps {
@@ -9,9 +8,7 @@ interface SqlLayoutProps {
 
 const SqlLayout = ({ children }: SqlLayoutProps) => (
   <>
-    <Header path="SQL Editor">
-      <Badge variant="outlinePrimary">Beta</Badge>
-    </Header>
+    <Header path="sql editor" />
     {children}
   </>
 );

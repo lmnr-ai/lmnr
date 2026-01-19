@@ -15,14 +15,14 @@ import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { WorkspaceStats } from "@/lib/usage/types";
+import { type WorkspaceStats } from "@/lib/usage/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
-  WorkspaceInvitation,
-  WorkspaceRole,
+  type WorkspaceInvitation,
+  type WorkspaceRole,
   WorkspaceTier,
-  WorkspaceUser,
-  WorkspaceWithOptionalUsers,
+  type WorkspaceUser,
+  type WorkspaceWithOptionalUsers,
 } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";

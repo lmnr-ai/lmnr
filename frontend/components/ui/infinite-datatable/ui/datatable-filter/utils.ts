@@ -1,6 +1,12 @@
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 
-import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, Operator, STRING_OPERATORS } from "@/lib/actions/common/operators";
+import {
+  BOOLEAN_OPERATORS,
+  JSON_OPERATORS,
+  NUMBER_OPERATORS,
+  Operator,
+  STRING_OPERATORS,
+} from "@/lib/actions/common/operators";
 
 export type ColumnFilter = ColumnFilterPrimitives | ColumnFilterEnum;
 type ColumnFilterPrimitives = { name: string; key: string; dataType: "string" | "number" | "json" | "boolean" };

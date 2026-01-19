@@ -56,7 +56,7 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
     setIsLoading(true);
 
     try {
-      let res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints`, {
+      const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints`, {
         method: "POST",
         body: JSON.stringify({
           datapoints: [JSON.parse(data)],

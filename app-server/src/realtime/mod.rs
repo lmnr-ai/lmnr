@@ -53,9 +53,15 @@ pub fn create_sse_response(
     project_id: Uuid,
     subscription_key: SubscriptionKey,
     connections: SseConnectionMap,
+    initial_message: Option<SseMessage>,
 ) -> ActixResult<HttpResponse> {
     let (sender, receiver) = mpsc::unbounded_channel();
     let connection_id = Uuid::new_v4();
+
+    // Send initial message if provided - this will be buffered until stream starts
+    if let Some(msg) = initial_message {
+        let _ = sender.send(msg); // Safe to ignore error, channel just created
+    }
 
     // Add connection to the global map
     let connection = SseConnection {

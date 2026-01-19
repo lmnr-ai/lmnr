@@ -6,10 +6,7 @@ use serde_json::{Value, json};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::{
-    db::{events::Event, spans::SpanType},
-    opentelemetry_proto::opentelemetry_proto_common_v1,
-};
+use crate::{db::events::Event, opentelemetry_proto::opentelemetry_proto_common_v1};
 
 use crate::{
     cache::Cache,
@@ -131,7 +128,7 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, event
         }
     });
 
-    if span.span_type == SpanType::LLM {
+    if span.is_llm_span() {
         span.attributes.set_usage(&span_usage);
     }
 

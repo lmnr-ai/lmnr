@@ -1,9 +1,9 @@
 "use client";
 
 import { Check, CopyIcon } from "lucide-react";
-import { MouseEvent, PropsWithChildren, ReactNode, useState } from "react";
+import { type MouseEvent, type PropsWithChildren, type ReactNode, useState } from "react";
 
-import { Button, ButtonProps } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface CopyLinkButtonProps {

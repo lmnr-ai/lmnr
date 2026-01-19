@@ -1,10 +1,12 @@
 import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
+import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
+import { authOptions } from "@/lib/auth";
 import {
   cache,
   PROJECT_MEMBER_CACHE_KEY,
@@ -14,7 +16,7 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
-import { Workspace, WorkspaceTier, WorkspaceUsage, WorkspaceUser } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -316,7 +318,16 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized: User not authenticated");
+  }
+
+  const authenticatedUserId = session.user.id;
+
+  if (authenticatedUserId !== userId) {
+    await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+  }
 
   await db
     .delete(membersOfWorkspaces)

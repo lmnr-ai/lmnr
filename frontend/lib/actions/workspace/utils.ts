@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
-import { WorkspaceRole } from "@/lib/workspaces/types";
+import { type WorkspaceRole } from "@/lib/workspaces/types";
 
 const CheckWorkspaceRoleSchema = z.object({
   workspaceId: z.string(),

@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
-import { AggregationFunction } from "@/lib/clickhouse/types";
-import { EvaluationTimeProgression } from "@/lib/evaluation/types";
+import { type AggregationFunction } from "@/lib/clickhouse/types";
+import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Label } from "../ui/label";
 import { Skeleton } from "../ui/skeleton";
 
@@ -141,8 +141,8 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                   style={
                     scores.includes(key)
                       ? {
-                        color: chartConfig[key].color,
-                      }
+                          color: chartConfig[key].color,
+                        }
                       : {}
                   }
                   className="cursor-pointer"

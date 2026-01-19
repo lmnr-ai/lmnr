@@ -12,11 +12,11 @@ anyhow = "1"
 async-stream = "0.3.6"
 async-trait = "0.1"
 aws-config = "1.8.12"
-aws-sdk-s3 = "1.118.0"
+aws-sdk-s3 = "1.120.0"
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
-bytes = "1.10.1"
-chrono = {version = "0.4.41", features = ["serde"]}
+bytes = "1.11.0"
+chrono = {version = "0.4.43", features = ["serde"]}
 clickhouse = {version = "0.14.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
 deadpool = "0.12.2"
@@ -24,31 +24,31 @@ dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
 futures-util = "0.3"
-indexmap = {version = "2.11.4", features = ["serde"]}
+indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.7"
-log = "0.4.28"
-moka = {version = "0.12.11", features = ["sync", "future"]}
-num_cpus = "1.16.0"
+log = "0.4.29"
+moka = {version = "0.12.12", features = ["sync", "future"]}
+num_cpus = "1.17.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
 prost = "0.14"
-rand = "0.9.1"
-rayon = "1.10.0"
-redis = {version = "0.32.4", features = ["tokio-comp"]}
-regex = "1.11.1"
+rand = "0.9.2"
+rayon = "1.11.0"
+redis = {version = "0.32.7", features = ["tokio-comp"]}
+regex = "1.12.2"
 reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
 sentry = {version = "0.46.0", features = ["opentelemetry"]}
 serde = "1.0"
-serde_json = {version = "1.0.140", features = ["preserve_order"]}
+serde_json = {version = "1.0.149", features = ["preserve_order"]}
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
-tikv-jemallocator = "0.6"
-tokio = {version = "1.46", features = ["macros", "rt-multi-thread"]}
+tikv-jemallocator = "0.6.0"
+tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
@@ -56,8 +56,8 @@ tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
-url = "2.5.4"
-uuid = {version = "1.18.1", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
+url = "2.5.8"
+uuid = {version = "1.19.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
 [build-dependencies]
 tonic-prost-build = "0.14"

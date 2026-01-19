@@ -1,5 +1,5 @@
 // Convert AI SDK message format to OpenAI format
-import { JsonObject } from "@/lib/actions/chat/index.ts";
+import { type JsonObject } from "@/lib/actions/chat/index.ts";
 
 export function convertToOpenAIFormat(message: any): any {
   const openAIMessage: any = {

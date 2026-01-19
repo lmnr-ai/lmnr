@@ -4,7 +4,7 @@ import { get, isEmpty } from "lodash";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { KeyboardEvent, useCallback, useEffect, useMemo } from "react";
+import React, { type KeyboardEvent, useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { ResizableWrapper } from "@/components/traces/span-view/common";
@@ -14,7 +14,7 @@ import DatasetSelect from "@/components/ui/dataset-select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
-import { LabelingQueue, LabelingQueueItem } from "@/lib/queue/types";
+import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";
@@ -74,23 +74,35 @@ function QueueInner() {
     };
   }, [currentItem, isLoading, dataset, isValid]);
 
-  const sourceLink = useMemo(() => {
-    if (!currentItem) return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
+  const sourceInfo = useMemo(() => {
+    if (!currentItem) return null;
 
-    if (get(currentItem.metadata, "source") === "datapoint") {
-      return `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`;
+    const source = get(currentItem.metadata, "source");
+
+    if (source === "datapoint") {
+      return {
+        label: "datapoint",
+        link: `/project/${projectId}/datasets/${get(currentItem.metadata, "datasetId")}?datapointId=${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    if (get(currentItem.metadata, "source") === "span") {
-      return `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`;
+    if (source === "span") {
+      return {
+        label: "span",
+        link: `/project/${projectId}/traces?traceId=${get(currentItem.metadata, "traceId")}&spanId=${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    if (get(currentItem.metadata, "source") === "sql") {
-      return `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`;
+    if (source === "sql") {
+      return {
+        label: "sql",
+        link: `/project/${projectId}/sql/${get(currentItem.metadata, "id")}`,
+      };
     }
 
-    return `/project/${projectId}/labeling-queues/${storeQueue?.id}`;
-  }, [currentItem, projectId, storeQueue?.id]);
+    // No source - manually created
+    return null;
+  }, [currentItem, projectId]);
 
   const onChange = useCallback(
     (v: string) => {
@@ -108,6 +120,7 @@ function QueueInner() {
   const move = useCallback(
     async (
       refDate: string,
+      refId: string,
       direction: "next" | "prev" = "next",
       load: "skip" | "move" | "first-load" | false = "move"
     ) => {
@@ -115,7 +128,7 @@ function QueueInner() {
         setIsLoading(load);
         const response = await fetch(`/api/projects/${projectId}/queues/${storeQueue?.id}/move`, {
           method: "POST",
-          body: JSON.stringify({ refDate, direction }),
+          body: JSON.stringify({ refDate, refId, direction }),
         });
         if (!response.ok) {
           toast({ variant: "destructive", title: "Error", description: "Failed to move queue. Please try again." });
@@ -173,7 +186,7 @@ function QueueInner() {
         }
 
         if (currentItem) {
-          await move(currentItem.createdAt);
+          await move(currentItem.createdAt, currentItem.id, "next");
         }
       } catch (e) {
         toast({
@@ -189,7 +202,8 @@ function QueueInner() {
   );
 
   useEffect(() => {
-    move(new Date(0).toISOString(), "next", "first-load");
+    // Use epoch date and empty UUID to get the first item
+    move(new Date(0).toISOString(), "00000000-0000-0000-0000-000000000000", "next", "first-load");
   }, []);
 
   useHotkeys(
@@ -198,7 +212,7 @@ function QueueInner() {
       (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem && !states.next) {
-          move(currentItem.createdAt, "next");
+          move(currentItem.createdAt, currentItem.id, "next");
         }
       },
       [currentItem, move, states.next]
@@ -212,7 +226,7 @@ function QueueInner() {
       (event: KeyboardEvent) => {
         event.preventDefault();
         if (currentItem && !states.prev) {
-          move(currentItem.createdAt, "prev");
+          move(currentItem.createdAt, currentItem.id, "prev");
         }
       },
       [currentItem, move, states.prev]
@@ -263,11 +277,17 @@ function QueueInner() {
             <>
               <span className="mb-1">Payload</span>
               <div className="flex text-xs gap-1 text-nowrap truncate">
-                <span className="text-secondary-foreground">Created from</span>
-                <Link className="flex text-xs items-center text-primary" href={sourceLink}>
-                  {get(currentItem?.metadata, "source", "-")}
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
+                {sourceInfo ? (
+                  <>
+                    <span className="text-secondary-foreground">Created from</span>
+                    <Link className="flex text-xs items-center text-primary" href={sourceInfo.link}>
+                      {sourceInfo.label}
+                      <ArrowUpRight className="w-3 h-3" />
+                    </Link>
+                  </>
+                ) : (
+                  <span className="text-secondary-foreground">Created manually</span>
+                )}
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ResizableWrapper height={height} onHeightChange={setHeight}>
@@ -301,7 +321,7 @@ function QueueInner() {
                 <div className="flex items-center text-center text-xs opacity-75">⌘ + ›</div>
               </Button>
               <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "prev")}
+                onClick={() => currentItem && move(currentItem.createdAt, currentItem.id, "prev")}
                 disabled={states.prev}
                 variant="outline"
               >
@@ -309,7 +329,7 @@ function QueueInner() {
                 <div className="text-center text-xs opacity-75">⌘ + ↓</div>
               </Button>
               <Button
-                onClick={() => currentItem && move(currentItem.createdAt, "next")}
+                onClick={() => currentItem && move(currentItem.createdAt, currentItem.id, "next")}
                 disabled={states.next}
                 variant="outline"
               >

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import { type GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 
 export const googleThinkingModels = [
   "gemini:gemini-2.5-pro",

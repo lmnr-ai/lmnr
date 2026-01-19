@@ -1,11 +1,11 @@
 "use client";
 
-import Image, { StaticImageData } from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { useEffect, useRef } from "react";
 
 import amplitude from "@/assets/landing/companies/amplitude.png";
 import skyvern from "@/assets/landing/companies/skyvern.webp";
-import { LogoAxionRay,LogoBrowserUse, LogoRemo, LogoRye } from "@/components/ui/icons";
+import { LogoAxionRay, LogoBrowserUse, LogoRemo, LogoRye } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface Logo {
@@ -21,37 +21,37 @@ const logos: Logo[] = [
     id: "amplitude",
     name: "Amplitude",
     image: amplitude,
-    className: "w-40 h-10"
+    className: "w-40 h-10",
   },
   {
     id: "browser-use",
     name: "Browser Use",
     component: LogoBrowserUse,
-    className: "w-40 h-10"
+    className: "w-40 h-10",
   },
   {
     id: "rye",
     name: "Rye",
     component: LogoRye,
-    className: "w-20 h-6"
+    className: "w-20 h-6",
   },
   {
     id: "skyvern",
     name: "Skyvern",
     image: skyvern,
-    className: "w-32 h-10"
+    className: "w-32 h-10",
   },
   {
     id: "axion-ray",
     name: "Axion Ray",
     component: LogoAxionRay,
-    className: "w-32 h-10"
+    className: "w-32 h-10",
   },
   {
     id: "remo",
     name: "Remo",
     component: LogoRemo,
-    className: "w-24 h-9"
+    className: "w-24 h-9",
   },
 ];
 
@@ -97,13 +97,7 @@ export default function InfiniteLogoCarousel() {
     }
 
     if (logo.image) {
-      return (
-        <Image
-          src={logo.image}
-          alt={logo.name}
-          className={cn("object-cover object-center", logo.className)}
-        />
-      );
+      return <Image src={logo.image} alt={logo.name} className={cn("object-cover object-center", logo.className)} />;
     }
 
     return null;
@@ -119,25 +113,34 @@ export default function InfiniteLogoCarousel() {
       <div
         ref={scrollRef}
         className="flex items-center gap-12 overflow-hidden whitespace-nowrap py-8"
-        style={{ scrollBehavior: 'auto' }}
+        style={{ scrollBehavior: "auto" }}
       >
         {/* First set of logos */}
         {logos.map((logo) => (
-          <div key={`first-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div
+            key={`first-${logo.id}`}
+            className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300"
+          >
             <LogoComponent logo={logo} />
           </div>
         ))}
 
         {/* Duplicate set for seamless loop */}
         {logos.map((logo) => (
-          <div key={`second-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div
+            key={`second-${logo.id}`}
+            className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300"
+          >
             <LogoComponent logo={logo} />
           </div>
         ))}
 
         {/* Third set to ensure smooth transition */}
         {logos.map((logo) => (
-          <div key={`third-${logo.id}`} className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+          <div
+            key={`third-${logo.id}`}
+            className="shrink-0 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300"
+          >
             <LogoComponent logo={logo} />
           </div>
         ))}

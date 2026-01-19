@@ -1,7 +1,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
-import { TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import SpanTypeIcon from "../../span-type-icon.tsx";

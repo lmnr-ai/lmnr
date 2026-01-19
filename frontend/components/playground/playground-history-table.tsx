@@ -1,5 +1,5 @@
 "use client";
-import { ColumnDef, Row } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { ArrowRight, Check, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
@@ -12,7 +12,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Trace } from "@/lib/traces/types";
+import { type Trace } from "@/lib/traces/types";
 
 // ... existing columns definition (unchanged) ...
 const renderCost = (val: any) => {

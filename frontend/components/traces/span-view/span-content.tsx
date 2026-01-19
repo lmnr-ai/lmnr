@@ -7,7 +7,7 @@ import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
-import { Span, SpanType } from "@/lib/traces/types";
+import { type Span, SpanType } from "@/lib/traces/types";
 
 interface SpanContentProps {
   span: Span;

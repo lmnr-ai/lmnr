@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { PushSpanSchema, pushSpanToLabelingQueue } from "@/lib/actions/span";
 

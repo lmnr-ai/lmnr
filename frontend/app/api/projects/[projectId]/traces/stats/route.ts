@@ -1,8 +1,10 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getTraceStats, GetTraceStatsSchema } from "@/lib/actions/traces/stats";
+import { generateEmptyTimeBuckets } from "@/lib/actions/traces/utils.ts";
+import { getOptionalTimeRange } from "@/lib/clickhouse/utils.ts";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -11,7 +13,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTraceStatsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    const timeRange = getOptionalTimeRange(
+      req.nextUrl.searchParams.get("pastHours") ?? undefined,
+      req.nextUrl.searchParams.get("startTime") ?? undefined,
+      req.nextUrl.searchParams.get("endTime") ?? undefined
+    ) ?? { pastHours: 24 };
+    const items = generateEmptyTimeBuckets(timeRange);
+    return Response.json({ items });
   }
 
   try {
@@ -27,4 +35,3 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     );
   }
 }
-

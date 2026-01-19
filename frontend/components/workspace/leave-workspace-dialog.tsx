@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
-import { Workspace, WorkspaceUser } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface LeaveWorkspaceDialog {
   open: boolean;
@@ -25,6 +25,7 @@ const LeaveWorkspaceDialog = ({ open, onOpenChange, workspace, user }: LeaveWork
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
   const handleRemoveUser = async () => {
     if (user) {
       setIsLoading(true);
