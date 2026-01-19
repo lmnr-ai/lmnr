@@ -2,7 +2,6 @@ import {
   Inter,
   Manrope,
   Space_Grotesk,
-  Chivo_Mono,
 } from 'next/font/google';
 
 export const sans = Inter({
@@ -24,11 +23,4 @@ export const spaceGrotesk = Space_Grotesk({
   display: 'swap',
   style: 'normal',
   variable: '--font-space-grotesk'
-});
-
-export const chivoMono = Chivo_Mono({
-  subsets: ['latin'],
-  display: 'swap',
-  style: 'normal',
-  variable: '--font-chivo-mono'
 });

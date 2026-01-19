@@ -113,7 +113,7 @@ const ScreenshotToggleButton = ({
     )}>
       <button
         className={cn(
-          "font-chivo-mono font-normal md:text-sm tracking-[0.02em] leading-normal whitespace-nowrap",
+          "font-sans font-normal md:text-sm tracking-[0.02em] leading-normal whitespace-nowrap",
           "cursor-pointer flex items-center justify-center md:px-5 md:py-1 rounded-sm",
           "transition-colors duration-500",
           "text-xs px-2 py-0.5",

@@ -47,12 +47,12 @@ const Footer = ({ className }: Props) => {
             <div className={cn("flex md:gap-5 items-center justify-center", "gap-2 w-[360px]")}>
               <Link href="https://docs.laminar.sh" target="_blank" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                 <LandingButton variant="outline" className="w-full">
-                  READ THE DOCS
+                  Read the Docs
                 </LandingButton>
               </Link>
               <Link href="/sign-up" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                 <LandingButton variant="primary" className="w-full">
-                  GET STARTED
+                  Get Started
                 </LandingButton>
               </Link>
             </div>
@@ -69,7 +69,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  CONTACT US
+                  Contact Us
                 </LandingButton>
               </Link>
               <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
@@ -77,7 +77,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  GITHUB
+                  GitHub
                 </LandingButton>
               </Link>
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
@@ -85,7 +85,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  JOIN DISCORD
+                  Join Discord
                 </LandingButton>
               </Link>
             </div>
@@ -95,7 +95,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  PRIVACY POLICY
+                  Privacy Policy
                 </LandingButton>
               </Link>
               <Link href="/policies/terms" target="_blank">
@@ -103,7 +103,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  TERMS OF SERVICE
+                  Terms of Service
                 </LandingButton>
               </Link>
               <Link href="https://status.laminar.sh" target="_blank">
@@ -111,7 +111,7 @@ const Footer = ({ className }: Props) => {
                   variant="minimal"
                   className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
                 >
-                  STATUS
+                  Status
                 </LandingButton>
               </Link>
             </div>

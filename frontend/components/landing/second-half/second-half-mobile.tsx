@@ -57,45 +57,29 @@ const SecondHalfMobile = ({ className }: Props) => {
 
         */}
 
-        {/* Section 2: Ready to scale */}
-        <div className="flex flex-col gap-6 items-start w-full">
-          <h2 className={sectionHeaderLarge}>
-            Ready to scale?
-            <br />
-            We got you.
-          </h2>
-          <div className="flex flex-col items-start w-full">
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Affordable hosted solution</p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Workspace members and roles</p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
-            </div>
-          </div>
-          <DocsButton href="/pricing" label="PRICING" />
-        </div>
-
-        {/* Section 3: Production-grade */}
+        {/* Section 2: Production-grade */}
         <div className="flex flex-col gap-6 items-start w-full">
           <h2 className={sectionHeaderLarge}>
             Production-grade
             <br />
             to the core
           </h2>
-          <p className="font-sans font-normal leading-6 text-sm text-landing-text-200 w-full">
-            Built in Rust and mega-optimized for performance. Terabytes of trace data in production without slowing
-            down.
-            <br />
-            <br />
-            SOC2 and HIPAA compliant.
-          </p>
-          <div className="flex gap-4 items-start">
-            <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={70} height={70} />
-            <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={70} height={70} />
+          <div className="flex flex-col items-start w-full">
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Optimized for performance in Rust</p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-4 w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>HIPAA compliant, SOC2 Type 2 in progress</p>
+            </div>
           </div>
+          <div className="flex gap-4 items-start translate-x-[-4px]">
+            <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={70} height={70} />
+            <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={70} height={70} />
+          </div>
+          <DocsButton label="Compliance" href="https://compliance.laminar.sh/" />
         </div>
       </div>
     </div>

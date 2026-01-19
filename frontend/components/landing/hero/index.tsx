@@ -19,21 +19,22 @@ interface Props {
   hasSession: boolean;
 }
 
-type TabType = "TRACING" | "EVALS" | "ANALYSIS";
+type TabType = "Tracing" | "Debugger" | "Analysis" | "Evals";
 
 const tabConfig: Record<TabType, { images: string[] }> = {
-  TRACING: { images: ["/assets/landing/observability.png"] },
-  EVALS: { images: ["/assets/landing/evals.png", "/assets/landing/observability.png"] },
-  ANALYSIS: { images: ["/assets/landing/dashboards.png"] },
+  Tracing: { images: ["/assets/landing/observability.png"] },
+  Debugger: { images: ["/assets/landing/observability.png"] },
+  Analysis: { images: ["/assets/landing/dashboards.png"] },
+  Evals: { images: ["/assets/landing/evals.png", "/assets/landing/observability.png"] },
 };
 
-const TABS: TabType[] = ["TRACING", "EVALS", "ANALYSIS"];
+const TABS: TabType[] = ["Tracing", "Debugger", "Analysis", "Evals"];
 
 const Hero = ({ className, hasSession }: Props) => {
-  const [activeTab, setActiveTab] = useState<TabType>("TRACING");
+  const [activeTab, setActiveTab] = useState<TabType>("Tracing");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [displayedImage, setDisplayedImage] = useState(tabConfig["TRACING"].images[0]);
+  const [displayedImage, setDisplayedImage] = useState(tabConfig["Tracing"].images[0]);
   const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentImage = tabConfig[activeTab].images[activeImageIndex];
@@ -109,8 +110,8 @@ const Hero = ({ className, hasSession }: Props) => {
                 )}
               >
                 <Image src="/assets/landing/y-combinator.svg" alt="Y Combinator" width={20} height={20} />
-                <span className={cn("font-chivo-mono md:text-sm text-landing-text-300 tracking-[0.02em]", "text-xs")}>
-                  BACKED BY Y COMBINATOR
+                <span className={cn("font-sans md:text-sm text-landing-text-300 tracking-[0.02em]", "text-xs")}>
+                  Backed by Y Combinator
                 </span>
               </Link>
               <h1
@@ -132,12 +133,12 @@ const Hero = ({ className, hasSession }: Props) => {
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>
               <Link href="/sign-up" className="md:w-auto w-full">
                 <LandingButton variant="primary" className={cn("md:w-[206px]", "flex-1 basis-0")}>
-                  GET STARTED
+                  Get Started
                 </LandingButton>
               </Link>
               <Link href="https://docs.lmnr.ai" target="_blank" className="md:w-auto w-full">
                 <LandingButton variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
-                  READ THE DOCS
+                  Read the Docs
                 </LandingButton>
               </Link>
             </div>

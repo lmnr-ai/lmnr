@@ -31,39 +31,40 @@ interface Props {
 
 const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
   // Terminal animations - stays visible during "local" section, slides out during transition
-  const terminalX = useTransform(scrollYProgress, [0.15, 0.25], [40, -600]);
-  const terminalOpacity = useTransform(scrollYProgress, [0.15, 0.45], [1, 0.6]);
+  // Adjusted for 2 sections (centered around 0.5 instead of 0.33)
+  const terminalX = useTransform(scrollYProgress, [0.35, 0.45], [40, -600]);
+  const terminalOpacity = useTransform(scrollYProgress, [0.35, 0.65], [1, 0.6]);
   const terminalBackground = useTransform(
     scrollYProgress,
-    [0.15, 0.25],
+    [0.35, 0.45],
     ["var(--color-landing-surface-500)", "var(--color-landing-surface-700)"]
   );
 
   // Gradient animations - fade in as terminal leaves
-  const gradientOpacity = useTransform(scrollYProgress, [0.15, 0.55], [0, 1]);
+  const gradientOpacity = useTransform(scrollYProgress, [0.35, 0.75], [0, 1]);
 
   // Trace content scroll - the entire trace panel scrolls up including header
-  const traceY = useTransform(scrollYProgress, [0.1, 1], [0, -3000]);
+  const traceY = useTransform(scrollYProgress, [0.3, 1], [0, -3000]);
 
   // Height expansion - grow by ~40% on scroll to emphasize scale
-  const containerHeight = useTransform(scrollYProgress, [0.1, 0.8], [400, 700]);
+  const containerHeight = useTransform(scrollYProgress, [0.3, 0.9], [400, 700]);
 
   // Width shrinks to 80% on scroll
-  const containerWidth = useTransform(scrollYProgress, [0.1, 0.55], [500, 480]);
+  const containerWidth = useTransform(scrollYProgress, [0.3, 0.75], [500, 480]);
 
   // Border fades away during transition
-  const borderColor = useTransform(scrollYProgress, [0.15, 0.25], ["rgba(58, 58, 58, 1)", "rgba(58, 58, 58, 0)"]);
+  const borderColor = useTransform(scrollYProgress, [0.35, 0.45], ["rgba(58, 58, 58, 1)", "rgba(58, 58, 58, 0)"]);
 
   // Background transitions from surface-600 to surface-700
   const backgroundColor = useTransform(
     scrollYProgress,
-    [0.15, 0.55],
+    [0.35, 0.75],
     ["var(--color-landing-surface-700)", "var(--color-landing-surface-800)"]
   );
 
   // Text to skeleton transition - text fades out, skeletons fade in
-  const textOpacity = useTransform(scrollYProgress, [0.1, 0.3], [1, 0]);
-  const skeletonOpacity = useTransform(scrollYProgress, [0.2, 0.3], [0, 1]);
+  const textOpacity = useTransform(scrollYProgress, [0.3, 0.5], [1, 0]);
+  const skeletonOpacity = useTransform(scrollYProgress, [0.4, 0.5], [0, 1]);
 
   return (
     <div className={cn("relative", className)}>

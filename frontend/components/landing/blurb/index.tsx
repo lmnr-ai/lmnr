@@ -66,7 +66,7 @@ const Blurb = ({ className }: Props) => {
         </p>
         <div className={cn("flex flex-col md:gap-3 items-center", "gap-2")}>
           <p className={quoteAttributionName}>Hashim Reman</p>
-          <p className={quoteAttributionRole}>CTO, REMO</p>
+          <p className={quoteAttributionRole}>CTO, Remo</p>
         </div>
       </div>
     </div>

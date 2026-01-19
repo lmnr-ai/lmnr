@@ -50,35 +50,37 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               target="_blank"
               className="no-underline text-landing-text-300 hover:text-landing-text-200"
             >
-              DOCS
+              Docs
             </Link>
             <Link href="/blog" className="no-underline text-landing-text-300 hover:text-landing-text-200">
-              BLOG
+              Blog
             </Link>
             <Link href="/pricing" className="no-underline text-landing-text-300 hover:text-landing-text-200">
-              PRICING
+              Pricing
             </Link>
             <Link
               target="_blank"
               href="https://discord.gg/nNFUUDAKub"
               className="no-underline text-landing-text-300 hover:text-landing-text-200"
             >
-              DISCORD
+              Discord
             </Link>
             <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="hidden lg:flex" />
           </nav>
           <div className={cn("flex md:gap-3 items-center", "gap-2")}>
             {hasSession ? (
               <Link href="/projects">
-                <LandingButton variant="outline">DASHBOARD</LandingButton>
+                <LandingButton variant="outline">Dashboard</LandingButton>
               </Link>
             ) : (
               <>
                 <Link href="/sign-in">
-                  <LandingButton variant="minimal">SIGN IN</LandingButton>
+                  <LandingButton variant="minimal">Sign in</LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline">SIGN UP</LandingButton>
+                  <LandingButton variant="outline" size="sm">
+                    Sign up
+                  </LandingButton>
                 </Link>
               </>
             )}

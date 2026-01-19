@@ -50,27 +50,6 @@ const SecondHalfDesktop = ({ className }: Props) => {
             <DocsButton href="https://docs.laminar.sh/hosting-options" />
           </div>
 
-          {/* Ready to scale section */}
-          <div className="flex flex-col gap-6 items-start w-[437px]">
-            <h2 className={sectionHeaderLarge}>
-              Ready to scale?
-              <br />
-              We got you.
-            </h2>
-            <div className="flex flex-col items-start w-[380px]">
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Affordable hosted solution</p>
-              </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Workspace members and roles</p>
-              </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
-              </div>
-            </div>
-            <DocsButton href="/pricing" label="PRICING" />
-          </div>
-
           {/* Production-grade section */}
           <div className="flex flex-col gap-[37px] items-start">
             <h2 className={sectionHeaderLarge}>
@@ -78,17 +57,24 @@ const SecondHalfDesktop = ({ className }: Props) => {
               <br />
               to the core
             </h2>
-            <p className="font-sans font-normal leading-6 text-base text-landing-text-200 w-[394px]">
-              Built in Rust and mega-optimized for performance. Terabytes of trace data in production without slowing
-              down.
-              <br />
-              <br />
-              SOC2 and HIPAA compliant.
-            </p>
-            <div className="flex gap-5 items-start">
-              <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={90} height={90} />
-              <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={90} height={90} />
+            <div className="flex flex-col items-start w-[380px]">
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Optimized for performance in Rust</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  HIPAA compliant, SOC2 Type 2 in progress
+                </p>
+              </div>
             </div>
+            <div className="flex gap-5 items-start translate-x-[-8px]">
+              <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={90} height={90} />
+              <Image src="/assets/landing/soc2.svg" alt="SOC2 compliant" width={90} height={90} />
+            </div>
+            <DocsButton label="Compliance" href="https://compliance.laminar.sh/" />
           </div>
         </div>
 

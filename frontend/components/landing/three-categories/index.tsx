@@ -39,7 +39,7 @@ const ThreeCategories = ({ className }: Props) => (
         <br />
         every step of
         <br />
-        the development cycle
+        agent development
       </h2>
 
       {/* TRACING Section */}
@@ -65,10 +65,9 @@ const ThreeCategories = ({ className }: Props) => (
             <FullContextImage className="absolute size-full inset-0" />
             <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
               <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Full context at a glance</p>
+                <p className={cn(cardTitle, "w-full")}>Full trace context at a glance</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Long-running, complex trace? No problem. Enjoy visualization tools built to handle complexity. Let us
-                  find the story in your data.
+                  No more digging through span trees. Reader mode only shows you useful context from your trace.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
@@ -83,8 +82,10 @@ const ThreeCategories = ({ className }: Props) => (
             <AskAIImage className="absolute inset-0" />
             <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
               <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Convoluted Trace? Ask AI</p>
-                <p className={cn(bodyMedium, "w-full")}>Ask AI to summarize and interpret your trace data.</p>
+                <p className={cn(cardTitle, "w-full")}>Convoluted trace? Ask AI</p>
+                <p className={cn(bodyMedium, "w-full")}>
+                  Ask our AI agent to summarize, analyze, and debug your trace no matter the complexity.
+                </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/platform/viewing-traces#ask-ai" />
             </div>
@@ -136,8 +137,8 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>More signal, less noise</h2>
-          <p className={bodyLarge}>Get used to insights being front and center</p>
+          <h2 className={subsectionTitle}>Understand production traces</h2>
+          <p className={bodyLarge}>Extract insights from millions of traces</p>
         </div>
         <div
           className={cn("flex md:flex-row md:gap-[30px] md:h-[481px] items-start w-full", "flex-col gap-4 h-[800px]")}
@@ -170,7 +171,7 @@ const ThreeCategories = ({ className }: Props) => (
               <div className="flex flex-col gap-1 items-start w-full">
                 <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Calling the wrong tool? Clicking the wrong button? Laminar categorizes traces based on agent behavior.
+                  Traces are automatically categorized to help you uncover high level patterns in your agent's behavior
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
@@ -187,12 +188,12 @@ const ThreeCategories = ({ className }: Props) => (
               <h2 className={subsectionTitle}>Platform-wide SQL</h2>
               <div className={cn("flex flex-col items-start md:w-[380px]", "w-full")}>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
+                </div>
+                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
                     Feed your Evals with Datasets straight from SQL queries
                   </p>
-                </div>
-                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
                 </div>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
@@ -212,10 +213,16 @@ const ThreeCategories = ({ className }: Props) => (
         <div className={cn("flex flex-col gap-[50px] items-start md:w-[380px]", "w-full")}>
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={subsectionTitle}>Custom dashboards</h2>
-            <div className={bodyMedium}>
-              <p className="mb-0">Track what's important to you, with all platform data ready for action. </p>
-              <br className="hidden md:block" />
-              <p className="hidden md:block">Powered by our state-of-the-art SQL query engine.</p>
+
+            <div className={cn("flex flex-col items-start md:w-[380px]", "w-full")}>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track what's important for you</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  Powered by our state-of-the-art SQL query engine
+                </p>
+              </div>
             </div>
           </div>
           <DocsButton href="https://docs.laminar.sh/custom-dashboards/overview" />
@@ -242,7 +249,9 @@ const ThreeCategories = ({ className }: Props) => (
             >
               <div className="flex flex-col gap-1 items-start w-full">
                 <p className={cn(cardTitle, "w-full")}>An SDK you want to use</p>
-                <p className={cn(bodyMedium, "w-full")}>Dataset, evaluator, run. Simple.</p>
+                <p className={cn(bodyMedium, "w-full")}>
+                  Define your agent, dataset, and success metric. We handle the rest.
+                </p>
               </div>
               <EvalsSDKImage className={cn("md:h-full w-full", "flex-1")} />
             </div>

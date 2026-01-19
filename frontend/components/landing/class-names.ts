@@ -33,8 +33,8 @@ export const quoteSize = "md:text-[36px] md:leading-normal text-[28px] leading-9
 export const quoteAttributionName = "font-sans text-landing-text-100 md:text-2xl md:leading-8 text-xl leading-7";
 
 export const quoteAttributionRole =
-  "font-chivo-mono text-landing-text-300 md:text-sm leading-normal tracking-[0.02em] text-xs";
+  "font-sans text-landing-text-300 md:text-sm leading-normal tracking-[0.02em] text-xs";
 
 // Navigation
 export const navLink =
-  "font-chivo-mono font-light md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs";
+  "font-sans font-light md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs";
