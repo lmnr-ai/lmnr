@@ -1,20 +1,10 @@
-import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import Landing from "@/components/landing";
+import { authOptions } from "@/lib/auth";
 
 export default async function LandingPage() {
-  let session = null;
-
-  try {
-    // Dynamic import to avoid database connection on module load
-    const { authOptions } = await import("@/lib/auth");
-    session = await getServerSession(authOptions);
-  } catch (e) {
-    // Database unavailable - continue without session (useful for landing page development)
-    console.warn("Auth unavailable, continuing without session:", (e as Error).message);
-  }
+  const session = await getServerSession(authOptions);
 
   // TODO: reenable
   //if (!isFeatureEnabled(Feature.LANDING)) {
@@ -31,3 +21,4 @@ export default async function LandingPage() {
 
   return <Landing hasSession={session !== null && session !== undefined} />;
 }
+

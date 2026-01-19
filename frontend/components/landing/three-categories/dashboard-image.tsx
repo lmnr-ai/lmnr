@@ -1,9 +1,10 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { useScroll, useTransform, motion } from "framer-motion";
+import { motion,useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
@@ -31,7 +32,7 @@ const DashboardImage = ({ className }: Props) => {
       )}
     >
       <motion.div className="relative w-[140%] h-[140%] left-[40px] rounded-sm overflow-hidden" style={{ y, opacity }}>
-        <Image src="/assets/landing/dashboards.png" alt="Dashboard" fill className="object-cover" />
+        <Image src="/assets/landing/dashboards.png" alt="Dashboard" fill className="object-cover object-left" />
       </motion.div>
 
       {/* Gradient overlay at bottom left */}

@@ -24,31 +24,17 @@ const Footer = ({ className }: Props) => {
   const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full border border-red-500", className)}>
-      <div
-        className={cn(
-          "flex flex-col items-end justify-end md:pb-20 pt-[120px] md:px-20 w-full border border-green-500",
-          "px-2 pb-3"
-        )}
-      >
-        <div
-          className={cn(
-            "flex items-end justify-between w-full md:flex-row border border-purple-500 md:gap-0",
-            "flex-col gap-[60px]"
-          )}
-        >
+    <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full", className)}>
+      <div className={cn("flex flex-col items-end justify-end md:pb-20 pt-[120px] md:px-20 w-full", "px-2 pb-3")}>
+        <div className={cn("flex items-end justify-between w-full md:flex-row md:gap-0", "flex-col gap-[60px]")}>
           <div className={cn("flex flex-col gap-8 md:items-start w-full", "items-center")}>
-            <div className={cn("text-center", subsectionTitle)}>
-              Understand why your agent failed.
+            <div className={cn("md:text-left text-center", subsectionTitle)}>
+              Understand
+              <br className="md:hidden" /> why your agent failed.
               <br />
               Iterate fast to fix it.
             </div>
-            <div
-              className={cn(
-                "flex md:gap-5 items-center justify-center border border-orange-500",
-                "gap-2 w-[600px] max-w-full"
-              )}
-            >
+            <div className={cn("flex md:gap-5 items-center justify-center", "gap-2 w-[360px]")}>
               <Link href="https://docs.laminar.sh" target="_blank" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                 <LandingButton variant="outline" className="w-full">
                   READ THE DOCS
@@ -61,10 +47,8 @@ const Footer = ({ className }: Props) => {
               </Link>
             </div>
           </div>
-          <div className={cn("flex md:gap-[120px] items-start md:w-auto border border-blue-500", "w-full gap-0")}>
-            <div
-              className={cn("flex flex-col md:gap-[20px] items-start border border-yellow-500", "flex-1 basis-0 gap-3")}
-            >
+          <div className={cn("flex md:gap-[120px] items-start md:w-auto", "w-full gap-0")}>
+            <div className={cn("flex flex-col md:gap-[20px] items-start", "flex-1 basis-0 gap-3")}>
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
@@ -120,20 +104,23 @@ const Footer = ({ className }: Props) => {
         </div>
       </div>
       <div
-        className={cn(
-          "bg-landing-surface-900 flex flex-col items-start justify-end overflow-clip md:p-20 w-full",
-          "p-3"
-        )}
+        className={cn("bg-landing-surface-900 flex flex-col items-start justify-end overflow-hidden w-full")}
         ref={ref}
       >
         <motion.div
-          className="aspect-[1352/291] relative w-full"
+          className={cn("relative w-full md:p-20 overflow-hidden", "p-6")}
           style={{
             y: offset,
             opacity,
           }}
         >
-          <Image alt="Laminar logo" src={laminarTextLogo} fill className="object-contain" />
+          <Image
+            alt="Laminar logo"
+            src={laminarTextLogo}
+            width={800}
+            height={200}
+            className="object-contain w-full h-auto"
+          />
         </motion.div>
       </div>
     </div>
