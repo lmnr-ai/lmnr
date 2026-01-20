@@ -19,6 +19,8 @@ use super::{ResponseResult, error::Error};
 pub struct SubmitTraceAnalysisJobRequest {
     pub query: String,
     pub event_definition_id: Uuid,
+    #[serde(default)]
+    pub parameters: HashMap<String, Value>,
 }
 
 #[derive(Serialize)]
