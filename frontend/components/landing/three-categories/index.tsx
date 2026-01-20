@@ -140,7 +140,7 @@ const ThreeCategories = ({ className }: Props) => (
           <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
         </div>
         <BrowserScreenRecordingImage
-          className={cn("relative shrink-0 md:w-[720px] md:h-[450px] ", "w-full h-[200px]")}
+          className={cn("relative shrink-0 md:w-[720px] md:h-[450px] ", "w-full h-[240px]")}
         />
       </div>
 
@@ -149,7 +149,7 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>Understand production traces</h2>
+          <h2 className={subsectionTitle}>Analyze production traces</h2>
           <p className={bodyLarge}>Extract insights from millions of traces</p>
         </div>
         <div
