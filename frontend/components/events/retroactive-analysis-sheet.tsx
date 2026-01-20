@@ -164,10 +164,11 @@ function TracesTableWithSearch({
 
   const handleStartAnalysis = useCallback(async () => {
     try {
-      await fetch(`/api/projects/${projectId}/semantic-event-definitions/${eventDefinitionId}/analysis`, {
+      await fetch(`/api/projects/${projectId}/trace-analysis-jobs`, {
         method: "POST",
         body: JSON.stringify({
           projectId,
+          eventDefinitionId,
           filters: filters.filters,
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,

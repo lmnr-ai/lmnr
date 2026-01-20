@@ -148,11 +148,6 @@ function SemanticEventDefinitionsContent({ isSemanticEventsEnabled }: { isSemant
               Event Definition
             </Button>
           </ManageEventDefinitionSheet>
-          <Link href={`/project/${projectId}/events/semantic/backfill`}>
-            <Button variant="outline" className="w-fit" icon="history">
-              Retroactive Analysis
-            </Button>
-          </Link>
         </div>
       )}
       <InfiniteDataTable<SemanticEventDefinitionRow>
