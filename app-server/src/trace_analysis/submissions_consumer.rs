@@ -17,7 +17,10 @@ use crate::{
         RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage,
         TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
         Task,
-        gemini::{Content, GeminiClient, GenerateContentRequest, GenerationConfig, Part},
+        gemini::{
+            Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
+            Part,
+        },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         tools::build_tool_definitions,
         utils::{extract_batch_id_from_operation, get_trace_structure_as_string},
@@ -53,6 +56,12 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
     type Message = RabbitMqLLMBatchSubmissionMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        log::debug!(
+            "[TRACE_ANALYSIS] Processing submission message. job_id: {}, tasks: {}",
+            message.job_id,
+            message.tasks.len(),
+        );
+
         process(
             message,
             self.db.clone(),
@@ -76,7 +85,7 @@ async fn process(
     let prompt = &msg.prompt;
     let structured_output_schema = &msg.structured_output_schema;
 
-    let mut requests: Vec<GenerateContentRequest> = Vec::new();
+    let mut requests: Vec<InlineRequestItem> = Vec::new();
     let mut all_new_messages: Vec<CHTraceAnalysisMessage> = Vec::new();
 
     for task in msg.tasks.iter() {
@@ -178,7 +187,7 @@ async fn process_task(
     prompt: &str,
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
-) -> Result<(GenerateContentRequest, Vec<CHTraceAnalysisMessage>), HandlerError> {
+) -> Result<(InlineRequestItem, Vec<CHTraceAnalysisMessage>), HandlerError> {
     let task_id = task.task_id;
     let trace_id = task.trace_id;
 
@@ -236,6 +245,7 @@ async fn process_task(
             parts: vec![Part {
                 text: Some(user_prompt.clone()),
                 function_call: None,
+                function_response: None,
             }],
         }];
 
@@ -244,6 +254,7 @@ async fn process_task(
             parts: vec![Part {
                 text: Some(system_prompt.clone()),
                 function_call: None,
+                function_response: None,
             }],
         };
 
@@ -274,6 +285,7 @@ async fn process_task(
                     parts: vec![Part {
                         text: Some(content.to_string()),
                         function_call: None,
+                        function_response: None,
                     }],
                 });
             } else {
@@ -283,6 +295,7 @@ async fn process_task(
                     parts: vec![Part {
                         text: Some(content.to_string()),
                         function_call: None,
+                        function_response: None,
                     }],
                 });
             }
@@ -295,14 +308,17 @@ async fn process_task(
     let tools = vec![build_tool_definitions(structured_output_schema)];
 
     // 3. Create GenerateContentRequest
-    let request = GenerateContentRequest {
-        contents,
-        generation_config: Some(GenerationConfig {
-            temperature: Some(1.0),
-            ..Default::default()
-        }),
-        system_instruction,
-        tools: Some(tools),
+    let request = InlineRequestItem {
+        request: GenerateContentRequest {
+            contents,
+            generation_config: Some(GenerationConfig {
+                temperature: Some(1.0),
+                ..Default::default()
+            }),
+            system_instruction,
+            tools: Some(tools),
+        },
+        metadata: Some(serde_json::json!({ "task_id": task.task_id })),
     };
 
     Ok((request, new_messages))

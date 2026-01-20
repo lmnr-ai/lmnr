@@ -27,7 +27,7 @@ use crate::{
 use super::{
     RabbitMqLLMBatchPendingMessage, Task,
     gemini::{
-        FunctionCall, GenerateContentBatchOutput, JobState,
+        Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
         utils::{
             extract_function_call, extract_response_content, extract_task_id_from_metadata,
@@ -40,7 +40,7 @@ use super::{
 };
 
 // Delay in seconds to push the batch back to the pending queue if not yet completed
-const BATCH_POLLING_INTERVAL: u64 = 30;
+const BATCH_POLLING_INTERVAL: u64 = 3;
 
 pub struct LLMBatchPendingHandler {
     pub db: Arc<DB>,
@@ -89,13 +89,14 @@ async fn process(
     gemini: Arc<GeminiClient>,
 ) -> Result<(), HandlerError> {
     log::debug!(
-        "Processing pending batch. job_id: {}, batch_id: {}, tasks: {}",
+        "[TRACE_ANALYSIS] Processing pending batch. job_id: {}, batch_id: {}, tasks: {}",
         message.job_id,
         message.batch_id,
         message.tasks.len()
     );
 
     // Get batch state from Gemini
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     let result = gemini
         .get_batch(&message.batch_id.to_string())
         .await
@@ -112,7 +113,11 @@ async fn process(
         .map(|m| m.state)
         .unwrap_or(JobState::BATCH_STATE_UNSPECIFIED);
 
-    log::debug!("Batch {} state: {:?}", message.batch_id, state);
+    log::debug!(
+        "[TRACE_ANALYSIS] Batch {} state: {:?}",
+        message.batch_id,
+        state
+    );
 
     // Handle batch depending on state
     match state {
@@ -144,7 +149,7 @@ async fn process(
 // TODO: handle error better
 fn process_pending_batch(message: RabbitMqLLMBatchPendingMessage, queue: Arc<MessageQueue>) {
     log::debug!(
-        "Batch {} not ready, re-queuing in {}s",
+        "[TRACE_ANALYSIS] Batch {} not ready, re-queuing in {}s",
         message.batch_id,
         BATCH_POLLING_INTERVAL
     );
@@ -178,7 +183,7 @@ async fn process_succeeded_batch(
 
     let inlined_responses = &response.inlined_responses.inlined_responses;
     log::debug!(
-        "Processing {} responses for batch {}",
+        "[TRACE_ANALYSIS] Processing {} responses for batch {}",
         inlined_responses.len(),
         message.batch_id
     );
@@ -245,16 +250,23 @@ async fn process_succeeded_batch(
                 TaskStatus::Completed => succeeded_tasks_cnt += 1,
                 TaskStatus::Pending { tool_result } => {
                     // Save tool result to ClickHouse
+                    let function_response_content = Content {
+                        role: Some("user".to_string()),
+                        parts: vec![Part {
+                            text: None,
+                            function_call: None,
+                            function_response: Some(FunctionResponse {
+                                name: function_call.name.clone(),
+                                response: tool_result,
+                            }),
+                        }],
+                    };
                     let tool_output_msg = CHTraceAnalysisMessage::new(
                         message.project_id,
                         message.job_id,
                         task.task_id,
                         chrono::Utc::now(),
-                        serde_json::json!({
-                            "role": "tool",
-                            "content": tool_result
-                        })
-                        .to_string(),
+                        serde_json::to_string(&function_response_content).unwrap_or_default(),
                     );
                     messages.push(tool_output_msg);
 
@@ -279,7 +291,7 @@ async fn process_succeeded_batch(
     }
 
     log::debug!(
-        "Batch {} results: succeeded={}, failed={}, pending={}",
+        "[TRACE_ANALYSIS] Batch {} results: succeeded={}, failed={}, pending={}",
         message.batch_id,
         succeeded_tasks_cnt,
         failed_tasks_cnt,
@@ -333,7 +345,7 @@ async fn process_tool_call(
     clickhouse: clickhouse::Client,
 ) -> TaskStatus {
     log::debug!(
-        "Processing tool call '{}' for task {}",
+        "[TRACE_ANALYSIS] Processing tool call '{}' for task {}",
         function_call.name,
         task.task_id
     );
@@ -381,6 +393,11 @@ async fn process_tool_call(
                 .unwrap_or(false);
 
             let attributes: Option<serde_json::Value> = function_call.args.get("data").cloned();
+            log::debug!(
+                "[TRACE_ANALYSIS] submit_identification identified: {:?}, attributes: {:?}",
+                identified,
+                attributes
+            );
 
             // Create a new event if we have attributes
             if identified {
@@ -449,7 +466,7 @@ async fn process_tool_call(
                 }
 
                 log::debug!(
-                    "Created event '{}' for trace {} (task {})",
+                    "[TRACE_ANALYSIS] Created event '{}' for trace {} (task {})",
                     message.event_name,
                     task.trace_id,
                     task.task_id

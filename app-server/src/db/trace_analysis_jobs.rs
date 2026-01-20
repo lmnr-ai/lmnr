@@ -37,22 +37,6 @@ pub async fn create_trace_analysis_job(
     Ok(job)
 }
 
-pub async fn get_trace_analysis_job(
-    pool: &PgPool,
-    job_id: Uuid,
-) -> Result<Option<TraceAnalysisJob>> {
-    let job = sqlx::query_as::<_, TraceAnalysisJob>(
-        "SELECT id, event_definition_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at
-        FROM trace_analysis_jobs
-        WHERE id = $1",
-    )
-    .bind(job_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(job)
-}
-
 pub async fn update_trace_analysis_job_statistics(
     pool: &PgPool,
     job_id: Uuid,

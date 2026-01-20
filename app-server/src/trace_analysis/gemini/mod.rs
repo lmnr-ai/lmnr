@@ -106,12 +106,21 @@ pub struct Part {
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_call: Option<FunctionCall>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_response: Option<FunctionResponse>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
     pub args: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionResponse {
+    pub name: String,
+    pub response: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -191,22 +200,12 @@ pub struct BatchCreateRequest {
 }
 
 impl BatchCreateRequest {
-    pub fn inline(requests: Vec<GenerateContentRequest>, display_name: Option<String>) -> Self {
-        let inline_items: Vec<InlineRequestItem> = requests
-            .into_iter()
-            .map(|request| InlineRequestItem {
-                request,
-                metadata: None,
-            })
-            .collect();
-
+    pub fn inline(requests: Vec<InlineRequestItem>, display_name: Option<String>) -> Self {
         Self {
             batch: Batch {
                 display_name,
                 input_config: InputConfig {
-                    requests: Some(InlineRequests {
-                        requests: inline_items,
-                    }),
+                    requests: Some(InlineRequests { requests }),
                     file_name: None,
                 },
             },
@@ -215,6 +214,7 @@ impl BatchCreateRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
 pub enum JobState {
     BATCH_STATE_UNSPECIFIED,
     BATCH_STATE_PENDING,
@@ -285,6 +285,7 @@ pub struct Operation {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<BatchJobMetadata>,
+    #[serde(default)]
     pub done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorInfo>,

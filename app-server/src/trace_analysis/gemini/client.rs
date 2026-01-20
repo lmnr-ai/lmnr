@@ -1,4 +1,4 @@
-use super::{BatchCreateRequest, GeminiError, GenerateContentRequest, Operation};
+use super::{BatchCreateRequest, GeminiError, InlineRequestItem, Operation};
 use std::env;
 
 #[derive(Clone)]
@@ -29,7 +29,7 @@ impl GeminiClient {
     pub async fn create_batch(
         &self,
         model: &str,
-        requests: Vec<GenerateContentRequest>,
+        requests: Vec<InlineRequestItem>,
         display_name: Option<String>,
     ) -> GeminiResult<Operation> {
         let url = format!(
@@ -65,7 +65,8 @@ impl GeminiClient {
     }
 
     pub async fn get_batch(&self, batch_name: &str) -> GeminiResult<Operation> {
-        let url = format!("{}/{}", self.api_base_url, batch_name);
+        let url = format!("{}/batches/{}", self.api_base_url, batch_name);
+        log::debug!("[TRACE_ANALYSIS] Getting batch from Gemini: {}", url);
 
         let response = self
             .client

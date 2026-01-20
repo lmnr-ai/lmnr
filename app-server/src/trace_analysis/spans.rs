@@ -39,7 +39,7 @@ pub struct CHSpanWithException {
     pub input: String,
     pub output: String,
     pub status: String,
-    pub exception: Option<String>,
+    pub exception: String,
 }
 
 fn get_span_type_str(span_type: u8) -> String {
@@ -120,6 +120,11 @@ pub async fn get_trace_spans(
         .bind(project_id)
         .fetch_all::<CHSpanWithException>()
         .await?;
+    log::debug!(
+        "[TRACE_ANALYSIS] Got {} spans for trace {}",
+        ch_spans.len(),
+        trace_id
+    );
 
     // Build mapping: UUID -> sequential ID (1-indexed)
     let uuid_to_seq: HashMap<Uuid, usize> = ch_spans
@@ -152,6 +157,7 @@ pub async fn get_full_span_info(
         span_ids.len(),
         trace_id
     );
+    log::debug!("Fetching full info for spans: {:?}", span_ids);
 
     let (ch_spans, uuid_to_seq) = get_trace_spans(&clickhouse, project_id, trace_id).await?;
 
@@ -176,11 +182,11 @@ pub async fn get_full_span_info(
             None
         };
 
-        let exception = ch_span
-            .exception
-            .as_ref()
-            .map(|e| try_parse_json(e))
-            .filter(|v| !v.is_null());
+        let exception = if ch_span.exception.is_empty() {
+            None
+        } else {
+            Some(try_parse_json(&ch_span.exception)).filter(|v| !v.is_null())
+        };
 
         let span_info = SpanInfo {
             id: span_id,
