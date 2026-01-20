@@ -1,14 +1,14 @@
 "use client";
 
 import { format, formatRelative } from "date-fns";
-import { Network } from "lucide-react";
+import { History, Network } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-import ManageEventDefinitionSheet, {
-  type ManageEventDefinitionForm,
-} from "@/components/event-definitions/manage-event-definition-sheet.tsx";
+import { type ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet";
 import ClustersTable from "@/components/events/clusters-table";
 import DisableClusteringDialog from "@/components/events/disable-clustering-dialog";
 import { useEventsStoreContext } from "@/components/events/events-store";
@@ -22,9 +22,19 @@ import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { cn } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";
+
+const RetroactiveAnalysisSheet = dynamic(
+  () => import("../../components/events/retroactive-analysis-sheet.tsx").then((mod) => mod.default),
+  { ssr: false }
+);
+
+const ManageEventDefinitionSheet = dynamic(
+  () => import("../../components/event-definitions/manage-event-definition-sheet.tsx").then((mod) => mod.default),
+  { ssr: false }
+);
 
 function PureEvents({
   lastEvent,
@@ -134,17 +144,29 @@ function PureEvents({
               {clusterConfig ? (
                 <DisableClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
                   <Button variant="secondary">
-                    <Network className="mr-2 size-3.5" />
+                    <Network className="mr-1 size-3.5" />
                     Disable Clustering
                   </Button>
                 </DisableClusteringDialog>
               ) : (
                 <StartClusteringDialog eventName={eventDefinition.name} eventType={eventType}>
                   <Button variant="secondary">
-                    <Network className="mr-2 size-3.5" />
+                    <Network className="mr-1 size-3.5" />
                     Start Clustering
                   </Button>
                 </StartClusteringDialog>
+              )}
+
+              {eventType === "SEMANTIC" && eventDefinition.id && (
+                <RetroactiveAnalysisSheet
+                  eventDefinitionId={eventDefinition.id}
+                  eventDefinitionName={eventDefinition.name}
+                >
+                  <Button variant="secondary">
+                    <History className="mr-1 size-3.5" />
+                    Retroactive Analysis
+                  </Button>
+                </RetroactiveAnalysisSheet>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -184,37 +206,39 @@ function PureEvents({
           />
         </div>
       </div>
-
-      {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            ref={ref}
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            defaultSize={{
-              width: defaultTraceViewWidth,
-            }}
-          >
-            <FiltersContextProvider columns={filterColumns}>
-              <TraceView
-                spanId={spanId || undefined}
-                key={traceId}
-                onClose={() => {
-                  const params = new URLSearchParams(searchParams);
-                  params.delete("traceId");
-                  params.delete("spanId");
-                  push(`${pathName}?${params.toString()}`);
-                  setTraceId(null);
-                  setSpanId(null);
-                }}
-                traceId={traceId}
-              />
-            </FiltersContextProvider>
-          </Resizable>
-        </div>
-      )}
+      {traceId &&
+        typeof window !== "undefined" &&
+        createPortal(
+          <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-[60] flex pointer-events-auto">
+            <Resizable
+              ref={ref}
+              onResizeStop={handleResizeStop}
+              enable={{
+                left: true,
+              }}
+              defaultSize={{
+                width: defaultTraceViewWidth,
+              }}
+            >
+              <FiltersContextProvider columns={filterColumns}>
+                <TraceView
+                  spanId={spanId || undefined}
+                  key={traceId}
+                  onClose={() => {
+                    const params = new URLSearchParams(searchParams);
+                    params.delete("traceId");
+                    params.delete("spanId");
+                    push(`${pathName}?${params.toString()}`);
+                    setTraceId(null);
+                    setSpanId(null);
+                  }}
+                  traceId={traceId}
+                />
+              </FiltersContextProvider>
+            </Resizable>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

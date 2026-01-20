@@ -6,6 +6,8 @@ import { type Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 
+export type AdvancedSearchMode = "url" | "state";
+
 export type AutocompleteCache = Map<string, string[]>;
 
 export interface FocusableRef {

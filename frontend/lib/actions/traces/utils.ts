@@ -196,7 +196,9 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
 };
 
 export interface BuildTracesCountQueryOptions {
+  projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
+  traceIds: string[];
   filters: Filter[];
   startTime?: string;
   endTime?: string;
@@ -204,7 +206,7 @@ export interface BuildTracesCountQueryOptions {
 }
 
 export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
-  const { traceType, filters, startTime, endTime, pastHours } = options;
+  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -215,6 +217,13 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
       params: { traceType },
     },
   ];
+
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
