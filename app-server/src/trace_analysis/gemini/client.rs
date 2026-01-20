@@ -66,7 +66,6 @@ impl GeminiClient {
 
     pub async fn get_batch(&self, batch_name: &str) -> GeminiResult<Operation> {
         let url = format!("{}/batches/{}", self.api_base_url, batch_name);
-        log::debug!("[TRACE_ANALYSIS] Getting batch from Gemini: {}", url);
 
         let response = self
             .client

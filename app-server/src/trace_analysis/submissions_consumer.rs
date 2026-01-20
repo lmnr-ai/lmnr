@@ -215,17 +215,30 @@ async fn process_task(
         let now = Utc::now();
         let user_time = now + chrono::Duration::milliseconds(1);
 
-        // Create messages to store
+        // Create Content objects (used for both storage and API request)
+        let system_content = Content {
+            role: Some("system".to_string()), // Stored as "system", converted to None for Gemini API
+            parts: vec![Part {
+                text: Some(system_prompt.clone()),
+                ..Default::default()
+            }],
+        };
+
+        let user_content = Content {
+            role: Some("user".to_string()),
+            parts: vec![Part {
+                text: Some(user_prompt.clone()),
+                ..Default::default()
+            }],
+        };
+
+        // Store as serialized Content for consistent format
         let system_message = CHTraceAnalysisMessage::new(
             project_id,
             job_id,
             task_id,
             now,
-            serde_json::json!({
-                "role": "system",
-                "content": system_prompt
-            })
-            .to_string(),
+            serde_json::to_string(&system_content).unwrap_or_default(),
         );
 
         let user_message = CHTraceAnalysisMessage::new(
@@ -233,33 +246,17 @@ async fn process_task(
             job_id,
             task_id,
             user_time,
-            serde_json::json!({
-                "role": "user",
-                "content": user_prompt
-            })
-            .to_string(),
+            serde_json::to_string(&user_content).unwrap_or_default(),
         );
 
-        let contents = vec![Content {
-            role: Some("user".to_string()),
-            parts: vec![Part {
-                text: Some(user_prompt.clone()),
-                function_call: None,
-                function_response: None,
-            }],
-        }];
-
+        // For Gemini API: system instruction has role: None
         let system_instruction_content = Content {
             role: None,
-            parts: vec![Part {
-                text: Some(system_prompt.clone()),
-                function_call: None,
-                function_response: None,
-            }],
+            ..system_content.clone()
         };
 
         (
-            contents,
+            vec![user_content],
             Some(system_instruction_content),
             vec![system_message, user_message],
         )
@@ -268,36 +265,29 @@ async fn process_task(
         let mut system_instruction = None;
 
         for msg in existing_messages {
-            let parsed: serde_json::Value = serde_json::from_str(&msg.message).map_err(|e| {
-                HandlerError::Permanent(anyhow::anyhow!("Failed to parse message JSON: {}", e))
+            // Parse as Content object (all messages are now stored in this format)
+            let content: Content = serde_json::from_str(&msg.message).map_err(|e| {
+                HandlerError::Permanent(anyhow::anyhow!(
+                    "Failed to parse message as Content: {}",
+                    e
+                ))
             })?;
 
-            let role = parsed
-                .get("role")
-                .and_then(|v| v.as_str())
-                .unwrap_or("user");
-            let content = parsed.get("content").and_then(|v| v.as_str()).unwrap_or("");
-
-            if role == "system" {
-                // System instruction
-                system_instruction = Some(Content {
-                    role: None,
-                    parts: vec![Part {
-                        text: Some(content.to_string()),
-                        function_call: None,
-                        function_response: None,
-                    }],
-                });
-            } else {
-                // User or assistant message
-                contents.push(Content {
-                    role: Some(role.to_string()),
-                    parts: vec![Part {
-                        text: Some(content.to_string()),
-                        function_call: None,
-                        function_response: None,
-                    }],
-                });
+            match content.role.as_deref() {
+                Some("system") => {
+                    // System instruction: convert role to None for Gemini API
+                    system_instruction = Some(Content {
+                        role: None,
+                        parts: content.parts,
+                    });
+                }
+                Some("model") | Some("user") => {
+                    // Model (assistant) or user messages go into contents
+                    contents.push(content);
+                }
+                other => {
+                    log::warn!("Unknown message role: {:?}, skipping", other);
+                }
             }
         }
 

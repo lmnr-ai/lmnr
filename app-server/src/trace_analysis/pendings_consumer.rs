@@ -40,7 +40,7 @@ use super::{
 };
 
 // Delay in seconds to push the batch back to the pending queue if not yet completed
-const BATCH_POLLING_INTERVAL: u64 = 3;
+const BATCH_POLLING_INTERVAL: u64 = 60;
 
 pub struct LLMBatchPendingHandler {
     pub db: Arc<DB>,
@@ -253,12 +253,12 @@ async fn process_succeeded_batch(
                     let function_response_content = Content {
                         role: Some("user".to_string()),
                         parts: vec![Part {
-                            text: None,
-                            function_call: None,
                             function_response: Some(FunctionResponse {
                                 name: function_call.name.clone(),
                                 response: tool_result,
+                                id: function_call.id.clone(),
                             }),
+                            ..Default::default()
                         }],
                     };
                     let tool_output_msg = CHTraceAnalysisMessage::new(
@@ -355,7 +355,8 @@ async fn process_tool_call(
             // Extract span_ids from args
             let span_ids: Vec<usize> = function_call
                 .args
-                .get("span_ids")
+                .as_ref()
+                .and_then(|args| args.get("span_ids"))
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
@@ -388,11 +389,15 @@ async fn process_tool_call(
         "submit_identification" => {
             let identified = function_call
                 .args
-                .get("identified")
+                .as_ref()
+                .and_then(|args| args.get("identified"))
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            let attributes: Option<serde_json::Value> = function_call.args.get("data").cloned();
+            let attributes: Option<serde_json::Value> = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("data").cloned());
             log::debug!(
                 "[TRACE_ANALYSIS] submit_identification identified: {:?}, attributes: {:?}",
                 identified,
