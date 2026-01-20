@@ -698,8 +698,6 @@ fn main() -> anyhow::Result<()> {
         };
 
     // == HTTP client ==
-    let http_client = reqwest::Client::new();
-
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -851,7 +849,6 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let http_client_for_consumer = http_client.clone();
         let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();

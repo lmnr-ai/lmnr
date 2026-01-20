@@ -20,7 +20,7 @@ pub struct SubmitTraceAnalysisJobRequest {
     pub query: String,
     pub event_definition_id: Uuid,
     #[serde(default)]
-    pub parameters: HashMap<String, Value>,
+    pub parameters: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -35,7 +35,7 @@ pub struct SubmitTraceAnalysisJobResponse {
 pub async fn submit_trace_analysis_job(
     project_id: web::Path<Uuid>,
     request: web::Json<SubmitTraceAnalysisJobRequest>,
-    db: web::Data<Arc<DB>>,
+    db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     queue: web::Data<Arc<MessageQueue>>,
@@ -43,6 +43,7 @@ pub async fn submit_trace_analysis_job(
     let project_id = project_id.into_inner();
     let SubmitTraceAnalysisJobRequest {
         query,
+        parameters,
         event_definition_id,
     } = request.into_inner();
 
@@ -78,7 +79,7 @@ pub async fn submit_trace_analysis_job(
     let results = sql::execute_sql_query(
         query,
         project_id,
-        HashMap::new(),
+        parameters,
         clickhouse_client,
         query_engine.into_inner().as_ref().clone(),
     )
