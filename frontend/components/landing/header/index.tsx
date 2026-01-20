@@ -8,7 +8,6 @@ import { useState } from "react";
 import logo from "@/assets/logo/logo.svg";
 import { cn } from "@/lib/utils";
 
-import { navLink } from "../class-names";
 import LandingButton from "../landing-button";
 import GitHubStarsButton from "./github-stars-button";
 
@@ -44,7 +43,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           </Link>
         </div>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
-          <nav className={cn("hidden md:flex md:gap-[32px] items-center", navLink)}>
+          <nav className="hidden md:flex md:gap-[32px] items-center font-sans md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs">
             <Link
               href="https://docs.laminar.sh"
               target="_blank"

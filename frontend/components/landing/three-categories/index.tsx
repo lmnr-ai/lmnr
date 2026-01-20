@@ -43,7 +43,7 @@ const ThreeCategories = ({ className }: Props) => (
       </h2>
 
       {/* TRACING Section */}
-      <SectionName label="TRACING" index={1} />
+      <SectionName label="Tracing" index={1} />
 
       <IntegrateInMinutes />
 
@@ -145,7 +145,7 @@ const ThreeCategories = ({ className }: Props) => (
       </div>
 
       {/* ANALYSIS Section */}
-      <SectionName label="ANALYSIS" index={2} />
+      <SectionName label="Analysis" index={2} />
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
@@ -243,7 +243,7 @@ const ThreeCategories = ({ className }: Props) => (
       </div>
 
       {/* EVALS Section */}
-      <SectionName label="EVALS" index={3} />
+      <SectionName label="Evals" index={3} />
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">

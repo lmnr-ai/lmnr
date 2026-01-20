@@ -34,7 +34,3 @@ export const quoteAttributionName = "font-sans text-landing-text-100 md:text-2xl
 
 export const quoteAttributionRole =
   "font-sans text-landing-text-300 md:text-sm leading-normal tracking-[0.02em] text-xs";
-
-// Navigation
-export const navLink =
-  "font-sans font-light md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs";

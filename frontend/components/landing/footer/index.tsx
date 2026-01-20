@@ -57,7 +57,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   Contact Us
                 </LandingButton>
@@ -65,7 +65,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   GitHub
                 </LandingButton>
@@ -73,7 +73,7 @@ const Footer = ({ className }: Props) => {
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   Join Discord
                 </LandingButton>
@@ -83,7 +83,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   Privacy Policy
                 </LandingButton>
@@ -91,7 +91,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/terms" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   Terms of Service
                 </LandingButton>
@@ -99,7 +99,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://status.laminar.sh" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
                 >
                   Status
                 </LandingButton>
