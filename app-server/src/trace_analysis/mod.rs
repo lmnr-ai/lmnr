@@ -9,6 +9,7 @@ use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 pub mod gemini;
 pub mod pendings_consumer;
 pub mod prompts;
+pub mod spans;
 pub mod submissions_consumer;
 pub mod tools;
 pub mod utils;
@@ -81,9 +82,10 @@ async fn push_to_pending_queue(
 const DEFAULT_BATCH_SIZE: usize = 1;
 
 pub async fn push_to_submissions_queue(
-    trace_ids: Vec<String>,
+    tasks: Vec<Task>,
     job_id: Uuid,
     event_definition_id: Uuid,
+    event_name: String,
     prompt: String,
     structured_output_schema: Value,
     model: String,
@@ -96,24 +98,17 @@ pub async fn push_to_submissions_queue(
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_BATCH_SIZE);
 
-    for batch in trace_ids.chunks(batch_size) {
-        let tasks: Vec<Task> = batch
-            .iter()
-            .map(|trace_id| Task {
-                task_id: Uuid::new_v4(),
-                trace_id: trace_id.parse::<Uuid>().unwrap(),
-            })
-            .collect();
-
+    for tasks_batch in tasks.chunks(batch_size) {
         let message = RabbitMqLLMBatchSubmissionMessage {
             project_id,
             job_id,
             event_definition_id,
+            event_name: event_name.clone(),
             prompt: prompt.clone(),
             structured_output_schema: structured_output_schema.clone(),
             model: model.clone(),
             provider: provider.clone(),
-            tasks,
+            tasks: tasks_batch.to_vec(),
         };
 
         let serialized = serde_json::to_vec(&message)?;
@@ -124,7 +119,7 @@ pub async fn push_to_submissions_queue(
                 project_id,
                 job_id,
                 serialized.len(),
-                batch.len()
+                tasks_batch.len()
             );
             // Skip publishing this batch
             continue;

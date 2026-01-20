@@ -128,6 +128,7 @@ async fn process(
                 job_id,
                 event_definition_id: msg.event_definition_id,
                 prompt: msg.prompt,
+                event_name: msg.event_name,
                 structured_output_schema: msg.structured_output_schema,
                 model: msg.model,
                 provider: msg.provider,

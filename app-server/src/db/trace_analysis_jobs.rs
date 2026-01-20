@@ -56,19 +56,19 @@ pub async fn get_trace_analysis_job(
 pub async fn update_trace_analysis_job_statistics(
     pool: &PgPool,
     job_id: Uuid,
-    total_traces: i32,
-    processed_traces: i32,
-    failed_traces: i32,
+    processed_traces_delta: i32,
+    failed_traces_delta: i32,
 ) -> Result<()> {
     sqlx::query(
         "UPDATE trace_analysis_jobs
-        SET total_traces = $2, processed_traces = $3, failed_traces = $4, updated_at = NOW()
+        SET processed_traces = processed_traces + $2,
+            failed_traces = failed_traces + $3,
+            updated_at = NOW()
         WHERE id = $1",
     )
     .bind(job_id)
-    .bind(total_traces)
-    .bind(processed_traces)
-    .bind(failed_traces)
+    .bind(processed_traces_delta)
+    .bind(failed_traces_delta)
     .execute(pool)
     .await?;
 

@@ -9,7 +9,7 @@ use crate::{
     mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient},
-    trace_analysis,
+    trace_analysis::{self, Task},
 };
 
 use super::{ResponseResult, error::Error};
@@ -112,10 +112,19 @@ pub async fn submit_trace_analysis_job(
         Error::InternalAnyhowError(anyhow::anyhow!("Failed to create trace analysis job"))
     })?;
 
+    let tasks: Vec<Task> = trace_ids
+        .iter()
+        .map(|trace_id| Task {
+            task_id: Uuid::new_v4(),
+            trace_id: trace_id.parse::<Uuid>().unwrap(),
+        })
+        .collect();
+
     trace_analysis::push_to_submissions_queue(
-        trace_ids,
+        tasks,
         job.id,
         event_definition_id,
+        event_definition.name,
         event_definition.prompt,
         event_definition.structured_output_schema,
         "gemini-2.5-pro".to_string(),

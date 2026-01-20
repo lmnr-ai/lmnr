@@ -697,6 +697,9 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // == HTTP client ==
+    let http_client = reqwest::Client::new();
+
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -848,6 +851,7 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
+        let http_client_for_consumer = http_client.clone();
         let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
@@ -1054,10 +1058,11 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM batch pending workers
-                    {
+                    if let Some(gemini) = gemini_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let gemini_clone = gemini.clone();
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchPending,
                             num_trace_analysis_llm_batch_pending_workers as usize,
@@ -1066,6 +1071,7 @@ fn main() -> anyhow::Result<()> {
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
+                                    gemini_clone.clone(),
                                 )
                             },
                             QueueConfig {
@@ -1073,6 +1079,10 @@ fn main() -> anyhow::Result<()> {
                                 exchange_name: TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
                                 routing_key: TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
                             },
+                        );
+                    } else {
+                        log::warn!(
+                            "Gemini client not available - skipping LLM batch submissions workers"
                         );
                     }
 

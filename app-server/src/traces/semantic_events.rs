@@ -165,67 +165,91 @@ async fn process_semantic_event(
 
         ch::events::insert_events(clickhouse, ch_events).await?;
 
-        // Check for Slack notifications
-        // It's ok to not check for feature flag here, because channels can't be added without Slack integration
-        let channels = db::slack_channel_to_events::get_channels_for_event(
-            &db.pool,
+        process_event_notifications_and_clustering(
+            db,
+            queue,
             message.project_id,
-            event_definition.name.as_str(),
+            message.trace_id,
+            message.trigger_span_id,
+            &event_definition.name,
+            attributes,
+            event,
         )
         .await?;
-        // Push a notification for each configured channel
-        for channel in channels {
-            let payload = EventIdentificationPayload {
-                event_name: event_definition.name.clone(),
-                extracted_information: Some(attributes.clone()),
-                channel_id: channel.channel_id.clone(),
-                integration_id: channel.integration_id,
-            };
+    }
 
-            let notification_message = notifications::NotificationMessage {
-                project_id: message.project_id,
-                trace_id: message.trace_id,
-                span_id: message.trigger_span_id,
-                notification_type: NotificationType::Slack,
-                event_name: event_definition.name.clone(),
-                payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
-            };
+    Ok(())
+}
 
-            if let Err(e) =
-                notifications::push_to_notification_queue(notification_message, queue.clone()).await
-            {
-                log::error!(
-                    "Failed to push to notification queue for channel {}: {:?}",
-                    channel.channel_id,
-                    e
-                );
-            }
+/// Process notifications and clustering for an identified event
+pub async fn process_event_notifications_and_clustering(
+    db: Arc<db::DB>,
+    queue: Arc<MessageQueue>,
+    project_id: Uuid,
+    trace_id: Uuid,
+    span_id: Uuid,
+    event_name: &str,
+    attributes: Value,
+    event: Event,
+) -> anyhow::Result<()> {
+    // Check for Slack notifications
+    // It's ok to not check for feature flag here, because channels can't be added without Slack integration
+    let channels =
+        db::slack_channel_to_events::get_channels_for_event(&db.pool, project_id, event_name)
+            .await?;
+
+    // Push a notification for each configured channel
+    for channel in channels {
+        let payload = EventIdentificationPayload {
+            event_name: event_name.to_string(),
+            extracted_information: Some(attributes.clone()),
+            channel_id: channel.channel_id.clone(),
+            integration_id: channel.integration_id,
+        };
+
+        let notification_message = notifications::NotificationMessage {
+            project_id,
+            trace_id,
+            span_id,
+            notification_type: NotificationType::Slack,
+            event_name: event_name.to_string(),
+            payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
+        };
+
+        if let Err(e) =
+            notifications::push_to_notification_queue(notification_message, queue.clone()).await
+        {
+            log::error!(
+                "Failed to push to notification queue for channel {}: {:?}",
+                channel.channel_id,
+                e
+            );
         }
+    }
 
-        if is_feature_enabled(Feature::Clustering) {
-            // Check for event clustering configuration
-            if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
-                &db.pool,
-                message.project_id,
-                &event_definition.name,
-                EventSource::Semantic,
+    if is_feature_enabled(Feature::Clustering) {
+        // Check for event clustering configuration
+        if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
+            &db.pool,
+            project_id,
+            event_name,
+            EventSource::Semantic,
+        )
+        .await
+        {
+            if let Err(e) = clustering::push_to_event_clustering_queue(
+                project_id,
+                event,
+                cluster_config.value_template,
+                queue.clone(),
             )
             .await
             {
-                if let Err(e) = clustering::push_to_event_clustering_queue(
-                    message.project_id,
-                    event,
-                    cluster_config.value_template,
-                    queue.clone(),
-                )
-                .await
-                {
-                    log::error!(
-                        "Failed to push to event clustering queue for event {}: {:?}",
-                        event_definition.name,
-                        e
-                    );
-                }
+                log::error!(
+                    "Failed to push to event clustering queue for event {}: {:?}",
+                    event_name,
+                    e
+                );
             }
         }
     }
