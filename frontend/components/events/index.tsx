@@ -7,6 +7,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import useSWR from "swr";
 
 import { type ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet";
 import ClustersTable from "@/components/events/clusters-table";
@@ -14,6 +15,7 @@ import DisableClusteringDialog from "@/components/events/disable-clustering-dial
 import { useEventsStoreContext } from "@/components/events/events-store";
 import EventsTable from "@/components/events/events-table";
 import StartClusteringDialog from "@/components/events/start-clustering-dialog";
+import TraceAnalysisJobsTable from "@/components/events/trace-analysis-jobs-table";
 import { type EventNavigationItem, getEventsConfig } from "@/components/events/utils";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
@@ -22,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { cn } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 import Header from "../ui/header";
 
@@ -72,6 +74,19 @@ function PureEvents({
     clusterConfig: state.clusterConfig,
     isSemanticEventsEnabled: state.isSemanticEventsEnabled,
   }));
+
+  // Fetch trace analysis jobs to check if there are any in progress
+  const { data: jobsData } = useSWR<{ jobs: Array<{ id: string; totalTraces: number; processedTraces: number }> }>(
+    eventDefinition.id
+      ? `/api/projects/${params.projectId}/trace-analysis-jobs?eventDefinitionId=${eventDefinition.id}`
+      : null,
+    swrFetcher,
+    {
+      refreshInterval: 5000, // Poll every 5 seconds to keep the visibility state updated
+    }
+  );
+
+  const hasJobsInProgress = (jobsData?.jobs?.length || 0) > 0;
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
@@ -169,6 +184,19 @@ function PureEvents({
                 </RetroactiveAnalysisSheet>
               )}
             </div>
+
+            {hasJobsInProgress && (
+              <div className="flex flex-col gap-2">
+                <span className="text-lg font-semibold">Analysis Jobs</span>
+                {eventDefinition.id && (
+                  <TraceAnalysisJobsTable
+                    projectId={eventDefinition.projectId}
+                    eventDefinitionId={eventDefinition.id}
+                  />
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               <span className="text-lg font-semibold">Clusters</span>
               {eventDefinition.id && (

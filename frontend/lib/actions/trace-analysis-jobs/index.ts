@@ -1,3 +1,4 @@
+import { and, desc, eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -7,9 +8,35 @@ import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { traceAnalysisJobs } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
 
-export const TriggerSemanticEventAnalysisSchema = z.object({
+export const GetTraceAnalysisJobsSchema = z.object({
+  projectId: z.string(),
+  eventDefinitionId: z.string().optional(),
+});
+
+export async function getTraceAnalysisJobs(input: z.infer<typeof GetTraceAnalysisJobsSchema>) {
+  const { projectId, eventDefinitionId } = GetTraceAnalysisJobsSchema.parse(input);
+
+  const whereConditions = [
+    eq(traceAnalysisJobs.projectId, projectId),
+    ...(eventDefinitionId ? [eq(traceAnalysisJobs.eventDefinitionId, eventDefinitionId)] : []),
+  ];
+
+  const jobs = await db
+    .select()
+    .from(traceAnalysisJobs)
+    .where(and(...whereConditions))
+    .orderBy(desc(traceAnalysisJobs.updatedAt), desc(traceAnalysisJobs.createdAt));
+
+  return {
+    jobs,
+  };
+}
+
+export const CreateTraceAnalysisJobSchema = z.object({
   projectId: z.string(),
   eventDefinitionId: z.string(),
   search: z.string().nullable().optional(),
@@ -17,8 +44,8 @@ export const TriggerSemanticEventAnalysisSchema = z.object({
   ...TimeRangeSchema.shape,
 });
 
-export async function triggerSemanticEventAnalysis(
-  input: z.infer<typeof TriggerSemanticEventAnalysisSchema>
+export async function createTraceAnalysisJob(
+  input: z.infer<typeof CreateTraceAnalysisJobSchema>
 ): Promise<{ success: boolean; message: string }> {
   const {
     projectId,
@@ -28,7 +55,7 @@ export async function triggerSemanticEventAnalysis(
     pastHours,
     startDate,
     endDate,
-  } = TriggerSemanticEventAnalysisSchema.parse(input);
+  } = CreateTraceAnalysisJobSchema.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
 
