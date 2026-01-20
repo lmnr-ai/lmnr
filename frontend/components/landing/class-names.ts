@@ -14,7 +14,7 @@ export const sectionHeaderMedium =
 
 // Subsection Titles
 export const subsectionTitle =
-  "font-space-grotesk md:leading-9 md:text-[28px] text-white md:tracking-[-0.56px] text-[24px] leading-8 tracking-[-0.48px]";
+  "font-space-grotesk md:text-3xl text-white md:tracking-[-0.56px] text-2xl tracking-[-0.48px]";
 
 export const cardTitle = "font-space-grotesk md:leading-8 md:text-2xl text-landing-text-100 text-[22px] leading-7";
 

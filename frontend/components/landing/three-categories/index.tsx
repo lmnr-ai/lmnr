@@ -95,22 +95,28 @@ const ThreeCategories = ({ className }: Props) => (
 
       {/* Error? Restart right where it left off */}
       <div className={cn("flex md:flex-row md:items-start md:gap-[40px] w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
-          <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={cn(subsectionTitle, "w-full")}>
-              Error? Restart
-              <br />
-              right where it left off
-            </h2>
-            <p className={cn(bodyMedium, "w-full")}>
-              See traces as they&apos;re running, not when they finish. Make changes, and restart execution right before
-              things went wrong.
-              <span className="hidden md:inline">
-                <br />
-                <br />
-                The AI Agent development experience you've been waiting for.
-              </span>
-            </p>
+        <div className={cn("flex flex-col gap-6 items-start md:max-w-[380px]", "w-full")}>
+          <h2 className={cn(subsectionTitle, "w-full")}>
+            Unmatched
+            <br />
+            Agent Debugger
+          </h2>
+          <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Rerun at step N with previous context preserved
+              </p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Zero-restarts. Edit, Save, See changes instantly
+              </p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Tune prompts and trigger reruns from the UI
+              </p>
+            </div>
           </div>
           <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
         </div>
@@ -121,7 +127,11 @@ const ThreeCategories = ({ className }: Props) => (
       <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
         <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px] md:pt-[40px]", "w-full pt-0")}>
           <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={subsectionTitle}>Capture what your agent sees</h2>
+            <h2 className={subsectionTitle}>
+              Capture what
+              <br />
+              your agent sees
+            </h2>
             <p className={bodyMedium}>
               Browser screen recordings automatically synced with your agent traces. Works with BrowserUse, Stagehand,
               and Playwright
@@ -129,7 +139,9 @@ const ThreeCategories = ({ className }: Props) => (
           </div>
           <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
         </div>
-        <BrowserScreenRecordingImage className={cn("relative shrink-0 md:w-[500px] inset-0", "w-full h-[300px]")} />
+        <BrowserScreenRecordingImage
+          className={cn("relative shrink-0 md:w-[720px] md:h-[450px] ", "w-full h-[200px]")}
+        />
       </div>
 
       {/* ANALYSIS Section */}

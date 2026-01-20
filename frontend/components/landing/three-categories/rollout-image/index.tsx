@@ -22,6 +22,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
+import CachedBadge from "./cached-badge";
+
 interface Props {
   className?: string;
 }
@@ -49,7 +51,7 @@ const RolloutImage = ({ className }: Props) => {
   });
 
   // Based on the trace container (motion.div) height
-  const traceY = useTransform(scrollYProgress, [0, 0.2, 1], [0, traceHeight * -0.24, traceHeight * -0.5]);
+  const traceY = useTransform(scrollYProgress, [0, 1], [traceHeight * 0.15, traceHeight * -0.7]);
 
   return (
     <div className={cn("bg-landing-surface-700 overflow-hidden relative rounded-sm", className)} ref={ref}>
@@ -131,9 +133,32 @@ const RolloutImage = ({ className }: Props) => {
                 <MessageCircle className="w-3 h-3 text-landing-text-500" />
               </div>
               <p className="text-landing-text-500 text-xs">gpt-05-nano-2025-08-07</p>
-              <div className="bg-landing-surface-500 border-[0.5px] border-landing-surface-600 flex items-center px-2 py-0.5 rounded">
-                <p className="text-landing-text-500 text-xs">Cached</p>
+              <CachedBadge />
+            </div>
+          </div>
+          <div className="flex items-start pb-2 pl-[58px] pr-2 w-full bg-landing-surface-600 border-x border-landing-surface-400">
+            <p className="text-landing-text-500 text-xs">Current state shows navigation links including Pricing.</p>
+          </div>
+
+          {/* click row */}
+          <div className="border-b border-landing-surface-400 flex h-7 items-center px-3 w-full bg-landing-surface-600 border-x">
+            <div className="flex gap-2 items-center">
+              <ChevronRight className="w-2.5 h-2.5 text-landing-text-500" />
+              <div className="bg-[rgba(196,148,52,0.3)] flex items-center p-1 rounded">
+                <Bolt className="w-3 h-3 text-landing-text-500" />
               </div>
+              <p className="text-landing-text-500 text-xs">click</p>
+            </div>
+          </div>
+          {/* LLM output */}
+          <div className="flex h-7 items-center px-3 w-full bg-landing-surface-600 border-x border-landing-surface-400">
+            <div className="flex gap-2 items-center">
+              <ChevronDown className="w-2.5 h-2.5 text-landing-text-500" />
+              <div className="bg-[rgba(116,63,227,0.3)] flex items-center p-1 rounded">
+                <MessageCircle className="w-3 h-3 text-landing-text-500" />
+              </div>
+              <p className="text-landing-text-500 text-xs">gpt-05-nano-2025-08-07</p>
+              <CachedBadge />
             </div>
           </div>
           <div className="flex items-start pb-2 pl-[58px] pr-2 w-full bg-landing-surface-600 border-x border-landing-surface-400">
@@ -159,9 +184,7 @@ const RolloutImage = ({ className }: Props) => {
                 <MessageCircle className="w-3 h-3 text-landing-text-500" />
               </div>
               <p className="text-landing-text-500 text-xs">gpt-05-nano-2025-08-07</p>
-              <div className="bg-landing-surface-500 border-[0.5px] border-landing-surface-600 flex items-center px-2 py-0.5 rounded">
-                <p className="text-landing-text-500 text-xs">Cached</p>
-              </div>
+              <CachedBadge />
             </div>
           </div>
           <div className="flex items-start pb-2 pl-[58px] pr-2 w-full bg-landing-surface-600 border-x border-landing-surface-400">
@@ -214,6 +237,11 @@ const RolloutImage = ({ className }: Props) => {
             {/* Left panel with Cache until here / Rerun */}
             <div className="absolute w-[200px] left-[-200px] top-0 h-full bg-landing-primary-400/5 border-t border-landing-primary-400/20 px-5">
               <div className="flex flex-col relative pt-2">
+                <div className="absolute top-[-56px] text-landing-text-500 text-base leading-[18px]">
+                  Context
+                  <br />
+                  preserved
+                </div>
                 <div className="flex items-center gap-1">
                   <PlayCircle className="w-4 h-4 text-landing-primary-400/70" />
                   <p className="text-landing-primary-400 text-base">Rerun</p>

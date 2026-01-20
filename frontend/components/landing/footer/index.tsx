@@ -27,18 +27,13 @@ const Footer = ({ className }: Props) => {
     <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full", className)}>
       <div
         className={cn(
-          "flex flex-col items-end justify-end pt-[120px] w-full md:pb-12 md:px-12 lg:pb-20 lg:px-20",
+          "flex flex-col items-end justify-end pt-[120px] w-full md:pb-8 md:px-8 lg:pb-20 lg:px-20",
           "px-2 pb-5"
         )}
       >
-        <div
-          className={cn(
-            "flex items-end justify-between w-full md:flex-row md:gap-0 border border-green-500",
-            "flex-col gap-[60px]"
-          )}
-        >
+        <div className={cn("flex items-end justify-between w-full md:flex-row md:gap-0", "flex-col gap-[60px]")}>
           <div className={cn("flex flex-col gap-8 md:items-start w-full", "items-center")}>
-            <div className={cn("md:text-left text-center", subsectionTitle)}>
+            <div className={cn("md:text-left text-center leading-12", subsectionTitle)}>
               Understand
               <br className="md:hidden" /> why your agent failed.
               <br />
@@ -57,17 +52,12 @@ const Footer = ({ className }: Props) => {
               </Link>
             </div>
           </div>
-          <div
-            className={cn(
-              "flex items-start md:w-auto md:gap-[40px] lg:gap-[120px] border border-red-500",
-              "w-full gap-0"
-            )}
-          >
+          <div className={cn("flex items-start md:w-auto md:gap-[40px] lg:gap-[120px]", "w-full gap-0")}>
             <div className={cn("flex flex-col items-start md:gap-[14px] lg:gap-[20px]", "flex-1 basis-0 gap-3")}>
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   Contact Us
                 </LandingButton>
@@ -75,7 +65,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   GitHub
                 </LandingButton>
@@ -83,7 +73,7 @@ const Footer = ({ className }: Props) => {
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   Join Discord
                 </LandingButton>
@@ -93,7 +83,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   Privacy Policy
                 </LandingButton>
@@ -101,7 +91,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/terms" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   Terms of Service
                 </LandingButton>
@@ -109,7 +99,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://status.laminar.sh" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm tracking-[1.12px] font-light text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm font-light text-landing-text-100 hover:text-landing-text-200"
                 >
                   Status
                 </LandingButton>
@@ -123,7 +113,7 @@ const Footer = ({ className }: Props) => {
         ref={ref}
       >
         <motion.div
-          className={cn("relative w-full overflow-hidden md:p-12 lg:p-20", "p-6")}
+          className={cn("relative w-full overflow-hidden md:p-8 lg:p-20", "p-6")}
           style={{
             y: offset,
             opacity,

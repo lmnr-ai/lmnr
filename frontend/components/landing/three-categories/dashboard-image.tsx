@@ -1,6 +1,6 @@
 "use client";
 
-import { motion,useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import { useRef } from "react";
 
@@ -27,7 +27,7 @@ const DashboardImage = ({ className }: Props) => {
     <div
       ref={ref}
       className={cn(
-        "relative overflow-hidden rounded-sm outline outline-landing-text-600 bg-landing-surface-600",
+        "relative overflow-hidden rounded-sm outline outline-landing-surface-500 bg-landing-surface-600",
         className
       )}
     >
