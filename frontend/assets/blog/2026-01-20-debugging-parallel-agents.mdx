@@ -1,0 +1,107 @@
+---
+title: "Debugging Parallel Agents"
+date: "2026-01-20"
+description: ""
+author:
+  name: Sam Komesarook
+  url: https://x.com/komesarook
+tags: ["agents", "debugging"]
+---
+
+When we think about debugging, we imagine breakpoints. Stepping through code. Watching a variable change from 5 to null and going "ah, there it is."
+
+It's linear work. Follow the execution path, find the bug, fix it, move on.
+
+But what happens when your code doesn't follow a path anymore? What happens when it branches, and the branches have minds of their own?
+
+I keep coming back to this question because I don't have a good answer. Nobody does, really.
+
+## We've actually solved this before (kind of)
+
+Here's what's weird: parallel execution visualization isn't new. [HPC researchers at Lawrence Livermore](https://hpc.llnl.gov/documentation/tutorials/totalview-part-3-debugging-parallel-programs) have been debugging massively parallel programs since the 90s. Their tool, TotalView, handles thousands of concurrent processes. Thread A waits for lock B, you can see it, you can trace it back.
+
+![TotalView-style parallel debugging](/blog/2025-01-20-process-thread.gif)
+
+[Visual Studio's Parallel Stacks window](https://learn.microsoft.com/en-us/visualstudio/debugger/get-started-debugging-multithreaded-apps?view=visualstudio&tabs=csharp) does something similar for desktop developers. It shows call stacks for all threads at once, groups identical stacks together, helps you spot deadlocks. When two threads are waiting on each other, you can literally see the cycle.
+
+![Parallel stacks view](/blog/2025-01-20-dgb.png)
+
+And Git visualization tools like SourceTree figured out the "graph to list" problem years ago. You look at the branch history and it makes sense. Commit C came from B, branch D merged into main, done.
+
+![Git history graph](/blog/2025-01-20-git.jpg)
+
+These all work because the systems are deterministic. Thread A always waits for lock B given the same inputs. Commit C always has commit B as its parent. The relationships are knowable.
+
+AI sub-agents don't work that way.
+
+## What makes sub-agents different
+
+When Claude Code spawns multiple sub-agents to explore a codebase, you see "Task(Performing task X)" in the terminal as each one runs. Looks familiar enough. But underneath, something fundamentally different is happening.
+
+![Claude Code sub-agent tasks](/blog/2025-01-20-claude.png)
+
+Run the same prompt twice and you might get completely different task breakdowns. One sub-agent exploring the backend might discover something that should matter to the frontend agent, but there's no declared dependency. Each agent has its own context window, which prevents contamination but also means you can't easily compare what one knows versus another.
+
+And when they work well together, it looks like magic. When they don't, you get nothing obvious. No crash. No error. Just a subtle misalignment that shows up three steps later when you realize the agents were talking past each other the whole time.
+
+I find this kind of failure mode genuinely unsettling. At least a segfault tells you something went wrong.
+
+## What good debugging might look like
+
+I talked to a developer who's been deep in sub-agent experimentation, and he used a phrase that stuck with me: progressive disclosure.
+
+The idea comes from UI design, but it maps perfectly here. You don't dump everything on the user at once. You let them drill down.
+
+First, show the shape. A high-level graph of agent flow, something like a flame graph. You should immediately see which agents spawned, how long they ran, where things reconverged. The agent that ran 10x longer than its siblings? Obvious. The unexpected cascade of sub-sub-agents? Can't miss it.
+
+![Agent flow flame graph](/blog/2025-01-20-flame.png)
+
+Then, show the intent. Not raw traces, but "tasks." What was each agent trying to do? This is where debugging usually starts anyway. "What was it thinking?" comes before "What did it actually do?"
+
+Then, the reasoning waypoints. Artifacts, notes, key decision points. Not every token, but the meaningful ones. You're tracing back from a failed outcome to the fork in the road.
+
+Finally, raw logs. For the 10% of cases where you need them. But you don't start there.
+
+## The event graph problem
+
+Here's where it gets hard. Today's trace views are fundamentally linear: time on one axis, depth on another. But sub-agent execution isn't linear. It's a directed graph. Sometimes it loops back when an agent learns something new.
+
+What would actually help:
+
+Hover over one agent's span and see its semantic relationships. Not just "this is the parent" but "this one used information from that one" or "this one was implicitly waiting for something."
+
+Color-coding that shows what kind of reasoning is happening. Exploration vs. execution vs. validation. Different modes, different colors.
+
+The ability to collapse parallel agents into a single "team" view when you're debugging orchestration, then expand individual agents when you need their details.
+
+Visual Studio does something like this for parallel stacks. But their version assumes the threads are deterministic. Adapting it for AI agents that can change their minds mid-execution is the unsolved part.
+
+## What teams are doing now
+
+Without purpose-built tools, people improvise.
+
+Virtual parent spans. When sub-agents spawn, create a synthetic span that groups their traces. Works for simple cases. Falls apart when agents overlap or have weird relationships.
+
+Color filters. Give each agent a color, let users filter to one at a time. Helpful, but you lose the interactions.
+
+Hover highlighting. On hover, light up all spans from the same sub-agent. Actually pretty useful for "where else did this thing touch?"
+
+Session grouping. Treat each conversation as a session, show sub-agents as nested conversations. Problem is, session boundaries get blurry fast with autonomous agents.
+
+None of these solve the core problem. They're duct tape.
+
+## Why this matters
+
+The tech is accelerating. Today you spawn 4 agents to explore a codebase. Tomorrow, and I've seen people experimenting with this already, you might have 50 agents orchestrated by meta-agents, each controlling their own teams.
+
+Observability tools built for microservices can tell you what happened. They can't help you understand why an AI system made the decisions it did.
+
+If you can't debug it, you can't trust it. If you can't trust it, you shouldn't ship it.
+
+The teams that figure out sub-agent debugging first are going to have a real advantage. Not just faster debugging, though that matters, but the ability to build more complex agent architectures with confidence.
+
+This is something the Laminar team are thinking deeply about, and we welcome feedback from researchers and power users.
+
+---
+
+*What have you tried for debugging parallel agents? Genuinely curious. The problem space is wide open and I've probably missed approaches.*
