@@ -5,7 +5,7 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -104,6 +104,56 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   return {
     items,
+  };
+}
+
+export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ count: number }> {
+  const {
+    projectId,
+    pastHours,
+    startDate: startTime,
+    endDate: endTime,
+    traceType,
+    search,
+    searchIn,
+    filter: inputFilters,
+  } = input;
+
+  const filters: Filter[] = compact(inputFilters);
+
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
+    : [];
+  const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+
+  if (search && traceIds?.length === 0) {
+    return { count: 0 };
+  }
+
+  const { query: countQuery, parameters: countParams } = buildTracesCountQueryWithParams({
+    projectId,
+    traceType,
+    traceIds,
+    filters,
+    startTime,
+    endTime,
+    pastHours,
+  });
+
+  const result = await executeQuery<{ count: number }>({
+    query: countQuery,
+    parameters: countParams,
+    projectId,
+  });
+
+  return {
+    count: result[0]?.count ?? 0,
   };
 }
 

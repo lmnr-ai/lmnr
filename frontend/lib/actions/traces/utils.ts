@@ -195,6 +195,106 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   return buildSelectQuery(queryOptions);
 };
 
+export interface BuildTracesCountQueryOptions {
+  projectId: string;
+  traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
+  traceIds: string[];
+  filters: Filter[];
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
+}
+
+export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
+  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType },
+    },
+  ];
+
+  if (traceIds.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["count() as count"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: tracesColumnFilterConfig,
+    customConditions,
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
+export interface BuildTracesIdsQueryOptions {
+  traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
+  filters: Filter[];
+  limit: number;
+  startTime?: string;
+  endTime?: string;
+  pastHours?: string;
+}
+
+export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOptions): QueryResult => {
+  const { traceType, filters, limit, startTime, endTime, pastHours } = options;
+
+  const customConditions: Array<{
+    condition: string;
+    params: QueryParams;
+  }> = [
+    {
+      condition: `trace_type = {traceType:String}`,
+      params: { traceType },
+    },
+  ];
+
+  const queryOptions: SelectQueryOptions = {
+    select: {
+      columns: ["id"],
+      table: "traces",
+    },
+    timeRange: {
+      startTime,
+      endTime,
+      pastHours,
+      timeColumn: "start_time",
+    },
+    filters,
+    columnFilterConfig: tracesColumnFilterConfig,
+    orderBy: [
+      {
+        column: "start_time",
+        direction: "DESC",
+      },
+    ],
+    customConditions,
+    pagination: {
+      limit,
+      offset: 0,
+    },
+  };
+
+  return buildSelectQuery(queryOptions);
+};
+
 export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];

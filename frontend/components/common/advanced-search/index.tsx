@@ -6,36 +6,37 @@ import { memo, useEffect, useMemo } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { type Filter, FilterSchema, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
 import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
-import { type ColumnFilter, createFilterFromTag, createTagFromFilter, type FilterTag } from "./types";
+import {
+  type AdvancedSearchMode,
+  type ColumnFilter,
+  createFilterFromTag,
+  createTagFromFilter,
+  type FilterTag,
+} from "./types";
 
-interface AdvancedSearchProps {
+interface AdvancedSearchInnerProps {
   filters: ColumnFilter[];
   resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
-  onSubmit?: (filters: Filter[], search: string) => void;
 }
 
-const AdvancedSearchContent = ({
+export const AdvancedSearchInner = ({
   resource,
   placeholder = "Search...",
   className,
   filters,
-}: {
-  resource: "traces" | "spans";
-  placeholder?: string;
-  className?: string;
-  filters: ColumnFilter[];
-}) => {
+}: AdvancedSearchInnerProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params.projectId as string;
 
+  const mode = useAdvancedSearchContext((state) => state.mode);
   const setAutocompleteData = useAdvancedSearchContext((state) => state.setAutocompleteData);
 
   const { setTags, updateLastSubmitted } = useAdvancedSearchContext((state) => ({
@@ -46,6 +47,8 @@ const AdvancedSearchContent = ({
   const tags = useAdvancedSearchContext((state) => state.tags);
 
   const urlTags = useMemo(() => {
+    if (mode === "state") return [];
+
     const filterParams = searchParams.getAll("filter");
 
     return filterParams.flatMap((f) => {
@@ -68,9 +71,11 @@ const AdvancedSearchContent = ({
         return [];
       }
     });
-  }, [searchParams, filters]);
+  }, [searchParams, filters, mode]);
 
   useEffect(() => {
+    if (mode === "state") return;
+
     const tagComparator = (tagA: FilterTag, tagB: FilterTag) =>
       tagA.field === tagB.field && tagA.operator === tagB.operator && tagA.value === tagB.value;
 
@@ -90,7 +95,7 @@ const AdvancedSearchContent = ({
       updateLastSubmitted(filterObjects, currentSearch);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlTags, setTags, updateLastSubmitted]);
+  }, [urlTags, setTags, updateLastSubmitted, mode]);
 
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {
     onSuccess: (data) => {
@@ -112,45 +117,37 @@ const AdvancedSearchContent = ({
   return <FilterSearchInput placeholder={placeholder} className={className} resource={resource} />;
 };
 
-const AdvancedSearch = ({ filters, resource, placeholder, className, onSubmit }: AdvancedSearchProps) => {
-  const searchParams = useSearchParams();
+AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
-  const { tags, search } = useMemo(() => {
-    const search = searchParams.get("search") ?? "";
-    const filterParams = searchParams.getAll("filter");
-    const tags: FilterTag[] = filterParams.flatMap((f) => {
-      try {
-        const parsed = JSON.parse(f);
-        const result = FilterSchema.safeParse(parsed);
+interface AdvancedSearchProps {
+  filters: ColumnFilter[];
+  resource: "traces" | "spans";
+  placeholder?: string;
+  className?: string;
+  mode?: AdvancedSearchMode;
+  value?: { filters: Filter[]; search: string };
+  onSubmit?: (filters: Filter[], search: string) => void;
+}
 
-        if (!result.success) {
-          return [];
-        }
-
-        const filter = result.data;
-        const columnFilter = filters.find((col) => col.key === filter.column);
-
-        if (columnFilter) {
-          return [createTagFromFilter(filter)];
-        }
-        return [];
-      } catch {
-        return [];
-      }
-    });
-
-    return {
-      tags,
-      search,
-    };
-  }, [searchParams, filters]);
-
-  return (
-    <AdvancedSearchStoreProvider filters={filters} tags={tags} search={search} onSubmit={onSubmit}>
-      <AdvancedSearchContent filters={filters} resource={resource} placeholder={placeholder} className={className} />
-    </AdvancedSearchStoreProvider>
-  );
-};
+const AdvancedSearch = ({
+  filters,
+  resource,
+  placeholder,
+  className,
+  mode = "url",
+  value,
+  onSubmit,
+}: AdvancedSearchProps) => (
+  <AdvancedSearchStoreProvider
+    filters={filters}
+    mode={mode}
+    initialFilters={value?.filters}
+    initialSearch={value?.search}
+    onSubmit={onSubmit}
+  >
+    <AdvancedSearchInner filters={filters} resource={resource} placeholder={placeholder} className={className} />
+  </AdvancedSearchStoreProvider>
+);
 
 AdvancedSearch.displayName = "AdvancedSearch";
 
