@@ -29,7 +29,7 @@ pub struct SubmitTraceAnalysisJobResponse {
     pub event_definition_id: Uuid,
 }
 
-#[post("trace-analysis/submit")]
+#[post("trace-analysis")]
 pub async fn submit_trace_analysis_job(
     project_id: web::Path<Uuid>,
     request: web::Json<SubmitTraceAnalysisJobRequest>,
