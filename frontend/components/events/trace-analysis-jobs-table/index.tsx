@@ -8,6 +8,7 @@ import {
   type TraceAnalysisJobRow,
 } from "@/components/events/trace-analysis-jobs-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -63,5 +64,9 @@ const PureTraceAnalysisJobsTable = ({ projectId, eventDefinitionId }: TraceAnaly
 };
 
 export default function TraceAnalysisJobsTable({ projectId, eventDefinitionId }: TraceAnalysisJobsTableProps) {
-  return <PureTraceAnalysisJobsTable projectId={projectId} eventDefinitionId={eventDefinitionId} />;
+  return (
+    <DataTableStateProvider>
+      <PureTraceAnalysisJobsTable projectId={projectId} eventDefinitionId={eventDefinitionId} />
+    </DataTableStateProvider>
+  );
 }

@@ -169,7 +169,7 @@ function TracesTableWithSearch({
         body: JSON.stringify({
           projectId,
           eventDefinitionId,
-          filters: filters.filters,
+          filter: filters.filters.map((f) => JSON.stringify(f)),
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,
           startDate: dateRange.startDate,
