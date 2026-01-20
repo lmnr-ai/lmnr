@@ -20,15 +20,15 @@ I keep coming back to this question because I don't have a good answer. Nobody d
 
 Here's what's weird: parallel execution visualization isn't new. [HPC researchers at Lawrence Livermore](https://hpc.llnl.gov/documentation/tutorials/totalview-part-3-debugging-parallel-programs) have been debugging massively parallel programs since the 90s. Their tool, TotalView, handles thousands of concurrent processes. Thread A waits for lock B, you can see it, you can trace it back.
 
-![TotalView-style parallel debugging](/blog/2025-01-20-process-thread.gif)
+![TotalView-style parallel debugging](/blog/2026-01-20-process-thread.gif)
 
 [Visual Studio's Parallel Stacks window](https://learn.microsoft.com/en-us/visualstudio/debugger/get-started-debugging-multithreaded-apps?view=visualstudio&tabs=csharp) does something similar for desktop developers. It shows call stacks for all threads at once, groups identical stacks together, helps you spot deadlocks. When two threads are waiting on each other, you can literally see the cycle.
 
-![Parallel stacks view](/blog/2025-01-20-dgb.png)
+![Parallel stacks view](/blog/2026-01-20-dgb.png)
 
 And Git visualization tools like SourceTree figured out the "graph to list" problem years ago. You look at the branch history and it makes sense. Commit C came from B, branch D merged into main, done.
 
-![Git history graph](/blog/2025-01-20-git.jpg)
+![Git history graph](/blog/2026-01-20-git.jpg)
 
 These all work because the systems are deterministic. Thread A always waits for lock B given the same inputs. Commit C always has commit B as its parent. The relationships are knowable.
 
@@ -38,7 +38,7 @@ AI sub-agents don't work that way.
 
 When Claude Code spawns multiple sub-agents to explore a codebase, you see "Task(Performing task X)" in the terminal as each one runs. Looks familiar enough. But underneath, something fundamentally different is happening.
 
-![Claude Code sub-agent tasks](/blog/2025-01-20-claude.png)
+![Claude Code sub-agent tasks](/blog/2026-01-20-claude.png)
 
 Run the same prompt twice and you might get completely different task breakdowns. One sub-agent exploring the backend might discover something that should matter to the frontend agent, but there's no declared dependency. Each agent has its own context window, which prevents contamination but also means you can't easily compare what one knows versus another.
 
@@ -54,7 +54,7 @@ The idea comes from UI design, but it maps perfectly here. You don't dump everyt
 
 First, show the shape. A high-level graph of agent flow, something like a flame graph. You should immediately see which agents spawned, how long they ran, where things reconverged. The agent that ran 10x longer than its siblings? Obvious. The unexpected cascade of sub-sub-agents? Can't miss it.
 
-![Agent flow flame graph](/blog/2025-01-20-flame.png)
+![Agent flow flame graph](/blog/2026-01-20-flame.png)
 
 Then, show the intent. Not raw traces, but "tasks." What was each agent trying to do? This is where debugging usually starts anyway. "What was it thinking?" comes before "What did it actually do?"
 
