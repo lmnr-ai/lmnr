@@ -29,6 +29,8 @@ pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE: &str =
 pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY: &str =
     "trace_analysis_llm_batch_pending_routing_key";
 
+const DEFAULT_BATCH_SIZE: usize = 10;
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RabbitMqLLMBatchSubmissionMessage {
     pub project_id: Uuid,
@@ -78,8 +80,6 @@ async fn push_to_pending_queue(
 
     Ok(())
 }
-
-const DEFAULT_BATCH_SIZE: usize = 1;
 
 pub async fn push_to_submissions_queue(
     tasks: Vec<Task>,

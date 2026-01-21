@@ -22,8 +22,9 @@ use crate::{
             Part,
         },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
-        utils::{extract_batch_id_from_operation, get_trace_structure_as_string},
+        utils::extract_batch_id_from_operation,
     },
     worker::{HandlerError, MessageHandler},
 };

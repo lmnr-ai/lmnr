@@ -35,12 +35,13 @@ use super::{
         },
     },
     push_to_pending_queue, push_to_submissions_queue,
-    spans::{get_full_span_info, get_trace_spans},
+    spans::get_trace_spans_with_id_mapping,
+    tools::get_full_span_info,
     utils::replace_span_tags_with_links,
 };
 
 // Delay in seconds to push the batch back to the pending queue if not yet completed
-const BATCH_POLLING_INTERVAL: u64 = 60;
+const BATCH_POLLING_INTERVAL_SEC: u64 = 60;
 
 pub struct LLMBatchPendingHandler {
     pub db: Arc<DB>,
@@ -151,10 +152,10 @@ fn process_pending_batch(message: RabbitMqLLMBatchPendingMessage, queue: Arc<Mes
     log::debug!(
         "[TRACE_ANALYSIS] Batch {} not ready, re-queuing in {}s",
         message.batch_id,
-        BATCH_POLLING_INTERVAL
+        BATCH_POLLING_INTERVAL_SEC
     );
     spawn(async move {
-        sleep(Duration::from_secs(BATCH_POLLING_INTERVAL)).await;
+        sleep(Duration::from_secs(BATCH_POLLING_INTERVAL_SEC)).await;
         if let Err(e) = push_to_pending_queue(queue, &message).await {
             log::error!(
                 "Failed to push batch back to pending queue. project_id: {}, job_id: {}, batch_id: {}, error: {:?}",
@@ -409,14 +410,19 @@ async fn process_tool_call(
                 let mut attrs = attributes.clone().unwrap_or(serde_json::Value::Null);
 
                 // Get trace spans
-                let (ch_spans, uuid_to_seq) =
-                    match get_trace_spans(&clickhouse, message.project_id, task.trace_id).await {
-                        Ok(result) => result,
-                        Err(e) => {
-                            log::error!("Failed to get trace spans: {}", e);
-                            return TaskStatus::Failed;
-                        }
-                    };
+                let (ch_spans, uuid_to_seq) = match get_trace_spans_with_id_mapping(
+                    clickhouse.clone(),
+                    message.project_id,
+                    task.trace_id,
+                )
+                .await
+                {
+                    Ok(result) => result,
+                    Err(e) => {
+                        log::error!("Failed to get trace spans: {}", e);
+                        return TaskStatus::Failed;
+                    }
+                };
 
                 if ch_spans.is_empty() {
                     log::error!("No spans found for trace {}", task.trace_id);
