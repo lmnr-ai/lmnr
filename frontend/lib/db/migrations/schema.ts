@@ -5,13 +5,13 @@ import {
   timestamp,
   text,
   index,
-  integer,
   pgPolicy,
   bigint,
   jsonb,
   doublePrecision,
   unique,
   boolean,
+  integer,
   real,
   vector,
   primaryKey,
@@ -58,37 +58,6 @@ export const datasetParquets = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "dataset_parquets_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const traceAnalysisJobs = pgTable(
-  "trace_analysis_jobs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    eventDefinitionId: uuid("event_definition_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    totalTraces: integer("total_traces").default(0).notNull(),
-    processedTraces: integer("processed_traces").default(0).notNull(),
-    failedTraces: integer("failed_traces").default(0).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("trace_analysis_jobs_event_definition_id_idx").using(
-      "btree",
-      table.eventDefinitionId.asc().nullsLast().op("uuid_ops")
-    ),
-    index("trace_analysis_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.eventDefinitionId],
-      foreignColumns: [eventDefinitions.id],
-      name: "trace_analysis_jobs_event_definition_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "trace_analysis_jobs_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -748,6 +717,37 @@ export const datasetExportJobs = pgTable(
       name: "dataset_export_jobs_project_id_fkey",
     }).onDelete("cascade"),
     unique("dataset_export_jobs_project_dataset_key").on(table.datasetId, table.projectId),
+  ]
+);
+
+export const traceAnalysisJobs = pgTable(
+  "trace_analysis_jobs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    eventDefinitionId: uuid("event_definition_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTraces: integer("total_traces").default(0).notNull(),
+    processedTraces: integer("processed_traces").default(0).notNull(),
+    failedTraces: integer("failed_traces").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("trace_analysis_jobs_event_definition_id_idx").using(
+      "btree",
+      table.eventDefinitionId.asc().nullsLast().op("uuid_ops")
+    ),
+    index("trace_analysis_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.eventDefinitionId, table.projectId],
+      foreignColumns: [semanticEventDefinitions.id, semanticEventDefinitions.projectId],
+      name: "trace_analysis_jobs_event_definition_id_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "trace_analysis_jobs_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

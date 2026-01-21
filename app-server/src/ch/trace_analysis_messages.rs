@@ -105,7 +105,7 @@ pub async fn delete_trace_analysis_messages_by_task_ids(
         .join(", ");
 
     let query = format!(
-        "ALTER TABLE trace_analysis_messages DELETE WHERE project_id = ? AND job_id = ? AND task_id IN ({})",
+        "DELETE FROM trace_analysis_messages WHERE project_id = ? AND job_id = ? AND task_id IN ({})",
         task_ids_str
     );
 

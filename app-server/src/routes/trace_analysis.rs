@@ -123,23 +123,24 @@ pub async fn submit_trace_analysis_job(
         })
         .collect();
 
-    trace_analysis::push_to_submissions_queue(
-        tasks,
-        job.id,
-        event_definition_id,
-        event_definition.name,
-        event_definition.prompt,
-        event_definition.structured_output_schema,
-        "gemini-2.5-pro".to_string(),
-        "gemini".to_string(),
+    let message = trace_analysis::RabbitMqLLMBatchSubmissionMessage {
         project_id,
-        queue.as_ref().clone(),
-    )
-    .await
-    .map_err(|e| {
-        log::error!("Failed to push trace analysis to queue: {:?}", e);
-        Error::InternalAnyhowError(anyhow::anyhow!("Failed to queue trace analysis job"))
-    })?;
+        job_id: job.id,
+        event_definition_id,
+        event_name: event_definition.name,
+        prompt: event_definition.prompt,
+        structured_output_schema: event_definition.structured_output_schema,
+        model: "gemini-2.5-pro".to_string(),
+        provider: "gemini".to_string(),
+        tasks,
+    };
+
+    trace_analysis::push_to_submissions_queue(message, queue.as_ref().clone())
+        .await
+        .map_err(|e| {
+            log::error!("Failed to push trace analysis to queue: {:?}", e);
+            Error::InternalAnyhowError(anyhow::anyhow!("Failed to queue trace analysis job"))
+        })?;
 
     let response = SubmitTraceAnalysisJobResponse {
         job_id: job.id,

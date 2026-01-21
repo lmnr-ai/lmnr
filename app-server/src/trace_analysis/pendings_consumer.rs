@@ -30,7 +30,7 @@ use crate::{
 };
 
 use super::{
-    RabbitMqLLMBatchPendingMessage, Task,
+    RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
@@ -364,19 +364,19 @@ async fn process_succeeded_batch(
 
     // Create a new message for submissions queue containing all unfinished tasks
     if !pending_tasks.is_empty() {
-        push_to_submissions_queue(
-            pending_tasks,
-            message.job_id,
-            message.event_definition_id,
-            message.event_name.clone(),
-            message.prompt.clone(),
-            message.structured_output_schema.clone(),
-            message.model.clone(),
-            message.provider.clone(),
-            message.project_id,
-            queue,
-        )
-        .await?;
+        let submission_message = RabbitMqLLMBatchSubmissionMessage {
+            project_id: message.project_id,
+            job_id: message.job_id,
+            event_definition_id: message.event_definition_id,
+            event_name: message.event_name.clone(),
+            prompt: message.prompt.clone(),
+            structured_output_schema: message.structured_output_schema.clone(),
+            model: message.model.clone(),
+            provider: message.provider.clone(),
+            tasks: pending_tasks,
+        };
+
+        push_to_submissions_queue(submission_message, queue).await?;
     }
 
     // Delete messages for finished tasks (both succeeded and failed)

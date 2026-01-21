@@ -72,15 +72,7 @@ pub struct Task {
 }
 
 pub async fn push_to_submissions_queue(
-    tasks: Vec<Task>,
-    job_id: Uuid,
-    event_definition_id: Uuid,
-    event_name: String,
-    prompt: String,
-    structured_output_schema: Value,
-    model: String,
-    provider: String,
-    project_id: Uuid,
+    message: RabbitMqLLMBatchSubmissionMessage,
     queue: Arc<MessageQueue>,
 ) -> Result<()> {
     let batch_size = env::var("TRACE_ANALYSIS_BATCH_SIZE")
@@ -88,26 +80,28 @@ pub async fn push_to_submissions_queue(
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_BATCH_SIZE);
 
-    for tasks_batch in tasks.chunks(batch_size) {
-        let message = RabbitMqLLMBatchSubmissionMessage {
-            project_id,
-            job_id,
-            event_definition_id,
-            event_name: event_name.clone(),
-            prompt: prompt.clone(),
-            structured_output_schema: structured_output_schema.clone(),
-            model: model.clone(),
-            provider: provider.clone(),
+    let all_tasks = message.tasks;
+
+    for tasks_batch in all_tasks.chunks(batch_size) {
+        let batch_message = RabbitMqLLMBatchSubmissionMessage {
+            project_id: message.project_id,
+            job_id: message.job_id,
+            event_definition_id: message.event_definition_id,
+            event_name: message.event_name.clone(),
+            prompt: message.prompt.clone(),
+            structured_output_schema: message.structured_output_schema.clone(),
+            model: message.model.clone(),
+            provider: message.provider.clone(),
             tasks: tasks_batch.to_vec(),
         };
 
-        let serialized = serde_json::to_vec(&message)?;
+        let serialized = serde_json::to_vec(&batch_message)?;
 
         if serialized.len() >= mq_max_payload() {
             log::warn!(
                 "[TRACE_ANALYSIS] MQ payload limit exceeded. Project ID: [{}], Job ID: [{}], payload size: [{}]. Batch size: [{}]",
-                project_id,
-                job_id,
+                batch_message.project_id,
+                batch_message.job_id,
                 serialized.len(),
                 tasks_batch.len()
             );

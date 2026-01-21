@@ -85,7 +85,7 @@ async fn process(
     let prompt = &msg.prompt;
     let structured_output_schema = &msg.structured_output_schema;
 
-    let mut requests: Vec<InlineRequestItem> = Vec::new();
+    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.tasks.len());
     let mut all_new_messages: Vec<CHTraceAnalysisMessage> = Vec::new();
 
     for task in msg.tasks.iter() {
@@ -111,6 +111,15 @@ async fn process(
                 );
             }
         }
+    }
+
+    // Insert new messages into ClickHouse
+    if !all_new_messages.is_empty() {
+        insert_trace_analysis_messages(clickhouse, &all_new_messages)
+            .await
+            .map_err(|e| {
+                HandlerError::Transient(anyhow::anyhow!("Failed to insert messages: {}", e))
+            })?;
     }
 
     // Submit batch to Gemini API
@@ -157,14 +166,6 @@ async fn process(
                 return Err(HandlerError::permanent(e));
             }
         }
-    }
-
-    if !all_new_messages.is_empty() {
-        insert_trace_analysis_messages(clickhouse, &all_new_messages)
-            .await
-            .map_err(|e| {
-                HandlerError::Transient(anyhow::anyhow!("Failed to insert messages: {}", e))
-            })?;
     }
 
     Ok(())
