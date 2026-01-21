@@ -1013,6 +1013,13 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::metrics::process_metrics),
                             )
+                            .service(
+                                web::scope("/v1/labeling_queues")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(
+                                        api::v1::labeling_queues::create_labeling_queues_items,
+                                    ),
+                            )
                             // Default endpoints block ingest-only keys
                             .service(
                                 web::scope("/v1/tag")

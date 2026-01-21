@@ -1,0 +1,1 @@
+ALTER TABLE "rollout_sessions" ADD CONSTRAINT "rollout_sessions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
