@@ -32,7 +32,7 @@ const ThreeCategories = ({ className }: Props) => (
       {/* Header */}
       <h2
         className={
-          "font-space-grotesk font-normal md:leading-[52px] md:text-[48px] text-white text-[28px] leading-[34px]"
+          "font-space-grotesk tracking-[-1px] font-normal md:leading-[52px] md:text-[48px] text-white text-[28px] leading-[34px]"
         }
       >
         Features for
@@ -47,12 +47,36 @@ const ThreeCategories = ({ className }: Props) => (
 
       <IntegrateInMinutes />
 
+      {/* Error? Restart right where it left off */}
+      <div className={cn("flex md:flex-row md:items-start md:gap-[40px] w-full", "flex-col gap-6")}>
+        <div className={cn("flex flex-col gap-6 items-start md:max-w-[380px]", "w-full")}>
+          <h2 className={cn(subsectionTitle, "w-full")}>
+            True Agent Debugger
+          </h2>
+          <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Rerun at step N with previous context preserved
+              </p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Zero-restarts. Edit, Save, See changes instantly
+              </p>
+            </div>
+            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                Tune prompts and trigger reruns from the UI
+              </p>
+            </div>
+          </div>
+          <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
+        </div>
+        <RolloutImage className={cn("relative shrink-0 md:w-[720px] md:h-[450px]", "w-full h-[280px]")} />
+      </div>
+
       {/* Understand traces easily */}
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
-        <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>Understand traces easily</h2>
-          <p className={bodyLarge}>Get used to insights being front and center</p>
-        </div>
         <div
           className={cn("flex md:flex-row md:gap-[30px] md:h-[481px] items-start w-full", "flex-col gap-4 h-[800px]")}
         >
@@ -67,7 +91,7 @@ const ThreeCategories = ({ className }: Props) => (
               <div className="flex flex-col gap-1 items-start w-full">
                 <p className={cn(cardTitle, "w-full")}>Full trace context at a glance</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  No more digging through span trees. Reader mode only shows you useful context from your trace.
+                  Get full context of what your agent was doing and where it went wrong without digging through hundreds of spans.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
@@ -93,48 +117,18 @@ const ThreeCategories = ({ className }: Props) => (
         </div>
       </div>
 
-      {/* Error? Restart right where it left off */}
-      <div className={cn("flex md:flex-row md:items-start md:gap-[40px] w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-6 items-start md:max-w-[380px]", "w-full")}>
-          <h2 className={cn(subsectionTitle, "w-full")}>
-            Unmatched
-            <br />
-            Agent Debugger
-          </h2>
-          <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Rerun at step N with previous context preserved
-              </p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Zero-restarts. Edit, Save, See changes instantly
-              </p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Tune prompts and trigger reruns from the UI
-              </p>
-            </div>
-          </div>
-          <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
-        </div>
-        <RolloutImage className={cn("relative shrink-0 md:w-[720px] md:h-[450px]", "w-full h-[280px]")} />
-      </div>
-
       {/* Capture what your agent sees */}
-      <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
+      <div className={cn("flex md:flex-row md:items-start md:justify-between w-full -mt-16", "flex-col gap-6")}>
         <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px] md:pt-[40px]", "w-full pt-0")}>
           <div className="flex flex-col gap-6 items-start w-full">
             <h2 className={subsectionTitle}>
-              Capture what
+              Session replay
               <br />
-              your agent sees
+              for browser agents
             </h2>
             <p className={bodyMedium}>
-              Browser screen recordings automatically synced with your agent traces. Works with BrowserUse, Stagehand,
-              and Playwright
+              Laminar captures browser screen recordings and automatically syncs them with agent traces.
+              Easily integrates with <span className="font-medium text-primary-foreground">Browser Use, Stagehand, Playwright, Kernel, Browserbase, and more.</span>
             </p>
           </div>
           <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
@@ -149,8 +143,8 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>Analyze production traces</h2>
-          <p className={bodyLarge}>Extract insights from millions of traces</p>
+          <h2 className={subsectionTitle}>Trace understanding at scale</h2>
+          <p className={bodyLarge}>Get deep insights from millions of traces without reading every single one</p>
         </div>
         <div
           className={cn("flex md:flex-row md:gap-[30px] md:h-[481px] items-start w-full", "flex-col gap-4 h-[800px]")}
@@ -260,7 +254,7 @@ const ThreeCategories = ({ className }: Props) => (
               )}
             >
               <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>An SDK you want to use</p>
+                <p className={cn(cardTitle, "w-full")}>Evals SDK you want to use</p>
                 <p className={cn(bodyMedium, "w-full")}>
                   Define your agent, dataset, and success metric. We handle the rest.
                 </p>

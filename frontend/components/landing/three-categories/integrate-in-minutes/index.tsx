@@ -86,7 +86,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
     <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8", className)}>
       <div className="flex flex-col gap-1 items-start w-full">
         <p className={subsectionTitle}>Start tracing your agent in minutes</p>
-        <p className={bodyLarge}>Two lines to integrate with the framework or SDK you use</p>
+        <p className={bodyLarge}>Two lines to integrate with the AI frameworks or SDKs you use</p>
       </div>
       {/* Logo grid */}
       <div className={cn("flex flex-wrap md:gap-3 items-center w-full", "gap-2")}>

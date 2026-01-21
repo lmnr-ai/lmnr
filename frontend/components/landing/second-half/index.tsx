@@ -49,8 +49,17 @@ const SecondHalf = ({ className }: Props) => {
         >
           {/* Try it local, free section */}
           <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={sectionHeaderLarge}>Try it local, free</h2>
+            <h2 className={sectionHeaderLarge}>Self-host anywhere</h2>
             <div className={cn("flex flex-col items-start w-full", "md:w-[380px]")}>
+              <div
+                className={cn(
+                  "border-t border-landing-surface-400 flex items-center justify-center px-0 w-full",
+                  "py-4",
+                  "md:py-[18px]"
+                )}
+              >
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Fully open-source, MIT licensed</p>
+              </div>
               <div
                 className={cn(
                   "border-t border-landing-surface-400 flex items-center justify-center px-0 w-full",
@@ -67,16 +76,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Open source</p>
-              </div>
-              <div
-                className={cn(
-                  "border-t border-landing-surface-400 flex items-center justify-center px-0 w-full",
-                  "py-4",
-                  "md:py-[18px]"
-                )}
-              >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Self-host anywhere</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Deploy anywhere with Helm charts</p>
               </div>
             </div>
             <DocsButton href="https://docs.laminar.sh/hosting-options" />
@@ -97,7 +97,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Optimized for performance in Rust</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Written in <span className="font-medium text-primary-foreground">Rust</span> for blazing fast performance</p>
               </div>
               <div
                 className={cn(
@@ -106,7 +106,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Terabytes of data with ease</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}><span className="font-medium text-primary-foreground">Terabytes</span> of data with ease</p>
               </div>
               <div
                 className={cn(
@@ -116,7 +116,7 @@ const SecondHalf = ({ className }: Props) => {
                 )}
               >
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  HIPAA compliant, SOC2 Type 2 in progress
+                  <span className="font-medium text-primary-foreground">HIPAA</span> compliant, <span className="font-medium text-primary-foreground">SOC2 Type 2</span> (in observation)
                 </p>
               </div>
             </div>

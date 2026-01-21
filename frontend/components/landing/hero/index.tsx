@@ -96,7 +96,7 @@ const Hero = ({ className, hasSession }: Props) => {
         className
       )}
     >
-      <div className="flex flex-col h-[100dvh] w-full">
+      <div className="flex flex-col h-dvh w-full">
         <Header hasSession={hasSession} isIncludePadding />
         <div className={cn("flex flex-col items-center justify-between flex-1 md:px-[48px]", "px-4")}>
           <div className={cn("flex flex-col md:gap-[60px] items-center flex-1 justify-center", "gap-8")}>
@@ -116,18 +116,18 @@ const Hero = ({ className, hasSession }: Props) => {
               </Link>
               <h1
                 className={cn(
-                  "font-space-grotesk font-normal md:text-[48px] text-center text-white md:tracking-[-0.96px] md:leading-[64px]",
-                  "text-[28px] tracking-[-0.56px] leading-[38px]"
+                  "font-space-grotesk md:text-[56px] text-center text-white md:tracking-[-1.5px] md:leading-[72px]",
+                  "text-[32px] tracking-[-0.56px] leading-[38px]"
                 )}
               >
                 Understand why your agent failed.
                 <br />
                 Iterate fast to fix it.
               </h1>
-              <p className={cn("text-landing-text-300 text-center md:text-lg md:leading-6", "text-sm leading-5")}>
-                Open source observability for comprehensive tracing, execution replay,
+              <p className={cn("text-secondary-foreground text-center md:text-xl md:leading-8 mt-8 font-base", "text-sm leading-5")}>
+                Open-source observability platform for agent debugging,
                 <br className="hidden md:block" />
-                and trace analysis for AI agents.
+                evals, and analyzing traces at scale.
               </p>
             </div>
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>

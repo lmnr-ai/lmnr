@@ -14,8 +14,9 @@ export const sans = Inter({
 export const manrope = Manrope({
   subsets: ['latin'],
   display: 'swap',
+  weight: '600',
   style: 'normal',
-  variable: '--font-title'
+  variable: '--font-manrope'
 });
 
 export const spaceGrotesk = Space_Grotesk({
