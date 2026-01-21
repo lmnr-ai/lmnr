@@ -12,14 +12,16 @@ pub fn try_parse_json(json_string: &str) -> Value {
     serde_json::from_str(json_string).unwrap_or_else(|_| Value::String(json_string.to_string()))
 }
 
-/// Convert nanoseconds since Unix epoch to ISO 8601 timestamp
-pub fn nanoseconds_to_iso(nanos: i64) -> String {
+/// Convert nanoseconds since Unix epoch to DateTime<Utc>
+pub fn nanoseconds_to_datetime(nanos: i64) -> chrono::DateTime<chrono::Utc> {
     let secs = nanos / 1_000_000_000;
     let subsec_nanos = (nanos % 1_000_000_000) as u32;
+    chrono::DateTime::from_timestamp(secs, subsec_nanos).unwrap_or_else(chrono::Utc::now)
+}
 
-    chrono::DateTime::from_timestamp(secs, subsec_nanos)
-        .map(|dt| dt.to_rfc3339())
-        .unwrap_or_else(|| "invalid_timestamp".to_string())
+/// Convert nanoseconds since Unix epoch to ISO 8601 timestamp string
+pub fn nanoseconds_to_iso(nanos: i64) -> String {
+    nanoseconds_to_datetime(nanos).to_rfc3339()
 }
 
 /// Extract batch ID from Gemini operation name (e.g., "batches/abc123xyz")

@@ -36,6 +36,10 @@ pub fn extract_response_content(inline_response: &InlineResponse) -> String {
 /// Extract function call from response if present
 pub fn extract_function_call(inline_response: &InlineResponse) -> Option<FunctionCall> {
     let candidate = get_first_candidate(inline_response)?;
+    log::debug!(
+        "Received parts: {}",
+        serde_json::to_string(&candidate.content.parts).unwrap_or_default()
+    );
     candidate
         .content
         .parts

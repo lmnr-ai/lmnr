@@ -43,7 +43,9 @@ You have access to two tools:
 
 {{fullTraceData}}
 
-Now, analyze this trace to identify the semantic event described in the next message."#;
+Now, analyze this trace to identify the semantic event described in the next message.
+
+Please make at least one tool call to get_full_span_info to get the full context of the trace."#; // TODO: remove this after testing
 
 /// Identification prompt template
 /// Replace {{developer_prompt}} with the event definition prompt

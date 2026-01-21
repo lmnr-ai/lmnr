@@ -163,10 +163,11 @@ async fn process(
         }
         Err(e) => {
             log::error!("[TRACE_ANALYSIS] Failed to submit batch to Gemini: {:?}", e);
-            return Err(HandlerError::Transient(anyhow::anyhow!(
-                "Gemini API error: {}",
-                e
-            )));
+            if e.is_retryable() {
+                return Err(HandlerError::transient(e));
+            } else {
+                return Err(HandlerError::permanent(e));
+            }
         }
     }
 
