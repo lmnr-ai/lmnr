@@ -40,7 +40,9 @@ use trace_analysis::{
     TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
     TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
     TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
-    pendings_consumer::LLMBatchPendingHandler, submissions_consumer::LLMBatchSubmissionsHandler,
+    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
+    TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY, pendings_consumer::LLMBatchPendingHandler,
+    submissions_consumer::LLMBatchSubmissionsHandler,
 };
 use traces::{
     EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
@@ -529,6 +531,61 @@ fn main() -> anyhow::Result<()> {
                         ..Default::default()
                     },
                     quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
+            channel
+                .exchange_declare(
+                    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let waiting_queue_ttl_sec = env::var("TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE_TTL")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(60);
+
+            let mut waiting_queue_args = quorum_queue_args.clone();
+            waiting_queue_args.insert(
+                "x-message-ttl".into(),
+                lapin::types::AMQPValue::LongInt(waiting_queue_ttl_sec * 1000),
+            );
+            waiting_queue_args.insert(
+                "x-dead-letter-exchange".into(),
+                lapin::types::AMQPValue::LongString(
+                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE.into(),
+                ),
+            );
+
+            channel
+                .queue_declare(
+                    TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    waiting_queue_args,
+                )
+                .await
+                .unwrap();
+
+            // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
+            channel
+                .queue_bind(
+                    TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
+                    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE,
+                    TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY,
+                    lapin::options::QueueBindOptions::default(),
+                    FieldTable::default(),
                 )
                 .await
                 .unwrap();

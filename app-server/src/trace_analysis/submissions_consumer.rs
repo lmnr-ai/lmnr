@@ -12,16 +12,15 @@ use crate::{
         insert_trace_analysis_messages,
     },
     db::DB,
-    mq::{MessageQueue, MessageQueueTrait},
+    mq::MessageQueue,
     trace_analysis::{
-        RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage,
-        TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
-        Task,
+        RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
         },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        push_to_pending_queue,
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
         utils::extract_batch_id_from_operation,
@@ -146,20 +145,9 @@ async fn process(
                 batch_id,
             };
 
-            let serialized = serde_json::to_vec(&pending_message).map_err(|e| {
-                HandlerError::Permanent(anyhow::anyhow!("Failed to serialize message: {}", e))
-            })?;
-
-            queue
-                .publish(
-                    &serialized,
-                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
-                    TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
-                )
+            push_to_pending_queue(queue, &pending_message)
                 .await
-                .map_err(|e| {
-                    HandlerError::Transient(anyhow::anyhow!("Failed to publish message: {}", e))
-                })?;
+                .map_err(|e| HandlerError::transient(e))?;
         }
         Err(e) => {
             log::error!("[TRACE_ANALYSIS] Failed to submit batch to Gemini: {:?}", e);

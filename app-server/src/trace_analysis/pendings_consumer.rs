@@ -8,9 +8,7 @@ use async_trait::async_trait;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::Duration,
 };
-use tokio::{spawn, time::sleep};
 use uuid::Uuid;
 
 use crate::{
@@ -41,15 +39,13 @@ use super::{
             extract_text,
         },
     },
-    push_to_pending_queue, push_to_submissions_queue,
+    push_to_submissions_queue, push_to_waiting_queue,
     spans::get_trace_spans_with_id_mapping,
     tools::get_full_span_info,
     utils::{nanoseconds_to_datetime, replace_span_tags_with_links},
 };
 
-// Delay in seconds to push the batch back to the pending queue if not yet completed
-const BATCH_POLLING_INTERVAL_SEC: u64 = 60;
-
+#[derive(Debug)]
 enum TaskStatus {
     CompletedNoEvent,
     CompletedWithEvent { attributes: serde_json::Value },
@@ -143,7 +139,7 @@ async fn process(
             process_failed_batch(&message, state, db).await?;
         }
         JobState::BATCH_STATE_PENDING | JobState::BATCH_STATE_RUNNING => {
-            process_pending_batch(message, queue)?;
+            process_pending_batch(&message, queue).await?;
         }
         JobState::BATCH_STATE_SUCCEEDED => {
             process_succeeded_batch(&message, result.response, db, queue, clickhouse).await?;
@@ -175,30 +171,18 @@ async fn process_failed_batch(
     )))
 }
 
-fn process_pending_batch(
-    message: RabbitMqLLMBatchPendingMessage,
+async fn process_pending_batch(
+    message: &RabbitMqLLMBatchPendingMessage,
     queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     log::debug!(
-        "[TRACE_ANALYSIS] Batch {} not ready, re-queuing in {}s",
+        "[TRACE_ANALYSIS] Batch {} not ready, pushing to waiting queue",
         message.batch_id,
-        BATCH_POLLING_INTERVAL_SEC
     );
-    // Spawns a background task to wait and re-queue the message for later processing.
-    spawn(async move {
-        sleep(Duration::from_secs(BATCH_POLLING_INTERVAL_SEC)).await;
-        if let Err(e) = push_to_pending_queue(queue, &message).await {
-            log::error!(
-                "Failed to push batch back to pending queue. project_id: {}, job_id: {}, batch_id: {}, error: {:?}",
-                message.project_id,
-                message.job_id,
-                message.batch_id,
-                e
-            );
-        }
-    });
-
-    Ok(())
+    // Push to waiting queue which has a TTL; after expiry it dead-letters to the pending queue
+    push_to_waiting_queue(queue, message)
+        .await
+        .map_err(|e| HandlerError::transient(e))
 }
 
 async fn process_succeeded_batch(
@@ -476,9 +460,8 @@ async fn make_tool_call(
                 .and_then(|args| args.get("data").cloned());
 
             log::debug!(
-                "[TRACE_ANALYSIS] submit_identification identified: {:?}, attributes: {:?}",
+                "[TRACE_ANALYSIS] submit_identification identified: {:?}",
                 identified,
-                attributes
             );
 
             if identified {

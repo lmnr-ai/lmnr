@@ -29,6 +29,13 @@ pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE: &str =
 pub const TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY: &str =
     "trace_analysis_llm_batch_pending_routing_key";
 
+// Queue for LLM pending batch requests that should be delayed before next status check
+pub const TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE: &str = "trace_analysis_llm_batch_waiting_queue";
+pub const TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE: &str =
+    "trace_analysis_llm_batch_waiting_exchange";
+pub const TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY: &str =
+    "trace_analysis_llm_batch_waiting_routing_key";
+
 const DEFAULT_BATCH_SIZE: usize = 10;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -62,23 +69,6 @@ pub struct RabbitMqLLMBatchPendingMessage {
 pub struct Task {
     pub task_id: Uuid,
     pub trace_id: Uuid,
-}
-
-async fn push_to_pending_queue(
-    queue: Arc<MessageQueue>,
-    message: &RabbitMqLLMBatchPendingMessage,
-) -> Result<()> {
-    let mq_message = serde_json::to_vec(message)?;
-
-    queue
-        .publish(
-            &mq_message,
-            TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
-            TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
-        )
-        .await?;
-
-    Ok(())
 }
 
 pub async fn push_to_submissions_queue(
@@ -133,6 +123,40 @@ pub async fn push_to_submissions_queue(
             )
             .await?;
     }
+
+    Ok(())
+}
+
+pub async fn push_to_pending_queue(
+    queue: Arc<MessageQueue>,
+    message: &RabbitMqLLMBatchPendingMessage,
+) -> Result<()> {
+    let mq_message = serde_json::to_vec(message)?;
+
+    queue
+        .publish(
+            &mq_message,
+            TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
+            TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
+        )
+        .await?;
+
+    Ok(())
+}
+
+async fn push_to_waiting_queue(
+    queue: Arc<MessageQueue>,
+    message: &RabbitMqLLMBatchPendingMessage, // Same message as for pending queue
+) -> Result<()> {
+    let mq_message = serde_json::to_vec(message)?;
+
+    queue
+        .publish(
+            &mq_message,
+            TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE,
+            TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY,
+        )
+        .await?;
 
     Ok(())
 }
