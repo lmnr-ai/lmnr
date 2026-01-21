@@ -7,7 +7,6 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import useSWR from "swr";
 
 import { type ManageEventDefinitionForm } from "@/components/event-definitions/manage-event-definition-sheet";
 import ClustersTable from "@/components/events/clusters-table";
@@ -22,9 +21,10 @@ import TraceViewNavigationProvider from "@/components/traces/trace-view/navigati
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import Header from "../ui/header";
 
@@ -55,6 +55,8 @@ function PureEvents({
   const ref = useRef<Resizable>(null);
   const { workspace } = useProjectContext();
 
+  const activeTab = searchParams.get("tab") || "events";
+
   const {
     eventDefinition,
     setEventDefinition,
@@ -75,20 +77,7 @@ function PureEvents({
     isSemanticEventsEnabled: state.isSemanticEventsEnabled,
   }));
 
-  // Fetch trace analysis jobs to check if there are any in progress
-  const { data: jobsData } = useSWR<{ jobs: Array<{ id: string; totalTraces: number; processedTraces: number }> }>(
-    eventDefinition.id
-      ? `/api/projects/${params.projectId}/trace-analysis-jobs?eventDefinitionId=${eventDefinition.id}`
-      : null,
-    swrFetcher,
-    {
-      refreshInterval: 5000, // Poll every 5 seconds to keep the visibility state updated
-    }
-  );
-
-  const hasJobsInProgress = (jobsData?.jobs?.length || 0) > 0;
-
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = React.useState(initialTraceViewWidth || 1000);
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   useEffect(() => {
@@ -96,10 +85,6 @@ function PureEvents({
       setDefaultTraceViewWidth(getDefaultTraceViewWidth());
     }
   }, [initialTraceViewWidth]);
-
-  const handleEditEvent = useCallback(() => {
-    setIsDialogOpen(true);
-  }, []);
 
   const handleSuccess = useCallback(
     async (form: ManageEventDefinitionForm) => {
@@ -111,6 +96,15 @@ function PureEvents({
       });
     },
     [eventDefinition, setEventDefinition]
+  );
+
+  const handleTabChange = useCallback(
+    (tab: string) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("tab", tab);
+      push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, push, searchParams]
   );
 
   const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
@@ -150,7 +144,7 @@ function PureEvents({
                   key={eventDefinition.id}
                   onSuccess={handleSuccess}
                 >
-                  <Button icon="edit" variant="secondary" onClick={handleEditEvent}>
+                  <Button icon="edit" variant="secondary">
                     Event Definition
                   </Button>
                 </ManageEventDefinitionSheet>
@@ -185,8 +179,52 @@ function PureEvents({
               )}
             </div>
 
-            {hasJobsInProgress && (
-              <div className="flex flex-col gap-2">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
+              <TabsList>
+                <TabsTrigger value="events">Events</TabsTrigger>
+                <TabsTrigger value="analysis-jobs" className="relative">
+                  Analysis Jobs
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="events" className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <span className="text-lg font-semibold">Clusters</span>
+                  {eventDefinition.id && (
+                    <ClustersTable
+                      projectId={eventDefinition.projectId}
+                      eventDefinitionId={eventDefinition.id}
+                      eventDefinitionName={eventDefinition.name}
+                      eventType={eventType}
+                    />
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold">Events</span>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Last event:{" "}
+                      <span
+                        title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+                        className={cn("text-xs", {
+                          "text-foreground": lastEvent,
+                        })}
+                      >
+                        {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+                      </span>
+                    </span>
+                  </div>
+                  <EventsTable
+                    projectId={eventDefinition.projectId}
+                    eventName={eventDefinition.name}
+                    eventDefinitionId={eventDefinition.id}
+                    eventType={eventType}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="analysis-jobs" className="flex flex-col gap-2">
                 <span className="text-lg font-semibold">Analysis Jobs</span>
                 {eventDefinition.id && (
                   <TraceAnalysisJobsTable
@@ -194,45 +232,35 @@ function PureEvents({
                     eventDefinitionId={eventDefinition.id}
                   />
                 )}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              <span className="text-lg font-semibold">Clusters</span>
-              {eventDefinition.id && (
-                <ClustersTable
-                  projectId={eventDefinition.projectId}
-                  eventDefinitionId={eventDefinition.id}
-                  eventDefinitionName={eventDefinition.name}
-                  eventType={eventType}
-                />
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </>
         )}
 
-        <div className="flex flex-col gap-2 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold">Events</span>
-            <span className="text-xs text-muted-foreground font-medium">
-              Last event:{" "}
-              <span
-                title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-                className={cn("text-xs", {
-                  "text-foreground": lastEvent,
-                })}
-              >
-                {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+        {!isSemanticEventsEnabled && (
+          <div className="flex flex-col gap-2 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold">Events</span>
+              <span className="text-xs text-muted-foreground font-medium">
+                Last event:{" "}
+                <span
+                  title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+                  className={cn("text-xs", {
+                    "text-foreground": lastEvent,
+                  })}
+                >
+                  {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+                </span>
               </span>
-            </span>
+            </div>
+            <EventsTable
+              projectId={eventDefinition.projectId}
+              eventName={eventDefinition.name}
+              eventDefinitionId={eventDefinition.id}
+              eventType={eventType}
+            />
           </div>
-          <EventsTable
-            projectId={eventDefinition.projectId}
-            eventName={eventDefinition.name}
-            eventDefinitionId={eventDefinition.id}
-            eventType={eventType}
-          />
-        </div>
+        )}
       </div>
       {traceId &&
         typeof window !== "undefined" &&

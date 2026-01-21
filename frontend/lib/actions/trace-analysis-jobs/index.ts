@@ -32,7 +32,7 @@ export async function getTraceAnalysisJobs(input: z.infer<typeof GetTraceAnalysi
     .orderBy(desc(traceAnalysisJobs.updatedAt), desc(traceAnalysisJobs.createdAt));
 
   return {
-    jobs,
+    items: jobs,
   };
 }
 
@@ -40,9 +40,26 @@ export const CreateTraceAnalysisJobSchema = z.object({
   projectId: z.string(),
   eventDefinitionId: z.string(),
   search: z.string().nullable().optional(),
+  traceIds: z.array(z.string()).optional(),
   ...FiltersSchema.shape,
   ...TimeRangeSchema.shape,
 });
+
+const getTraceSelection = (
+  selectedTraceIds: string[] | undefined,
+  search: string | null | undefined,
+  traceIdsFromSearch: string[]
+): { traceIds: string[] | undefined; limit: number | undefined } => {
+  if (selectedTraceIds && selectedTraceIds.length > 0) {
+    return { traceIds: selectedTraceIds, limit: selectedTraceIds.length };
+  }
+
+  if (search && traceIdsFromSearch.length > 0) {
+    return { traceIds: traceIdsFromSearch, limit: DEFAULT_SEARCH_MAX_HITS };
+  }
+
+  return { traceIds: undefined, limit: undefined };
+};
 
 export async function createTraceAnalysisJob(
   input: z.infer<typeof CreateTraceAnalysisJobSchema>
@@ -55,6 +72,7 @@ export async function createTraceAnalysisJob(
     pastHours,
     startDate,
     endDate,
+    traceIds: selectedTraceIds,
   } = CreateTraceAnalysisJobSchema.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
@@ -74,31 +92,17 @@ export async function createTraceAnalysisJob(
     throw new Error("No traces match your search criteria.");
   }
 
-  const limit = search ? DEFAULT_SEARCH_MAX_HITS : 100000; // Large limit for retroactive analysis
+  const { traceIds, limit } = getTraceSelection(selectedTraceIds, search, traceIdsFromSearch);
 
-  // Build the trace IDs query using the same logic as getTraces
   const { query: sqlQuery, parameters } = buildTracesIdsQueryWithParams({
     traceType: "DEFAULT",
     filters,
     limit,
+    traceIds,
     startTime: startDate,
     endTime: endDate,
     pastHours,
   });
-
-  let finalQuery = sqlQuery;
-  let finalParameters = { ...parameters };
-
-  if (search && traceIdsFromSearch.length > 0) {
-    // Modify the query to include the trace IDs from search
-    // The query already has WHERE conditions, so we need to add an AND condition
-    const whereClauseEnd = finalQuery.lastIndexOf("ORDER BY");
-    const beforeOrderBy = finalQuery.substring(0, whereClauseEnd);
-    const orderByClause = finalQuery.substring(whereClauseEnd);
-
-    finalQuery = `${beforeOrderBy} AND id IN ({traceIdsFromSearch:Array(UUID)}) ${orderByClause}`;
-    finalParameters = { ...finalParameters, traceIdsFromSearch };
-  }
 
   const response = await fetcherJSON<{ success: boolean; message: string }>(`/projects/${projectId}/trace-analysis`, {
     method: "POST",
@@ -106,8 +110,8 @@ export async function createTraceAnalysisJob(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      query: finalQuery,
-      parameters: finalParameters,
+      query: sqlQuery,
+      parameters,
       event_definition_id: eventDefinitionId,
     }),
   });

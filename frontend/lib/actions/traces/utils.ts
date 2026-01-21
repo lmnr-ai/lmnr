@@ -247,14 +247,15 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
 export interface BuildTracesIdsQueryOptions {
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
   filters: Filter[];
-  limit: number;
+  limit?: number;
+  traceIds?: string[];
   startTime?: string;
   endTime?: string;
   pastHours?: string;
 }
 
 export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOptions): QueryResult => {
-  const { traceType, filters, limit, startTime, endTime, pastHours } = options;
+  const { traceType, filters, limit, traceIds, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -265,6 +266,13 @@ export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOption
       params: { traceType },
     },
   ];
+
+  if (traceIds && traceIds.length > 0) {
+    customConditions.push({
+      condition: `id IN ({traceIds:Array(UUID)})`,
+      params: { traceIds },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -286,10 +294,12 @@ export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOption
       },
     ],
     customConditions,
-    pagination: {
-      limit,
-      offset: 0,
-    },
+    ...(limit !== undefined && {
+      pagination: {
+        limit,
+        offset: 0,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);

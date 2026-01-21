@@ -1,9 +1,9 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { ChevronsRight } from "lucide-react";
+import { CheckCircle2, ChevronsRight, Info, Loader2, X } from "lucide-react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import React, { type PropsWithChildren, useCallback, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { useEventsStoreContext } from "@/components/events/events-store";
@@ -11,7 +11,7 @@ import { columns, defaultTracesColumnOrder, filters as tableFilters } from "@/co
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
@@ -21,6 +21,70 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
+
+interface SelectionBannerProps {
+  selectionMode: "none" | "page" | "all";
+  selectedCount: number;
+  traceCount: number;
+  loadedTraceCount: number;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+}
+
+const SelectionBanner = ({
+  selectionMode,
+  selectedCount,
+  traceCount,
+  loadedTraceCount,
+  onSelectAll,
+  onClearSelection,
+}: SelectionBannerProps) => {
+  if (traceCount === 0) return null;
+
+  if (selectionMode === "none") {
+    return (
+      <div className="flex items-center gap-2 px-2 text-secondary-foreground">
+        <Info className="size-4 text-muted-foreground shrink-0 my-1.5" />
+        <div className="flex-1 text-sm">
+          <span className="font-medium">{traceCount.toLocaleString()}</span> traces total
+        </div>
+      </div>
+    );
+  }
+
+  if (selectionMode === "all") {
+    return (
+      <div className="flex items-center gap-2 px-2">
+        <CheckCircle2 className="size-4 text-primary shrink-0" />
+        <div className="flex-1 text-sm text-secondary-foreground">
+          All <span className="font-medium">{traceCount.toLocaleString()}</span> matching traces selected
+        </div>
+        <Button variant="ghost" size="icon" onClick={onClearSelection}>
+          <X className="size-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
+  const hasUnloadedTraces = traceCount > loadedTraceCount;
+
+  return (
+    <div className="flex items-center gap-2 px-2 text-secondary-foreground">
+      <Info className="size-4 text-muted-foreground shrink-0" />
+      <div className="flex-1 text-sm">
+        <span className="font-medium">{selectedCount.toLocaleString()}</span> traces selected.
+        {hasUnloadedTraces && (
+          <Button variant="link" size="sm" onClick={onSelectAll} className="h-auto p-0 ml-1 text-sm font-medium">
+            Select all {traceCount.toLocaleString()} matching traces
+          </Button>
+        )}
+      </div>
+      <Button variant="ghost" size="icon" onClick={onClearSelection}>
+        <X className="size-3.5" />
+      </Button>
+    </div>
+  );
+};
 
 interface RetroactiveAnalysisSheetProps {
   eventDefinitionId: string;
@@ -43,10 +107,7 @@ export default function RetroactiveAnalysisSheet({
         side="right"
         className="min-w-[80vw] w-full flex flex-col gap-0 p-0 focus:outline-none"
       >
-        <DataTableStateProvider
-          storageKey={`retroactive-analysis-${eventDefinitionId}`}
-          defaultColumnOrder={defaultTracesColumnOrder}
-        >
+        <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
           <RetroactiveAnalysisSheetContent
             eventDefinitionId={eventDefinitionId}
             eventDefinitionName={eventDefinitionName}
@@ -68,6 +129,9 @@ function TracesTableWithSearch({
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
 
+  const { rowSelection, onRowSelectionChange } = useSelection();
+
+  const [isAnalysing, setIsAnalysing] = useState(false);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
@@ -80,6 +144,7 @@ function TracesTableWithSearch({
   });
 
   const [traceCount, setTraceCount] = useState(0);
+  const [selectionMode, setSelectionMode] = useState<"none" | "page" | "all">("none");
 
   const setTraceId = useEventsStoreContext((state) => state.setTraceId);
 
@@ -162,37 +227,70 @@ function TracesTableWithSearch({
     [pathName, searchParams]
   );
 
+  useEffect(() => {
+    const selectedCount = Object.keys(rowSelection).length;
+
+    if (selectedCount === 0) {
+      setSelectionMode("none");
+    } else if (selectionMode === "all" && selectedCount > 0 && selectedCount < traces.length) {
+      setSelectionMode("page");
+    } else if (selectedCount > 0 && selectionMode === "none") {
+      // User started selecting individual traces
+      setSelectionMode("page");
+    }
+  }, [rowSelection, traces.length, selectionMode]);
+
   const handleStartAnalysis = useCallback(async () => {
     try {
+      setIsAnalysing(true);
+      const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
+      const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
+
       await fetch(`/api/projects/${projectId}/trace-analysis-jobs`, {
         method: "POST",
         body: JSON.stringify({
-          projectId,
           eventDefinitionId,
           filters: filters.filters,
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
+          traceIds: selectedTraceIds,
         }),
       });
 
       toast({
         title: "Analysis started",
-        description: `Retroactive analysis for "${eventDefinitionName}" has been queued for ${traceCount?.toLocaleString() ?? "selected"} traces.`,
+        description: `Retroactive analysis for "${eventDefinitionName}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
       });
 
       setOpen(false);
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to start analysis. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsAnalysing(false);
     }
-  }, [eventDefinitionId, eventDefinitionName, traceCount, toast, projectId, filters, dateRange, setOpen]);
+  }, [
+    eventDefinitionId,
+    eventDefinitionName,
+    traceCount,
+    toast,
+    projectId,
+    filters,
+    dateRange,
+    setOpen,
+    selectionMode,
+    rowSelection,
+  ]);
 
   const traceIdFromUrl = searchParams.get("traceId");
+
+  const selectedCount = Object.keys(rowSelection).length;
 
   return (
     <>
@@ -201,7 +299,8 @@ function TracesTableWithSearch({
           <ChevronsRight className="size-5" />
         </Button>
         <SheetTitle className="mb-0">Retroactive Analysis</SheetTitle>
-        <Button className="ml-auto" onClick={handleStartAnalysis}>
+        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
+          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           Start Analysis
         </Button>
       </SheetHeader>
@@ -211,6 +310,7 @@ function TracesTableWithSearch({
           className="w-full"
           columns={columns}
           data={traces}
+          enableRowSelection
           getRowId={(trace) => trace.id}
           onRowClick={(r) => setTraceId(r.id)}
           focusedRowId={traceIdFromUrl}
@@ -218,12 +318,17 @@ function TracesTableWithSearch({
           isFetching={isFetching}
           isLoading={isLoading}
           fetchNextPage={fetchNextPage}
+          hideSelectionPanel
+          state={{
+            rowSelection,
+          }}
+          onRowSelectionChange={onRowSelectionChange}
           getRowHref={getRowHref}
-          lockedColumns={["status"]}
+          lockedColumns={["__row_selection", "status"]}
         >
           <div className="flex flex-1 w-full h-full gap-2">
             <ColumnsMenu
-              lockedColumns={["status"]}
+              lockedColumns={["__row_selection", "status"]}
               columnLabels={columns.map((column) => ({
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
@@ -243,6 +348,17 @@ function TracesTableWithSearch({
               className="w-full flex-1"
             />
           </div>
+          <SelectionBanner
+            selectionMode={selectionMode}
+            selectedCount={selectedCount}
+            traceCount={traceCount}
+            loadedTraceCount={traces.length}
+            onSelectAll={() => setSelectionMode("all")}
+            onClearSelection={() => {
+              setSelectionMode("none");
+              onRowSelectionChange({});
+            }}
+          />
         </InfiniteDataTable>
       </div>
     </>
