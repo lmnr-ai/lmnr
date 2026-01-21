@@ -85,3 +85,36 @@ pub async fn get_trace_analysis_messages_for_task(
 
     Ok(messages)
 }
+
+#[instrument(skip(clickhouse, task_ids))]
+pub async fn delete_trace_analysis_messages_by_task_ids(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    job_id: Uuid,
+    task_ids: &[Uuid],
+) -> Result<()> {
+    if task_ids.is_empty() {
+        return Ok(());
+    }
+
+    // Build comma-separated list of quoted UUIDs
+    let task_ids_str = task_ids
+        .iter()
+        .map(|id| format!("'{}'", id))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let query = format!(
+        "ALTER TABLE trace_analysis_messages DELETE WHERE project_id = ? AND job_id = ? AND task_id IN ({})",
+        task_ids_str
+    );
+
+    clickhouse
+        .query(&query)
+        .bind(project_id)
+        .bind(job_id)
+        .execute()
+        .await?;
+
+    Ok(())
+}

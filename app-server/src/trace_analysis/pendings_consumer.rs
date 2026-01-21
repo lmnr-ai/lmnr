@@ -5,14 +5,21 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{spawn, time::sleep};
 use uuid::Uuid;
 
 use crate::{
     ch::{
         events::{CHEvent, insert_events},
-        trace_analysis_messages::{CHTraceAnalysisMessage, insert_trace_analysis_messages},
+        trace_analysis_messages::{
+            CHTraceAnalysisMessage, delete_trace_analysis_messages_by_task_ids,
+            insert_trace_analysis_messages,
+        },
     },
     db::{
         DB,
@@ -44,7 +51,8 @@ use super::{
 const BATCH_POLLING_INTERVAL_SEC: u64 = 60;
 
 enum TaskStatus {
-    Completed,
+    CompletedNoEvent,
+    CompletedWithEvent { attributes: serde_json::Value },
     RequiresNextStep { tool_result: serde_json::Value },
     Failed,
 }
@@ -217,11 +225,8 @@ async fn process_succeeded_batch(
     // Keep track of new messages to insert into ClickHouse
     let mut new_messages = Vec::new();
 
-    // Keep track of task statistics
-    let mut succeeded_tasks_cnt = 0;
-    let mut failed_tasks_cnt = 0;
-
-    // Keep track of pending tasks to submit to submissions queue
+    let mut succeeded_task_ids: Vec<Uuid> = Vec::new();
+    let mut failed_task_ids: Vec<Uuid> = Vec::new();
     let mut pending_tasks: Vec<Task> = Vec::new();
 
     // Build a map of task_id -> payload for efficient lookup
@@ -233,15 +238,19 @@ async fn process_succeeded_batch(
         let task_id = match extract_task_id_from_metadata(inline_response) {
             Some(id) => id,
             None => {
-                failed_tasks_cnt += 1;
-                log::error!("Response missing task_id in metadata, skipping");
+                // failed_task_ids is not updated here cause we don't know the task_id
+                // we compensate for this outside the loop by checking not processed tasks
+                log::warn!(
+                    "Response missing task_id in metadata, skipping response. Batch ID: {}",
+                    message.batch_id
+                );
                 continue;
             }
         };
 
         // Check if response contains an error
         if inline_response.error.is_some() {
-            failed_tasks_cnt += 1;
+            failed_task_ids.push(task_id);
             log::error!(
                 "Response contains error, marking task as failed for task_id: {}",
                 task_id
@@ -253,7 +262,7 @@ async fn process_succeeded_batch(
         let task = match task_map.get(&task_id) {
             Some(p) => *p,
             None => {
-                failed_tasks_cnt += 1;
+                failed_task_ids.push(task_id);
                 log::error!("No payload found for task_id {}, skipping", task_id);
                 continue;
             }
@@ -272,19 +281,27 @@ async fn process_succeeded_batch(
 
         // Check if response contains a function call or text
         if let Some(function_call) = extract_function_call(inline_response) {
-            let status = process_tool_call(
-                message,
-                task,
-                &function_call,
-                db.clone(),
-                queue.clone(),
-                clickhouse.clone(),
-            )
-            .await;
-
+            let status = make_tool_call(message, task, &function_call, clickhouse.clone()).await;
             match status {
-                TaskStatus::Completed => succeeded_tasks_cnt += 1,
-                TaskStatus::Failed => failed_tasks_cnt += 1,
+                TaskStatus::Failed => failed_task_ids.push(task.task_id),
+                TaskStatus::CompletedNoEvent => succeeded_task_ids.push(task.task_id),
+                TaskStatus::CompletedWithEvent { attributes } => {
+                    if let Err(e) = trigger_event(
+                        message,
+                        task,
+                        attributes,
+                        clickhouse.clone(),
+                        db.clone(),
+                        queue.clone(),
+                    )
+                    .await
+                    {
+                        log::error!("Failed to generate event: {}", e);
+                        failed_task_ids.push(task.task_id);
+                    } else {
+                        succeeded_task_ids.push(task.task_id);
+                    }
+                }
                 TaskStatus::RequiresNextStep { tool_result } => {
                     // Save tool result to ClickHouse
                     let function_response_content = Content {
@@ -322,15 +339,30 @@ async fn process_succeeded_batch(
                 task.task_id,
                 text.unwrap_or_default(),
             );
-            failed_tasks_cnt += 1;
+            failed_task_ids.push(task.task_id);
+        }
+    }
+
+    // Find tasks that didn't get any response (e.g., response missing task_id in metadata)
+    // This is important to delete messages for all finished tasks
+    let processed_task_ids: HashSet<Uuid> = succeeded_task_ids
+        .iter()
+        .chain(failed_task_ids.iter())
+        .chain(pending_tasks.iter().map(|t| &t.task_id))
+        .copied()
+        .collect();
+
+    for task in message.tasks.iter() {
+        if !processed_task_ids.contains(&task.task_id) {
+            failed_task_ids.push(task.task_id);
         }
     }
 
     log::debug!(
         "[TRACE_ANALYSIS] Batch {} results: succeeded={}, failed={}, pending={}",
         message.batch_id,
-        succeeded_tasks_cnt,
-        failed_tasks_cnt,
+        succeeded_task_ids.len(),
+        failed_task_ids.len(),
         pending_tasks.len()
     );
 
@@ -341,8 +373,8 @@ async fn process_succeeded_batch(
     update_trace_analysis_job_statistics(
         &db.pool,
         message.job_id,
-        succeeded_tasks_cnt,
-        failed_tasks_cnt,
+        succeeded_task_ids.len() as i32,
+        failed_task_ids.len() as i32,
     )
     .await?;
 
@@ -363,15 +395,28 @@ async fn process_succeeded_batch(
         .await?;
     }
 
+    // Delete messages for finished tasks (both succeeded and failed)
+    let finished_task_ids: Vec<Uuid> = succeeded_task_ids
+        .iter()
+        .chain(failed_task_ids.iter())
+        .copied()
+        .collect();
+
+    delete_trace_analysis_messages_by_task_ids(
+        clickhouse,
+        message.project_id,
+        message.job_id,
+        &finished_task_ids,
+    )
+    .await?;
+
     Ok(())
 }
 
-async fn process_tool_call(
+async fn make_tool_call(
     message: &RabbitMqLLMBatchPendingMessage,
     task: &Task,
     function_call: &FunctionCall,
-    db: Arc<DB>,
-    queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
 ) -> TaskStatus {
     log::debug!(
@@ -437,14 +482,11 @@ async fn process_tool_call(
             );
 
             if identified {
-                let attrs = attributes.clone().unwrap_or(serde_json::Value::Null);
-                if let Err(e) = generate_event(message, task, attrs, clickhouse, db, queue).await {
-                    log::error!("Failed to generate event: {}", e);
-                    return TaskStatus::Failed;
-                }
+                let attrs = attributes.unwrap_or(serde_json::Value::Null);
+                return TaskStatus::CompletedWithEvent { attributes: attrs };
             }
 
-            return TaskStatus::Completed;
+            return TaskStatus::CompletedNoEvent;
         }
         unknown => {
             log::warn!(
@@ -457,8 +499,7 @@ async fn process_tool_call(
     }
 }
 
-/// Also triggers notifications and clustering processing.
-async fn generate_event(
+async fn trigger_event(
     message: &RabbitMqLLMBatchPendingMessage,
     task: &Task,
     attributes: serde_json::Value,
