@@ -15,7 +15,7 @@ import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datata
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
@@ -266,7 +266,6 @@ function TracesTableWithSearch({
 
       setOpen(false);
     } catch (error) {
-      console.log(error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to start analysis. Please try again.",
@@ -294,15 +293,18 @@ function TracesTableWithSearch({
 
   return (
     <>
-      <SheetHeader className="flex flex-row items-center gap-2 pt-4 px-2 pb-4 border-b">
+      <SheetHeader className="flex flex-row items-start gap-2 pt-4 px-2 pb-4 border-b">
         <Button className="mb-0" size="icon" variant="ghost" onClick={() => setOpen(false)}>
           <ChevronsRight className="size-5" />
         </Button>
-        <SheetTitle className="mb-0">Retroactive Analysis</SheetTitle>
-        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
-          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          Start Analysis
-        </Button>
+        <div>
+          <SheetTitle className="mb-0">Retroactive Analysis</SheetTitle>
+          <SheetDescription className="text-sm text-muted-foreground mb-0">
+            Selected traces will be analyzed against the{" "}
+            <span className="font-medium text-foreground">"{eventDefinitionName}"</span> event definition. You can
+            select specific traces or all matching traces based on your current filters and time range.
+          </SheetDescription>
+        </div>
       </SheetHeader>
 
       <div className="flex flex-1 overflow-hidden p-4">
@@ -360,6 +362,14 @@ function TracesTableWithSearch({
             }}
           />
         </InfiniteDataTable>
+      </div>
+      <div className="flex p-4 border-t">
+        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
+          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+          {selectionMode === "none"
+            ? "Start Analysis"
+            : `Start Analysis (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
+        </Button>
       </div>
     </>
   );

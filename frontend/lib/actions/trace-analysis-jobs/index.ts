@@ -112,7 +112,7 @@ export async function createTraceAnalysisJob(
     body: JSON.stringify({
       query: sqlQuery,
       parameters,
-      event_definition_id: eventDefinitionId,
+      eventDefinitionId,
     }),
   });
 
