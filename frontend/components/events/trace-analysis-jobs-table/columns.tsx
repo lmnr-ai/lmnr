@@ -1,7 +1,9 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export interface TraceAnalysisJobRow {
@@ -15,42 +17,18 @@ export interface TraceAnalysisJobRow {
   updatedAt: string;
 }
 
-export const getTraceAnalysisJobColumns = (): ColumnDef<TraceAnalysisJobRow, any>[] => [
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  style: "percent",
+});
+
+export const traceAnalysisJobsColumns: ColumnDef<TraceAnalysisJobRow, any>[] = [
   {
     accessorFn: (row) => row.id,
     header: "Job ID",
     id: "id",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">{row.original.id.slice(0, 8)}...</span>
-    ),
+    cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.id}</span>,
     size: 120,
-  },
-  {
-    accessorFn: (row) => row.totalTraces,
-    header: "Total Traces",
-    id: "total_traces",
-    cell: ({ row }) => <span className="text-secondary-foreground">{row.original.totalTraces.toLocaleString()}</span>,
-    size: 120,
-  },
-  {
-    accessorFn: (row) => row.processedTraces,
-    header: "Processed",
-    id: "processed_traces",
-    cell: ({ row }) => (
-      <span className="text-secondary-foreground">{row.original.processedTraces.toLocaleString()}</span>
-    ),
-    size: 110,
-  },
-  {
-    accessorFn: (row) => row.failedTraces,
-    header: "Failed",
-    id: "failed_traces",
-    cell: ({ row }) => (
-      <span className={row.original.failedTraces > 0 ? "text-destructive" : "text-muted-foreground"}>
-        {row.original.failedTraces.toLocaleString()}
-      </span>
-    ),
-    size: 90,
   },
   {
     accessorFn: (row) => row.processedTraces / row.totalTraces,
@@ -58,20 +36,47 @@ export const getTraceAnalysisJobColumns = (): ColumnDef<TraceAnalysisJobRow, any
     id: "progress",
     cell: ({ row }) => {
       const total = row.original.totalTraces;
-      const processed = row.original.processedTraces;
-      const percentage = total > 0 ? (processed / total) * 100 : 0;
-      const isComplete = processed >= total;
+      const succeeded = row.original.processedTraces;
+      const failed = row.original.failedTraces;
+      const percentage = total > 0 ? (succeeded + failed) / total : 0;
 
       return (
-        <div className="flex items-center gap-2 min-w-[150px]">
-          <Progress value={percentage} className="h-2 flex-1" />
-          <span className="text-xs text-muted-foreground shrink-0 w-12 text-right">
-            {isComplete ? "Done" : `${percentage.toFixed(0)}%`}
-          </span>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2.5 cursor-default w-full">
+                <Progress value={percentage * 100} className="h-2 flex-1 w-32" />
+                <span className="text-xs font-semibold text-foreground shrink-0 text-right tabular-nums">
+                  {numberFormatter.format(percentage)}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent side="bottom" className="text-xs">
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Total:</span>
+                    <span className="font-medium tabular-nums">{total.toLocaleString()}</span>
+                  </div>
+                  <div className="h-px bg-border my-0.5" />
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Succeeded:</span>
+                    <span className="font-medium tabular-nums text-success">{succeeded.toLocaleString()}</span>
+                  </div>
+                  {failed > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Failed:</span>
+                      <span className="font-medium tabular-nums text-destructive">{failed.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
-    size: 200,
+    size: 220,
   },
   {
     accessorFn: (row) => row.createdAt,
