@@ -6,7 +6,9 @@ import Pricing from "@/components/landing/pricing";
 import { authOptions } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Pricing – Laminar",
+  title: "Pricing - Laminar",
+  description:
+    "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
 };
 
 export default async function PricingPage() {
