@@ -594,6 +594,38 @@ impl Span {
                 }
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
+
+            // New format `gen_ai.input.messages` and `gen_ai.output.messages` overrides the old format `gen_ai.prompt/completion`
+            if let Some(input) = self
+                .attributes
+                .raw_attributes
+                .remove("gen_ai.input.messages")
+            {
+                if let Value::String(s) = input {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
+                        self.input = Some(parsed);
+                    } else {
+                        self.input = Some(serde_json::Value::String(s));
+                    }
+                } else {
+                    self.input = Some(input);
+                }
+            }
+            if let Some(output) = self
+                .attributes
+                .raw_attributes
+                .remove("gen_ai.output.messages")
+            {
+                if let Value::String(s) = output {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
+                        self.output = Some(parsed);
+                    } else {
+                        self.output = Some(serde_json::Value::String(s));
+                    }
+                } else {
+                    self.output = Some(output);
+                }
+            }
         }
 
         // try parsing LiteLLM inner span for well-known providers
