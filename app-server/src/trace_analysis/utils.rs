@@ -1,8 +1,27 @@
 use anyhow::Result;
+use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{collections::HashMap, env, sync::Arc, sync::OnceLock};
 use uuid::Uuid;
+
+/// Cached internal tracing project ID (read once from env var)
+static INTERNAL_PROJECT_ID: OnceLock<Option<Uuid>> = OnceLock::new();
+
+fn get_internal_project_id() -> Option<Uuid> {
+    *INTERNAL_PROJECT_ID.get_or_init(|| {
+        env::var("TRACE_ANALYSIS_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok())
+    })
+}
+
+use crate::{
+    api::v1::traces::RabbitMqSpanMessage,
+    db::spans::{Span, SpanType},
+    mq::{MessageQueue, MessageQueueTrait},
+    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
+};
 
 /// Try to parse JSON string, return the parsed value or the original string
 pub fn try_parse_json(json_string: &str) -> Value {
@@ -80,4 +99,111 @@ pub fn replace_span_tags_with_links(
     // Parse back to Value
     let result: Value = serde_json::from_str(&replaced_str)?;
     Ok(result)
+}
+
+/// Emits an internal tracing span for observability.
+/// This is used for internal tracing of trace analysis workers.
+/// Returns Uuid::nil() if TRACE_ANALYSIS_INTERNAL_PROJECT_ID is not set.
+pub async fn emit_internal_span(
+    name: &str,
+    trace_id: Uuid,
+    job_id: Uuid,
+    task_id: Uuid,
+    event_name: &str,
+    parent_span_id: Option<Uuid>,
+    span_type: SpanType,
+    start_time: chrono::DateTime<Utc>,
+    input: Option<Value>,
+    output: Option<Value>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+    queue: Arc<MessageQueue>,
+) -> Uuid {
+    let project_id = match get_internal_project_id() {
+        Some(id) => id,
+        None => return Uuid::nil(), // Internal tracing disabled
+    };
+
+    let span_id = Uuid::new_v4();
+
+    let mut attrs = HashMap::from([
+        (
+            "trace_analysis.job_id".to_string(),
+            serde_json::json!(job_id.to_string()),
+        ),
+        (
+            "trace_analysis.task_id".to_string(),
+            serde_json::json!(task_id.to_string()),
+        ),
+        (
+            "trace_analysis.event_name".to_string(),
+            serde_json::json!(event_name),
+        ),
+    ]);
+
+    if let Some(tokens) = input_tokens {
+        attrs.insert(
+            "gen_ai.usage.input_tokens".to_string(),
+            serde_json::json!(tokens),
+        );
+    }
+    if let Some(tokens) = output_tokens {
+        attrs.insert(
+            "gen_ai.usage.output_tokens".to_string(),
+            serde_json::json!(tokens),
+        );
+    }
+
+    if let Some(parent_span_id) = parent_span_id {
+        attrs.insert(
+            "lmnr.span.ids_path".to_string(),
+            serde_json::json!([parent_span_id.to_string(), span_id.to_string()]),
+        );
+        attrs.insert(
+            "lmnr.span.path".to_string(),
+            serde_json::json!(["signal.run_task".to_string(), name.to_string()]),
+            // TODO: Pass parent span name in the message
+        );
+    } else {
+        attrs.insert(
+            "lmnr.span.ids_path".to_string(),
+            serde_json::json!([span_id.to_string()]),
+        );
+        attrs.insert(
+            "lmnr.span.path".to_string(),
+            serde_json::json!([name.to_string()]),
+        );
+    }
+
+    let span = Span {
+        span_id,
+        project_id,
+        trace_id,
+        parent_span_id,
+        name: name.to_string(),
+        attributes: SpanAttributes::new(attrs),
+        input,
+        output,
+        span_type,
+        start_time,
+        end_time: Utc::now(),
+        events: None,
+        status: Some("OK".to_string()),
+        tags: None,
+        input_url: None,
+        output_url: None,
+    };
+
+    let message = RabbitMqSpanMessage {
+        span,
+        events: vec![],
+    };
+
+    if let Ok(payload) = serde_json::to_vec(&vec![message]) {
+        let _ = queue
+            .publish(&payload, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .await;
+    }
+
+    span_id
 }

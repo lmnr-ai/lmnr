@@ -11,7 +11,7 @@ use crate::{
         CHTraceAnalysisMessage, get_trace_analysis_messages_for_task,
         insert_trace_analysis_messages,
     },
-    db::DB,
+    db::{DB, spans::SpanType},
     mq::MessageQueue,
     trace_analysis::{
         RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
@@ -23,7 +23,7 @@ use crate::{
         push_to_pending_queue,
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
-        utils::extract_batch_id_from_operation,
+        utils::{emit_internal_span, extract_batch_id_from_operation},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -94,8 +94,10 @@ async fn process(
             project_id,
             job_id,
             prompt,
+            &msg.event_name,
             structured_output_schema,
             clickhouse.clone(),
+            queue.clone(),
         )
         .await
         {
@@ -176,11 +178,17 @@ async fn process_task(
     project_id: uuid::Uuid,
     job_id: uuid::Uuid,
     prompt: &str,
+    event_name: &str,
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
 ) -> Result<(InlineRequestItem, Vec<CHTraceAnalysisMessage>), HandlerError> {
+    let processing_start_time = Utc::now();
+
     let task_id = task.task_id;
     let trace_id = task.trace_id;
+    let internal_trace_id = task.internal_trace_id;
+    let internal_span_id = task.internal_root_span_id;
 
     // 1. Query existing messages for this task
     let existing_messages =
@@ -291,16 +299,39 @@ async fn process_task(
     // 3. Create GenerateContentRequest
     let request = InlineRequestItem {
         request: GenerateContentRequest {
-            contents,
+            contents: contents.clone(),
             generation_config: Some(GenerationConfig {
                 temperature: Some(1.0),
                 ..Default::default()
             }),
-            system_instruction,
+            system_instruction: system_instruction.clone(),
             tools: Some(tools),
         },
         metadata: Some(serde_json::json!({ "task_id": task.task_id })),
     };
+
+    // Internal tracing span with resulting content
+    let mut contents_with_sys = contents.clone();
+    if let Some(mut sys) = system_instruction.clone() {
+        sys.role = Some("system".to_string());
+        contents_with_sys.insert(0, sys);
+    }
+    emit_internal_span(
+        &format!("step_{}.submit_request", task.step),
+        internal_trace_id,
+        job_id,
+        task_id,
+        event_name,
+        Some(internal_span_id),
+        SpanType::LLM,
+        processing_start_time,
+        Some(serde_json::json!(contents_with_sys)),
+        None,
+        None,
+        None,
+        queue.clone(),
+    )
+    .await;
 
     Ok((request, new_messages))
 }

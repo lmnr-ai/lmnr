@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -22,6 +23,7 @@ use crate::{
     db::{
         DB,
         events::{Event, EventSource},
+        spans::SpanType,
         trace_analysis_jobs::update_trace_analysis_job_statistics,
     },
     mq::MessageQueue,
@@ -33,19 +35,17 @@ use super::{
     RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
-        client::GeminiClient,
-        utils::{
-            extract_function_call, extract_response_content, extract_task_id_from_metadata,
-            extract_text,
-        },
+        client::GeminiClient, utils::parse_inline_response,
     },
     push_to_submissions_queue, push_to_waiting_queue,
     spans::get_trace_spans_with_id_mapping,
     tools::get_full_span_info,
-    utils::{nanoseconds_to_datetime, replace_span_tags_with_links},
+    utils::{emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links},
 };
 
-#[derive(Debug)]
+const MAX_ALLOWED_STEPS: usize = 10;
+
+#[derive(Debug, Serialize)]
 enum TaskStatus {
     CompletedNoEvent,
     CompletedWithEvent { attributes: serde_json::Value },
@@ -218,8 +218,10 @@ async fn process_succeeded_batch(
 
     // Process each response, matching by task_id from response metadata
     for inline_response in inlined_responses.iter() {
+        let response = parse_inline_response(inline_response);
+
         // Extract task_id from response metadata
-        let task_id = match extract_task_id_from_metadata(inline_response) {
+        let task_id = match response.task_id {
             Some(id) => id,
             None => {
                 // failed_task_ids is not updated here cause we don't know the task_id
@@ -233,7 +235,7 @@ async fn process_succeeded_batch(
         };
 
         // Check if response contains an error
-        if inline_response.error.is_some() {
+        if response.has_error {
             failed_task_ids.push(task_id);
             log::error!(
                 "Response contains error, marking task as failed for task_id: {}",
@@ -252,31 +254,69 @@ async fn process_succeeded_batch(
             }
         };
 
+        // Internal tracing span with LLM response
+        emit_internal_span(
+            &format!("step_{}.process_response", task.step),
+            task.internal_trace_id,
+            message.job_id,
+            task.task_id,
+            &message.event_name,
+            Some(task.internal_root_span_id),
+            SpanType::LLM,
+            chrono::Utc::now(),
+            None,
+            Some(serde_json::json!(&response.content)),
+            response.input_tokens,
+            response.output_tokens,
+            queue.clone(),
+        )
+        .await;
+
         // Insert LLM output message into ClickHouse
-        let response_content = extract_response_content(inline_response);
         let llm_output_msg = CHTraceAnalysisMessage::new(
             message.project_id,
             message.job_id,
             task.task_id,
             chrono::Utc::now(),
-            response_content,
+            response.content.clone(),
         );
         new_messages.push(llm_output_msg);
 
         // Check if response contains a function call or text
-        if let Some(function_call) = extract_function_call(inline_response) {
-            let status = make_tool_call(message, task, &function_call, clickhouse.clone()).await;
+        if let Some(function_call) = response.function_call {
+            let tool_call_start_time = chrono::Utc::now();
+            let status = handle_tool_call(message, task, &function_call, clickhouse.clone()).await;
+
+            // Fire-and-forget internal tracing span
+            emit_internal_span(
+                &function_call.name,
+                task.internal_trace_id,
+                message.job_id,
+                task.task_id,
+                &message.event_name,
+                Some(task.internal_root_span_id),
+                SpanType::Tool,
+                tool_call_start_time,
+                Some(serde_json::json!(function_call)),
+                Some(serde_json::json!(status)),
+                None,
+                None,
+                queue.clone(),
+            )
+            .await;
+
             match status {
                 TaskStatus::Failed => failed_task_ids.push(task.task_id),
                 TaskStatus::CompletedNoEvent => succeeded_task_ids.push(task.task_id),
                 TaskStatus::CompletedWithEvent { attributes } => {
-                    if let Err(e) = trigger_event(
+                    if let Err(e) = handle_create_event(
                         message,
                         task,
                         attributes,
                         clickhouse.clone(),
                         db.clone(),
                         queue.clone(),
+                        task.internal_root_span_id,
                     )
                     .await
                     {
@@ -309,19 +349,31 @@ async fn process_succeeded_batch(
                     );
                     new_messages.push(tool_output_msg);
 
+                    // If step number is greater than maximum allowed, mark task as failed
+                    if task.step > MAX_ALLOWED_STEPS {
+                        failed_task_ids.push(task.task_id);
+                        log::error!(
+                            "Task {} has step number greater than maximum allowed, marking as failed",
+                            task.task_id
+                        );
+                        continue;
+                    }
+
                     // Add to pending tasks list for next submission
                     pending_tasks.push(Task {
                         task_id: task.task_id,
                         trace_id: task.trace_id,
+                        internal_trace_id: task.internal_trace_id,
+                        internal_root_span_id: task.internal_root_span_id,
+                        step: task.step + 1,
                     });
                 }
             }
         } else {
-            let text = extract_text(inline_response);
             log::warn!(
                 "Response for task {} has no function_call, got text: {}",
                 task.task_id,
-                text.unwrap_or_default(),
+                response.text.unwrap_or_default(),
             );
             failed_task_ids.push(task.task_id);
         }
@@ -397,7 +449,7 @@ async fn process_succeeded_batch(
     Ok(())
 }
 
-async fn make_tool_call(
+async fn handle_tool_call(
     message: &RabbitMqLLMBatchPendingMessage,
     task: &Task,
     function_call: &FunctionCall,
@@ -482,14 +534,17 @@ async fn make_tool_call(
     }
 }
 
-async fn trigger_event(
+async fn handle_create_event(
     message: &RabbitMqLLMBatchPendingMessage,
     task: &Task,
     attributes: serde_json::Value,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
+    parent_span_id: Uuid,
 ) -> anyhow::Result<()> {
+    let create_event_start_time = chrono::Utc::now();
+
     // Get trace spans
     let (ch_spans, uuid_to_seq) =
         get_trace_spans_with_id_mapping(clickhouse.clone(), message.project_id, task.trace_id)
@@ -539,15 +594,33 @@ async fn trigger_event(
     // Process notifications and clustering
     process_event_notifications_and_clustering(
         db,
-        queue,
+        queue.clone(),
         message.project_id,
         task.trace_id,
         root_span.span_id,
         &message.event_name,
         attrs,
-        event,
+        event.clone(),
     )
     .await?;
+
+    // Internal tracing span
+    emit_internal_span(
+        "create_event",
+        task.internal_trace_id,
+        message.job_id,
+        task.task_id,
+        &message.event_name,
+        Some(parent_span_id),
+        SpanType::Default,
+        create_event_start_time,
+        Some(serde_json::json!(event)),
+        None,
+        None,
+        None,
+        queue,
+    )
+    .await;
 
     Ok(())
 }

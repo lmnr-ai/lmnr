@@ -36,7 +36,7 @@ pub const TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE: &str =
 pub const TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY: &str =
     "trace_analysis_llm_batch_waiting_routing_key";
 
-const DEFAULT_BATCH_SIZE: usize = 10;
+const DEFAULT_BATCH_SIZE: usize = 128;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RabbitMqLLMBatchSubmissionMessage {
@@ -69,6 +69,9 @@ pub struct RabbitMqLLMBatchPendingMessage {
 pub struct Task {
     pub task_id: Uuid,
     pub trace_id: Uuid,
+    pub step: usize,
+    pub internal_trace_id: Uuid,
+    pub internal_root_span_id: Uuid,
 }
 
 pub async fn push_to_submissions_queue(

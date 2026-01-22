@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    db::spans::SpanType,
     db::{DB, semantic_event_definitions, trace_analysis_jobs},
     mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient},
-    trace_analysis::{self, Task},
+    trace_analysis::{self, Task, utils::emit_internal_span},
 };
 
 use super::{ResponseResult, error::Error};
@@ -115,13 +116,41 @@ pub async fn submit_trace_analysis_job(
         Error::InternalAnyhowError(anyhow::anyhow!("Failed to create trace analysis job"))
     })?;
 
-    let tasks: Vec<Task> = trace_ids
-        .iter()
-        .map(|trace_id| Task {
-            task_id: Uuid::new_v4(),
+    let mut tasks = Vec::with_capacity(trace_ids.len());
+    for trace_id in &trace_ids {
+        let task_id = Uuid::new_v4();
+        let internal_trace_id = Uuid::new_v4();
+
+        // Emit root span for internal tracing of a task
+        let internal_root_span_id = emit_internal_span(
+            "signal.run_task",
+            internal_trace_id,
+            job.id,
+            task_id,
+            &event_definition.name,
+            None,
+            SpanType::Default,
+            chrono::Utc::now(),
+            Some(serde_json::json!({
+                "trace_id": trace_id,
+                "event_definition_id": event_definition_id,
+                "job_id": job.id,
+            })),
+            None,
+            None,
+            None,
+            queue.as_ref().clone(),
+        )
+        .await;
+
+        tasks.push(Task {
+            task_id,
             trace_id: trace_id.parse::<Uuid>().unwrap(),
-        })
-        .collect();
+            internal_trace_id,
+            internal_root_span_id,
+            step: 0,
+        });
+    }
 
     let message = trace_analysis::RabbitMqLLMBatchSubmissionMessage {
         project_id,
