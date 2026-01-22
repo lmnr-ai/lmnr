@@ -15,6 +15,9 @@ use crate::{
 
 use super::{ResponseResult, error::Error};
 
+const LLM_MODEL: &str = "gemini-2.5-pro";
+const LLM_PROVIDER: &str = "gemini";
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitTraceAnalysisJobRequest {
@@ -139,6 +142,8 @@ pub async fn submit_trace_analysis_job(
             None,
             None,
             None,
+            Some(LLM_MODEL.to_string()),
+            Some(LLM_PROVIDER.to_string()),
             queue.as_ref().clone(),
         )
         .await;
@@ -159,8 +164,8 @@ pub async fn submit_trace_analysis_job(
         event_name: event_definition.name,
         prompt: event_definition.prompt,
         structured_output_schema: event_definition.structured_output_schema,
-        model: "gemini-2.5-pro".to_string(),
-        provider: "gemini".to_string(),
+        model: LLM_MODEL.to_string(),
+        provider: LLM_PROVIDER.to_string(),
         tasks,
     };
 

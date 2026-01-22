@@ -268,6 +268,8 @@ async fn process_succeeded_batch(
             Some(serde_json::json!(&response.content)),
             response.input_tokens,
             response.output_tokens,
+            Some(message.model.clone()),
+            Some(message.provider.clone()),
             queue.clone(),
         )
         .await;
@@ -301,6 +303,8 @@ async fn process_succeeded_batch(
                 Some(serde_json::json!(status)),
                 None,
                 None,
+                Some(message.model.clone()),
+                Some(message.provider.clone()),
                 queue.clone(),
             )
             .await;
@@ -618,6 +622,8 @@ async fn handle_create_event(
         None,
         None,
         None,
+        Some(message.model.clone()),
+        Some(message.provider.clone()),
         queue,
     )
     .await;

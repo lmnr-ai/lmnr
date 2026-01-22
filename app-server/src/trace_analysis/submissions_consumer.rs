@@ -90,6 +90,7 @@ async fn process(
 
     for task in msg.tasks.iter() {
         match process_task(
+            &msg,
             task,
             project_id,
             job_id,
@@ -174,6 +175,7 @@ async fn process(
 }
 
 async fn process_task(
+    message: &RabbitMqLLMBatchSubmissionMessage,
     task: &Task,
     project_id: uuid::Uuid,
     job_id: uuid::Uuid,
@@ -329,6 +331,8 @@ async fn process_task(
         None,
         None,
         None,
+        Some(message.model.clone()),
+        Some(message.provider.clone()),
         queue.clone(),
     )
     .await;

@@ -117,6 +117,8 @@ pub async fn emit_internal_span(
     output: Option<Value>,
     input_tokens: Option<i32>,
     output_tokens: Option<i32>,
+    model: Option<String>,
+    provider: Option<String>,
     queue: Arc<MessageQueue>,
 ) -> Uuid {
     let project_id = match get_internal_project_id() {
@@ -152,6 +154,14 @@ pub async fn emit_internal_span(
             "gen_ai.usage.output_tokens".to_string(),
             serde_json::json!(tokens),
         );
+    }
+
+    if let Some(model) = model {
+        attrs.insert("gen_ai.request.model".to_string(), serde_json::json!(model));
+    }
+
+    if let Some(model) = provider {
+        attrs.insert("gen_ai.system".to_string(), serde_json::json!(model));
     }
 
     if let Some(parent_span_id) = parent_span_id {
