@@ -12,6 +12,7 @@ import InfiniteLogoCarousel from "./infinite-logo-carousel";
 import ScreenshotToggleButton from "./screenshot-toggle-button";
 
 const PROGRESS_DURATION_MS = 3000;
+const CLICK_DURATION_MS = 6000;
 const FADE_DURATION_MS = 300;
 
 interface Props {
@@ -35,6 +36,7 @@ const Hero = ({ className, hasSession }: Props) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayedImage, setDisplayedImage] = useState(tabConfig["Tracing"].images[0]);
+  const [progressDuration, setProgressDuration] = useState(PROGRESS_DURATION_MS);
   const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentImage = tabConfig[activeTab].images[activeImageIndex];
@@ -67,11 +69,13 @@ const Hero = ({ className, hasSession }: Props) => {
   const handleTabClick = useCallback((tab: TabType) => {
     setActiveTab(tab);
     setActiveImageIndex(0);
+    setProgressDuration(CLICK_DURATION_MS);
   }, []);
 
   const handleSegmentClick = useCallback((tab: TabType, index: number) => {
     setActiveTab(tab);
     setActiveImageIndex(index);
+    setProgressDuration(CLICK_DURATION_MS);
   }, []);
 
   const handleProgressComplete = useCallback(() => {
@@ -86,6 +90,7 @@ const Hero = ({ className, hasSession }: Props) => {
       setActiveTab(nextTab);
       setActiveImageIndex(0);
     }
+    setProgressDuration(PROGRESS_DURATION_MS);
   }, [activeTab, activeImageIndex]);
 
   return (
@@ -159,7 +164,7 @@ const Hero = ({ className, hasSession }: Props) => {
               isActive={activeTab === tab}
               imageCount={tabConfig[tab].images.length}
               activeImageIndex={activeTab === tab ? activeImageIndex : 0}
-              progressDuration={PROGRESS_DURATION_MS}
+              progressDuration={progressDuration}
               onProgressComplete={handleProgressComplete}
               onSegmentClick={(index) => handleSegmentClick(tab, index)}
               onClick={() => handleTabClick(tab)}

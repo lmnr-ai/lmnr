@@ -1,12 +1,12 @@
 // Import logos
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
-import langgraph from "@/assets/landing/logos/langgraph.svg";
+import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
 import openHands from "@/assets/landing/logos/open-hands.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 
-export type Integration = "browser-use" | "claude" | "vercel" | "langgraph" | "light-llm" | "open-hands";
+export type Integration = "browser-use" | "claude" | "vercel" | "langchain" | "light-llm" | "open-hands";
 
 export interface IntegrationData {
   name: string;
@@ -15,6 +15,7 @@ export interface IntegrationData {
   typescript?: string;
   python?: string;
   highlightedLines: number[]; // 0-indexed line numbers
+  screenshot: string;
 }
 
 export const integrations: Record<Integration, IntegrationData> = {
@@ -23,6 +24,7 @@ export const integrations: Record<Integration, IntegrationData> = {
     logoSrc: browserUse,
     alt: "Browser Use",
     highlightedLines: [4, 6],
+    screenshot: "/assets/landing/snippet-screenshots/browser-use.png",
     python: `from langchain_anthropic import ChatAnthropic
 from browser_use import Agent
 import asyncio
@@ -46,6 +48,7 @@ asyncio.run(main())`,
     logoSrc: claude,
     alt: "Claude",
     highlightedLines: [3, 7],
+    screenshot: "/assets/landing/snippet-screenshots/claude-agent-sdk.png",
     python: `import asyncio
 import os
 from dotenv import load_dotenv
@@ -68,6 +71,7 @@ asyncio.run(main())`,
     logoSrc: vercel,
     alt: "Vercel AI SDK",
     highlightedLines: [2, 9],
+    screenshot: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png",
     typescript: `import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { getTracer } from '@lmnr-ai/lmnr';
@@ -86,6 +90,7 @@ const { text } = await generateText({
     logoSrc: openHands,
     alt: "OpenHands",
     highlightedLines: [6, 7],
+    screenshot: "/assets/landing/snippet-screenshots/open-hands.png",
     python: `import os
 from openhands.sdk import LLM, Agent, Conversation, Tool
 from openhands.tools.file_editor import FileEditorTool
@@ -112,33 +117,41 @@ agent = Agent(
 conversation = Conversation(agent=agent, workspace=os.getcwd())
 conversation.send_message("Build a simple todo app")`,
   },
-  langgraph: {
+  langchain: {
     name: "LangChain",
-    logoSrc: langgraph,
+    logoSrc: langchain,
     alt: "LangChain",
-    highlightedLines: [1, 6],
-    python: `from dotenv import load_dotenv
-from lmnr import Laminar
+    highlightedLines: [0, 12],
+    screenshot: "/assets/landing/snippet-screenshots/lang-chain.png",
+    python: `from lmnr import Laminar
+from dotenv import load_dotenv
+import os
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage
+from langgraph.graph import StateGraph, END
+from typing import TypedDict, Annotated, Sequence
+import operator
 
 load_dotenv()
 Laminar.initialize()
 
-model = ChatOpenAI(model="gpt-4o-mini")
+model = ChatOpenAI()
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant."),
     ("human", "{question}")
 ])
-chain = prompt | model
-response = chain.invoke({"question": "What is the capital of France?"})
-print(response.content)`,
+output_parser = StrOutputParser()
+
+chain = prompt | model | output_parser`,
   },
   "light-llm": {
     name: "LiteLLM",
     logoSrc: lightLlm,
     alt: "LiteLLM",
     highlightedLines: [2, 5, 6],
+    screenshot: "/assets/landing/snippet-screenshots/lite-llm.png",
     python: `from dotenv import load_dotenv
 import litellm
 from lmnr import Laminar, LaminarLiteLLMCallback

@@ -8,7 +8,7 @@ import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import gemini from "@/assets/landing/logos/gemini.svg";
 import groq from "@/assets/landing/logos/groq.svg";
-import langgraph from "@/assets/landing/logos/langgraph.svg";
+import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
 import mistral from "@/assets/landing/logos/mistral.svg";
 import openAi from "@/assets/landing/logos/open-ai.svg";
@@ -28,23 +28,34 @@ interface Props {
   className?: string;
 }
 
-const logos: { src: string; alt: string; name: string; integration?: Integration }[] = [
+const logos: { src: string; alt: string; name: string; integration?: Integration; docsUrl?: string }[] = [
   { src: browserUse, alt: "Browser Use", name: "browser-use", integration: "browser-use" },
   { src: claude, alt: "Claude", name: "claude", integration: "claude" },
   { src: vercel, alt: "Vercel", name: "vercel", integration: "vercel" },
-  { src: langgraph, alt: "LangGraph", name: "langgraph", integration: "langgraph" },
-  { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
-  { src: gemini, alt: "Gemini", name: "gemini" },
-  { src: openAi, alt: "OpenAI", name: "open-ai" },
-  { src: groq, alt: "Groq", name: "groq" },
-  { src: mistral, alt: "Mistral", name: "mistral" },
-  { src: bedrock, alt: "Bedrock", name: "bedrock" },
-  { src: playwright, alt: "Playwright", name: "playwright" },
-  { src: openTelemetry, alt: "Open Telemetry", name: "open-telemetry" },
+  { src: langchain, alt: "LangChain", name: "langchain", integration: "langchain" },
+  { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
+  { src: gemini, alt: "Gemini", name: "gemini", docsUrl: "https://docs.laminar.sh/tracing/integrations/gemini" },
+  { src: openAi, alt: "OpenAI", name: "open-ai", docsUrl: "https://docs.laminar.sh/tracing/integrations/openai" },
+  { src: groq, alt: "Groq", name: "groq", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
+  { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
+  { src: bedrock, alt: "Bedrock", name: "bedrock", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
+  {
+    src: playwright,
+    alt: "Playwright",
+    name: "playwright",
+    docsUrl: "https://docs.laminar.sh/tracing/integrations/playwright",
+  },
+  {
+    src: openTelemetry,
+    alt: "Open Telemetry",
+    name: "open-telemetry",
+    docsUrl: "https://docs.laminar.sh/tracing/otel",
+  },
 ];
 
 const ROTATE_INTERVAL = 5000;
+const CLICK_INTERVAL = 10000;
 
 const integrations = logos.filter((logo) => logo.integration).map((logo) => logo.integration!);
 
@@ -52,14 +63,14 @@ const IntegrateInMinutes = ({ className }: Props) => {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration>("browser-use");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startInterval = useCallback(() => {
+  const startInterval = useCallback((interval: number = ROTATE_INTERVAL) => {
     intervalRef.current = setInterval(() => {
       setSelectedIntegration((current) => {
         const currentIndex = integrations.indexOf(current);
         const nextIndex = (currentIndex + 1) % integrations.length;
         return integrations[nextIndex];
       });
-    }, ROTATE_INTERVAL);
+    }, interval);
   }, []);
 
   const handleSelectIntegration = useCallback(
@@ -68,7 +79,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      startInterval();
+      startInterval(CLICK_INTERVAL);
     },
     [startInterval]
   );
@@ -106,14 +117,14 @@ const IntegrateInMinutes = ({ className }: Props) => {
         <div className={cn("md:px-[12px]", "px-[8px]")}>
           <div className={cn("md:h-[40px] w-0 border-l border-landing-text-600", "h-[32px]")} />
         </div>
-        {/* Non-clickable logo buttons */}
+        {/* Logo buttons that link to docs */}
         {logos
           .filter((logo) => !logo.integration)
           .map((logo) => (
-            <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} />
+            <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} href={logo.docsUrl} />
           ))}
       </div>
-      <IntegrationCodeSnippet selectedIntegration={selectedIntegration} />
+      <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />
       <DocsButton href="https://docs.laminar.sh/tracing/integrations/overview" />
     </div>
   );

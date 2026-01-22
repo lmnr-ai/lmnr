@@ -11,20 +11,12 @@ import { cn } from "@/lib/utils";
 import { baseExtensions, createLineHighlightPlugin, darkTheme } from "./codemirror-config";
 import { type Integration, integrations } from "./snippets";
 
-const screenshots: { integration: Integration; src: string }[] = [
-  { integration: "vercel", src: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png" },
-  { integration: "light-llm", src: "/assets/landing/snippet-screenshots/lite-llm.png" },
-  { integration: "browser-use", src: "/assets/landing/snippet-screenshots/browser-use.png" },
-  { integration: "claude", src: "/assets/landing/snippet-screenshots/claude-agent-sdk.png" },
-  { integration: "langgraph", src: "/assets/landing/snippet-screenshots/lang-chain.png" },
-  { integration: "open-hands", src: "/assets/landing/snippet-screenshots/open-hands.png" },
-];
-
 interface Props {
   selectedIntegration: Integration;
+  integrationOrder: Integration[];
 }
 
-const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
+const IntegrationCodeSnippet = ({ selectedIntegration, integrationOrder }: Props) => {
   const currentIntegration = integrations[selectedIntegration];
 
   // Use typescript if available, otherwise python
@@ -36,6 +28,8 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
     () => [languageExtension, ...baseExtensions, createLineHighlightPlugin(currentIntegration.highlightedLines)],
     [languageExtension, currentIntegration.highlightedLines]
   );
+
+  const selectedIndex = integrationOrder.indexOf(selectedIntegration);
 
   return (
     <div className={cn("flex gap-4 items-stretch w-full md:h-[400px] md:flex-row", "flex-col h-[750px]")}>
@@ -62,24 +56,22 @@ const IntegrationCodeSnippet = ({ selectedIntegration }: Props) => {
       <div className="bg-landing-surface-700 flex-1 rounded-[8px] h-full overflow-hidden relative border border-landing-surface-500">
         <div
           className="flex transition-transform duration-500 ease-in-out h-full"
-          // NOTE: THIS 16.67...
           style={{
-            transform: `translateX(-${screenshots.findIndex((s) => s.integration === selectedIntegration) * (100 / screenshots.length)}%)`,
+            transform: `translateX(-${selectedIndex * (100 / integrationOrder.length)}%)`,
           }}
         >
-          {screenshots.map(({ integration, src }) => (
+          {integrationOrder.map((integration) => (
             <div
               key={integration}
-              // NOTE: AND THIS 83.33 need to add to 100
               className={cn(
                 "min-w-full h-full relative transition-opacity duration-500",
                 integration === selectedIntegration ? "opacity-100" : "opacity-0"
               )}
-              style={{ marginRight: `-${100 - 100 / screenshots.length}%` }}
+              style={{ marginRight: `-${100 - 100 / integrationOrder.length}%` }}
             >
               <div className="absolute top-[30px] left-[40px] w-[110%] h-[110%]">
                 <Image
-                  src={src}
+                  src={integrations[integration].screenshot}
                   alt={`${integration} screenshot`}
                   fill
                   priority
