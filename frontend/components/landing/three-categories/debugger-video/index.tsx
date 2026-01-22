@@ -65,6 +65,7 @@ const DebuggerVideo = () => {
       <div className="w-full border border-landing-surface-400 rounded-lg overflow-hidden">
         <MuxPlayer
           ref={playerRef}
+          className="block"
           playbackId="iS7iVMNzIQkDGRKymCqqxn3XC3WPdsXlQ74qDCkSG4E"
           metadata={{
             video_title: "Debugger",
