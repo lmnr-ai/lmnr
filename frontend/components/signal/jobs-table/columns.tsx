@@ -37,20 +37,20 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
       return (
         <div className="flex items-center gap-2 font-medium tabular-nums">
           <span className="text-success">{succeeded.toLocaleString()}</span>
+          {failed > 0 && (
+            <>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-destructive">{failed.toLocaleString()}</span>
+            </>
+          )}
           <span className="text-muted-foreground">/</span>
           <span className="text-foreground">{total.toLocaleString()}</span>
           <span className="text-muted-foreground">·</span>
           <span className="text-muted-foreground">{percentage}%</span>
-          {failed > 0 && (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-destructive">{failed.toLocaleString()} failed</span>
-            </>
-          )}
         </div>
       );
     },
-    size: 240,
+    size: 220,
   },
   {
     accessorFn: (row) => row.createdAt,

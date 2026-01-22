@@ -191,20 +191,17 @@ function PureEventsTable() {
 
   return (
     <div className="flex flex-col gap-2 flex-1">
-      <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold">Events</span>
-        <span className="text-xs text-muted-foreground font-medium">
-          Last event:{" "}
-          <span
-            title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-            className={cn("text-xs", {
-              "text-foreground": lastEvent,
-            })}
-          >
-            {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-          </span>
+      <span className="text-xs text-muted-foreground font-medium">
+        Last event:{" "}
+        <span
+          title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+          className={cn("text-xs", {
+            "text-foreground": lastEvent,
+          })}
+        >
+          {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
         </span>
-      </div>
+      </span>
 
       <InfiniteDataTable<EventRow>
         className="w-full"

@@ -38,15 +38,12 @@ const JobsTableContent = () => {
 
   return (
     <>
-      <div className="flex items-center gap-4">
-        <span className="text-lg font-semibold">Jobs</span>
-        <Link href={`/project/${params.projectId}/signals/${signal.id}/job`} passHref>
-          <Button variant="secondary">
-            <History className="mr-1 size-3.5" />
-            Create Job
-          </Button>
-        </Link>
-      </div>
+      <Link className="w-fit" href={`/project/${params.projectId}/signals/${signal.id}/job`} passHref>
+        <Button>
+          <History className="mr-1 size-3.5" />
+          Create Job
+        </Button>
+      </Link>
       <InfiniteDataTable<SignalJobRow>
         className="w-full"
         columns={signalJobsColumns}
