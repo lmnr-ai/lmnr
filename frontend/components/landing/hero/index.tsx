@@ -124,7 +124,12 @@ const Hero = ({ className, hasSession }: Props) => {
                 <br />
                 Iterate fast to fix it.
               </h1>
-              <p className={cn("text-secondary-foreground text-center md:text-xl md:leading-8 mt-8 font-base", "text-sm leading-5")}>
+              <p
+                className={cn(
+                  "text-secondary-foreground text-center md:text-xl md:leading-8 mt-8 font-base",
+                  "text-sm leading-5"
+                )}
+              >
                 Open-source observability platform for agent debugging,
                 <br className="hidden md:block" />
                 evals, and analyzing traces at scale.
@@ -132,12 +137,12 @@ const Hero = ({ className, hasSession }: Props) => {
             </div>
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>
               <Link href="/sign-up" className="md:w-auto w-full">
-                <LandingButton variant="primary" className={cn("md:w-[206px]", "flex-1 basis-0")}>
+                <LandingButton variant="primary" size="lg" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                   Get Started
                 </LandingButton>
               </Link>
               <Link href="https://docs.lmnr.ai" target="_blank" className="md:w-auto w-full">
-                <LandingButton variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
+                <LandingButton size="lg" variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                   Read the Docs
                 </LandingButton>
               </Link>

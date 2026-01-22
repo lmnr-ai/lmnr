@@ -52,12 +52,12 @@ const Footer = ({ className }: Props) => {
               </Link>
             </div>
           </div>
-          <div className={cn("flex items-start md:w-auto md:gap-[40px] lg:gap-[120px]", "w-full gap-0")}>
-            <div className={cn("flex flex-col items-start md:gap-[14px] lg:gap-[20px]", "flex-1 basis-0 gap-3")}>
+          <div className={cn("flex items-start md:w-auto md:gap-[40px] lg:gap-[120px] translate-y-2", "w-full gap-0")}>
+            <div className={cn("flex flex-col items-start md:gap-2 lg:gap-3", "flex-1 basis-0 gap-3")}>
               <Link href="/contact">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   Contact Us
                 </LandingButton>
@@ -65,7 +65,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://github.com/lmnr-ai/lmnr" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   GitHub
                 </LandingButton>
@@ -73,17 +73,17 @@ const Footer = ({ className }: Props) => {
               <Link target="_blank" href="https://discord.gg/nNFUUDAKub">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   Join Discord
                 </LandingButton>
               </Link>
             </div>
-            <div className={cn("flex flex-col items-start md:gap-[14px] lg:gap-[20px]", "flex-1 basis-0 gap-3")}>
+            <div className={cn("flex flex-col items-start md:gap-2 lg:gap-3", "flex-1 basis-0 gap-3")}>
               <Link href="/policies/privacy" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   Privacy Policy
                 </LandingButton>
@@ -91,7 +91,7 @@ const Footer = ({ className }: Props) => {
               <Link href="/policies/terms" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   Terms of Service
                 </LandingButton>
@@ -99,7 +99,7 @@ const Footer = ({ className }: Props) => {
               <Link href="https://status.laminar.sh" target="_blank">
                 <LandingButton
                   variant="minimal"
-                  className="text-xs md:text-sm  text-landing-text-100 hover:text-landing-text-200"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
                 >
                   Status
                 </LandingButton>

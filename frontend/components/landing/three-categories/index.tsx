@@ -7,13 +7,13 @@ import AskAIImage from "./ask-ai-image";
 import BrowserScreenRecordingImage from "./browser-screen-recording-image";
 import ClusteringImage from "./clustering-image";
 import DashboardImage from "./dashboard-image";
+import DebuggerVideo from "./debugger-video";
 import EvalsImage from "./evals-image";
 import EvalsSDKImage from "./evals-sdk-image";
 import EventDefinitionImage from "./event-definition-image";
 import FullContextImage from "./full-context-image";
 import GranularEvalsImage from "./granular-evals-image";
 import IntegrateInMinutes from "./integrate-in-minutes";
-import RolloutImage from "./rollout-image";
 import SQLImage from "./sql-image";
 
 interface Props {
@@ -47,32 +47,15 @@ const ThreeCategories = ({ className }: Props) => (
 
       <IntegrateInMinutes />
 
-      {/* Error? Restart right where it left off */}
-      <div className={cn("flex md:flex-row md:items-start md:gap-[40px] w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-6 items-start md:max-w-[380px]", "w-full")}>
-          <h2 className={cn(subsectionTitle, "w-full")}>
-            True Agent Debugger
-          </h2>
-          <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Rerun at step N with previous context preserved
-              </p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Zero-restarts. Edit, Save, See changes instantly
-              </p>
-            </div>
-            <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-              <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                Tune prompts and trigger reruns from the UI
-              </p>
-            </div>
-          </div>
-          <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
+      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
+        <div className="flex flex-col gap-1 items-start w-full">
+          <h2 className={subsectionTitle}>True Agent Debugger</h2>
+          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
         </div>
-        <RolloutImage className={cn("relative shrink-0 md:w-[720px] md:h-[450px]", "w-full h-[280px]")} />
+        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
+          <DebuggerVideo />
+        </div>
+        <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
       </div>
 
       {/* Understand traces easily */}
@@ -91,7 +74,8 @@ const ThreeCategories = ({ className }: Props) => (
               <div className="flex flex-col gap-1 items-start w-full">
                 <p className={cn(cardTitle, "w-full")}>Full trace context at a glance</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Get full context of what your agent was doing and where it went wrong without digging through hundreds of spans.
+                  Get full context of what your agent was doing and where it went wrong without digging through hundreds
+                  of spans.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
@@ -127,8 +111,11 @@ const ThreeCategories = ({ className }: Props) => (
               for browser agents
             </h2>
             <p className={bodyMedium}>
-              Laminar captures browser screen recordings and automatically syncs them with agent traces.
-              Easily integrates with <span className="font-medium text-primary-foreground">Browser Use, Stagehand, Playwright, Kernel, Browserbase, and more.</span>
+              Laminar captures browser screen recordings and automatically syncs them with agent traces. Easily
+              integrates with{" "}
+              <span className="font-medium text-primary-foreground">
+                Browser Use, Stagehand, Playwright, Kernel, Browserbase, and more.
+              </span>
             </p>
           </div>
           <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
