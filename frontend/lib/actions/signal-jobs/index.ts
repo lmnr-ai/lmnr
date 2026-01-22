@@ -12,17 +12,17 @@ import { db } from "@/lib/db/drizzle";
 import { traceAnalysisJobs } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
 
-export const GetTraceAnalysisJobsSchema = z.object({
+export const GetSignalJobsSchema = z.object({
   projectId: z.string(),
-  eventDefinitionId: z.string().optional(),
+  signalId: z.string().optional(),
 });
 
-export async function getTraceAnalysisJobs(input: z.infer<typeof GetTraceAnalysisJobsSchema>) {
-  const { projectId, eventDefinitionId } = GetTraceAnalysisJobsSchema.parse(input);
+export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) {
+  const { projectId, signalId } = GetSignalJobsSchema.parse(input);
 
   const whereConditions = [
     eq(traceAnalysisJobs.projectId, projectId),
-    ...(eventDefinitionId ? [eq(traceAnalysisJobs.eventDefinitionId, eventDefinitionId)] : []),
+    ...(signalId ? [eq(traceAnalysisJobs.eventDefinitionId, signalId)] : []),
   ];
 
   const jobs = await db
@@ -36,9 +36,9 @@ export async function getTraceAnalysisJobs(input: z.infer<typeof GetTraceAnalysi
   };
 }
 
-export const CreateTraceAnalysisJobSchema = z.object({
+export const CreateSignalJobs = z.object({
   projectId: z.string(),
-  eventDefinitionId: z.string(),
+  signalId: z.string(),
   search: z.string().nullable().optional(),
   traceIds: z.array(z.string()).optional(),
   ...FiltersSchema.shape,
@@ -62,18 +62,18 @@ const getTraceSelection = (
 };
 
 export async function createTraceAnalysisJob(
-  input: z.infer<typeof CreateTraceAnalysisJobSchema>
+  input: z.infer<typeof CreateSignalJobs>
 ): Promise<{ success: boolean; message: string }> {
   const {
     projectId,
-    eventDefinitionId,
+    signalId,
     filter: inputFilters,
     search,
     pastHours,
     startDate,
     endDate,
     traceIds: selectedTraceIds,
-  } = CreateTraceAnalysisJobSchema.parse(input);
+  } = CreateSignalJobs.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
 
@@ -112,7 +112,7 @@ export async function createTraceAnalysisJob(
     body: JSON.stringify({
       query: sqlQuery,
       parameters,
-      eventDefinitionId,
+      eventDefinitionId: signalId,
     }),
   });
 

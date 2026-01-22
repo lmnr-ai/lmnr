@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createTraceAnalysisJob, getTraceAnalysisJobs } from "@/lib/actions/trace-analysis-jobs";
+import { createTraceAnalysisJob, getSignalJobs } from "@/lib/actions/signal-jobs";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -9,11 +9,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   try {
     const { searchParams } = new URL(req.url);
-    const eventDefinitionId = searchParams.get("eventDefinitionId") ?? undefined;
+    const signalId = searchParams.get("signalId") ?? undefined;
 
-    const result = await getTraceAnalysisJobs({
+    const result = await getSignalJobs({
       projectId,
-      eventDefinitionId,
+      signalId,
     });
 
     return Response.json(result);

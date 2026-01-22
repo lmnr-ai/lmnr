@@ -36,7 +36,7 @@ const CreateSignalJobContent = () => {
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
 
-  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
@@ -176,16 +176,16 @@ const CreateSignalJobContent = () => {
     onRowSelectionChange(allTraceIds);
   }, [onRowSelectionChange, traces]);
 
-  const handleStartAnalysis = useCallback(async () => {
+  const handleCreateSignalJob = useCallback(async () => {
     try {
-      setIsAnalysing(true);
+      setIsCreating(true);
       const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
       const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-      await fetch(`/api/projects/${projectId}/trace-analysis-jobs`, {
+      await fetch(`/api/projects/${projectId}/signal-jobs`, {
         method: "POST",
         body: JSON.stringify({
-          eventDefinitionId: signal.id,
+          signalId: signal.id,
           filters: filters.filters,
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,
@@ -202,11 +202,11 @@ const CreateSignalJobContent = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to start analysis. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsAnalysing(false);
+      setIsCreating(false);
     }
   }, [
     selectionMode,
@@ -244,11 +244,11 @@ const CreateSignalJobContent = () => {
             or all matching traces based on your current filters and time range.
           </p>
         </div>
-        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
-          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        <Button className="ml-auto" onClick={handleCreateSignalJob} disabled={selectionMode === "none" || isCreating}>
+          {isCreating && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           {selectionMode === "none"
-            ? "Start Analysis"
-            : `Start Analysis (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
+            ? "Create signal job"
+            : `Create signal job (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
         </Button>
       </div>
 

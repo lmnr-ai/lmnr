@@ -21,7 +21,7 @@ const JobsTableContent = () => {
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { data, isLoading, error } = useSWR<{ items: SignalJobRow[] }>(
-    `/api/projects/${params.projectId}/trace-analysis-jobs?eventDefinitionId=${signal.id}`,
+    `/api/projects/${params.projectId}/signal-jobs?signalId=${signal.id}`,
     swrFetcher
   );
 
