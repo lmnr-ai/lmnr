@@ -4,7 +4,7 @@ import { type RefObject } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
-import { useEventsStoreContext } from "@/components/events/events-store";
+import { useEventsStoreContext } from "@/components/signal/store.tsx";
 
 interface EventsChartProps {
   className?: string;

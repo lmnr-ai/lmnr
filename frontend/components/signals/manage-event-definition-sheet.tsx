@@ -20,7 +20,7 @@ import {
   type UseFormWatch,
 } from "react-hook-form";
 
-import templates from "@/components/event-definitions/prompts";
+import templates from "@/components/signals/prompts";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { theme } from "@/components/ui/content-renderer/utils";

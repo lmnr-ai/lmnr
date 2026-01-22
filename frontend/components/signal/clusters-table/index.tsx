@@ -6,7 +6,7 @@ import {
   type ClusterRow,
   defaultClustersColumnOrder,
   getClusterColumns,
-} from "@/components/events/clusters-table/columns.tsx";
+} from "@/components/signal/clusters-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
@@ -17,15 +17,11 @@ interface ClustersTableProps {
   projectId: string;
   eventDefinitionId: string;
   eventDefinitionName: string;
-  eventType: "SEMANTIC" | "CODE";
 }
 
-const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, eventType }: ClustersTableProps) => {
+const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) => {
   const { toast } = useToast();
-  const columns = useMemo(
-    () => getClusterColumns(projectId, eventType, eventDefinitionId),
-    [projectId, eventDefinitionId, eventType]
-  );
+  const columns = useMemo(() => getClusterColumns(projectId, eventDefinitionId), [projectId, eventDefinitionId]);
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,9 +30,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
     setIsLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/projects/${projectId}/events/${eventDefinitionName}/clusters?eventSource=${eventType}`
-      );
+      const res = await fetch(`/api/projects/${projectId}/events/${eventDefinitionName}/clusters?eventSource=SEMANTIC`);
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
@@ -53,7 +47,7 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, eventDefinitionName, eventType, toast]);
+  }, [projectId, eventDefinitionName, toast]);
 
   useEffect(() => {
     fetchClusters();
@@ -115,19 +109,13 @@ const PureClustersTable = ({ projectId, eventDefinitionId, eventDefinitionName, 
   );
 };
 
-export default function ClustersTable({
-  projectId,
-  eventDefinitionId,
-  eventDefinitionName,
-  eventType,
-}: ClustersTableProps) {
+export default function ClustersTable({ projectId, eventDefinitionId, eventDefinitionName }: ClustersTableProps) {
   return (
     <DataTableStateProvider storageKey="clusters-table" uniqueKey="id" defaultColumnOrder={defaultClustersColumnOrder}>
       <PureClustersTable
         projectId={projectId}
         eventDefinitionId={eventDefinitionId}
         eventDefinitionName={eventDefinitionName}
-        eventType={eventType}
       />
     </DataTableStateProvider>
   );

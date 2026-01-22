@@ -6,7 +6,7 @@ import { useParams, usePathname, useSearchParams } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { useEventsStoreContext } from "@/components/events/events-store";
+import { useEventsStoreContext } from "@/components/signal/store.tsx";
 import { columns, defaultTracesColumnOrder, filters as tableFilters } from "@/components/traces/traces-table/columns";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "@/components/ui/date-range-filter";

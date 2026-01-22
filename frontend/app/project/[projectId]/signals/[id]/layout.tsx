@@ -1,25 +1,17 @@
-import { type Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import React, { type PropsWithChildren } from "react";
 
-import Events from "@/components/events";
-import { EventsStoreProvider } from "@/components/events/events-store";
+import { SignalStoreProvider } from "@/components/signal/store.tsx";
+import Header from "@/components/ui/header.tsx";
 import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { getLastEvent } from "@/lib/actions/events";
 import { getSemanticEventDefinition, type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 
-export const metadata: Metadata = {
-  title: "Events",
-};
-
-export default async function SemanticEventPage(props: {
-  params: Promise<{ projectId: string; id: string }>;
-  searchParams: Promise<{ traceId?: string; spanId?: string }>;
-}) {
+const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: string; id: string }> }>) => {
   const { projectId, id } = await props.params;
-  const { traceId, spanId } = await props.searchParams;
 
   const eventDefinition = (await getSemanticEventDefinition({ projectId, id })) as SemanticEventDefinition | undefined;
 
@@ -35,17 +27,22 @@ export default async function SemanticEventPage(props: {
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
   const initialTraceViewWidth = traceViewWidthCookie ? parseInt(traceViewWidthCookie.value, 10) : undefined;
-  const isSemanticEventsEnabled = isFeatureEnabled(Feature.SEMANTIC_EVENTS);
+
+  const isSignalsEnabled = isFeatureEnabled(Feature.SIGNALS);
 
   return (
-    <EventsStoreProvider
-      eventDefinition={eventDefinition}
-      traceId={traceId}
-      spanId={spanId}
-      clusterConfig={clusterConfig}
-      isSemanticEventsEnabled={isSemanticEventsEnabled}
-    >
-      <Events eventType="SEMANTIC" lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} />
-    </EventsStoreProvider>
+    <>
+      <SignalStoreProvider
+        lastEvent={lastEvent}
+        initialTraceViewWidth={initialTraceViewWidth}
+        eventDefinition={eventDefinition}
+        clusterConfig={clusterConfig}
+        isSignalsEnabled={isSignalsEnabled}
+      >
+        <Header path="signals" />
+        {props.children}
+      </SignalStoreProvider>
+    </>
   );
-}
+};
+export default Layout;

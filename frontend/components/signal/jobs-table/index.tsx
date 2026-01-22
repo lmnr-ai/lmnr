@@ -3,25 +3,22 @@
 import { useEffect } from "react";
 import useSWR from "swr";
 
-import {
-  type TraceAnalysisJobRow,
-  traceAnalysisJobsColumns,
-} from "@/components/events/trace-analysis-jobs-table/columns.tsx";
+import { type SignalJobRow, signalJobsColumns } from "@/components/signal/jobs-table/columns.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
-interface TraceAnalysisJobsTableProps {
+interface SignalJobsTableProps {
   projectId: string;
   eventDefinitionId: string;
 }
 
-const PureTraceAnalysisJobsTable = ({ projectId, eventDefinitionId }: TraceAnalysisJobsTableProps) => {
+const JobsTableContent = ({ projectId, eventDefinitionId }: SignalJobsTableProps) => {
   const { toast } = useToast();
 
-  const { data, isLoading, error } = useSWR<{ items: TraceAnalysisJobRow[] }>(
+  const { data, isLoading, error } = useSWR<{ items: SignalJobRow[] }>(
     `/api/projects/${projectId}/trace-analysis-jobs?eventDefinitionId=${eventDefinitionId}`,
     swrFetcher
   );
@@ -38,9 +35,9 @@ const PureTraceAnalysisJobsTable = ({ projectId, eventDefinitionId }: TraceAnaly
   }, [error, toast]);
 
   return (
-    <InfiniteDataTable<TraceAnalysisJobRow>
+    <InfiniteDataTable<SignalJobRow>
       className="w-full"
-      columns={traceAnalysisJobsColumns}
+      columns={signalJobsColumns}
       data={jobs}
       getRowId={(job) => job.id}
       lockedColumns={["id"]}
@@ -51,7 +48,7 @@ const PureTraceAnalysisJobsTable = ({ projectId, eventDefinitionId }: TraceAnaly
     >
       <div className="flex flex-1 w-full space-x-2">
         <ColumnsMenu
-          columnLabels={traceAnalysisJobsColumns.map((column) => ({
+          columnLabels={signalJobsColumns.map((column) => ({
             id: column.id!,
             label: typeof column.header === "string" ? column.header : column.id!,
           }))}
@@ -62,10 +59,10 @@ const PureTraceAnalysisJobsTable = ({ projectId, eventDefinitionId }: TraceAnaly
   );
 };
 
-export default function TraceAnalysisJobsTable({ projectId, eventDefinitionId }: TraceAnalysisJobsTableProps) {
+export default function SignalJobsTable({ projectId, eventDefinitionId }: SignalJobsTableProps) {
   return (
-    <DataTableStateProvider defaultColumnOrder={traceAnalysisJobsColumns.map((c) => String(c.id))}>
-      <PureTraceAnalysisJobsTable projectId={projectId} eventDefinitionId={eventDefinitionId} />
+    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))}>
+      <JobsTableContent projectId={projectId} eventDefinitionId={eventDefinitionId} />
     </DataTableStateProvider>
   );
 }

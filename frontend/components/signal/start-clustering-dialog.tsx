@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { useEventsStoreContext } from "@/components/events/events-store";
+import { useEventsStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
 import { mustache } from "@/components/ui/content-renderer/lang-mustache";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
@@ -23,14 +23,9 @@ interface StartClusteringForm {
 
 interface StartClusteringDialogProps {
   eventName: string;
-  eventType: "SEMANTIC" | "CODE";
 }
 
-export default function StartClusteringDialog({
-  children,
-  eventName,
-  eventType,
-}: PropsWithChildren<StartClusteringDialogProps>) {
+export default function StartClusteringDialog({ children, eventName }: PropsWithChildren<StartClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
@@ -59,7 +54,7 @@ export default function StartClusteringDialog({
           method: "POST",
           body: JSON.stringify({
             valueTemplate: data.valueTemplate,
-            eventSource: eventType,
+            eventSource: "SEMANTIC",
           }),
         });
 
@@ -92,7 +87,7 @@ export default function StartClusteringDialog({
         setIsLoading(false);
       }
     },
-    [projectId, eventName, eventType, toast, setClusterConfig, reset]
+    [projectId, eventName, toast, setClusterConfig, reset]
   );
 
   return (

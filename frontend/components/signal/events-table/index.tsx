@@ -5,9 +5,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
-import EventsChart from "@/components/events/events-chart";
-import { useEventsStoreContext } from "@/components/events/events-store.tsx";
-import { type EventNavigationItem } from "@/components/events/utils.ts";
+import EventsChart from "@/components/signal/events-chart";
+import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -26,10 +26,9 @@ interface EventsTableProps {
   projectId: string;
   eventName: string;
   eventDefinitionId?: string;
-  eventType: "SEMANTIC" | "CODE";
 }
 
-function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }: EventsTableProps) {
+function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTableProps) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -66,12 +65,12 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
           urlParams.set("eventDefinitionId", eventDefinitionId);
         }
 
-        urlParams.set("eventSource", eventType);
+        urlParams.set("eventSource", "SEMANTIC");
 
         const response = await fetch(`/api/projects/${projectId}/events/${eventName}?${urlParams.toString()}`);
 
         if (!response.ok) {
-          throw new Error("Failed to fetch events, event type: " + eventType);
+          throw new Error("Failed to fetch events");
         }
 
         const data: { items: EventRow[]; count: number } = await response.json();
@@ -84,7 +83,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
       }
       return { items: [], count: 0 };
     },
-    [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, eventType, toast]
+    [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, toast]
   );
 
   const getRowHref = useCallback(
@@ -116,7 +115,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
     fetchStats: state.fetchStats,
     setChartContainerWidth: state.setChartContainerWidth,
     chartContainerWidth: state.chartContainerWidth,
-    isSemanticEventsEnabled: state.isSemanticEventsEnabled,
+    isSemanticEventsEnabled: state.isSignalsEnabled,
   }));
 
   const eventsTableFilters = useMemo(() => getEventsTableFilters(isSemanticEventsEnabled), [isSemanticEventsEnabled]);
@@ -137,7 +136,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId, eventType }:
     endDate,
     filters: filter,
     additionalParams: {
-      eventSource: eventType,
+      eventSource: "SEMANTIC",
     },
   });
 

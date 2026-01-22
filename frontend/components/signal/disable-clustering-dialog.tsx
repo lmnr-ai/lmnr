@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 
-import { useEventsStoreContext } from "@/components/events/events-store";
+import { useEventsStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,13 +20,11 @@ import { cn } from "@/lib/utils";
 
 interface DisableClusteringDialogProps {
   eventName: string;
-  eventType: "SEMANTIC" | "CODE";
 }
 
 export default function DisableClusteringDialog({
   children,
   eventName,
-  eventType,
 }: PropsWithChildren<DisableClusteringDialogProps>) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,12 +39,9 @@ export default function DisableClusteringDialog({
     try {
       setIsLoading(true);
 
-      const res = await fetch(
-        `/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=${eventType}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=SEMANTIC`, {
+        method: "DELETE",
+      });
 
       if (!res.ok) {
         const error = await res.json();
@@ -70,7 +65,7 @@ export default function DisableClusteringDialog({
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, eventName, eventType, toast, setClusterConfig]);
+  }, [projectId, eventName, toast, setClusterConfig]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

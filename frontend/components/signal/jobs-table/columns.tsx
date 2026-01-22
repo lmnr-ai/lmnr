@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
-export interface TraceAnalysisJobRow {
+export interface SignalJobRow {
   id: string;
   eventDefinitionId: string;
   projectId: string;
@@ -22,7 +22,7 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   style: "percent",
 });
 
-export const traceAnalysisJobsColumns: ColumnDef<TraceAnalysisJobRow, any>[] = [
+export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
   {
     accessorFn: (row) => row.id,
     header: "Job ID",

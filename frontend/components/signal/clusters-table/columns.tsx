@@ -1,10 +1,12 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
+import postgres from "postgres";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Button } from "@/components/ui/button";
 import { type EventCluster } from "@/lib/actions/clusters";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
+import column = postgres.toPascal.column;
 
 export interface ClusterRow extends EventCluster {
   subRows?: ClusterRow[];
@@ -14,11 +16,7 @@ interface ClusterTableMeta {
   totalCount: number;
 }
 
-export const getClusterColumns = (
-  projectId: string,
-  eventType: "SEMANTIC" | "CODE",
-  eventDefinitionId: string
-): ColumnDef<ClusterRow, any>[] => [
+export const getClusterColumns = (projectId: string, eventDefinitionId: string): ColumnDef<ClusterRow, any>[] => [
   {
     header: "",
     cell: ({ row }) =>
@@ -56,7 +54,7 @@ export const getClusterColumns = (
       });
       params.append("filter", clusterFilter);
 
-      const eventsUrl = `/project/${projectId}/events/${eventType.toLowerCase()}/${eventDefinitionId}?${params.toString()}`;
+      const eventsUrl = `/project/${projectId}/signals/${eventDefinitionId}?${params.toString()}`;
 
       return (
         <div style={{ paddingLeft: `${paddingLeft}px` }} className="truncate text-primary">
