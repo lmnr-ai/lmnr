@@ -2,16 +2,16 @@ import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
 
-const ExecuteSemanticEventSchema = z.object({
+const ExecuteSignalSchema = z.object({
   projectId: z.string(),
   traceId: z.guid(),
-  eventDefinition: z.object({
+  signal: z.object({
     prompt: z.string().min(1, { error: "Prompt is required" }),
     structured_output_schema: z.record(z.string(), z.unknown()),
   }),
 });
 
-const SemanticEventResponseSchema = z.object({
+const SignalResponseSchema = z.object({
   success: z.boolean(),
   attributes: z.record(z.string(), z.unknown()).nullable().optional(),
   error: z.string().nullable().optional(),
@@ -37,11 +37,11 @@ const getRequestHeaders = (token: string) => ({
   "User-Agent": "lmnr-semantic-event/1.0",
 });
 
-const callSemanticEventService = async (
+const callSignalService = async (
   url: string,
   headers: Record<string, string>,
   requestBody: { project_id: string; trace_id: string; event_definition: any }
-): Promise<z.infer<typeof SemanticEventResponseSchema>> => {
+): Promise<z.infer<typeof SignalResponseSchema>> => {
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -54,12 +54,12 @@ const callSemanticEventService = async (
   }
 
   const responseData = await response.json();
-  return SemanticEventResponseSchema.parse(responseData);
+  return SignalResponseSchema.parse(responseData);
 };
 
-export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemanticEventSchema>) => {
+export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) => {
   const { SEMANTIC_EVENT_SERVICE_SECRET_KEY, SEMANTIC_EVENT_SERVICE_URL } = getEnvironmentVariables();
-  const { projectId, traceId, eventDefinition } = ExecuteSemanticEventSchema.parse(input);
+  const { projectId, traceId, signal } = ExecuteSignalSchema.parse(input);
 
   const [trace] = await executeQuery<{ exists: number }>({
     query: `
@@ -81,16 +81,16 @@ export const executeSemanticEvent = async (input: z.infer<typeof ExecuteSemantic
   const requestBody = {
     project_id: projectId,
     trace_id: traceId,
-    event_definition: { ...eventDefinition, name: "" },
+    event_definition: { ...signal, name: "" },
   };
 
   const headers = getRequestHeaders(SEMANTIC_EVENT_SERVICE_SECRET_KEY);
 
-  const semanticEventResponse = await callSemanticEventService(SEMANTIC_EVENT_SERVICE_URL, headers, requestBody);
+  const signalResponse = await callSignalService(SEMANTIC_EVENT_SERVICE_URL, headers, requestBody);
 
-  if (semanticEventResponse.error) {
-    throw new Error(semanticEventResponse.error);
+  if (signalResponse.error) {
+    throw new Error(signalResponse.error);
   }
 
-  return semanticEventResponse?.attributes || "Event was not identified in trace.";
+  return signalResponse?.attributes || "Event was not identified in trace.";
 };

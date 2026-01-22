@@ -7,13 +7,13 @@ import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
 import { mustache } from "@/components/ui/content-renderer/lang-mustache";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { type EventClusterConfig } from "@/lib/actions/cluster-configs";
+import { type SignalClusterConfig } from "@/lib/actions/cluster-configs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -21,17 +21,14 @@ interface StartClusteringForm {
   valueTemplate: string;
 }
 
-interface StartClusteringDialogProps {
-  eventName: string;
-}
-
-export default function StartClusteringDialog({ children, eventName }: PropsWithChildren<StartClusteringDialogProps>) {
+export default function StartClusteringDialog({ children }: PropsWithChildren) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { setClusterConfig } = useEventsStoreContext((state) => ({
+  const { signal, setClusterConfig } = useSignalStoreContext((state) => ({
+    signal: state.signal,
     setClusterConfig: state.setClusterConfig,
   }));
 
@@ -50,11 +47,10 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
       try {
         setIsLoading(true);
 
-        const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config`, {
+        const res = await fetch(`/api/projects/${projectId}/events/${signal.name}/cluster-config`, {
           method: "POST",
           body: JSON.stringify({
             valueTemplate: data.valueTemplate,
-            eventSource: "SEMANTIC",
           }),
         });
 
@@ -68,7 +64,7 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
           return;
         }
 
-        const result = (await res.json()) as EventClusterConfig | undefined;
+        const result = (await res.json()) as SignalClusterConfig | undefined;
 
         if (result) {
           setClusterConfig(result);
@@ -87,7 +83,7 @@ export default function StartClusteringDialog({ children, eventName }: PropsWith
         setIsLoading(false);
       }
     },
-    [projectId, eventName, toast, setClusterConfig, reset]
+    [projectId, signal.name, toast, setClusterConfig, reset]
   );
 
   return (

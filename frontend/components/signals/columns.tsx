@@ -4,7 +4,7 @@ import React from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { type SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
+import { type SignalRow } from "@/lib/actions/signals";
 
 export const signalsTableFilters: ColumnFilter[] = [
   {
@@ -14,7 +14,7 @@ export const signalsTableFilters: ColumnFilter[] = [
   },
 ];
 
-export const signalsColumns: ColumnDef<SemanticEventDefinitionRow>[] = [
+export const signalsColumns: ColumnDef<SignalRow>[] = [
   {
     header: "Name",
     accessorFn: (row) => row.name,

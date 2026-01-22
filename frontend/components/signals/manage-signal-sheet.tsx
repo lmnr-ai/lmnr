@@ -30,14 +30,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { type Signal } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
 
-export type ManageEventDefinitionForm = Omit<
-  SemanticEventDefinition,
-  "isSemantic" | "createdAt" | "id" | "structuredOutput" | "triggerSpans"
-> & {
+export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput" | "triggerSpans"> & {
   id?: string;
   structuredOutput: string;
   triggerSpans: { name: string }[];
@@ -48,7 +45,7 @@ const ajv = new Ajv({
   validateFormats: false,
 });
 
-export const getDefaultValues = (projectId: string): ManageEventDefinitionForm => ({
+export const getDefaultValues = (projectId: string): ManageSignalForm => ({
   name: "",
   prompt: "",
   structuredOutput:
@@ -73,8 +70,8 @@ const TriggerSpansField = ({
   control,
   errors,
 }: {
-  control: Control<ManageEventDefinitionForm, any, ManageEventDefinitionForm>;
-  errors: FieldErrors<ManageEventDefinitionForm>;
+  control: Control<ManageSignalForm, any, ManageSignalForm>;
+  errors: FieldErrors<ManageSignalForm>;
 }) => {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -121,15 +118,15 @@ const TriggerSpansField = ({
   );
 };
 
-const TestEventDefinitionField = ({
+const TestSignalField = ({
   control,
   watch,
   getValues,
   projectId,
 }: {
-  control: Control<ManageEventDefinitionForm, any, ManageEventDefinitionForm>;
-  watch: UseFormWatch<ManageEventDefinitionForm>;
-  getValues: UseFormGetValues<ManageEventDefinitionForm>;
+  control: Control<ManageSignalForm, any, ManageSignalForm>;
+  watch: UseFormWatch<ManageSignalForm>;
+  getValues: UseFormGetValues<ManageSignalForm>;
   projectId: string;
 }) => {
   const [isExecuting, setIsExecuting] = useState(false);
@@ -146,14 +143,14 @@ const TestEventDefinitionField = ({
     setTestOutput("");
 
     try {
-      const executeRes = await fetch(`/api/projects/${projectId}/semantic-event-definitions/execute`, {
+      const executeRes = await fetch(`/api/projects/${projectId}/signals/execute`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           traceId: testTraceId,
-          eventDefinition: {
+          signal: {
             prompt,
             structured_output_schema: tryParseJson(structuredOutput),
           },
@@ -163,7 +160,7 @@ const TestEventDefinitionField = ({
       const result = await executeRes.json();
 
       if (!executeRes.ok) {
-        setTestOutput(`Error: ${result.error || "Failed to execute semantic event"}`);
+        setTestOutput(`Error: ${result.error || "Failed to execute signal"}`);
       } else {
         setTestOutput(typeof result === "string" ? result : JSON.stringify(result, null, 2));
       }
@@ -183,9 +180,9 @@ const TestEventDefinitionField = ({
         >
           <ChevronRight className="w-4 h-4 text-muted-foreground mt-1 group-data-[state=open]:rotate-90 transition-transform duration-200" />
           <div className="flex flex-col items-start gap-1">
-            <Label className="cursor-pointer">Test Event Definition</Label>
+            <Label className="cursor-pointer">Test Signal</Label>
             <span className="text-xs text-muted-foreground font-normal">
-              Test this semantic event definition against an existing trace
+              Test this signal against an existing trace
             </span>
           </div>
         </Button>
@@ -195,9 +192,7 @@ const TestEventDefinitionField = ({
           <Label htmlFor="testTraceId" className="text-sm">
             Trace ID
           </Label>
-          <p className="text-xs text-muted-foreground">
-            Enter a valid trace ID from your project to test the event definition.
-          </p>
+          <p className="text-xs text-muted-foreground">Enter a valid trace ID from your project to test the signal.</p>
           <Controller
             name="testTraceId"
             control={control}
@@ -237,7 +232,7 @@ const TestEventDefinitionField = ({
 
         {isExecuting && (
           <span className="text-sm text-muted-foreground shimmer">
-            Testing semantic event... this may take some time depending on the size of the trace.
+            Testing signal... this may take some time depending on the size of the trace.
           </span>
         )}
 
@@ -262,12 +257,12 @@ const TestEventDefinitionField = ({
   );
 };
 
-function ManageEventDefinitionSheetContent({
+function ManageSignalSheetContent({
   setOpen,
   onSuccess,
 }: {
   setOpen: (open: boolean) => void;
-  onSuccess?: (eventDefinition: ManageEventDefinitionForm) => Promise<void>;
+  onSuccess?: (signal: ManageSignalForm) => Promise<void>;
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -282,7 +277,7 @@ function ManageEventDefinitionSheetContent({
     getValues,
     setValue,
     formState: { errors, isValid },
-  } = useFormContext<ManageEventDefinitionForm>();
+  } = useFormContext<ManageSignalForm>();
 
   const id = watch("id");
 
@@ -296,11 +291,11 @@ function ManageEventDefinitionSheetContent({
   );
 
   const submit = useCallback(
-    async (data: ManageEventDefinitionForm) => {
+    async (data: ManageSignalForm) => {
       try {
         setIsLoading(true);
 
-        const eventDefinition = {
+        const signal = {
           name: data.name,
           prompt: data.prompt,
           structuredOutput: tryParseJson(data.structuredOutput),
@@ -308,14 +303,12 @@ function ManageEventDefinitionSheetContent({
         };
 
         const isUpdate = !!data.id;
-        const url = isUpdate
-          ? `/api/projects/${projectId}/semantic-event-definitions/${data.id}`
-          : `/api/projects/${projectId}/semantic-event-definitions`;
+        const url = isUpdate ? `/api/projects/${projectId}/signals/${data.id}` : `/api/projects/${projectId}/signals`;
         const method = isUpdate ? "PUT" : "POST";
 
         const res = await fetch(url, {
           method,
-          body: JSON.stringify(eventDefinition),
+          body: JSON.stringify(signal),
         });
 
         if (!res.ok) {
@@ -323,7 +316,7 @@ function ManageEventDefinitionSheetContent({
           toast({
             variant: "destructive",
             title: "Error",
-            description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the event definition`),
+            description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the signal`),
           });
           return;
         }
@@ -332,7 +325,7 @@ function ManageEventDefinitionSheetContent({
           await onSuccess(data);
         }
 
-        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} event definition` });
+        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);
         reset(getDefaultValues(String(projectId)));
       } catch (e) {
@@ -340,9 +333,7 @@ function ManageEventDefinitionSheetContent({
           variant: "destructive",
           title: "Error",
           description:
-            e instanceof Error
-              ? e.message
-              : `Failed to ${data.id ? "update" : "create"} the event definition. Please try again.`,
+            e instanceof Error ? e.message : `Failed to ${data.id ? "update" : "create"} the signal. Please try again.`,
         });
       } finally {
         setIsLoading(false);
@@ -373,7 +364,7 @@ function ManageEventDefinitionSheetContent({
   return (
     <>
       <SheetHeader className="pt-4 px-4">
-        <SheetTitle>{id ? getValues("name") : "Create new semantic event"}</SheetTitle>
+        <SheetTitle>{id ? getValues("name") : "Create new signal"}</SheetTitle>
       </SheetHeader>
       <ScrollArea className="flex-1">
         <form onSubmit={handleSubmit(submit)} className="grid gap-4 p-4">
@@ -404,7 +395,7 @@ function ManageEventDefinitionSheetContent({
               name="name"
               control={control}
               render={({ field }) => (
-                <Input disabled={Boolean(id)} id="name" placeholder="Event name" autoFocus {...field} />
+                <Input disabled={Boolean(id)} id="name" placeholder="Signal name" autoFocus {...field} />
               )}
             />
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
@@ -469,12 +460,7 @@ function ManageEventDefinitionSheetContent({
           </div>
           <TriggerSpansField control={control} errors={errors} />
 
-          <TestEventDefinitionField
-            control={control}
-            watch={watch}
-            getValues={getValues}
-            projectId={String(projectId)}
-          />
+          <TestSignalField control={control} watch={watch} getValues={getValues} projectId={String(projectId)} />
 
           <div className="flex justify-end pt-4 border-t">
             <Button type="submit" disabled={isLoading || !isValid} handleEnter>
@@ -488,7 +474,7 @@ function ManageEventDefinitionSheetContent({
   );
 }
 
-export default function ManageEventDefinitionSheet({
+export default function ManageSignalSheet({
   children,
   open,
   setOpen,
@@ -497,13 +483,13 @@ export default function ManageEventDefinitionSheet({
 }: PropsWithChildren<{
   open: boolean;
   setOpen: (open: boolean) => void;
-  defaultValues?: ManageEventDefinitionForm;
-  onSuccess?: (eventDefinition: ManageEventDefinitionForm) => Promise<void>;
+  defaultValues?: ManageSignalForm;
+  onSuccess?: (signal: ManageSignalForm) => Promise<void>;
 }>) {
   const { projectId } = useParams();
 
   const convertToFormValues = useCallback(
-    (values: ManageEventDefinitionForm | undefined): ManageEventDefinitionForm => {
+    (values: ManageSignalForm | undefined): ManageSignalForm => {
       if (!values) {
         return getDefaultValues(String(projectId));
       }
@@ -513,7 +499,7 @@ export default function ManageEventDefinitionSheet({
     [projectId]
   );
 
-  const form = useForm<ManageEventDefinitionForm>({
+  const form = useForm<ManageSignalForm>({
     defaultValues: convertToFormValues(initialValues),
     mode: "onChange",
   });
@@ -535,7 +521,7 @@ export default function ManageEventDefinitionSheet({
       <SheetTrigger asChild>{children}</SheetTrigger>
       <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
         <FormProvider {...form}>
-          <ManageEventDefinitionSheetContent setOpen={setOpen} onSuccess={onSuccess} />
+          <ManageSignalSheetContent setOpen={setOpen} onSuccess={onSuccess} />
         </FormProvider>
       </SheetContent>
     </Sheet>

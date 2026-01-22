@@ -10,9 +10,9 @@ import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { semanticEventDefinitions, semanticEventTriggerSpans } from "@/lib/db/migrations/schema";
 
-export type SemanticEventDefinitionRow = Omit<SemanticEventDefinition, "prompt" | "structuredOutput">;
+export type SignalRow = Omit<Signal, "prompt" | "structuredOutput">;
 
-export type SemanticEventDefinition = {
+export type Signal = {
   id: string;
   name: string;
   createdAt: string;
@@ -22,18 +22,18 @@ export type SemanticEventDefinition = {
   triggerSpans: string[];
 };
 
-export const GetSemanticEventDefinitionsSchema = PaginationFiltersSchema.extend({
+export const GetSignalsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   search: z.string().nullable().optional(),
 });
 
-export const GetSemanticEventDefinitionSchema = z.object({
+export const GetSignalSchema = z.object({
   projectId: z.string(),
   id: z.string(),
 });
 
-export const CreateSemanticEventDefinitionSchema = z.object({
+export const CreateSignalSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
@@ -41,7 +41,7 @@ export const CreateSemanticEventDefinitionSchema = z.object({
   triggerSpans: z.array(z.string()).optional().default([]),
 });
 
-export const UpdateSemanticEventDefinitionSchema = z.object({
+export const UpdateSignalSchema = z.object({
   projectId: z.string(),
   id: z.string(),
   prompt: z.string(),
@@ -49,17 +49,17 @@ export const UpdateSemanticEventDefinitionSchema = z.object({
   triggerSpans: z.array(z.string()).optional().default([]),
 });
 
-export const DeleteSemanticEventDefinitionSchema = z.object({
+export const DeleteSignalSchema = z.object({
   projectId: z.string(),
   id: z.string(),
 });
 
-export const DeleteSemanticEventDefinitionsSchema = z.object({
+export const DeleteSignalsSchema = z.object({
   projectId: z.string(),
-  ids: z.array(z.string()).min(1, "At least one event definition ID is required"),
+  ids: z.array(z.string()).min(1, "At least one signal ID is required"),
 });
 
-export async function getSemanticEventDefinitions(input: z.infer<typeof GetSemanticEventDefinitionsSchema>) {
+export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;
 
   const limit = pageSize;
@@ -140,8 +140,8 @@ export async function getSemanticEventDefinitions(input: z.infer<typeof GetSeman
   };
 }
 
-export async function getSemanticEventDefinition(input: z.infer<typeof GetSemanticEventDefinitionSchema>) {
-  const { id, projectId } = GetSemanticEventDefinitionSchema.parse(input);
+export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
+  const { id, projectId } = GetSignalSchema.parse(input);
 
   const [result] = await db
     .select()
@@ -172,8 +172,8 @@ export async function getSemanticEventDefinition(input: z.infer<typeof GetSemant
   };
 }
 
-export async function createSemanticEventDefinition(input: z.infer<typeof CreateSemanticEventDefinitionSchema>) {
-  const { projectId, name, prompt, structuredOutput, triggerSpans } = CreateSemanticEventDefinitionSchema.parse(input);
+export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
+  const { projectId, name, prompt, structuredOutput, triggerSpans } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(semanticEventDefinitions)
@@ -199,8 +199,8 @@ export async function createSemanticEventDefinition(input: z.infer<typeof Create
   return result;
 }
 
-export async function updateSemanticEventDefinition(input: z.infer<typeof UpdateSemanticEventDefinitionSchema>) {
-  const { projectId, id, prompt, structuredOutput, triggerSpans } = UpdateSemanticEventDefinitionSchema.parse(input);
+export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
+  const { projectId, id, prompt, structuredOutput, triggerSpans } = UpdateSignalSchema.parse(input);
 
   const result = await db.transaction(async (tx) => {
     const [result] = await tx
@@ -267,8 +267,8 @@ const syncTriggerSpans = async (
   await Promise.all([deletions, insertions]);
 };
 
-export async function deleteSemanticEventDefinition(input: z.infer<typeof DeleteSemanticEventDefinitionSchema>) {
-  const { projectId, id } = DeleteSemanticEventDefinitionSchema.parse(input);
+export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
+  const { projectId, id } = DeleteSignalSchema.parse(input);
 
   const [result] = await db
     .delete(semanticEventDefinitions)
@@ -280,8 +280,8 @@ export async function deleteSemanticEventDefinition(input: z.infer<typeof Delete
   return result;
 }
 
-export async function deleteSemanticEventDefinitions(input: z.infer<typeof DeleteSemanticEventDefinitionsSchema>) {
-  const { projectId, ids } = DeleteSemanticEventDefinitionsSchema.parse(input);
+export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
+  const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
   const events = await db
     .delete(semanticEventDefinitions)
@@ -312,4 +312,4 @@ export async function deleteSemanticEventDefinitions(input: z.infer<typeof Delet
   return { success: true };
 }
 
-export { executeSemanticEvent } from "./execute";
+export { executeSignal } from "./execute";

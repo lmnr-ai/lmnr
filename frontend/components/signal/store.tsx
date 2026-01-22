@@ -2,10 +2,9 @@
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
-import { type ManageEventDefinitionForm } from "@/components/signals/manage-event-definition-sheet.tsx";
-import { type EventClusterConfig } from "@/lib/actions/cluster-configs";
-import { type EventDefinition } from "@/lib/actions/event-definitions";
-import { type SemanticEventDefinition } from "@/lib/actions/semantic-event-definitions";
+import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
+import { type SignalClusterConfig } from "@/lib/actions/cluster-configs";
+import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
 export type EventsStatsDataPoint = {
@@ -16,14 +15,13 @@ export type EventsStatsDataPoint = {
 export type SignalState = {
   events?: EventRow[];
   totalCount: number;
-  eventDefinition: ManageEventDefinitionForm;
+  signal: Omit<ManageSignalForm, "id"> & { id: string };
   traceId: string | null;
   spanId: string | null;
   stats?: EventsStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
-  clusterConfig?: EventClusterConfig;
-  isSignalsEnabled: boolean;
+  clusterConfig?: SignalClusterConfig;
   initialTraceViewWidth?: number;
   lastEvent?: {
     name: string;
@@ -36,24 +34,23 @@ export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
   fetchEvents: (params: URLSearchParams) => Promise<void>;
-  setEventDefinition: (eventDefinition?: ManageEventDefinitionForm) => void;
+  setSignal: (eventDefinition?: SignalState["signal"]) => void;
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
-  setClusterConfig: (config?: EventClusterConfig) => void;
+  setClusterConfig: (config?: SignalClusterConfig) => void;
 };
 
 export interface EventsProps {
-  eventDefinition: EventDefinition | SemanticEventDefinition;
+  signal: Signal;
   traceId?: string | null;
   spanId?: string | null;
-  clusterConfig?: EventClusterConfig;
+  clusterConfig?: SignalClusterConfig;
   lastEvent?: {
     name: string;
     id: string;
     timestamp: string;
   };
   initialTraceViewWidth?: number;
-  isSignalsEnabled: boolean;
 }
 
 export type Store = SignalState & SignalActions;
@@ -71,33 +68,24 @@ export const createEventsStore = (initProps: EventsProps) =>
     isLoadingStats: false,
     chartContainerWidth: null,
     clusterConfig: initProps.clusterConfig,
-    isSignalsEnabled: initProps.isSignalsEnabled,
-    eventDefinition: {
-      ...initProps.eventDefinition,
-      prompt: "prompt" in initProps.eventDefinition ? initProps.eventDefinition.prompt : "",
-      structuredOutput:
-        "structuredOutput" in initProps.eventDefinition
-          ? JSON.stringify(initProps.eventDefinition.structuredOutput, null, 2)
-          : "",
-      triggerSpans:
-        "triggerSpans" in initProps.eventDefinition && initProps.eventDefinition.triggerSpans
-          ? initProps.eventDefinition.triggerSpans.map((name) => ({ name }))
-          : [],
+    signal: {
+      ...initProps.signal,
+      prompt: initProps.signal.prompt,
+      structuredOutput: JSON.stringify(initProps.signal.structuredOutput, null, 2),
+      triggerSpans: initProps.signal.triggerSpans.map((name) => ({ name })),
     },
-    setEventDefinition: (eventDefinition) => set({ eventDefinition }),
+    setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
     setClusterConfig: (clusterConfig) => set({ clusterConfig }),
     fetchEvents: async (params: URLSearchParams) => {
-      const { eventDefinition } = get();
+      const { signal } = get();
 
       set({ events: undefined });
 
       try {
-        const response = await fetch(
-          `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}?${params.toString()}`
-        );
+        const response = await fetch(`/api/projects/${signal.projectId}/events/${signal.name}?${params.toString()}`);
         if (!response.ok) throw new Error("Failed to fetch events");
         const data: { items: EventRow[]; count: number } = await response.json();
         set({
@@ -127,7 +115,7 @@ export const createEventsStore = (initProps: EventsProps) =>
 
 export const SignalContext = createContext<SignalStoreApi | null>(null);
 
-export const useEventsStoreContext = <T,>(selector: (state: Store) => T): T => {
+export const useSignalStoreContext = <T,>(selector: (state: Store) => T): T => {
   const store = useContext(SignalContext);
   if (!store) throw new Error("Missing SignalContext.Provider in the tree");
   return useStore(store, selector);

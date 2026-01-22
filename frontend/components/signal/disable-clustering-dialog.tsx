@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,20 +18,14 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-interface DisableClusteringDialogProps {
-  eventName: string;
-}
-
-export default function DisableClusteringDialog({
-  children,
-  eventName,
-}: PropsWithChildren<DisableClusteringDialogProps>) {
+export default function DisableClusteringDialog({ children }: PropsWithChildren) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { setClusterConfig } = useEventsStoreContext((state) => ({
+  const { signal, setClusterConfig } = useSignalStoreContext((state) => ({
+    signal: state.signal,
     setClusterConfig: state.setClusterConfig,
   }));
 
@@ -39,7 +33,7 @@ export default function DisableClusteringDialog({
     try {
       setIsLoading(true);
 
-      const res = await fetch(`/api/projects/${projectId}/events/${eventName}/cluster-config?eventSource=SEMANTIC`, {
+      const res = await fetch(`/api/projects/${projectId}/events/${signal.name}/cluster-config`, {
         method: "DELETE",
       });
 
@@ -65,7 +59,7 @@ export default function DisableClusteringDialog({
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, eventName, toast, setClusterConfig]);
+  }, [projectId, signal.name, toast, setClusterConfig]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

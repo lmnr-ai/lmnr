@@ -1,14 +1,14 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { executeSemanticEvent } from "@/lib/actions/semantic-event-definitions/execute";
+import { executeSignal } from "@/lib/actions/signals/execute";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
   try {
     const body = await req.json();
-    const result = await executeSemanticEvent({ ...body, projectId });
+    const result = await executeSignal({ ...body, projectId });
 
     return Response.json(result);
   } catch (error) {

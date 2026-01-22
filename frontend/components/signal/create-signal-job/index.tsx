@@ -1,134 +1,39 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
-import { CheckCircle2, ChevronsRight, Info, Loader2, X } from "lucide-react";
+import type { Row } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import React, { type PropsWithChildren, useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
-import { columns, defaultTracesColumnOrder, filters as tableFilters } from "@/components/traces/traces-table/columns";
-import { Button } from "@/components/ui/button";
+import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import {
+  columns,
+  defaultTracesColumnOrder,
+  filters as tableFilters,
+} from "@/components/traces/traces-table/columns.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import Header from "@/components/ui/header.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
-import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { type Filter } from "@/lib/actions/common/filters";
-import { useToast } from "@/lib/hooks/use-toast";
-import { type TraceRow } from "@/lib/traces/types";
+import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import type { Filter } from "@/lib/actions/common/filters.ts";
+import { useToast } from "@/lib/hooks/use-toast.ts";
+import type { TraceRow } from "@/lib/traces/types.ts";
 
 const FETCH_SIZE = 50;
 
-interface SelectionBannerProps {
-  selectionMode: "none" | "page" | "all";
-  selectedCount: number;
-  traceCount: number;
-  loadedTraceCount: number;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-}
-
-const SelectionBanner = ({
-  selectionMode,
-  selectedCount,
-  traceCount,
-  loadedTraceCount,
-  onSelectAll,
-  onClearSelection,
-}: SelectionBannerProps) => {
-  if (traceCount === 0) return null;
-
-  if (selectionMode === "none") {
-    return (
-      <div className="flex items-center gap-2 px-2 text-secondary-foreground">
-        <Info className="size-4 text-muted-foreground shrink-0 my-1.5" />
-        <div className="flex-1 text-sm">
-          <span className="font-medium">{traceCount.toLocaleString()}</span> traces total
-        </div>
-      </div>
-    );
-  }
-
-  if (selectionMode === "all") {
-    return (
-      <div className="flex items-center gap-2 px-2">
-        <CheckCircle2 className="size-4 text-primary shrink-0" />
-        <div className="flex-1 text-sm text-secondary-foreground">
-          All <span className="font-medium">{traceCount.toLocaleString()}</span> matching traces selected
-        </div>
-        <Button variant="ghost" size="icon" onClick={onClearSelection}>
-          <X className="size-3.5" />
-        </Button>
-      </div>
-    );
-  }
-
-  const hasUnloadedTraces = traceCount > loadedTraceCount;
-
-  return (
-    <div className="flex items-center gap-2 px-2 text-secondary-foreground">
-      <Info className="size-4 text-muted-foreground shrink-0" />
-      <div className="flex-1 text-sm">
-        <span className="font-medium">{selectedCount.toLocaleString()}</span> traces selected.
-        {hasUnloadedTraces && (
-          <Button variant="link" size="sm" onClick={onSelectAll} className="h-auto p-0 ml-1 text-sm font-medium">
-            Select all {traceCount.toLocaleString()} matching traces
-          </Button>
-        )}
-      </div>
-      <Button variant="ghost" size="icon" onClick={onClearSelection}>
-        <X className="size-3.5" />
-      </Button>
-    </div>
-  );
-};
-
-interface RetroactiveAnalysisSheetProps {
-  eventDefinitionId: string;
-  eventDefinitionName: string;
-}
-
-export default function RetroactiveAnalysisSheet({
-  children,
-  eventDefinitionId,
-  eventDefinitionName,
-}: PropsWithChildren<RetroactiveAnalysisSheetProps>) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>{children}</SheetTrigger>
-      <SheetContent
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        side="right"
-        className="min-w-[80vw] w-full flex flex-col gap-0 p-0 focus:outline-none"
-      >
-        <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
-          <RetroactiveAnalysisSheetContent
-            eventDefinitionId={eventDefinitionId}
-            eventDefinitionName={eventDefinitionName}
-            setOpen={setOpen}
-          />
-        </DataTableStateProvider>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function TracesTableWithSearch({
-  eventDefinitionId,
-  eventDefinitionName,
-  setOpen,
-}: RetroactiveAnalysisSheetProps & { setOpen: (open: boolean) => void }) {
+const CreateSignalJobContent = () => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
 
+  const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
 
   const [isAnalysing, setIsAnalysing] = useState(false);
@@ -146,7 +51,7 @@ function TracesTableWithSearch({
   const [traceCount, setTraceCount] = useState(0);
   const [selectionMode, setSelectionMode] = useState<"none" | "page" | "all">("none");
 
-  const setTraceId = useEventsStoreContext((state) => state.setTraceId);
+  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -190,6 +95,17 @@ function TracesTableWithSearch({
         ]);
 
         setTraceCount(countData.count);
+
+        if (selectionMode === "all") {
+          const newKeys = tracesData.items.reduce(
+            (previousValue, currentValue) => ({
+              ...previousValue,
+              [currentValue.id]: true,
+            }),
+            rowSelection
+          );
+          onRowSelectionChange(newKeys);
+        }
         return { items: tracesData.items, count: countData.count };
       } catch (error) {
         toast({
@@ -201,7 +117,18 @@ function TracesTableWithSearch({
         throw error;
       }
     },
-    [dateRange, filters, projectId, toast]
+    [
+      dateRange.endDate,
+      dateRange.pastHours,
+      dateRange.startDate,
+      filters.filters,
+      filters.search,
+      onRowSelectionChange,
+      projectId,
+      rowSelection,
+      selectionMode,
+      toast,
+    ]
   );
 
   const {
@@ -232,13 +159,22 @@ function TracesTableWithSearch({
 
     if (selectedCount === 0) {
       setSelectionMode("none");
-    } else if (selectionMode === "all" && selectedCount > 0 && selectedCount < traces.length) {
-      setSelectionMode("page");
     } else if (selectedCount > 0 && selectionMode === "none") {
-      // User started selecting individual traces
       setSelectionMode("page");
     }
-  }, [rowSelection, traces.length, selectionMode]);
+  }, [rowSelection, selectionMode]);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectionMode("all");
+    const allTraceIds = traces.reduce(
+      (acc, trace) => {
+        acc[trace.id] = true;
+        return acc;
+      },
+      {} as Record<string, boolean>
+    );
+    onRowSelectionChange(allTraceIds);
+  }, [onRowSelectionChange, traces]);
 
   const handleStartAnalysis = useCallback(async () => {
     try {
@@ -249,7 +185,7 @@ function TracesTableWithSearch({
       await fetch(`/api/projects/${projectId}/trace-analysis-jobs`, {
         method: "POST",
         body: JSON.stringify({
-          eventDefinitionId,
+          eventDefinitionId: signal.id,
           filters: filters.filters,
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,
@@ -261,10 +197,8 @@ function TracesTableWithSearch({
 
       toast({
         title: "Analysis started",
-        description: `Retroactive analysis for "${eventDefinitionName}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+        description: `Retroactive analysis for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
       });
-
-      setOpen(false);
     } catch (error) {
       toast({
         title: "Error",
@@ -275,16 +209,18 @@ function TracesTableWithSearch({
       setIsAnalysing(false);
     }
   }, [
-    eventDefinitionId,
-    eventDefinitionName,
-    traceCount,
-    toast,
-    projectId,
-    filters,
-    dateRange,
-    setOpen,
     selectionMode,
     rowSelection,
+    traceCount,
+    projectId,
+    signal.id,
+    signal.name,
+    filters.filters,
+    filters.search,
+    dateRange.pastHours,
+    dateRange.startDate,
+    dateRange.endDate,
+    toast,
   ]);
 
   const traceIdFromUrl = searchParams.get("traceId");
@@ -293,21 +229,30 @@ function TracesTableWithSearch({
 
   return (
     <>
-      <SheetHeader className="flex flex-row items-start gap-2 pt-4 px-2 pb-4 border-b">
-        <Button className="mb-0" size="icon" variant="ghost" onClick={() => setOpen(false)}>
-          <ChevronsRight className="size-5" />
-        </Button>
+      <Header
+        path={[
+          { name: "signals", href: `/project/${projectId}/signals` },
+          { name: signal.name, href: `/project/${projectId}/signals/${signal.id}?tab=jobs` },
+          { name: "signal job" },
+        ]}
+      />
+      <div className="flex gap-2 px-4 pt-2 pb-4">
         <div>
-          <SheetTitle className="mb-0">Retroactive Analysis</SheetTitle>
-          <SheetDescription className="text-sm text-muted-foreground mb-0">
+          <p className="text-sm text-muted-foreground">
             Selected traces will be analyzed against the{" "}
-            <span className="font-medium text-foreground">"{eventDefinitionName}"</span> event definition. You can
-            select specific traces or all matching traces based on your current filters and time range.
-          </SheetDescription>
+            <span className="font-medium text-foreground">"{signal.name}"</span> signal. You can select specific traces
+            or all matching traces based on your current filters and time range.
+          </p>
         </div>
-      </SheetHeader>
+        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
+          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+          {selectionMode === "none"
+            ? "Start Analysis"
+            : `Start Analysis (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
+        </Button>
+      </div>
 
-      <div className="flex flex-1 overflow-hidden p-4">
+      <div className="flex flex-1 overflow-hidden px-4 pb-4">
         <InfiniteDataTable<TraceRow>
           className="w-full"
           columns={columns}
@@ -355,7 +300,7 @@ function TracesTableWithSearch({
             selectedCount={selectedCount}
             traceCount={traceCount}
             loadedTraceCount={traces.length}
-            onSelectAll={() => setSelectionMode("all")}
+            onSelectAll={handleSelectAll}
             onClearSelection={() => {
               setSelectionMode("none");
               onRowSelectionChange({});
@@ -363,28 +308,14 @@ function TracesTableWithSearch({
           />
         </InfiniteDataTable>
       </div>
-      <div className="flex p-4 border-t">
-        <Button className="ml-auto" onClick={handleStartAnalysis} disabled={selectionMode === "none" || isAnalysing}>
-          {isAnalysing && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          {selectionMode === "none"
-            ? "Start Analysis"
-            : `Start Analysis (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}
-        </Button>
-      </div>
     </>
   );
-}
+};
 
-function RetroactiveAnalysisSheetContent({
-  eventDefinitionId,
-  eventDefinitionName,
-  setOpen,
-}: RetroactiveAnalysisSheetProps & { setOpen: (open: boolean) => void }) {
+export default function CreateSignalJob() {
   return (
-    <TracesTableWithSearch
-      eventDefinitionId={eventDefinitionId}
-      eventDefinitionName={eventDefinitionName}
-      setOpen={setOpen}
-    />
+    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+      <CreateSignalJobContent />
+    </DataTableStateProvider>
   );
 }

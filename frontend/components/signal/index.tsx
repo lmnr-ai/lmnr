@@ -1,33 +1,28 @@
 "use client";
 
-import { format, formatRelative } from "date-fns";
-import { History, Network } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import ClustersTable from "@/components/signal/clusters-table";
-import DisableClusteringDialog from "@/components/signal/disable-clustering-dialog.tsx";
 import EventsTable from "@/components/signal/events-table";
 import SignalJobsTable from "@/components/signal/jobs-table";
-import StartClusteringDialog from "@/components/signal/start-clustering-dialog.tsx";
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
-import { type ManageEventDefinitionForm } from "@/components/signals/manage-event-definition-sheet";
+import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/ui/header.tsx";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { cn } from "@/lib/utils";
 
-const ManageEventDefinitionSheet = dynamic(
-  () => import("@/components/signals/manage-event-definition-sheet.tsx").then((mod) => mod.default),
+const ManageSignalSheet = dynamic(
+  () => import("@/components/signals/manage-signal-sheet.tsx").then((mod) => mod.default),
   { ssr: false }
 );
 
@@ -42,28 +37,17 @@ function SignalContent() {
 
   const activeTab = searchParams.get("tab") || "events";
 
-  const {
-    eventDefinition,
-    setEventDefinition,
-    traceId,
-    spanId,
-    setTraceId,
-    setSpanId,
-    clusterConfig,
-    isSemanticEventsEnabled,
-    initialTraceViewWidth,
-    lastEvent,
-  } = useEventsStoreContext((state) => ({
-    eventDefinition: state.eventDefinition,
-    setEventDefinition: state.setEventDefinition,
+  const { signal, initialTraceViewWidth } = useSignalStoreContext((state) => ({
+    signal: state.signal,
+    initialTraceViewWidth: state.initialTraceViewWidth,
+  }));
+
+  const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+    setSignal: state.setSignal,
     traceId: state.traceId,
     spanId: state.spanId,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
-    clusterConfig: state.clusterConfig,
-    isSemanticEventsEnabled: state.isSignalsEnabled,
-    initialTraceViewWidth: state.initialTraceViewWidth,
-    lastEvent: state.lastEvent,
   }));
 
   const [defaultTraceViewWidth, setDefaultTraceViewWidth] = React.useState(initialTraceViewWidth || 1000);
@@ -76,15 +60,15 @@ function SignalContent() {
   }, [initialTraceViewWidth]);
 
   const handleSuccess = useCallback(
-    async (form: ManageEventDefinitionForm) => {
-      setEventDefinition({
-        ...eventDefinition,
+    async (form: ManageSignalForm) => {
+      setSignal({
+        ...signal,
         prompt: form.prompt,
         structuredOutput: form.structuredOutput,
         triggerSpans: form.triggerSpans,
       });
     },
-    [eventDefinition, setEventDefinition]
+    [signal, setSignal]
   );
 
   const handleTabChange = useCallback(
@@ -115,108 +99,40 @@ function SignalContent() {
 
   return (
     <>
-      <div className="flex flex-col gap-4 flex-1 px-4 pb-4 overflow-auto">
-        {isSemanticEventsEnabled && (
-          <>
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <TabsList className="h-8">
-                  <TabsTrigger className="text-xs" value="events">
-                    Events
-                  </TabsTrigger>
-                  <TabsTrigger className="text-xs" value="jobs">
-                    Jobs
-                  </TabsTrigger>
-                </TabsList>
-                {!isFreeTier && (
-                  <ManageEventDefinitionSheet
-                    open={isDialogOpen}
-                    setOpen={setIsDialogOpen}
-                    defaultValues={eventDefinition}
-                    key={eventDefinition.id}
-                    onSuccess={handleSuccess}
-                  >
-                    <Button icon="edit" variant="secondary">
-                      Edit Signal
-                    </Button>
-                  </ManageEventDefinitionSheet>
-                )}
-              </div>
+      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
+        <div className="flex items-center gap-4 px-4">
+          <TabsList className="h-8">
+            <TabsTrigger className="text-xs" value="events">
+              Events
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="jobs">
+              Jobs
+            </TabsTrigger>
+          </TabsList>
+          {!isFreeTier && (
+            <ManageSignalSheet
+              open={isDialogOpen}
+              setOpen={setIsDialogOpen}
+              defaultValues={signal}
+              key={signal.id}
+              onSuccess={handleSuccess}
+            >
+              <Button icon="edit" variant="secondary">
+                Edit Signal
+              </Button>
+            </ManageSignalSheet>
+          )}
+        </div>
 
-              <TabsContent value="events" className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-4">
-                    <span className="text-lg font-semibold">Clusters</span>
-                    {clusterConfig ? (
-                      <DisableClusteringDialog eventName={eventDefinition.name}>
-                        <Button variant="secondary">
-                          <Network className="mr-1 size-3.5" />
-                          Disable Clustering
-                        </Button>
-                      </DisableClusteringDialog>
-                    ) : (
-                      <StartClusteringDialog eventName={eventDefinition.name}>
-                        <Button variant="secondary" className="w-fit">
-                          <Network className="mr-1 size-3.5" />
-                          Start Clustering
-                        </Button>
-                      </StartClusteringDialog>
-                    )}
-                  </div>
-
-                  {eventDefinition.id && (
-                    <ClustersTable
-                      projectId={eventDefinition.projectId}
-                      eventDefinitionId={eventDefinition.id}
-                      eventDefinitionName={eventDefinition.name}
-                    />
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-semibold">Events</span>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      Last event:{" "}
-                      <span
-                        title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-                        className={cn("text-xs", {
-                          "text-foreground": lastEvent,
-                        })}
-                      >
-                        {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-                      </span>
-                    </span>
-                  </div>
-                  <EventsTable
-                    projectId={eventDefinition.projectId}
-                    eventName={eventDefinition.name}
-                    eventDefinitionId={eventDefinition.id}
-                  />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="jobs" className="flex flex-col gap-2">
-                <div className="flex items-center gap-4">
-                  <span className="text-lg font-semibold">Jobs</span>
-                  {eventDefinition.id && (
-                    <Link href="/" passHref>
-                      <Button variant="secondary">
-                        <History className="mr-1 size-3.5" />
-                        Create Job
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-
-                {eventDefinition.id && (
-                  <SignalJobsTable projectId={eventDefinition.projectId} eventDefinitionId={eventDefinition.id} />
-                )}
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </div>
+        <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
+          <ClustersTable />
+          <EventsTable />
+        </TabsContent>
+        <TabsContent value="jobs" className="flex flex-col gap-2 px-4 pb-4 overflow-hidden">
+          <SignalJobsTable />
+        </TabsContent>
+      </Tabs>
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-[60] flex pointer-events-auto">
           <Resizable
@@ -252,7 +168,7 @@ function SignalContent() {
 }
 
 export default function Signal({ spanId, traceId }: { spanId?: string; traceId?: string }) {
-  const { setTraceId, setSpanId } = useEventsStoreContext((state) => ({
+  const { setTraceId, setSpanId } = useSignalStoreContext((state) => ({
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
@@ -266,6 +182,12 @@ export default function Signal({ spanId, traceId }: { spanId?: string; traceId?:
     },
     [setTraceId, setSpanId]
   );
+
+  useEffect(() => {
+    if (spanId) setSpanId(spanId);
+    if (traceId) setTraceId(traceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>

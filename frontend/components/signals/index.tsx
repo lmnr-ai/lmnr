@@ -4,7 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { defaultSignalsColumnsOrder, signalsColumns, signalsTableFilters } from "@/components/signals/columns.tsx";
-import ManageEventDefinitionSheet from "@/components/signals/manage-event-definition-sheet.tsx";
+import ManageSignalSheet from "@/components/signals/manage-signal-sheet.tsx";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
@@ -15,18 +15,18 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { useProjectContext } from "@/contexts/project-context";
-import { type SemanticEventDefinitionRow } from "@/lib/actions/semantic-event-definitions";
+import { type SignalRow } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 
-export default function Signals({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
+export default function Signals() {
   return (
     <DataTableStateProvider storageKey="signals-table" uniqueKey="id" defaultColumnOrder={defaultSignalsColumnsOrder}>
-      <SignalsContent isSignalsEnabled={isSignalsEnabled} />
+      <SignalsContent />
     </DataTableStateProvider>
   );
 }
 
-function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
+function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { workspace } = useProjectContext();
@@ -44,7 +44,7 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
 
   const FETCH_SIZE = 50;
 
-  const fetchSemanticEventDefinitions = useCallback(
+  const fetchSignals = useCallback(
     async (pageNumber: number) => {
       try {
         const urlParams = new URLSearchParams();
@@ -61,14 +61,14 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
           urlParams.set("search", search);
         }
 
-        const response = await fetch(`/api/projects/${projectId}/semantic-event-definitions?${urlParams.toString()}`);
-        if (!response.ok) throw new Error("Failed to fetch semantic event definitions");
+        const response = await fetch(`/api/projects/${projectId}/signals?${urlParams.toString()}`);
+        if (!response.ok) throw new Error("Failed to fetch signals");
 
-        const data = (await response.json()) as { items: SemanticEventDefinitionRow[] };
+        const data = (await response.json()) as { items: SignalRow[] };
         return { items: data.items };
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Failed to load semantic event definitions.",
+          title: error instanceof Error ? error.message : "Failed to load signals.",
           variant: "destructive",
         });
         throw error;
@@ -85,8 +85,8 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
     fetchNextPage,
     refetch,
     updateData,
-  } = useInfiniteScroll<SemanticEventDefinitionRow>({
-    fetchFn: fetchSemanticEventDefinitions,
+  } = useInfiniteScroll<SignalRow>({
+    fetchFn: fetchSignals,
     enabled: true,
     deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
@@ -98,7 +98,7 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
   const handleDelete = useCallback(
     async (selectedRowIds: string[]) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/semantic-event-definitions`, {
+        const res = await fetch(`/api/projects/${projectId}/signals`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -107,20 +107,20 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
         });
 
         if (!res.ok) {
-          throw new Error("Failed to delete semantic event definitions");
+          throw new Error("Failed to delete signals");
         }
 
         updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
         onRowSelectionChange({});
 
         toast({
-          title: "Event definitions deleted",
-          description: `Successfully deleted ${selectedRowIds.length} event definition(s).`,
+          title: "Signals deleted",
+          description: `Successfully deleted ${selectedRowIds.length} signal(s).`,
         });
       } catch (error) {
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete event definitions. Please try again.",
+          description: error instanceof Error ? error.message : "Failed to delete signals. Please try again.",
           variant: "destructive",
         });
       }
@@ -128,62 +128,54 @@ function SignalsContent({ isSignalsEnabled }: { isSignalsEnabled: boolean }) {
     [projectId, toast, updateData, onRowSelectionChange]
   );
 
-  if (isSignalsEnabled) {
-    return (
-      <>
-        <Header path="signals" />
-        <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-          {!isFreeTier && (
-            <div className="flex items-center gap-2">
-              <ManageEventDefinitionSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-                <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-                  Signal
-                </Button>
-              </ManageEventDefinitionSheet>
+  return (
+    <>
+      <Header path="signals" />
+      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
+        {!isFreeTier && (
+          <div className="flex items-center gap-2">
+            <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+              <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+                Signal
+              </Button>
+            </ManageSignalSheet>
+          </div>
+        )}
+        <InfiniteDataTable<SignalRow>
+          columns={signalsColumns}
+          data={eventDefinitions}
+          getRowId={(row) => row.id}
+          getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
+          hasMore={hasMore}
+          isFetching={isFetching}
+          isLoading={isLoading}
+          fetchNextPage={fetchNextPage}
+          enableRowSelection
+          state={{
+            rowSelection,
+          }}
+          onRowSelectionChange={onRowSelectionChange}
+          lockedColumns={["__row_selection"]}
+          selectionPanel={(selectedRowIds) => (
+            <div className="flex flex-col space-y-2">
+              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
             </div>
           )}
-          <InfiniteDataTable<SemanticEventDefinitionRow>
-            columns={signalsColumns}
-            data={eventDefinitions}
-            getRowId={(row) => row.id}
-            getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
-            hasMore={hasMore}
-            isFetching={isFetching}
-            isLoading={isLoading}
-            fetchNextPage={fetchNextPage}
-            enableRowSelection
-            state={{
-              rowSelection,
-            }}
-            onRowSelectionChange={onRowSelectionChange}
-            lockedColumns={["__row_selection"]}
-            selectionPanel={(selectedRowIds) => (
-              <div className="flex flex-col space-y-2">
-                <DeleteSelectedRows
-                  selectedRowIds={selectedRowIds}
-                  onDelete={handleDelete}
-                  entityName="event definitions"
-                />
-              </div>
-            )}
-          >
-            <div className="flex flex-1 w-full space-x-2 pt-1">
-              <DataTableFilter columns={signalsTableFilters} />
-              <ColumnsMenu
-                lockedColumns={["__row_selection"]}
-                columnLabels={signalsColumns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
-              <DataTableSearch className="mr-0.5" placeholder="Search by event definition name..." />
-            </div>
-            <DataTableFilterList />
-          </InfiniteDataTable>
-        </div>
-      </>
-    );
-  }
-
-  return null;
+        >
+          <div className="flex flex-1 w-full space-x-2 pt-1">
+            <DataTableFilter columns={signalsTableFilters} />
+            <ColumnsMenu
+              lockedColumns={["__row_selection"]}
+              columnLabels={signalsColumns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+            />
+            <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
+          </div>
+          <DataTableFilterList />
+        </InfiniteDataTable>
+      </div>
+    </>
+  );
 }

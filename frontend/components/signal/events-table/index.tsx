@@ -1,12 +1,13 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { format, formatRelative } from "date-fns";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
 import EventsChart from "@/components/signal/events-chart";
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -17,19 +18,21 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils.ts";
 
-import { defaultEventsColumnOrder, eventsTableColumns, getEventsTableFilters } from "./columns";
+import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
 
 const FETCH_SIZE = 50;
 
-interface EventsTableProps {
-  projectId: string;
-  eventName: string;
-  eventDefinitionId?: string;
-}
-
-function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTableProps) {
+function PureEventsTable() {
   const { toast } = useToast();
+  const params = useParams<{ projectId: string }>();
+
+  const { signal, clusterConfig, lastEvent } = useSignalStoreContext((state) => ({
+    signal: state.signal,
+    clusterConfig: state.clusterConfig,
+    lastEvent: state.lastEvent,
+  }));
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -61,13 +64,11 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
 
         filter.forEach((f) => urlParams.append("filter", f));
 
-        if (eventDefinitionId) {
-          urlParams.set("eventDefinitionId", eventDefinitionId);
-        }
+        urlParams.set("eventDefinitionId", signal.id);
 
         urlParams.set("eventSource", "SEMANTIC");
 
-        const response = await fetch(`/api/projects/${projectId}/events/${eventName}?${urlParams.toString()}`);
+        const response = await fetch(`/api/projects/${params.projectId}/events/${signal.name}?${urlParams.toString()}`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch events");
@@ -83,7 +84,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
       }
       return { items: [], count: 0 };
     },
-    [projectId, eventName, eventDefinitionId, pastHours, startDate, endDate, filter, toast]
+    [pastHours, startDate, endDate, filter, signal.id, signal.name, params.projectId, toast]
   );
 
   const getRowHref = useCallback(
@@ -96,29 +97,16 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
     [pathName, searchParams]
   );
 
-  const {
-    eventDefinition,
-    traceId,
-    spanId,
-    setTraceId,
-    setSpanId,
-    fetchStats,
-    setChartContainerWidth,
-    chartContainerWidth,
-    isSemanticEventsEnabled,
-  } = useEventsStoreContext((state) => ({
-    eventDefinition: state.eventDefinition,
-    traceId: state.traceId,
-    spanId: state.spanId,
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-    fetchStats: state.fetchStats,
-    setChartContainerWidth: state.setChartContainerWidth,
-    chartContainerWidth: state.chartContainerWidth,
-    isSemanticEventsEnabled: state.isSignalsEnabled,
-  }));
-
-  const eventsTableFilters = useMemo(() => getEventsTableFilters(isSemanticEventsEnabled), [isSemanticEventsEnabled]);
+  const { traceId, spanId, setTraceId, setSpanId, fetchStats, setChartContainerWidth, chartContainerWidth } =
+    useSignalStoreContext((state) => ({
+      traceId: state.traceId,
+      spanId: state.spanId,
+      setTraceId: state.setTraceId,
+      setSpanId: state.setSpanId,
+      fetchStats: state.fetchStats,
+      setChartContainerWidth: state.setChartContainerWidth,
+      chartContainerWidth: state.chartContainerWidth,
+    }));
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
@@ -129,7 +117,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
   );
 
   const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${eventDefinition.projectId}/events/${eventDefinition.name}/stats`,
+    baseUrl: `/api/projects/${params.projectId}/events/${signal.name}/stats`,
     chartContainerWidth,
     pastHours,
     startDate,
@@ -151,7 +139,7 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [projectId, eventName, pastHours, startDate, endDate, filter],
+    deps: [params.projectId, signal.name, pastHours, startDate, endDate, filter],
   });
 
   const focusedRowId = useMemo(() => {
@@ -202,40 +190,57 @@ function PureEventsTable({ projectId, eventName, eventDefinitionId }: EventsTabl
   }, [statsUrl, fetchStats]);
 
   return (
-    <InfiniteDataTable<EventRow>
-      className="w-full"
-      columns={eventsTableColumns}
-      data={events}
-      onRowClick={handleRowClick}
-      getRowId={(row: EventRow) => row.id}
-      focusedRowId={focusedRowId}
-      hasMore={hasMore}
-      isFetching={isFetching}
-      isLoading={isLoading}
-      getRowHref={getRowHref}
-      fetchNextPage={fetchNextPage}
-      loadMoreButton
-    >
-      <div className="flex flex-1 w-full space-x-2">
-        <DataTableFilter columns={eventsTableFilters} />
-        <ColumnsMenu
-          columnLabels={eventsTableColumns.map((column) => ({
-            id: column.id!,
-            label: typeof column.header === "string" ? column.header : column.id!,
-          }))}
-        />
-        <DateRangeFilter />
+    <div className="flex flex-col gap-2 flex-1">
+      <div className="flex items-center gap-2">
+        <span className="text-lg font-semibold">Events</span>
+        <span className="text-xs text-muted-foreground font-medium">
+          Last event:{" "}
+          <span
+            title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+            className={cn("text-xs", {
+              "text-foreground": lastEvent,
+            })}
+          >
+            {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
+          </span>
+        </span>
       </div>
-      <DataTableFilterList />
-      <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
-    </InfiniteDataTable>
+
+      <InfiniteDataTable<EventRow>
+        className="w-full"
+        columns={eventsTableColumns}
+        data={events}
+        onRowClick={handleRowClick}
+        getRowId={(row: EventRow) => row.id}
+        focusedRowId={focusedRowId}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading}
+        getRowHref={getRowHref}
+        fetchNextPage={fetchNextPage}
+        loadMoreButton
+      >
+        <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter columns={eventsTableFilters} />
+          <ColumnsMenu
+            columnLabels={eventsTableColumns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
+          />
+          <DateRangeFilter />
+        </div>
+        <DataTableFilterList />
+        <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+      </InfiniteDataTable>
+    </div>
   );
 }
 
-export default function EventsTable(props: EventsTableProps) {
+export default function EventsTable() {
   return (
     <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
-      <PureEventsTable {...props} />
+      <PureEventsTable />
     </DataTableStateProvider>
   );
 }

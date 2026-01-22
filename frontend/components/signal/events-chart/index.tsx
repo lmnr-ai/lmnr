@@ -4,7 +4,7 @@ import { type RefObject } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
-import { useEventsStoreContext } from "@/components/signal/store.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 
 interface EventsChartProps {
   className?: string;
@@ -14,11 +14,11 @@ interface EventsChartProps {
 const fields = ["count"] as const;
 
 export default function EventsChart({ className, containerRef }: EventsChartProps) {
-  const { stats, isLoadingStats, chartContainerWidth, eventDefinition } = useEventsStoreContext((state) => ({
+  const { stats, isLoadingStats, chartContainerWidth, eventDefinition } = useSignalStoreContext((state) => ({
     stats: state.stats,
     isLoadingStats: state.isLoadingStats,
     chartContainerWidth: state.chartContainerWidth,
-    eventDefinition: state.eventDefinition,
+    eventDefinition: state.signal,
   }));
 
   const chartConfig = {
