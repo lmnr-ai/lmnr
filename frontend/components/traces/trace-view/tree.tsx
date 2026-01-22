@@ -1,21 +1,26 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { isEmpty } from "lodash";
+import { compact, isEmpty } from "lodash";
+import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 
+import { useBatchedSpanOutputs } from "./list/use-batched-span-outputs";
 import { useScrollContext } from "./scroll-context";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
+  traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
-const Tree = ({ onSpanSelect }: TreeProps) => {
+const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
+  const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans } = useTraceViewStoreContext((state) => ({
+  const { getTreeSpans, spans, trace } = useTraceViewStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
+    trace: state.trace,
   }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans]);
@@ -28,6 +33,14 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   });
 
   const items = virtualizer?.getVirtualItems() || [];
+
+  const visibleSpanIds = compact(items.map((item) => treeSpans[item.index]?.span.spanId)) as string[];
+
+  const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
+    id: traceId,
+    startTime: trace?.startTime,
+    endTime: trace?.endTime,
+  });
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -89,6 +102,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
                   <SpanCard
                     span={spanItem.span}
                     parentY={spanItem.parentY}
+                    getOutput={getOutput}
                     yOffset={spanItem.yOffset}
                     depth={spanItem.depth}
                     onSpanSelect={onSpanSelect}

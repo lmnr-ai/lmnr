@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.laminar.sh)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "Bash(git push)",
+      "Bash(agent-browser open:*)",
+      "Bash(agent-browser snapshot:*)",
+      "Bash(agent-browser screenshot:*)",
+      "Bash(agent-browser scroll:*)",
+      "Bash(agent-browser click:*)",
+      "Bash(agent-browser get:*)",
+      "Bash(agent-browser close:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(agent-browser:*)",
+      "Bash(git mv:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:discuss.codemirror.net)",
+      "WebFetch(domain:codemirror.net)",
+      "mcp__figma-desktop__get_screenshot",
+      "mcp__figma-desktop__get_design_context",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(pnpm remove:*)",
+      "WebFetch(domain:www.mux.com)",
+      "Bash(xargs ls:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:docs.lmnr.ai)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

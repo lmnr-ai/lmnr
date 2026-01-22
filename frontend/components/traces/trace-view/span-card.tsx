@@ -1,22 +1,25 @@
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
+import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield.tsx";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
-import { cn, getDurationString } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { Skeleton } from "../../ui/skeleton";
 import { NoSpanTooltip } from "../no-span-tooltip";
 import SpanTypeIcon from "../span-type-icon";
+import Markdown from "./list/markdown";
+import { generateSpanPathKey } from "./list/utils";
 
 const ROW_HEIGHT = 36;
-const SQUARE_SIZE = 22;
+const SQUARE_SIZE = 20;
 const SQUARE_ICON_SIZE = 16;
 
-const DEPTH_INDENT = 24;
-const TREE_CONTAINER_PADDING_LEFT = 16;
+const DEPTH_INDENT = 16;
+const TREE_CONTAINER_PADDING_LEFT = 10;
 const BASE_PADDING_LEFT = 8;
 
 const TREE_LINE_WIDTH = 12;
@@ -27,16 +30,13 @@ const TREE_LINE_LEFT_BASE = 10;
 interface SpanCardProps {
   span: TraceViewSpan;
   parentY: number;
+  getOutput: (spanId: string) => any | undefined;
   depth: number;
   yOffset: number;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-});
-
-export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
+export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,6 +49,10 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
   // Get child spans from the store
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
+  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
+
+  const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
+
   const hasChildren = childSpans && childSpans.length > 0;
 
   useEffect(() => {
@@ -59,6 +63,8 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
+  const output = getOutput(span.spanId);
+
   return (
     <div className="text-md flex w-full flex-col" ref={ref}>
       <div
@@ -67,9 +73,6 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
           "hover:bg-red-100/10",
           isSelected ? "bg-primary/25 border-l-primary" : "border-l-transparent"
         )}
-        style={{
-          height: ROW_HEIGHT,
-        }}
         onClick={(e) => {
           if (!span.pending) {
             onSpanSelect?.(span);
@@ -84,7 +87,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
           }}
         >
           <div
-            className="border-l-2 border-b-2 rounded-bl-lg absolute"
+            className="border-l-2 border-b-2 rounded-bl-md absolute"
             style={{
               height: segmentHeight - TREE_LINE_HEIGHT_ADJUSTMENT,
               top: -(segmentHeight - TREE_LINE_TOP_ANCHOR),
@@ -122,30 +125,13 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
               <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
             )
           ) : (
-            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex flex-shrink-0 animate-in fade-in duration-200">
-              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                <Clock3 size={12} className="min-w-3 min-h-3" />
-                <span>{getDurationString(span.startTime, span.endTime)}</span>
-              </div>
-              {llmMetrics && (
-                <>
-                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                    <Coins size={14} className="min-w-[14px] min-h-[14px]" />
-                    <span>{numberFormatter.format(llmMetrics.tokens)}</span>
-                    {!!llmMetrics.cacheReadInputTokens && (
-                      <span className="text-success-bright">
-                        ({numberFormatter.format(llmMetrics.cacheReadInputTokens)})
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                    <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
-                    <span>${llmMetrics.cost.toFixed(4)}</span>
-                  </div>
-                </>
-              )}
-            </div>
+            <SpanStatsShield
+              startTime={span.startTime}
+              endTime={span.endTime}
+              tokens={llmMetrics?.tokens}
+              cost={llmMetrics?.cost}
+              cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
+            />
           )}
           {hasChildren && (
             <button
@@ -158,6 +144,7 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
               {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
+          <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
           <div className="grow" />
         </div>
       </div>
