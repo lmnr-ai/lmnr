@@ -104,6 +104,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
+      NEXT_PUBLIC_ANONYMOUS_TELEMETRY: ${NEXT_PUBLIC_ANONYMOUS_TELEMETRY}
 
   app-server:
     image: ghcr.io/lmnr-ai/app-server

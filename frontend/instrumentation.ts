@@ -10,6 +10,12 @@ export async function register() {
 
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    if (process.env.NEXT_PUBLIC_ANONYMOUS_TELEMETRY === "true") {
+      console.log(
+        "Telemetry is enabled. To opt out, set NEXT_PUBLIC_ANONYMOUS_TELEMETRY=false in your .env file or remove the variable entirely."
+      );
+    }
+
     const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
@@ -59,7 +65,7 @@ export async function register() {
             process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
             process.env.CLICKHOUSE_DB || "default",
             "ENGINE=Atomic", // db_engine
-            String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000), // timeout as string
+            String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);

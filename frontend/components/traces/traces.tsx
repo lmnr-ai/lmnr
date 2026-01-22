@@ -56,7 +56,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     }
   }, []);
 
-  if (isFeatureEnabled(Feature.POSTHOG)) {
+  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
     posthog.identify(user.email);
   }
 
