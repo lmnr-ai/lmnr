@@ -9,13 +9,10 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
-    const searchParams = req.nextUrl.searchParams;
-    const eventSource = searchParams.get("eventSource") as "SEMANTIC" | "CODE";
 
     const result = await getClusterConfig({
       projectId,
       eventName,
-      eventSource,
     });
 
     return NextResponse.json(result);
@@ -43,7 +40,6 @@ export async function POST(
       projectId,
       eventName,
       valueTemplate: body.valueTemplate,
-      eventSource: body.eventSource,
     });
 
     return NextResponse.json(result);
@@ -60,18 +56,15 @@ export async function POST(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ projectId: string; name: string }> }
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
-    const searchParams = req.nextUrl.searchParams;
-    const eventSource = searchParams.get("eventSource") as "SEMANTIC" | "CODE";
 
     const result = await deleteClusterConfig({
       projectId,
       eventName,
-      eventSource,
     });
 
     return NextResponse.json(result);
