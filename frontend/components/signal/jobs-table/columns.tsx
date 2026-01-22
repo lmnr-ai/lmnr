@@ -50,7 +50,7 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
         </div>
       );
     },
-    size: 180,
+    size: 240,
   },
   {
     accessorFn: (row) => row.createdAt,
