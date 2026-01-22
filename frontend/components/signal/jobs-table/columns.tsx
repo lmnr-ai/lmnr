@@ -1,6 +1,8 @@
 import { type ColumnDef } from "@tanstack/react-table";
+import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import Mono from "@/components/ui/mono.tsx";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export interface SignalJobRow {
@@ -19,7 +21,7 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
     accessorFn: (row) => row.id,
     header: "Job ID",
     id: "id",
-    cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.id}</span>,
+    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     size: 120,
   },
   {
@@ -30,24 +32,25 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
       const total = row.original.totalTraces;
       const succeeded = row.original.processedTraces;
       const failed = row.original.failedTraces;
+      const percentage = total > 0 ? (((succeeded + failed) / total) * 100).toFixed(1) : "0.0";
 
       return (
-        <div className="flex items-center gap-1 text-xs font-medium tabular-nums">
+        <div className="flex items-center gap-2 font-medium tabular-nums">
           <span className="text-success">{succeeded.toLocaleString()}</span>
           <span className="text-muted-foreground">/</span>
           <span className="text-foreground">{total.toLocaleString()}</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{percentage}%</span>
           {failed > 0 && (
             <>
-              <span className="text-muted-foreground">(</span>
-              <span className="text-destructive">{failed.toLocaleString()}</span>
-              <span className="text-destructive">failed</span>
-              <span className="text-muted-foreground">)</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-destructive">{failed.toLocaleString()} failed</span>
             </>
           )}
         </div>
       );
     },
-    size: 180,
+    size: 240,
   },
   {
     accessorFn: (row) => row.createdAt,

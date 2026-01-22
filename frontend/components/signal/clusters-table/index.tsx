@@ -35,7 +35,7 @@ const PureClustersTable = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/projects/${params.projectId}/events/${params.projectId}/clusters`);
+      const res = await fetch(`/api/projects/${params.projectId}/events/${signal.name}/clusters`);
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
