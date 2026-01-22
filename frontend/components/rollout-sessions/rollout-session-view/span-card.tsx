@@ -146,6 +146,11 @@ export function SpanCard({ span, yOffset, parentY, onSpanSelect, depth }: SpanCa
                   <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
                     <Coins size={14} className="min-w-[14px] min-h-[14px]" />
                     <span>{numberFormatter.format(llmMetrics.tokens)}</span>
+                    {!!llmMetrics.cacheReadInputTokens && (
+                      <span className="text-success-bright">
+                        ({numberFormatter.format(llmMetrics.cacheReadInputTokens)})
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">

@@ -88,8 +88,10 @@ const TimelineElement = ({
             <span className={"text-white/70 inline-flex items-center gap-1"}>
               <Coins className="min-w-1" size={12} />
               {numberFormatter.format(llmMetrics.tokens)}
+              {!!llmMetrics.cacheReadInputTokens && (
+                <span className="text-success-bright">({numberFormatter.format(llmMetrics.cacheReadInputTokens)})</span>
+              )}
             </span>
-
             <span className={"text-white/70 flex w-fit items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
               {llmMetrics.cost.toFixed(3)}
