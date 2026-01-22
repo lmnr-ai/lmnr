@@ -233,34 +233,36 @@ const ThreeCategories = ({ className }: Props) => (
         </div>
         <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
           <EvalsImage />
-          <div className={cn("flex md:flex-row md:gap-10 md:h-[360px] items-start w-full", "flex-col gap-6 h-[600px]")}>
+          <div
+            className={cn("flex md:flex-row md:gap-[30px] md:h-[400px] items-start w-full", "flex-col gap-8 h-[740px]")}
+          >
             <div
               className={cn(
-                "md:basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px opacity-80 relative md:shrink-0 h-full",
+                "basis-0 bg-landing-surface-700 flex flex-col grow md:h-full items-start overflow-hidden rounded-lg shrink-0",
                 "flex-1 basis-0 w-full"
               )}
             >
-              <div className="flex flex-col gap-1 items-start w-full">
+              <EvalsSDKImage className="w-full flex-1" />
+              <div className={cn("flex flex-col gap-1 items-start w-full md:p-8 h-[35%]", "p-5")}>
                 <p className={cn(cardTitle, "w-full")}>Evals SDK you want to use</p>
                 <p className={cn(bodyMedium, "w-full")}>
                   Define your agent, dataset, and success metric. We handle the rest.
                 </p>
               </div>
-              <EvalsSDKImage className={cn("md:h-full w-full", "flex-1")} />
             </div>
             <div
               className={cn(
-                "md:basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px opacity-80 relative md:shrink-0 h-full",
+                "basis-0 bg-landing-surface-700 flex flex-col grow md:h-full items-start overflow-hidden rounded-lg shrink-0",
                 "flex-1 basis-0 w-full"
               )}
             >
-              <div className="flex flex-col gap-1 items-start w-full">
+              <GranularEvalsImage className="w-full flex-1" />
+              <div className={cn("flex flex-col gap-1 items-start w-full md:p-8 h-[35%]", "p-5")}>
                 <p className={cn(cardTitle, "w-full")}>As granular as you want</p>
                 <p className={cn(bodyMedium, "w-full")}>
                   See high level results or dive deep into your individual traces.
                 </p>
               </div>
-              <GranularEvalsImage className={cn("md:h-full w-full", "flex-1")} />
             </div>
           </div>
         </div>

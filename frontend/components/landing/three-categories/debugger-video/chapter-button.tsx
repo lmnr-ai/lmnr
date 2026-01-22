@@ -17,7 +17,7 @@ const ChapterButton = ({ label, isActive, progress, onClick }: ChapterButtonProp
     )}
     onClick={onClick}
   >
-    <span className="text-base font-normal whitespace-pre-line leading-tight py-1">{label}</span>
+    <span className="md:text-base text-xs font-normal whitespace-pre-line leading-tight py-1">{label}</span>
     <div className="h-[2px] w-full bg-landing-text-600">
       {isActive && (
         <div className="h-full bg-landing-primary-400 transition-all duration-100" style={{ width: `${progress}%` }} />

@@ -50,7 +50,7 @@ const DebuggerVideo = () => {
 
   return (
     <div className="w-full flex flex-col gap-9">
-      <div className="flex gap-7">
+      <div className="flex md:gap-7 items-end gap-2">
         {chapters.map((chapter, i) => (
           <ChapterButton
             key={i}

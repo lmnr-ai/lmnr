@@ -1,25 +1,26 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
 import {
+  Bolt,
   ChevronDown,
+  ChevronRight,
   ChevronsRight,
-  PlayCircle,
-  Share2,
-  Maximize,
   Clock,
   DollarSign,
-  List,
-  Filter,
-  Search,
   FileText,
-  Sparkles,
-  ChevronRight,
-  Bolt,
+  Filter,
+  List,
+  Maximize,
   MessageCircle,
+  PlayCircle,
+  Search,
+  Share2,
+  Sparkles,
 } from "lucide-react";
+import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
@@ -44,7 +45,7 @@ const GranularEvalsImage = ({ className }: Props) => {
   const barHeights = ["15%", "35%", "20%", "45%", "50%", "40%", "30%", "55%", "70%", "45%", "60%", "85%"];
 
   return (
-    <div ref={containerRef} className={cn("flex items-start overflow-hidden rounded-sm relative gap-1 ", className)}>
+    <div ref={containerRef} className={cn("flex items-start overflow-hidden rounded-sm relative gap-1 bg-landing-surface-800", className)}>
       {/* Left Half - BarContainer */}
       <div className="flex-1 relative h-full bg-landing-surface-700 overflow-hidden">
         {/* NumberContainer - Static in top left */}
