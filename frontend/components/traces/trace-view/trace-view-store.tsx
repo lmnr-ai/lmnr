@@ -4,8 +4,6 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
-  buildParentChain,
-  buildPathInfo,
   buildSpanNameMap,
   computePathInfoMap,
   groupIntoSections,

@@ -16,13 +16,13 @@ import { cn } from "@/lib/utils.ts";
 
 interface ListItemProps {
   span: TraceViewListSpan;
-  getOutput: (spanId: string) => any | undefined;
+  output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
   isLast: boolean;
 }
 
-const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
+const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
   const selectedSpan = useTraceViewStoreContext((state) => state.selectedSpan);
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
@@ -33,7 +33,6 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
   );
 
-  const output = getOutput(span.spanId);
   const isLoadingOutput = output === undefined;
 
   const displayName = useMemo(

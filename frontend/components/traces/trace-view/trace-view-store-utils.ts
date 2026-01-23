@@ -12,10 +12,12 @@ export type PathInfo = {
 export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
-  yOffset: number;
-  parentY: number;
+  branchMask: boolean[];  // branchMask[d] = true if ancestor at depth d has more children below
   pending: boolean;
   pathInfo: PathInfo;
+  // Keep yOffset/parentY for backward compatibility (minimap uses them)
+  yOffset: number;
+  parentY: number;
 }
 
 export interface SegmentEvent {
@@ -92,6 +94,9 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
   const spanItems: TreeSpan[] = [];
   const maxY = { current: 0 };
 
+  // Track which ancestor depths have more children to render
+  const activeAncestors: boolean[] = [];
+
   const buildTreeWithCollapse = (
     items: TreeSpan[],
     span: TraceViewSpan,
@@ -101,9 +106,13 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
   ) => {
     const yOffset = maxY.current + 36;
 
+    // Capture branchMask as snapshot of active ancestors for depths 0 to depth-1
+    const branchMask = activeAncestors.slice(0, depth);
+
     items.push({
       span,
       depth,
+      branchMask,
       yOffset,
       parentY,
       pending: span.pending || false,
@@ -113,8 +122,27 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
     maxY.current = maxY.current + 36;
 
     if (!span.collapsed) {
+      const children = childSpans[span.spanId] || [];
       const py = maxY.current;
-      childSpans[span.spanId]?.forEach((child) => buildTreeWithCollapse(items, child, depth + 1, maxY, py));
+
+      children.forEach((child, index) => {
+        const isLastChild = index === children.length - 1;
+
+        // Ensure array is long enough
+        while (activeAncestors.length <= depth) {
+          activeAncestors.push(false);
+        }
+
+        // Set whether this depth has more siblings coming
+        activeAncestors[depth] = !isLastChild;
+
+        buildTreeWithCollapse(items, child, depth + 1, maxY, py);
+      });
+
+      // Clear this depth when done
+      if (activeAncestors.length > depth) {
+        activeAncestors[depth] = false;
+      }
     }
   };
 
@@ -298,6 +326,7 @@ export const transformSpansToFlatMinimap = (spans: TraceViewSpan[], traceDuratio
     return {
       span,
       depth: 0,
+      branchMask: [],
       yOffset: 0,
       parentY: 0,
       pending: span.pending || false,
