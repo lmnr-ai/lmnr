@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct SignalJob {
     pub id: Uuid,
-    pub event_definition_id: Uuid,
+    pub signal_id: Uuid,
     pub project_id: Uuid,
     pub total_traces: i32,
     pub processed_traces: i32,
@@ -19,16 +19,16 @@ pub struct SignalJob {
 
 pub async fn create_signal_job(
     pool: &PgPool,
-    event_definition_id: Uuid,
+    signal_id: Uuid,
     project_id: Uuid,
     total_traces: i32,
 ) -> Result<SignalJob> {
     let job = sqlx::query_as::<_, SignalJob>(
-        "INSERT INTO trace_analysis_jobs (event_definition_id, project_id, total_traces)
+        "INSERT INTO signal_jobs (signal_id, project_id, total_traces)
         VALUES ($1, $2, $3)
-        RETURNING id, event_definition_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at",
+        RETURNING id, signal_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at",
     )
-    .bind(event_definition_id)
+    .bind(signal_id)
     .bind(project_id)
     .bind(total_traces)
     .fetch_one(pool)
@@ -44,7 +44,7 @@ pub async fn update_signal_job_stats(
     failed_traces_delta: i32,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE trace_analysis_jobs
+        "UPDATE signal_jobs
         SET processed_traces = processed_traces + $2,
             failed_traces = failed_traces + $3,
             updated_at = NOW()

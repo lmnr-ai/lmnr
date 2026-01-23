@@ -46,10 +46,9 @@ use signals::{
 use tonic::transport::Server;
 use traces::{
     EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SEMANTIC_EVENT_EXCHANGE,
-    SEMANTIC_EVENT_QUEUE, SEMANTIC_EVENT_ROUTING_KEY, clustering::ClusteringHandler,
-    consumer::SpanHandler, grpc_service::ProcessTracesService,
-    semantic_events::SemanticEventHandler,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SIGNALS_EXCHANGE,
+    SIGNALS_QUEUE, SIGNALS_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
+    grpc_service::ProcessTracesService, signals::SignalHandler,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -405,10 +404,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.5 Semantic event message queue ====
+            // ==== 3.5 Signals message queue ====
             channel
                 .exchange_declare(
-                    SEMANTIC_EVENT_EXCHANGE,
+                    SIGNALS_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -421,7 +420,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SEMANTIC_EVENT_QUEUE,
+                    SIGNALS_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -615,8 +614,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
         // ==== 3.4 Payloads message queue ====
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
-        // ==== 3.5 Semantic event message queue ====
-        queue.register_queue(SEMANTIC_EVENT_EXCHANGE, SEMANTIC_EVENT_QUEUE);
+        // ==== 3.5 Signals event message queue ====
+        queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Event Clustering message queue ====
@@ -857,7 +856,7 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_semantic_event_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
+        let num_signals_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
             .unwrap_or(2);
@@ -885,13 +884,13 @@ fn main() -> anyhow::Result<()> {
                 .unwrap_or(4);
 
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
-            num_semantic_event_workers,
+            num_signals_workers,
             num_notification_workers,
             num_clustering_workers,
             num_trace_analysis_llm_batch_submissions_workers,
@@ -1022,17 +1021,17 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn semantic event workers using new worker pool
+                    // Spawn signals workers using new worker pool
                     {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
-                            WorkerType::SemanticEvents,
-                            num_semantic_event_workers as usize,
+                            WorkerType::Signals,
+                            num_signals_workers as usize,
                             move || {
-                                SemanticEventHandler::new(
+                                SignalHandler::new(
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
@@ -1040,9 +1039,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: SEMANTIC_EVENT_QUEUE,
-                                exchange_name: SEMANTIC_EVENT_EXCHANGE,
-                                routing_key: SEMANTIC_EVENT_ROUTING_KEY,
+                                queue_name: SIGNALS_QUEUE,
+                                exchange_name: SIGNALS_EXCHANGE,
+                                routing_key: SIGNALS_ROUTING_KEY,
                             },
                         );
                     }

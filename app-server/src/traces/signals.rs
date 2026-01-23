@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::{SEMANTIC_EVENT_EXCHANGE, SEMANTIC_EVENT_ROUTING_KEY};
+use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::{self, events::CHEvent};
 use crate::db;
 use crate::db::events::{Event, EventSource};
-use crate::db::semantic_event_definitions::SemanticEventDefinition;
+use crate::db::signals::Signal;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::notifications::{
@@ -21,15 +21,15 @@ use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SemanticEventMessage {
+pub struct SignalMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
     pub trigger_span_id: Uuid,
-    pub event_definition: SemanticEventDefinition,
+    pub event_definition: Signal, // should stay "event_definition" for backward compatibility
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SemanticEventResponse {
+pub struct SignalEventResponse {
     pub success: bool,
     #[serde(default)]
     pub attributes: Option<Value>,
@@ -37,51 +37,47 @@ pub struct SemanticEventResponse {
     pub error: Option<String>,
 }
 
-/// Push a semantic event message to the semantic event queue
-pub async fn push_to_semantic_event_queue(
+/// Push a signal message to the signals queue
+pub async fn push_to_signals_queue(
     trace_id: Uuid,
     project_id: Uuid,
     trigger_span_id: Uuid,
-    event_definition: SemanticEventDefinition,
+    signal: Signal,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
-    let message = SemanticEventMessage {
+    let message = SignalMessage {
         trace_id,
         project_id,
         trigger_span_id,
-        event_definition: event_definition.clone(),
+        event_definition: signal.clone(),
     };
 
     let serialized = serde_json::to_vec(&message)?;
 
     queue
-        .publish(
-            &serialized,
-            SEMANTIC_EVENT_EXCHANGE,
-            SEMANTIC_EVENT_ROUTING_KEY,
-        )
+        .publish(&serialized, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY)
         .await?;
 
     log::debug!(
-        "Pushed semantic event message to queue: trace_id={}, project_id={}, trigger_span_id={}, event={}",
+        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_span_id={}, event={}",
         trace_id,
         project_id,
         trigger_span_id,
-        event_definition.name
+        signal.name
     );
 
     Ok(())
 }
 
-/// Handler for semantic event messages
-pub struct SemanticEventHandler {
+/// Handler for signal messages
+pub struct SignalHandler {
     db: Arc<db::DB>,
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     client: reqwest::Client,
 }
 
-impl SemanticEventHandler {
+impl SignalHandler {
     pub fn new(
         db: Arc<db::DB>,
         queue: Arc<MessageQueue>,
@@ -98,11 +94,11 @@ impl SemanticEventHandler {
 }
 
 #[async_trait]
-impl MessageHandler for SemanticEventHandler {
-    type Message = SemanticEventMessage;
+impl MessageHandler for SignalHandler {
+    type Message = SignalMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        process_semantic_event(
+        process_signal(
             &self.client,
             message,
             self.db.clone(),
@@ -114,15 +110,15 @@ impl MessageHandler for SemanticEventHandler {
     }
 }
 
-/// Process semantic event identification
-async fn process_semantic_event(
+/// Process signal identification
+async fn process_signal(
     client: &reqwest::Client,
-    message: SemanticEventMessage,
+    message: SignalMessage,
     db: Arc<db::DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
-    let event_definition = &message.event_definition;
+    let signal = &message.event_definition;
 
     let service_url = env::var("SEMANTIC_EVENT_SERVICE_URL")
         .map_err(|_| anyhow::anyhow!("SEMANTIC_EVENT_SERVICE_URL environment variable not set"))?;
@@ -134,10 +130,10 @@ async fn process_semantic_event(
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
-        "event_definition": serde_json::to_value(event_definition).unwrap(),
+        "event_definition": serde_json::to_value(signal).unwrap(), // shall stay "event_definition" until modal service is updated
     });
 
-    let response: SemanticEventResponse =
+    let response: SignalEventResponse =
         call_service_with_retry(client, &service_url, &auth_token, &request_body).await?;
 
     if !response.success {
@@ -155,7 +151,7 @@ async fn process_semantic_event(
             span_id: message.trigger_span_id,
             project_id: message.project_id,
             timestamp: chrono::Utc::now(),
-            name: event_definition.name.clone(),
+            name: signal.name.clone(),
             attributes: attributes.clone(),
             trace_id: message.trace_id,
             source: EventSource::Semantic,
@@ -171,7 +167,7 @@ async fn process_semantic_event(
             message.project_id,
             message.trace_id,
             message.trigger_span_id,
-            &event_definition.name,
+            &signal.name,
             attributes,
             event,
         )

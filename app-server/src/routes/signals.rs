@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::spans::SpanType,
-    db::{DB, semantic_event_definitions, signal_jobs},
+    db::{self, DB, signal_jobs},
     mq::MessageQueue,
     query_engine::QueryEngine,
     signals::{self, RunStatus, SignalRun, SignalRunPayload, utils::emit_internal_span},
@@ -23,7 +23,7 @@ const LLM_PROVIDER: &str = "gemini";
 #[serde(rename_all = "camelCase")]
 pub struct SubmitTraceAnalysisJobRequest {
     pub query: String,
-    pub event_definition_id: Uuid,
+    pub signal_id: Uuid,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
 }
@@ -33,7 +33,7 @@ pub struct SubmitTraceAnalysisJobRequest {
 pub struct SubmitTraceAnalysisJobResponse {
     pub job_id: Uuid,
     pub total_traces: i32,
-    pub event_definition_id: Uuid,
+    pub signal_id: Uuid,
 }
 
 #[post("trace-analysis")]
@@ -50,7 +50,7 @@ pub async fn submit_trace_analysis_job(
     let SubmitTraceAnalysisJobRequest {
         query,
         parameters,
-        event_definition_id: signal_id,
+        signal_id,
     } = request.into_inner();
 
     let clickhouse_client = match clickhouse_ro.as_ref() {
@@ -62,15 +62,12 @@ pub async fn submit_trace_analysis_job(
         }
     };
 
-    let signal =
-        semantic_event_definitions::get_semantic_event_definition(&db.pool, signal_id, project_id)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to query semantic event definition: {:?}", e);
-                Error::InternalAnyhowError(anyhow::anyhow!(
-                    "Failed to query semantic event definition"
-                ))
-            })?;
+    let signal = db::signals::get_signal(&db.pool, signal_id, project_id)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to query signal: {:?}", e);
+            Error::InternalAnyhowError(anyhow::anyhow!("Failed to query signal"))
+        })?;
 
     let signal = match signal {
         Some(def) => def,
@@ -205,7 +202,7 @@ pub async fn submit_trace_analysis_job(
     let response = SubmitTraceAnalysisJobResponse {
         job_id: job.id,
         total_traces: job.total_traces,
-        event_definition_id: job.event_definition_id,
+        signal_id: job.signal_id,
     };
 
     Ok(HttpResponse::Ok().json(response))

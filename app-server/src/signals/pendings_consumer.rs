@@ -29,7 +29,7 @@ use crate::{
         spans::SpanType,
     },
     mq::MessageQueue,
-    traces::semantic_events::process_event_notifications_and_clustering,
+    traces::signals::process_event_notifications_and_clustering,
     worker::{HandlerError, MessageHandler},
 };
 

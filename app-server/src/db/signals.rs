@@ -4,28 +4,28 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Semantic event definition with prompt and schema (from definition or template)
+/// Signal with prompt and schema
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct SemanticEventDefinition {
+pub struct Signal {
     pub name: String,
     pub prompt: String,
     pub structured_output_schema: Value,
 }
 
-pub async fn get_semantic_event_definition(
+pub async fn get_signal(
     pool: &PgPool,
-    event_definition_id: Uuid,
+    signal_id: Uuid,
     project_id: Uuid,
-) -> Result<Option<SemanticEventDefinition>> {
-    let event_def = sqlx::query_as::<_, SemanticEventDefinition>(
+) -> Result<Option<Signal>> {
+    let signal = sqlx::query_as::<_, Signal>(
         "SELECT name, prompt, structured_output_schema
-        FROM semantic_event_definitions
+        FROM signals
         WHERE id = $1 AND project_id = $2",
     )
-    .bind(event_definition_id)
+    .bind(signal_id)
     .bind(project_id)
     .fetch_optional(pool)
     .await?;
 
-    Ok(event_def)
+    Ok(signal)
 }
