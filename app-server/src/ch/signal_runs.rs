@@ -16,6 +16,8 @@ pub struct CHSignalRun {
     #[serde(with = "clickhouse::serde::uuid")]
     pub job_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
+    pub trigger_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
     pub run_id: Uuid,
     /// Status: 0 = Pending, 1 = Completed, 2 = Failed
     pub status: u8,
@@ -32,6 +34,7 @@ impl From<&SignalRun> for CHSignalRun {
             project_id: run.project_id,
             signal_id: run.signal_id,
             job_id: run.job_id,
+            trigger_id: Uuid::nil(), // TODO: Add trigger_id to SignalRun when triggers are implemented
             run_id: run.run_id,
             status: run.status.as_u8(),
             event_id: run.event_id.unwrap_or(Uuid::nil()),
@@ -51,7 +54,7 @@ pub async fn get_signal_runs_for_job(
 ) -> Result<Vec<CHSignalRun>> {
     let runs = clickhouse
         .query(
-            "SELECT project_id, signal_id, job_id, run_id, status, event_id, error_message, updated_at
+            "SELECT project_id, signal_id, job_id, trigger_id, run_id, status, event_id, error_message, updated_at
              FROM signal_runs FINAL
              WHERE project_id = ? AND signal_id = ? AND job_id = ?
              ORDER BY updated_at ASC",
