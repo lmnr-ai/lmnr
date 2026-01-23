@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::fmt;
 use uuid::Uuid;
 
+pub mod filters;
 pub mod gemini;
 pub mod pendings_consumer;
 pub mod prompts;
@@ -13,6 +14,7 @@ pub mod tools;
 pub mod utils;
 
 pub(crate) use queue::push_to_waiting_queue;
+pub use filters::{Filter, evaluate_filters};
 pub use queue::{
     SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,

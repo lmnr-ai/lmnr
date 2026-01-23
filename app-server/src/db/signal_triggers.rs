@@ -4,11 +4,12 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::signals::Signal;
+use crate::signals::Filter;
 
-/// Signal trigger with joined signal
+/// Signal trigger with pre-parsed filters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalTrigger {
-    pub value: serde_json::Value,
+    pub filters: Vec<Filter>,
     pub signal: Signal,
 }
 
@@ -20,7 +21,7 @@ struct DBSignalTrigger {
     structured_output_schema: Value,
 }
 
-/// Returns all signal triggers for the project with their associated signals
+/// Returns all signal triggers for the project with pre-parsed filters
 pub async fn get_signal_triggers(
     pool: &PgPool,
     project_id: Uuid,
@@ -47,13 +48,27 @@ pub async fn get_signal_triggers(
 
     Ok(results
         .into_iter()
-        .map(|db_trigger| SignalTrigger {
-            value: db_trigger.value,
-            signal: Signal {
-                name: db_trigger.signal_name,
-                prompt: db_trigger.prompt,
-                structured_output_schema: db_trigger.structured_output_schema,
-            },
+        .filter_map(|db_trigger| {
+            let filters: Vec<Filter> = match serde_json::from_value(db_trigger.value) {
+                Ok(f) => f,
+                Err(e) => {
+                    log::warn!(
+                        "Failed to parse filters for signal '{}': {:?}",
+                        db_trigger.signal_name,
+                        e
+                    );
+                    return None;
+                }
+            };
+
+            Some(SignalTrigger {
+                filters,
+                signal: Signal {
+                    name: db_trigger.signal_name,
+                    prompt: db_trigger.prompt,
+                    structured_output_schema: db_trigger.structured_output_schema,
+                },
+            })
         })
         .collect())
 }

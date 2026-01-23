@@ -12,9 +12,13 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::{signals::push_to_signals_queue, trigger::get_signal_triggers_cached};
+use crate::cache::autocomplete::populate_autocomplete_cache;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::Cache,
+    cache::{
+        Cache, CacheTrait,
+        keys::{SIGNAL_TRIGGER_LOCK_CACHE_KEY, SIGNAL_TRIGGER_LOCK_TTL_SECONDS},
+    },
     ch::{
         self,
         spans::CHSpan,
@@ -25,7 +29,7 @@ use crate::{
         events::Event,
         spans::Span,
         tags::{SpanTag, TagSource},
-        trace::upsert_trace_statistics_batch,
+        trace::{Trace, upsert_trace_statistics_batch},
     },
     evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
@@ -35,6 +39,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
+    signals::evaluate_filters,
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -46,7 +51,6 @@ use crate::{
     },
     worker::{HandlerError, MessageHandler},
 };
-use crate::{cache::autocomplete::populate_autocomplete_cache, db::signal_triggers::SignalTrigger};
 
 /// Handler for span processing
 pub struct SpanHandler {
@@ -250,6 +254,19 @@ async fn process_batch(
 
             // Send trace_update events for realtime updates
             send_trace_updates(&updated_traces, &pubsub).await;
+
+            // Check for trace filter conditions and push matching traces to signals queue
+            if is_feature_enabled(Feature::Signals) {
+                check_and_push_signals(
+                    project_id,
+                    &updated_traces,
+                    &spans,
+                    db.clone(),
+                    cache.clone(),
+                    queue.clone(),
+                )
+                .await;
+            }
         }
         Err(e) => {
             log::error!(
@@ -299,11 +316,6 @@ async fn process_batch(
 
     // Send realtime span updates directly to SSE connections after successful ClickHouse writes
     send_span_updates(&spans, &pubsub).await;
-
-    if is_feature_enabled(Feature::Signals) {
-        // Check for spans matching trigger conditions and push to signals queue
-        check_and_push_signals(project_id, &spans, db.clone(), cache.clone(), queue.clone()).await;
-    }
 
     // Index spans and events in Quickwit
     let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
@@ -445,55 +457,107 @@ async fn process_batch(
     Ok(())
 }
 
-/// Check spans against trigger conditions and push matching traces to signals queue
-/// This function groups spans by project to minimize database/cache queries
 async fn check_and_push_signals(
     project_id: Uuid,
+    traces: &[Trace],
     spans: &[Span],
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
-        Ok(trigger_spans) => {
-            // Check each span against its project's trigger spans
-            for span in spans {
-                // Check if this span name matches any trigger
-                // TODO: CHANGE LOGIC
-                let matching_triggers: Vec<SignalTrigger> = trigger_spans
-                    .iter()
-                    .filter(|trigger| trigger.value == span.name)
-                    .cloned()
-                    .collect();
-
-                // Send one message per matching trigger
-                for trigger in matching_triggers {
-                    if let Err(e) = push_to_signals_queue(
-                        span.trace_id,
-                        span.project_id,
-                        span.span_id,
-                        trigger.signal,
-                        queue.clone(),
-                    )
-                    .await
-                    {
-                        log::error!(
-                            "Failed to push trace to signals queue: trace_id={}, project_id={}, span_name={}, error={:?}",
-                            span.trace_id,
-                            span.project_id,
-                            span.name,
-                            e
-                        );
-                    }
-                }
-            }
-        }
+    let triggers = match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
+        Ok(triggers) => triggers,
         Err(e) => {
             log::error!(
                 "Failed to get signals triggers for project {}: {:?}",
                 project_id,
                 e
             );
+            return;
+        }
+    };
+
+    if triggers.is_empty() {
+        return;
+    }
+
+    for trace in traces {
+        // Find the trigger span ID (prefer top_span_id, fall back to first span of trace)
+        let trigger_span_id = trace.top_span_id().unwrap_or_else(|| {
+            spans
+                .iter()
+                .find(|s| s.trace_id == trace.id())
+                .map(|s| s.span_id)
+                .unwrap_or_else(Uuid::nil)
+        });
+
+        for trigger in &triggers {
+            if !evaluate_filters(trace, spans, &trigger.filters) {
+                continue;
+            }
+
+            // Filters matched - try to acquire lock to prevent duplicate triggers
+            let lock_key = format!(
+                "{}:{}:{}",
+                SIGNAL_TRIGGER_LOCK_CACHE_KEY,
+                trigger.signal.name,
+                trace.id()
+            );
+
+            match cache.exists(&lock_key).await {
+                Ok(true) => {
+                    continue;
+                }
+                Ok(false) => {
+                    // Lock doesn't exist, try to acquire it
+                }
+                Err(e) => {
+                    log::warn!("Failed to check lock existence: {:?}", e);
+                    // Continue to try acquiring lock
+                }
+            }
+
+            // Try to acquire the lock
+            let lock_acquired = match cache
+                .try_acquire_lock(&lock_key, SIGNAL_TRIGGER_LOCK_TTL_SECONDS)
+                .await
+            {
+                Ok(acquired) => acquired,
+                Err(e) => {
+                    // On lock error, still try to push (fail-open behavior)
+                    log::error!(
+                        "Failed to acquire lock for signal '{}' on trace {}: {:?}",
+                        trigger.signal.name,
+                        trace.id(),
+                        e
+                    );
+                    true // Proceed anyway
+                }
+            };
+
+            if !lock_acquired {
+                // Lock was already held by another process
+                continue;
+            }
+
+            // Lock acquired - push to signals queue
+            if let Err(e) = push_to_signals_queue(
+                trace.id(),
+                trace.project_id(),
+                trigger_span_id,
+                trigger.signal.clone(),
+                queue.clone(),
+            )
+            .await
+            {
+                log::error!(
+                    "Failed to push trace to signals queue: trace_id={}, project_id={}, signal={}, error={:?}",
+                    trace.id(),
+                    trace.project_id(),
+                    trigger.signal.name,
+                    e
+                );
+            }
         }
     }
 }
