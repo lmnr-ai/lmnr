@@ -14,7 +14,7 @@ use crate::{
         },
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
-    db::{DB, spans::SpanType},
+    db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
         RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
@@ -79,7 +79,7 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
 
 async fn process(
     msg: SignalJobSubmissionBatchMessage,
-    _db: Arc<DB>,
+    db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
@@ -136,7 +136,7 @@ async fn process(
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
         // All runs failed during processing, handle them before returning
-        handle_failed_runs(clickhouse, project_id, failed_runs).await;
+        handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
         return Err(HandlerError::permanent(anyhow::anyhow!(
             "No requests to submit"
         )));
@@ -157,13 +157,13 @@ async fn process(
     match batch_result {
         Ok(()) => {
             // Batch submitted successfully, handle any runs that failed during processing
-            handle_failed_runs(clickhouse, project_id, failed_runs).await;
+            handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
             Ok(())
         }
         Err((batch_failed_runs, handler_error)) => {
             // Batch submission failed, combine with runs that failed during processing
             failed_runs.extend(batch_failed_runs);
-            handle_failed_runs(clickhouse, project_id, failed_runs).await;
+            handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
             Err(handler_error)
         }
     }
@@ -278,7 +278,9 @@ fn create_failed_runs_from_payloads(
 /// Insert failed runs into ClickHouse and delete their messages
 async fn handle_failed_runs(
     clickhouse: clickhouse::Client,
+    db: Arc<DB>,
     project_id: uuid::Uuid,
+    job_id: uuid::Uuid,
     failed_runs: Vec<SignalRun>,
 ) {
     if failed_runs.is_empty() {
@@ -298,6 +300,12 @@ async fn handle_failed_runs(
             "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
             e
         );
+    }
+
+    // Update job statistics
+    let failed_count = failed_runs.len() as i32;
+    if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
+        log::error!("Failed to update job statistics for failed batch: {}", e);
     }
 }
 
