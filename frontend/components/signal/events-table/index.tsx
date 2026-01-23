@@ -28,9 +28,8 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, clusterConfig, lastEvent } = useSignalStoreContext((state) => ({
+  const { signal, lastEvent } = useSignalStoreContext((state) => ({
     signal: state.signal,
-    clusterConfig: state.clusterConfig,
     lastEvent: state.lastEvent,
   }));
   const searchParams = useSearchParams();
@@ -178,7 +177,7 @@ function PureEventsTable() {
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("pastHours", "24");
+      params.set("pastHours", "72");
       router.replace(`${pathName}?${params.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);

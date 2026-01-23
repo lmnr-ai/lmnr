@@ -129,7 +129,7 @@ function SignalContent() {
           <ClustersTable />
           <EventsTable />
         </TabsContent>
-        <TabsContent value="jobs" className="flex flex-col gap-2 px-4 pb-4 overflow-hidden">
+        <TabsContent value="jobs" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
           <SignalJobsTable />
         </TabsContent>
       </Tabs>

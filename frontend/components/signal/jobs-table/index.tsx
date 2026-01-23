@@ -1,6 +1,5 @@
 "use client";
 
-import { History } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { useEffect } from "react";
@@ -39,10 +38,7 @@ const JobsTableContent = () => {
   return (
     <>
       <Link className="w-fit" href={`/project/${params.projectId}/signals/${signal.id}/job`} passHref>
-        <Button>
-          <History className="mr-1 size-3.5" />
-          Create Job
-        </Button>
+        <Button icon="plus">Create Job</Button>
       </Link>
       <InfiniteDataTable<SignalJobRow>
         className="w-full"
