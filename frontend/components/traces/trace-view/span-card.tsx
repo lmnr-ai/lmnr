@@ -1,9 +1,11 @@
+import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield.tsx";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type PathInfo } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -12,7 +14,6 @@ import { Skeleton } from "../../ui/skeleton";
 import { NoSpanTooltip } from "../no-span-tooltip";
 import SpanTypeIcon from "../span-type-icon";
 import Markdown from "./list/markdown";
-import { generateSpanPathKey } from "./list/utils";
 
 const ROW_HEIGHT = 36;
 const SQUARE_SIZE = 20;
@@ -33,10 +34,23 @@ interface SpanCardProps {
   getOutput: (spanId: string) => any | undefined;
   depth: number;
   yOffset: number;
+  pathInfo: PathInfo;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, depth }: SpanCardProps) {
+// Generate span path key from pathInfo for template lookup
+const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo): string => {
+  if (!pathInfo) {
+    return span.name;
+  }
+
+  const pathSegments = pathInfo.full.map((item) => item.name);
+  pathSegments.push(span.name);
+
+  return pathSegments.join(", ");
+};
+
+export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, depth, pathInfo }: SpanCardProps) {
   const [segmentHeight, setSegmentHeight] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -49,9 +63,13 @@ export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, dept
   // Get child spans from the store
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
-  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
+  const spanPathKey = useMemo(() => generateSpanPathKeyFromPathInfo(span, pathInfo), [span, pathInfo]);
 
   const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
+
+  const [isShowContent, setIsShowContent] = useState(
+    span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
+  );
 
   const hasChildren = childSpans && childSpans.length > 0;
 
@@ -64,6 +82,7 @@ export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, dept
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   const output = getOutput(span.spanId);
+  const isLoadingOutput = output === undefined;
 
   return (
     <div className="text-md flex w-full flex-col" ref={ref}>
@@ -133,20 +152,40 @@ export function SpanCard({ span, getOutput, yOffset, parentY, onSpanSelect, dept
               cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
             />
           )}
-          {hasChildren && (
-            <button
-              className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
-              onClick={(e) => {
-                e.stopPropagation();
+          <button
+            className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsShowContent(!isShowContent);
+              if (hasChildren) {
                 toggleCollapse(span.spanId);
-              }}
-            >
-              {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
-          <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              }
+            }}
+          >
+            {(hasChildren ? span.collapsed : !isShowContent) ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
           <div className="grow" />
         </div>
+        {isShowContent && (
+          <div
+            className="px-3 pb-2 pt-0"
+            style={{
+              paddingLeft: TREE_CONTAINER_PADDING_LEFT + depth * DEPTH_INDENT + BASE_PADDING_LEFT,
+            }}
+          >
+            {isLoadingOutput ? (
+              <Skeleton className="h-12 w-full" />
+            ) : isNil(output) ? (
+              <div className="text-sm text-muted-foreground italic">No output available</div>
+            ) : (
+              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

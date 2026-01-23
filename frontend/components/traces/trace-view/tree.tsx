@@ -105,6 +105,7 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
                     getOutput={getOutput}
                     yOffset={spanItem.yOffset}
                     depth={spanItem.depth}
+                    pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}
                   />
                 </div>

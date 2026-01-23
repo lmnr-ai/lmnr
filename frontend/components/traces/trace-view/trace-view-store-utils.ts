@@ -4,12 +4,18 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-st
 import { type SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
+export type PathInfo = {
+  display: Array<{ spanId: string; name: string; count?: number }>;
+  full: Array<{ spanId: string; name: string }>;
+} | null;
+
 export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
   yOffset: number;
   parentY: number;
   pending: boolean;
+  pathInfo: PathInfo;
 }
 
 export interface SegmentEvent {
@@ -55,7 +61,31 @@ export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: s
   return childSpans;
 };
 
-export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
+export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo> => {
+  // Build spanMap for parent lookups (needs ALL spans)
+  const spanMap = new Map(
+    spans.map((span) => [
+      span.spanId,
+      { spanId: span.spanId, name: span.name, parentSpanId: span.parentSpanId },
+    ])
+  );
+
+  // Sections needed for display counts
+  const nonDefaultSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+  const sections = groupIntoSections(nonDefaultSpans);
+  const spanNameMap = buildSpanNameMap(sections, spanMap);
+
+  // Compute pathInfo for each span
+  const pathInfoMap = new Map<string, PathInfo>();
+  for (const span of spans) {
+    const parentChain = buildParentChain(span, spanMap);
+    pathInfoMap.set(span.spanId, buildPathInfo(parentChain, spanNameMap));
+  }
+
+  return pathInfoMap;
+};
+
+export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<string, PathInfo>): TreeSpan[] => {
   const topLevelSpans = spans.filter((span) => !span.parentSpanId);
   const childSpans = getChildSpansMap(spans);
 
@@ -77,6 +107,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
       yOffset,
       parentY,
       pending: span.pending || false,
+      pathInfo: pathInfoMap?.get(span.spanId) ?? null,
     });
 
     maxY.current = maxY.current + 36;
@@ -270,6 +301,7 @@ export const transformSpansToFlatMinimap = (spans: TraceViewSpan[], traceDuratio
       yOffset: 0,
       parentY: 0,
       pending: span.pending || false,
+      pathInfo: null,
       y: relativeStart * pixelsPerSecond,
       height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
       status: span.attributes?.status,
