@@ -92,7 +92,7 @@ async fn process(
     let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.runs.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
-    let mut to_sumbit_runs: Vec<SignalRunPayload> = Vec::new();
+    let mut to_submit_runs: Vec<SignalRunPayload> = Vec::new();
 
     for run in msg.runs.iter() {
         match process_run(
@@ -111,7 +111,7 @@ async fn process(
             Ok((request, new_messages)) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
-                to_sumbit_runs.push(run.clone());
+                to_submit_runs.push(run.clone());
             }
             Err(e) => {
                 log::error!("[SIGNAL JOB] Failed to process run {}: {:?}", run.run_id, e);
@@ -152,7 +152,7 @@ async fn process(
     }
 
     // Submit batch to Gemini API
-    let batch_result = submit_batch_to_gemini(&msg, gemini, requests, to_sumbit_runs, queue).await;
+    let batch_result = submit_batch_to_gemini(&msg, gemini, requests, to_submit_runs, queue).await;
 
     match batch_result {
         Ok(()) => {

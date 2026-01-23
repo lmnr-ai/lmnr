@@ -142,9 +142,13 @@ pub async fn submit_trace_analysis_job(
         )
         .await;
 
+        let trace_uuid = trace_id.parse::<Uuid>().map_err(|_| {
+            Error::InternalAnyhowError(anyhow::anyhow!("Invalid trace_id UUID: {}", trace_id))
+        })?;
+
         runs.push(SignalRunPayload {
             run_id,
-            trace_id: trace_id.parse::<Uuid>().unwrap(),
+            trace_id: trace_uuid,
             internal_trace_id,
             internal_span_id,
             step: 0,

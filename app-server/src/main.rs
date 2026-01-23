@@ -1133,7 +1133,7 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!(
-                            "Gemini client not available - skipping LLM batch submissions workers"
+                            "Gemini client not available - skipping LLM batch pending workers"
                         );
                     }
 

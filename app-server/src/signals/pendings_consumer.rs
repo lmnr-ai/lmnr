@@ -319,6 +319,12 @@ async fn process_succeeded_batch(
         new_messages.extend(new_run_messages);
 
         match step_result {
+            StepResult::Failed { error } => {
+                failed_runs.push(run.clone().failed(error));
+            }
+            StepResult::RequiresNextStep { tool_result: _ } => {
+                pending_runs_payloads.push(SignalRunPayload::from(&run.clone().next_step()));
+            }
             StepResult::CompletedNoEvent => {
                 succeeded_runs.push(run.clone().completed());
             }
@@ -342,12 +348,6 @@ async fn process_succeeded_batch(
                         failed_runs.push(run.clone().failed(error));
                     }
                 }
-            }
-            StepResult::RequiresNextStep { tool_result: _ } => {
-                pending_runs_payloads.push(SignalRunPayload::from(&run.clone().next_step()));
-            }
-            StepResult::Failed { error: _ } => {
-                failed_runs.push(run);
             }
         }
     }
