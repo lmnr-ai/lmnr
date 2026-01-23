@@ -7,30 +7,26 @@ use uuid::Uuid;
 use super::utils::chrono_to_nanoseconds;
 
 #[derive(Row, Serialize, Deserialize, Debug)]
-pub struct CHTraceAnalysisMessage {
+pub struct CHSignalRunMessage {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
-    pub job_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub task_id: Uuid,
+    pub run_id: Uuid,
     /// Time in nanoseconds since Unix epoch
     pub time: i64,
     pub message: String,
 }
 
-impl CHTraceAnalysisMessage {
+impl CHSignalRunMessage {
     pub fn new(
         project_id: Uuid,
-        job_id: Uuid,
-        task_id: Uuid,
+        run_id: Uuid,
         time: chrono::DateTime<chrono::Utc>,
         message: String,
     ) -> Self {
         Self {
             project_id,
-            job_id,
-            task_id,
+            run_id: run_id,
             time: chrono_to_nanoseconds(time),
             message,
         }
@@ -38,12 +34,12 @@ impl CHTraceAnalysisMessage {
 }
 
 #[instrument(skip(clickhouse, messages))]
-pub async fn insert_trace_analysis_messages(
+pub async fn insert_signal_run_messages(
     clickhouse: clickhouse::Client,
-    messages: &[CHTraceAnalysisMessage],
+    messages: &[CHSignalRunMessage],
 ) -> Result<()> {
     let ch_insert = clickhouse
-        .insert::<CHTraceAnalysisMessage>("trace_analysis_messages")
+        .insert::<CHSignalRunMessage>("signal_run_messages")
         .await;
 
     match ch_insert {
@@ -56,65 +52,57 @@ pub async fn insert_trace_analysis_messages(
             match ch_insert_end_res {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow::anyhow!(
-                    "Clickhouse trace_analysis_messages batch insertion failed: {:?}",
+                    "Clickhouse signal_run_messages batch insertion failed: {:?}",
                     e
                 )),
             }
         }
         Err(e) => Err(anyhow::anyhow!(
-            "Failed to insert trace_analysis_messages batch into Clickhouse: {:?}",
+            "Failed to insert signal_run_messages batch into Clickhouse: {:?}",
             e
         )),
     }
 }
 
 #[instrument(skip(clickhouse))]
-pub async fn get_trace_analysis_messages_for_task(
+pub async fn get_signal_run_messages(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
-    job_id: Uuid,
-    task_id: Uuid,
-) -> Result<Vec<CHTraceAnalysisMessage>> {
+    run_id: Uuid,
+) -> Result<Vec<CHSignalRunMessage>> {
     let messages = clickhouse
-        .query("SELECT project_id, job_id, task_id, time, message FROM trace_analysis_messages WHERE project_id = ? AND job_id = ? AND task_id = ? ORDER BY time ASC")
+        .query("SELECT project_id, run_id, time, message FROM signal_run_messages WHERE project_id = ? AND run_id = ? ORDER BY time ASC")
         .bind(project_id)
-        .bind(job_id)
-        .bind(task_id)
-        .fetch_all::<CHTraceAnalysisMessage>()
+        .bind(run_id)
+        .fetch_all::<CHSignalRunMessage>()
         .await?;
 
     Ok(messages)
 }
 
-#[instrument(skip(clickhouse, task_ids))]
-pub async fn delete_trace_analysis_messages_by_task_ids(
+#[instrument(skip(clickhouse, run_ids))]
+pub async fn delete_signal_run_messages(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
-    job_id: Uuid,
-    task_ids: &[Uuid],
+    run_ids: &[Uuid],
 ) -> Result<()> {
-    if task_ids.is_empty() {
+    if run_ids.is_empty() {
         return Ok(());
     }
 
     // Build comma-separated list of quoted UUIDs
-    let task_ids_str = task_ids
+    let run_ids_str = run_ids
         .iter()
         .map(|id| format!("'{}'", id))
         .collect::<Vec<_>>()
         .join(", ");
 
     let query = format!(
-        "DELETE FROM trace_analysis_messages WHERE project_id = ? AND job_id = ? AND task_id IN ({})",
-        task_ids_str
+        "DELETE FROM signal_run_messages WHERE project_id = ? AND run_id IN ({})",
+        run_ids_str
     );
 
-    clickhouse
-        .query(&query)
-        .bind(project_id)
-        .bind(job_id)
-        .execute()
-        .await?;
+    clickhouse.query(&query).bind(project_id).execute().await?;
 
     Ok(())
 }

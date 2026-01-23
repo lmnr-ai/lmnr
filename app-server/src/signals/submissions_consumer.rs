@@ -7,14 +7,13 @@ use chrono::Utc;
 use std::sync::Arc;
 
 use crate::{
-    ch::trace_analysis_messages::{
-        CHTraceAnalysisMessage, get_trace_analysis_messages_for_task,
-        insert_trace_analysis_messages,
+    ch::signal_run_messages::{
+        CHSignalRunMessage, get_signal_run_messages, insert_signal_run_messages,
     },
     db::{DB, spans::SpanType},
     mq::MessageQueue,
-    trace_analysis::{
-        RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
+    signals::{
+        SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRunMessage,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -53,13 +52,13 @@ impl LLMBatchSubmissionsHandler {
 
 #[async_trait]
 impl MessageHandler for LLMBatchSubmissionsHandler {
-    type Message = RabbitMqLLMBatchSubmissionMessage;
+    type Message = SignalJobSubmissionBatchMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[TRACE_ANALYSIS] Processing submission message. job_id: {}, tasks: {}",
+            "[SIGNAL JOB] Processing submission message. job_id: {}, runs: {}",
             message.job_id,
-            message.tasks.len(),
+            message.runs.len(),
         );
 
         process(
@@ -74,7 +73,7 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
 }
 
 async fn process(
-    msg: RabbitMqLLMBatchSubmissionMessage,
+    msg: SignalJobSubmissionBatchMessage,
     _db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
@@ -85,17 +84,17 @@ async fn process(
     let prompt = &msg.prompt;
     let structured_output_schema = &msg.structured_output_schema;
 
-    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.tasks.len());
-    let mut all_new_messages: Vec<CHTraceAnalysisMessage> = Vec::new();
+    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.runs.len());
+    let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
-    for task in msg.tasks.iter() {
-        match process_task(
+    for run in msg.runs.iter() {
+        match process_run(
             &msg,
-            task,
+            run,
             project_id,
             job_id,
             prompt,
-            &msg.event_name,
+            &msg.signal_name,
             structured_output_schema,
             clickhouse.clone(),
             queue.clone(),
@@ -107,18 +106,21 @@ async fn process(
                 all_new_messages.extend(new_messages);
             }
             Err(e) => {
-                log::error!(
-                    "[TRACE_ANALYSIS] Failed to process task {}: {:?}",
-                    task.task_id,
-                    e
-                );
+                log::error!("[SIGNAL JOB] Failed to process run {}: {:?}", run.run_id, e);
             }
         }
     }
 
+    if requests.is_empty() {
+        log::error!("[SIGNAL JOB] No requests to submit");
+        return Err(HandlerError::permanent(anyhow::anyhow!(
+            "No requests to submit"
+        )));
+    }
+
     // Insert new messages into ClickHouse
     if !all_new_messages.is_empty() {
-        insert_trace_analysis_messages(clickhouse, &all_new_messages)
+        insert_signal_run_messages(clickhouse, &all_new_messages)
             .await
             .map_err(|e| {
                 HandlerError::Transient(anyhow::anyhow!("Failed to insert messages: {}", e))
@@ -127,16 +129,12 @@ async fn process(
 
     // Submit batch to Gemini API
     match gemini
-        .create_batch(
-            &msg.model,
-            requests,
-            Some(format!("trace_analysis_job_{}", job_id)),
-        )
+        .create_batch(&msg.model, requests, Some(format!("signal_job_{}", job_id)))
         .await
     {
         Ok(operation) => {
             log::debug!(
-                "[TRACE_ANALYSIS] Batch submitted successfully. Operation name: {}",
+                "[SIGNAL JOB] Batch submitted successfully. Operation name: {}",
                 operation.name
             );
 
@@ -144,16 +142,16 @@ async fn process(
                 HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e))
             })?;
 
-            let pending_message = RabbitMqLLMBatchPendingMessage {
+            let pending_message = SignalJobPendingBatchMessage {
                 project_id,
                 job_id,
-                event_definition_id: msg.event_definition_id,
+                signal_id: msg.signal_id,
                 prompt: msg.prompt,
-                event_name: msg.event_name,
+                signal_name: msg.signal_name,
                 structured_output_schema: msg.structured_output_schema,
                 model: msg.model,
                 provider: msg.provider,
-                tasks: msg.tasks,
+                runs: msg.runs,
                 batch_id,
             };
 
@@ -162,7 +160,7 @@ async fn process(
                 .map_err(|e| HandlerError::transient(e))?;
         }
         Err(e) => {
-            log::error!("[TRACE_ANALYSIS] Failed to submit batch to Gemini: {:?}", e);
+            log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
             if e.is_retryable() {
                 return Err(HandlerError::transient(e));
             } else {
@@ -174,31 +172,30 @@ async fn process(
     Ok(())
 }
 
-async fn process_task(
-    message: &RabbitMqLLMBatchSubmissionMessage,
-    task: &Task,
+async fn process_run(
+    message: &SignalJobSubmissionBatchMessage,
+    run: &SignalRunMessage,
     project_id: uuid::Uuid,
     job_id: uuid::Uuid,
     prompt: &str,
-    event_name: &str,
+    signal_name: &str,
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-) -> Result<(InlineRequestItem, Vec<CHTraceAnalysisMessage>), HandlerError> {
+) -> Result<(InlineRequestItem, Vec<CHSignalRunMessage>), HandlerError> {
     let processing_start_time = Utc::now();
 
-    let task_id = task.task_id;
-    let trace_id = task.trace_id;
-    let internal_trace_id = task.internal_trace_id;
-    let internal_span_id = task.internal_root_span_id;
+    let run_id = run.run_id;
+    let trace_id = run.trace_id;
+    let internal_trace_id = run.internal_trace_id;
+    let internal_span_id = run.internal_span_id;
 
-    // 1. Query existing messages for this task
-    let existing_messages =
-        get_trace_analysis_messages_for_task(clickhouse.clone(), project_id, job_id, task_id)
-            .await
-            .map_err(|e| {
-                HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
-            })?;
+    // 1. Query existing messages for this run
+    let existing_messages = get_signal_run_messages(clickhouse.clone(), project_id, run_id)
+        .await
+        .map_err(|e| {
+            HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
+        })?;
 
     let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
         // No messages exist - build initial prompts
@@ -234,18 +231,16 @@ async fn process_task(
         };
 
         // Store as serialized Content for consistent format
-        let system_message = CHTraceAnalysisMessage::new(
+        let system_message = CHSignalRunMessage::new(
             project_id,
-            job_id,
-            task_id,
+            run_id,
             now,
             serde_json::to_string(&system_content).unwrap_or_default(),
         );
 
-        let user_message = CHTraceAnalysisMessage::new(
+        let user_message = CHSignalRunMessage::new(
             project_id,
-            job_id,
-            task_id,
+            run_id,
             user_time,
             serde_json::to_string(&user_content).unwrap_or_default(),
         );
@@ -309,7 +304,10 @@ async fn process_task(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
         },
-        metadata: Some(serde_json::json!({ "task_id": task.task_id })),
+        metadata: Some(serde_json::json!({
+            "run_id": run.run_id,
+            "trace_id": run.trace_id,
+        })),
     };
 
     // Internal tracing span with resulting content
@@ -319,11 +317,11 @@ async fn process_task(
         contents_with_sys.insert(0, sys);
     }
     emit_internal_span(
-        &format!("step_{}.submit_request", task.step),
+        &format!("step_{}.submit_request", run.step),
         internal_trace_id,
         job_id,
-        task_id,
-        event_name,
+        run_id,
+        signal_name,
         Some(internal_span_id),
         SpanType::LLM,
         processing_start_time,

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::spans::{get_span_type, get_trace_spans_with_id_mapping};
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::trace_analysis::gemini::{FunctionDeclaration, Tool};
+use crate::signals::gemini::{FunctionDeclaration, Tool};
 
 /// Full span info returned by get_full_span_info tool
 #[derive(Debug, Clone, Serialize, Deserialize)]

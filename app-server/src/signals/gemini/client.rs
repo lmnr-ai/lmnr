@@ -1,5 +1,5 @@
 use super::{BatchCreateRequest, GeminiError, InlineRequestItem, Operation};
-use std::env;
+use std::{env, time::Duration};
 
 #[derive(Clone)]
 pub struct GeminiClient {
@@ -19,8 +19,14 @@ impl GeminiClient {
         let api_base_url = env::var("GEMINI_API_BASE_URL")
             .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta".to_string());
 
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(120))
+            .build()
+            .map_err(|e| GeminiError::config(format!("Failed to build HTTP client: {}", e)))?;
+
         Ok(Self {
-            client: reqwest::Client::new(),
+            client,
             api_key,
             api_base_url,
         })

@@ -15,13 +15,13 @@ pub mod projects;
 pub mod rollout_sessions;
 pub mod semantic_event_definitions;
 pub mod semantic_event_trigger_spans;
+pub mod signal_jobs;
 pub mod slack_channel_to_events;
 pub mod slack_integrations;
 pub mod spans;
 pub mod stats;
 pub mod tags;
 pub mod trace;
-pub mod trace_analysis_jobs;
 pub mod utils;
 
 #[derive(Clone, Debug)]

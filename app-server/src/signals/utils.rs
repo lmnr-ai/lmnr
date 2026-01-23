@@ -10,7 +10,7 @@ static INTERNAL_PROJECT_ID: OnceLock<Option<Uuid>> = OnceLock::new();
 
 fn get_internal_project_id() -> Option<Uuid> {
     *INTERNAL_PROJECT_ID.get_or_init(|| {
-        env::var("TRACE_ANALYSIS_INTERNAL_PROJECT_ID")
+        env::var("SIGNAL_JOBS_INTERNAL_PROJECT_ID")
             .ok()
             .and_then(|s| s.parse().ok())
     })
@@ -108,7 +108,7 @@ pub async fn emit_internal_span(
     name: &str,
     trace_id: Uuid,
     job_id: Uuid,
-    task_id: Uuid,
+    run_id: Uuid,
     event_name: &str,
     parent_span_id: Option<Uuid>,
     span_type: SpanType,
@@ -134,8 +134,8 @@ pub async fn emit_internal_span(
             serde_json::json!(job_id.to_string()),
         ),
         (
-            "trace_analysis.task_id".to_string(),
-            serde_json::json!(task_id.to_string()),
+            "trace_analysis.run_id".to_string(),
+            serde_json::json!(run_id.to_string()),
         ),
         (
             "trace_analysis.event_name".to_string(),
@@ -171,7 +171,7 @@ pub async fn emit_internal_span(
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!(["signal.run_task".to_string(), name.to_string()]),
+            serde_json::json!(["signal.run".to_string(), name.to_string()]),
             // TODO: Pass parent span name in the message
         );
     } else {

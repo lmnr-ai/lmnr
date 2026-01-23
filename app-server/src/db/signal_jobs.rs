@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceAnalysisJob {
+pub struct SignalJob {
     pub id: Uuid,
     pub event_definition_id: Uuid,
     pub project_id: Uuid,
@@ -17,13 +17,13 @@ pub struct TraceAnalysisJob {
     pub updated_at: DateTime<Utc>,
 }
 
-pub async fn create_trace_analysis_job(
+pub async fn create_signal_job(
     pool: &PgPool,
     event_definition_id: Uuid,
     project_id: Uuid,
     total_traces: i32,
-) -> Result<TraceAnalysisJob> {
-    let job = sqlx::query_as::<_, TraceAnalysisJob>(
+) -> Result<SignalJob> {
+    let job = sqlx::query_as::<_, SignalJob>(
         "INSERT INTO trace_analysis_jobs (event_definition_id, project_id, total_traces)
         VALUES ($1, $2, $3)
         RETURNING id, event_definition_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at",
@@ -37,7 +37,7 @@ pub async fn create_trace_analysis_job(
     Ok(job)
 }
 
-pub async fn update_trace_analysis_job_statistics(
+pub async fn update_signal_job_stats(
     pool: &PgPool,
     job_id: Uuid,
     processed_traces_delta: i32,

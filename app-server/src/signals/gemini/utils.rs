@@ -6,8 +6,10 @@ use super::{Candidate, FunctionCall, InlineResponse};
 
 /// Parsed response from Gemini API containing all extracted fields.
 pub struct ParsedInlineResponse {
-    /// Task ID from metadata
-    pub task_id: Option<Uuid>,
+    /// Run ID from metadata
+    pub run_id: Option<Uuid>,
+    /// Trace ID from metadata
+    pub trace_id: Option<Uuid>,
     /// Whether the response contains an error
     pub has_error: bool,
     /// Serialized content for storage
@@ -24,7 +26,8 @@ pub struct ParsedInlineResponse {
 
 /// Parse an InlineResponse into a structured format with all extracted fields.
 pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineResponse {
-    let task_id = extract_task_id(inline_response);
+    let run_id = extract_run_id(inline_response);
+    let trace_id = extract_trace_id(inline_response);
     let has_error = inline_response.error.is_some();
     let candidate = get_first_candidate(inline_response);
 
@@ -45,7 +48,8 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         .unwrap_or((None, None));
 
     ParsedInlineResponse {
-        task_id,
+        run_id,
+        trace_id,
         has_error,
         content,
         function_call,
@@ -55,11 +59,16 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
     }
 }
 
-fn extract_task_id(inline_response: &InlineResponse) -> Option<Uuid> {
+fn extract_run_id(inline_response: &InlineResponse) -> Option<Uuid> {
+    let task_id_str = inline_response.metadata.as_ref()?.get("run_id")?.as_str()?;
+    Uuid::parse_str(task_id_str).ok()
+}
+
+fn extract_trace_id(inline_response: &InlineResponse) -> Option<Uuid> {
     let task_id_str = inline_response
         .metadata
         .as_ref()?
-        .get("task_id")?
+        .get("trace_id")?
         .as_str()?;
     Uuid::parse_str(task_id_str).ok()
 }

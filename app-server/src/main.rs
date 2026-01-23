@@ -35,15 +35,15 @@ use query_engine::{
     query_engine_impl::QueryEngineImpl,
 };
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use tonic::transport::Server;
-use trace_analysis::{
-    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
-    TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
-    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE, TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
-    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE, TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
-    TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY, pendings_consumer::LLMBatchPendingHandler,
+use signals::{
+    SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
+    SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+    SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
+    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, pendings_consumer::LLMBatchPendingHandler,
     submissions_consumer::LLMBatchSubmissionsHandler,
 };
+use tonic::transport::Server;
 use traces::{
     EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SEMANTIC_EVENT_EXCHANGE,
@@ -99,9 +99,9 @@ mod quickwit;
 mod realtime;
 mod routes;
 mod runtime;
+mod signals;
 mod sql;
 mod storage;
-mod trace_analysis;
 mod traces;
 mod utils;
 mod worker;
@@ -486,7 +486,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
             channel
                 .exchange_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
+                    SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -499,7 +499,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE,
+                    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -512,7 +512,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
             channel
                 .exchange_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
+                    SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -525,7 +525,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
+                    SIGNAL_JOB_PENDING_BATCH_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -538,7 +538,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
             channel
                 .exchange_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE,
+                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -549,7 +549,7 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let waiting_queue_ttl_sec = env::var("TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE_TTL")
+            let waiting_queue_ttl_sec = env::var("SIGNAL_JOB_WAITING_QUEUE_TTL")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(60);
@@ -561,14 +561,12 @@ fn main() -> anyhow::Result<()> {
             );
             waiting_queue_args.insert(
                 "x-dead-letter-exchange".into(),
-                lapin::types::AMQPValue::LongString(
-                    TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE.into(),
-                ),
+                lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
             );
 
             channel
                 .queue_declare(
-                    TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
+                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -581,9 +579,9 @@ fn main() -> anyhow::Result<()> {
             // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
             channel
                 .queue_bind(
-                    TRACE_ANALYSIS_LLM_BATCH_WAITING_QUEUE,
-                    TRACE_ANALYSIS_LLM_BATCH_WAITING_EXCHANGE,
-                    TRACE_ANALYSIS_LLM_BATCH_WAITING_ROUTING_KEY,
+                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
                     lapin::options::QueueBindOptions::default(),
                     FieldTable::default(),
                 )
@@ -812,7 +810,7 @@ fn main() -> anyhow::Result<()> {
         // == Gemini client ==
         let gemini_client = if is_feature_enabled(Feature::TraceAnalysis) {
             log::info!("Initializing Gemini client for trace analysis");
-            match trace_analysis::gemini::GeminiClient::new() {
+            match signals::gemini::GeminiClient::new() {
                 Ok(client) => Some(Arc::new(client)),
                 Err(e) => {
                     log::warn!(
@@ -1100,9 +1098,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_QUEUE,
-                                exchange_name: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_EXCHANGE,
-                                routing_key: TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_ROUTING_KEY,
+                                queue_name: SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                                exchange_name: SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                                routing_key: SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
                             },
                         );
                     } else {
@@ -1129,9 +1127,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: TRACE_ANALYSIS_LLM_BATCH_PENDING_QUEUE,
-                                exchange_name: TRACE_ANALYSIS_LLM_BATCH_PENDING_EXCHANGE,
-                                routing_key: TRACE_ANALYSIS_LLM_BATCH_PENDING_ROUTING_KEY,
+                                queue_name: SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                                exchange_name: SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                                routing_key: SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
                             },
                         );
                     } else {
@@ -1257,7 +1255,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
-                                    .service(routes::trace_analysis::submit_trace_analysis_job),
+                                    .service(routes::signals::submit_trace_analysis_job),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

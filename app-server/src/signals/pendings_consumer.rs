@@ -15,16 +15,16 @@ use uuid::Uuid;
 use crate::{
     ch::{
         events::{CHEvent, insert_events},
-        trace_analysis_messages::{
-            CHTraceAnalysisMessage, delete_trace_analysis_messages_by_task_ids,
-            insert_trace_analysis_messages,
+        signal_run_messages::{
+            CHSignalRunMessage, delete_signal_run_messages, insert_signal_run_messages,
         },
+        signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{
         DB,
         events::{Event, EventSource},
+        signal_jobs::update_signal_job_stats,
         spans::SpanType,
-        trace_analysis_jobs::update_trace_analysis_job_statistics,
     },
     mq::MessageQueue,
     traces::semantic_events::process_event_notifications_and_clustering,
@@ -32,7 +32,8 @@ use crate::{
 };
 
 use super::{
-    RabbitMqLLMBatchPendingMessage, RabbitMqLLMBatchSubmissionMessage, Task,
+    RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
+    SignalRunMessage,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient, utils::parse_inline_response,
@@ -43,10 +44,10 @@ use super::{
     utils::{emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links},
 };
 
-const MAX_ALLOWED_STEPS: usize = 10;
+const MAX_ALLOWED_STEPS: usize = 5;
 
 #[derive(Debug, Serialize)]
-enum TaskStatus {
+enum ToolCallResponseStatus {
     CompletedNoEvent,
     CompletedWithEvent { attributes: serde_json::Value },
     RequiresNextStep { tool_result: serde_json::Value },
@@ -78,7 +79,7 @@ impl LLMBatchPendingHandler {
 
 #[async_trait]
 impl MessageHandler for LLMBatchPendingHandler {
-    type Message = RabbitMqLLMBatchPendingMessage;
+    type Message = SignalJobPendingBatchMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         process(
@@ -93,17 +94,17 @@ impl MessageHandler for LLMBatchPendingHandler {
 }
 
 async fn process(
-    message: RabbitMqLLMBatchPendingMessage,
+    message: SignalJobPendingBatchMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
 ) -> Result<(), HandlerError> {
     log::debug!(
-        "[TRACE_ANALYSIS] Processing batch. job_id: {}, batch_id: {}, tasks: {}",
+        "[SIGNAL JOB] Processing batch. job_id: {}, batch_id: {}, runs: {}",
         message.job_id,
         message.batch_id,
-        message.tasks.len()
+        message.runs.len()
     );
 
     // Get batch state from Gemini
@@ -124,11 +125,7 @@ async fn process(
         .map(|m| m.state)
         .unwrap_or(JobState::BATCH_STATE_UNSPECIFIED);
 
-    log::debug!(
-        "[TRACE_ANALYSIS] Batch {} state: {:?}",
-        message.batch_id,
-        state
-    );
+    log::debug!("[SIGNAL JOB] Batch {} state: {:?}", message.batch_id, state);
 
     // Handle batch depending on state
     match state {
@@ -150,15 +147,13 @@ async fn process(
 }
 
 async fn process_failed_batch(
-    message: &RabbitMqLLMBatchPendingMessage,
+    message: &SignalJobPendingBatchMessage,
     state: JobState,
     db: Arc<DB>,
 ) -> Result<(), HandlerError> {
-    // Mark all tasks in this batch as failed
-    let failed_count = message.tasks.len() as i32;
-    if let Err(e) =
-        update_trace_analysis_job_statistics(&db.pool, message.job_id, 0, failed_count).await
-    {
+    // Mark all runs in this batch as failed
+    let failed_count = message.runs.len() as i32;
+    if let Err(e) = update_signal_job_stats(&db.pool, message.job_id, 0, failed_count).await {
         log::error!("Failed to update job statistics for failed batch: {}", e);
     }
 
@@ -172,11 +167,11 @@ async fn process_failed_batch(
 }
 
 async fn process_pending_batch(
-    message: &RabbitMqLLMBatchPendingMessage,
+    message: &SignalJobPendingBatchMessage,
     queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     log::debug!(
-        "[TRACE_ANALYSIS] Batch {} not ready, pushing to waiting queue",
+        "[SIGNAL JOB] Batch {} not ready, pushing to waiting queue",
         message.batch_id,
     );
     // Push to waiting queue which has a TTL; after expiry it dead-letters to the pending queue
@@ -186,7 +181,7 @@ async fn process_pending_batch(
 }
 
 async fn process_succeeded_batch(
-    message: &RabbitMqLLMBatchPendingMessage,
+    message: &SignalJobPendingBatchMessage,
     response: Option<GenerateContentBatchOutput>,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -201,7 +196,7 @@ async fn process_succeeded_batch(
 
     let inlined_responses = &response.inlined_responses.inlined_responses;
     log::debug!(
-        "[TRACE_ANALYSIS] Processing {} responses for batch {}",
+        "[SIGNAL JOB] Processing {} responses for batch {}",
         inlined_responses.len(),
         message.batch_id
     );
@@ -209,59 +204,96 @@ async fn process_succeeded_batch(
     // Keep track of new messages to insert into ClickHouse
     let mut new_messages = Vec::new();
 
-    let mut succeeded_task_ids: Vec<Uuid> = Vec::new();
-    let mut failed_task_ids: Vec<Uuid> = Vec::new();
-    let mut pending_tasks: Vec<Task> = Vec::new();
+    // Keep track of succeeded, failed and pending runs
+    let mut succeeded_runs: Vec<SignalRun> = Vec::new();
+    let mut failed_runs: Vec<SignalRun> = Vec::new();
+    let mut pending_runs: Vec<SignalRunMessage> = Vec::new();
 
-    // Build a map of task_id -> payload for efficient lookup
-    let task_map: HashMap<Uuid, &Task> = message.tasks.iter().map(|p| (p.task_id, p)).collect();
+    // Build a map of run_id -> payload for efficient lookup
+    let run_map: HashMap<Uuid, SignalRun> = message
+        .runs
+        .iter()
+        .map(|r| {
+            (
+                r.run_id,
+                SignalRun {
+                    run_id: r.run_id,
+                    project_id: message.project_id,
+                    job_id: message.job_id,
+                    signal_id: message.signal_id,
+                    trace_id: r.trace_id,
+                    status: RunStatus::Pending,
+                    step: r.step,
+                    internal_trace_id: r.internal_trace_id,
+                    internal_span_id: r.internal_span_id,
+                    time: chrono::Utc::now(),
+                    event_id: None,
+                },
+            )
+        })
+        .collect();
 
-    // Process each response, matching by task_id from response metadata
+    // Process each response, matching by run_id from response metadata
     for inline_response in inlined_responses.iter() {
         let response = parse_inline_response(inline_response);
 
-        // Extract task_id from response metadata
-        let task_id = match response.task_id {
+        // Extract run_id from response metadata
+        let run_id = match response.run_id {
             Some(id) => id,
             None => {
-                // failed_task_ids is not updated here cause we don't know the task_id
-                // we compensate for this outside the loop by checking not processed tasks
+                // We don't record this run as failed as we don't know the run_id
+                // To account for that we check unprocessed runs after the loop ends
                 log::warn!(
-                    "Response missing task_id in metadata, skipping response. Batch ID: {}",
+                    "Response missing run_id in metadata, skipping response. Batch ID: {}",
                     message.batch_id
                 );
                 continue;
             }
         };
 
-        // Check if response contains an error
-        if response.has_error {
-            failed_task_ids.push(task_id);
-            log::error!(
-                "Response contains error, marking task as failed for task_id: {}",
-                task_id
-            );
-            continue;
-        }
-
-        // Find the corresponding task
-        let task = match task_map.get(&task_id) {
+        // Find the corresponding run
+        let run = match run_map.get(&run_id) {
             Some(p) => *p,
             None => {
-                failed_task_ids.push(task_id);
-                log::error!("No payload found for task_id {}, skipping", task_id);
+                failed_runs.push(SignalRun {
+                    run_id,
+                    project_id: message.project_id,
+                    job_id: message.job_id,
+                    signal_id: message.signal_id,
+                    trace_id: response.trace_id.unwrap_or_default(),
+                    status: RunStatus::Failed,
+                    step: 0,
+                    internal_trace_id: Uuid::nil(),
+                    internal_span_id: Uuid::nil(),
+                    time: chrono::Utc::now(),
+                    event_id: None,
+                });
+                log::error!("No payload found for run_id {}, skipping", run_id);
                 continue;
             }
         };
 
+        // Check if response contains an error
+        if response.has_error {
+            failed_runs.push(SignalRun {
+                status: RunStatus::Failed,
+                ..run
+            });
+            log::error!(
+                "Response contains error, marking run as failed for run_id: {}",
+                run_id
+            );
+            continue;
+        }
+
         // Internal tracing span with LLM response
         emit_internal_span(
-            &format!("step_{}.process_response", task.step),
-            task.internal_trace_id,
+            &format!("step_{}.process_response", run.step),
+            run.internal_trace_id,
             message.job_id,
-            task.task_id,
-            &message.event_name,
-            Some(task.internal_root_span_id),
+            run.run_id,
+            &message.signal_name,
+            Some(run.internal_span_id),
             SpanType::LLM,
             chrono::Utc::now(),
             None,
@@ -275,10 +307,9 @@ async fn process_succeeded_batch(
         .await;
 
         // Insert LLM output message into ClickHouse
-        let llm_output_msg = CHTraceAnalysisMessage::new(
+        let llm_output_msg = CHSignalRunMessage::new(
             message.project_id,
-            message.job_id,
-            task.task_id,
+            run.run_id,
             chrono::Utc::now(),
             response.content.clone(),
         );
@@ -287,16 +318,16 @@ async fn process_succeeded_batch(
         // Check if response contains a function call or text
         if let Some(function_call) = response.function_call {
             let tool_call_start_time = chrono::Utc::now();
-            let status = handle_tool_call(message, task, &function_call, clickhouse.clone()).await;
+            let status = handle_tool_call(message, &run, &function_call, clickhouse.clone()).await;
 
             // Fire-and-forget internal tracing span
             emit_internal_span(
                 &function_call.name,
-                task.internal_trace_id,
+                run.internal_trace_id,
                 message.job_id,
-                task.task_id,
-                &message.event_name,
-                Some(task.internal_root_span_id),
+                run.run_id,
+                &message.signal_name,
+                Some(run.internal_span_id),
                 SpanType::Tool,
                 tool_call_start_time,
                 Some(serde_json::json!(function_call)),
@@ -310,27 +341,47 @@ async fn process_succeeded_batch(
             .await;
 
             match status {
-                TaskStatus::Failed => failed_task_ids.push(task.task_id),
-                TaskStatus::CompletedNoEvent => succeeded_task_ids.push(task.task_id),
-                TaskStatus::CompletedWithEvent { attributes } => {
-                    if let Err(e) = handle_create_event(
+                ToolCallResponseStatus::Failed => {
+                    failed_runs.push(SignalRun {
+                        status: RunStatus::Failed,
+                        ..run
+                    });
+                }
+                ToolCallResponseStatus::CompletedNoEvent => {
+                    succeeded_runs.push(SignalRun {
+                        status: RunStatus::Completed,
+                        ..run
+                    });
+                }
+                ToolCallResponseStatus::CompletedWithEvent { attributes } => {
+                    match handle_create_event(
                         message,
-                        task,
+                        &run,
                         attributes,
                         clickhouse.clone(),
                         db.clone(),
                         queue.clone(),
-                        task.internal_root_span_id,
+                        run.internal_span_id,
                     )
                     .await
                     {
-                        log::error!("Failed to generate event: {}", e);
-                        failed_task_ids.push(task.task_id);
-                    } else {
-                        succeeded_task_ids.push(task.task_id);
+                        Ok(event_id) => {
+                            succeeded_runs.push(SignalRun {
+                                status: RunStatus::Completed,
+                                event_id: Some(event_id),
+                                ..run
+                            });
+                        }
+                        Err(e) => {
+                            log::error!("Failed to generate event: {}", e);
+                            failed_runs.push(SignalRun {
+                                status: RunStatus::Failed,
+                                ..run
+                            });
+                        }
                     }
                 }
-                TaskStatus::RequiresNextStep { tool_result } => {
+                ToolCallResponseStatus::RequiresNextStep { tool_result } => {
                     // Save tool result to ClickHouse
                     let function_response_content = Content {
                         role: Some("user".to_string()),
@@ -344,125 +395,146 @@ async fn process_succeeded_batch(
                         }],
                     };
 
-                    let tool_output_msg = CHTraceAnalysisMessage::new(
+                    let tool_output_msg = CHSignalRunMessage::new(
                         message.project_id,
-                        message.job_id,
-                        task.task_id,
+                        run.run_id,
                         chrono::Utc::now(),
                         serde_json::to_string(&function_response_content).unwrap_or_default(),
                     );
                     new_messages.push(tool_output_msg);
 
-                    // If step number is greater than maximum allowed, mark task as failed
-                    if task.step > MAX_ALLOWED_STEPS {
-                        failed_task_ids.push(task.task_id);
+                    // If step number is greater than maximum allowed, mark run as failed
+                    if run.step > MAX_ALLOWED_STEPS {
+                        failed_runs.push(SignalRun {
+                            status: RunStatus::Failed,
+                            ..run
+                        });
                         log::error!(
-                            "Task {} has step number greater than maximum allowed, marking as failed",
-                            task.task_id
+                            "Run {} has step number greater than maximum allowed, marking as failed",
+                            run.run_id
                         );
                         continue;
                     }
 
-                    // Add to pending tasks list for next submission
-                    pending_tasks.push(Task {
-                        task_id: task.task_id,
-                        trace_id: task.trace_id,
-                        internal_trace_id: task.internal_trace_id,
-                        internal_root_span_id: task.internal_root_span_id,
-                        step: task.step + 1,
+                    // Add to pending runs list for next submission
+                    pending_runs.push(SignalRunMessage {
+                        run_id: run.run_id,
+                        trace_id: run.trace_id,
+                        internal_trace_id: run.internal_trace_id,
+                        internal_span_id: run.internal_span_id,
+                        step: run.step + 1,
                     });
                 }
             }
         } else {
             log::warn!(
-                "Response for task {} has no function_call, got text: {}",
-                task.task_id,
+                "Response for run {} has no function_call, got text: {}",
+                run.run_id,
                 response.text.unwrap_or_default(),
             );
-            failed_task_ids.push(task.task_id);
+            failed_runs.push(SignalRun {
+                status: RunStatus::Failed,
+                ..run
+            });
         }
     }
 
-    // Find tasks that didn't get any response (e.g., response missing task_id in metadata)
-    // This is important to delete messages for all finished tasks
-    let processed_task_ids: HashSet<Uuid> = succeeded_task_ids
+    // Find runs that didn't get any response (e.g., response missing run_id in metadata)
+    // This is important to delete messages for all finished runs
+    let processed_run_ids: HashSet<Uuid> = succeeded_runs
         .iter()
-        .chain(failed_task_ids.iter())
-        .chain(pending_tasks.iter().map(|t| &t.task_id))
-        .copied()
+        .map(|r| r.run_id)
+        .chain(failed_runs.iter().map(|r| r.run_id))
+        .chain(pending_runs.iter().map(|t| t.run_id))
         .collect();
 
-    for task in message.tasks.iter() {
-        if !processed_task_ids.contains(&task.task_id) {
-            failed_task_ids.push(task.task_id);
+    for run in message.runs.iter() {
+        if !processed_run_ids.contains(&run.run_id) {
+            failed_runs.push(SignalRun {
+                run_id: run.run_id,
+                project_id: message.project_id,
+                job_id: message.job_id,
+                signal_id: message.signal_id,
+                trace_id: run.trace_id,
+                status: RunStatus::Failed,
+                step: run.step,
+                internal_trace_id: run.internal_trace_id,
+                internal_span_id: run.internal_span_id,
+                time: chrono::Utc::now(),
+                event_id: None,
+            });
         }
     }
 
     log::debug!(
-        "[TRACE_ANALYSIS] Batch {} results: succeeded={}, failed={}, pending={}",
+        "[SIGNAL JOB] Batch {} results: succeeded={}, failed={}, pending={}",
         message.batch_id,
-        succeeded_task_ids.len(),
-        failed_task_ids.len(),
-        pending_tasks.len()
+        succeeded_runs.len(),
+        failed_runs.len(),
+        pending_runs.len()
     );
 
     // Insert new messages into ClickHouse
-    insert_trace_analysis_messages(clickhouse.clone(), &new_messages).await?;
+    insert_signal_run_messages(clickhouse.clone(), &new_messages).await?;
 
     // Update job statistics
-    update_trace_analysis_job_statistics(
+    update_signal_job_stats(
         &db.pool,
         message.job_id,
-        succeeded_task_ids.len() as i32,
-        failed_task_ids.len() as i32,
+        succeeded_runs.len() as i32,
+        failed_runs.len() as i32,
     )
     .await?;
 
-    // Create a new message for submissions queue containing all unfinished tasks
-    if !pending_tasks.is_empty() {
-        let submission_message = RabbitMqLLMBatchSubmissionMessage {
+    // Insert succeeded/failed runs into ClickHouse
+    let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs
+        .iter()
+        .map(|r| CHSignalRun::from(r))
+        .collect();
+    insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
+    let failed_runs_ch: Vec<CHSignalRun> =
+        failed_runs.iter().map(|r| CHSignalRun::from(r)).collect();
+    insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
+
+    // Create a new message for submissions queue containing all unfinished runs
+    if !pending_runs.is_empty() {
+        let submission_message = SignalJobSubmissionBatchMessage {
             project_id: message.project_id,
             job_id: message.job_id,
-            event_definition_id: message.event_definition_id,
-            event_name: message.event_name.clone(),
+            signal_id: message.signal_id,
+            signal_name: message.signal_name.clone(),
             prompt: message.prompt.clone(),
             structured_output_schema: message.structured_output_schema.clone(),
             model: message.model.clone(),
             provider: message.provider.clone(),
-            tasks: pending_tasks,
+            runs: pending_runs,
         };
 
         push_to_submissions_queue(submission_message, queue).await?;
     }
 
-    // Delete messages for finished tasks (both succeeded and failed)
-    let finished_task_ids: Vec<Uuid> = succeeded_task_ids
+    // Delete messages for finished runs (both succeeded and failed)
+    let finished_run_ids: Vec<Uuid> = succeeded_runs
         .iter()
-        .chain(failed_task_ids.iter())
-        .copied()
+        .chain(failed_runs.iter())
+        .map(|r| r.run_id)
         .collect();
 
-    delete_trace_analysis_messages_by_task_ids(
-        clickhouse,
-        message.project_id,
-        message.job_id,
-        &finished_task_ids,
-    )
-    .await?;
+    delete_signal_run_messages(clickhouse, message.project_id, &finished_run_ids).await?;
 
     Ok(())
 }
 
 async fn handle_tool_call(
-    message: &RabbitMqLLMBatchPendingMessage,
-    task: &Task,
+    message: &SignalJobPendingBatchMessage,
+    run: &SignalRun,
     function_call: &FunctionCall,
     clickhouse: clickhouse::Client,
-) -> TaskStatus {
+) -> ToolCallResponseStatus {
     log::debug!(
-        "[TRACE_ANALYSIS] Processing tool call '{}' for task {}",
+        "[SIGNAL JOB] Processing tool call '{}' for run {}",
         function_call.name,
-        task.task_id
+        run.run_id
     );
 
     match function_call.name.as_str() {
@@ -482,15 +554,15 @@ async fn handle_tool_call(
 
             if span_ids.is_empty() {
                 log::error!(
-                    "get_full_span_info called with no span_ids for task {}",
-                    task.task_id
+                    "get_full_span_info called with no span_ids for run {}",
+                    run.run_id
                 );
-                return TaskStatus::Failed;
+                return ToolCallResponseStatus::Failed;
             }
 
             // Execute the tool
             let tool_result =
-                match get_full_span_info(clickhouse, message.project_id, task.trace_id, span_ids)
+                match get_full_span_info(clickhouse, message.project_id, run.trace_id, span_ids)
                     .await
                 {
                     Ok(spans) => serde_json::json!({ "spans": spans }),
@@ -500,7 +572,7 @@ async fn handle_tool_call(
                     }
                 };
 
-            return TaskStatus::RequiresNextStep { tool_result };
+            return ToolCallResponseStatus::RequiresNextStep { tool_result };
         }
         "submit_identification" => {
             let identified = function_call
@@ -516,46 +588,46 @@ async fn handle_tool_call(
                 .and_then(|args| args.get("data").cloned());
 
             log::debug!(
-                "[TRACE_ANALYSIS] submit_identification identified: {:?}",
+                "[SIGNAL JOB] submit_identification identified: {:?}",
                 identified,
             );
 
             if identified {
                 let attrs = attributes.unwrap_or(serde_json::Value::Null);
-                return TaskStatus::CompletedWithEvent { attributes: attrs };
+                return ToolCallResponseStatus::CompletedWithEvent { attributes: attrs };
             }
 
-            return TaskStatus::CompletedNoEvent;
+            return ToolCallResponseStatus::CompletedNoEvent;
         }
         unknown => {
             log::warn!(
-                "Unknown function called: {} for task {}",
+                "Unknown function called: {} for run {}",
                 unknown,
-                task.task_id
+                run.run_id
             );
-            return TaskStatus::Failed;
+            return ToolCallResponseStatus::Failed;
         }
     }
 }
 
 async fn handle_create_event(
-    message: &RabbitMqLLMBatchPendingMessage,
-    task: &Task,
+    message: &SignalJobPendingBatchMessage,
+    run: &SignalRun,
     attributes: serde_json::Value,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     parent_span_id: Uuid,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Uuid> {
     let create_event_start_time = chrono::Utc::now();
 
     // Get trace spans
     let (ch_spans, uuid_to_seq) =
-        get_trace_spans_with_id_mapping(clickhouse.clone(), message.project_id, task.trace_id)
+        get_trace_spans_with_id_mapping(clickhouse.clone(), message.project_id, run.trace_id)
             .await?;
 
     if ch_spans.is_empty() {
-        anyhow::bail!("No spans found for trace {}", task.trace_id);
+        anyhow::bail!("No spans found for trace {}", run.trace_id);
     }
 
     let root_span = &ch_spans[0];
@@ -567,7 +639,7 @@ async fn handle_create_event(
         .collect();
 
     let attrs =
-        replace_span_tags_with_links(attributes, &seq_to_uuid, message.project_id, task.trace_id)?;
+        replace_span_tags_with_links(attributes, &seq_to_uuid, message.project_id, run.trace_id)?;
 
     // Use root span's end_time as event timestamp
     let timestamp = nanoseconds_to_datetime(root_span.end_time);
@@ -578,9 +650,9 @@ async fn handle_create_event(
         span_id: root_span.span_id,
         project_id: message.project_id,
         timestamp,
-        name: message.event_name.clone(),
+        name: message.signal_name.clone(),
         attributes: attrs.clone(),
-        trace_id: task.trace_id,
+        trace_id: run.trace_id,
         source: EventSource::Semantic,
     };
 
@@ -589,10 +661,10 @@ async fn handle_create_event(
     insert_events(clickhouse, ch_events).await?;
 
     log::debug!(
-        "[TRACE_ANALYSIS] Created event '{}' for trace {} (task {})",
-        message.event_name,
-        task.trace_id,
-        task.task_id
+        "[SIGNAL JOB] Created event '{}' for trace {} (run {})",
+        message.signal_name,
+        run.trace_id,
+        run.run_id
     );
 
     // Process notifications and clustering
@@ -600,21 +672,23 @@ async fn handle_create_event(
         db,
         queue.clone(),
         message.project_id,
-        task.trace_id,
+        run.trace_id,
         root_span.span_id,
-        &message.event_name,
+        &message.signal_name,
         attrs,
         event.clone(),
     )
     .await?;
 
+    let event_id = event.id;
+
     // Internal tracing span
     emit_internal_span(
         "create_event",
-        task.internal_trace_id,
+        run.internal_trace_id,
         message.job_id,
-        task.task_id,
-        &message.event_name,
+        run.run_id,
+        &message.signal_name,
         Some(parent_span_id),
         SpanType::Default,
         create_event_start_time,
@@ -628,5 +702,5 @@ async fn handle_create_event(
     )
     .await;
 
-    Ok(())
+    Ok(event_id)
 }
