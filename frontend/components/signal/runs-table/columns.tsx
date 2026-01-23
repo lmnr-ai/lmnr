@@ -7,13 +7,6 @@ import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
 
-const STATUS_LABELS: Record<number, { label: string; className: string }> = {
-  0: { label: "Pending", className: "text-muted-foreground" },
-  1: { label: "Running", className: "text-warning" },
-  2: { label: "Completed", className: "text-success" },
-  3: { label: "Failed", className: "text-destructive" },
-};
-
 export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   {
     accessorKey: "runId",
@@ -39,11 +32,7 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ getValue }) => {
-      const status = getValue() as number;
-      const statusInfo = STATUS_LABELS[status] || { label: "Unknown", className: "text-muted-foreground" };
-      return <span className={cn("font-medium", statusInfo.className)}>{statusInfo.label}</span>;
-    },
+    cell: (row) => <span className={cn("font-medium")}>{row.row.original.status}</span>,
     size: 100,
     id: "status",
   },
@@ -55,20 +44,6 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
     id: "eventId",
   },
   {
-    accessorKey: "errorMessage",
-    header: "Error",
-    cell: (row) => {
-      const value = row.getValue() as string | undefined;
-      return value ? (
-        <span className="text-destructive">{value}</span>
-      ) : (
-        <span className="text-muted-foreground">-</span>
-      );
-    },
-    size: 200,
-    id: "errorMessage",
-  },
-  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
@@ -77,7 +52,7 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "jobId", "triggerId", "status", "eventId", "errorMessage", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "jobId", "triggerId", "status", "eventId", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

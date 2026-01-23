@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 
 import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { cache, SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
@@ -187,7 +187,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       value: triggers,
     });
 
-    await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+    await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
   }
 
   return result;
@@ -223,7 +223,7 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
     return result;
   });
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
@@ -236,7 +236,7 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
@@ -268,7 +268,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
     }
   }
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return { success: true };
 }
