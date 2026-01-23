@@ -5,7 +5,6 @@ export const enum Feature {
   AZURE_AUTH = "AZURE_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   WORKSPACE = "WORKSPACE",
-  POSTHOG = "POSTHOG",
   POSTHOG_IDENTIFY = "POSTHOG_IDENTIFY",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
@@ -77,11 +76,7 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.POSTHOG_IDENTIFY) {
-    return process.env.NEXT_PUBLIC_ANONYMOUS_TELEMETRY === "true";
-  }
-
-  if (feature === Feature.POSTHOG) {
-    return process.env.NEXT_PUBLIC_TELEMETRY === "true";
+    return process.env.NEXT_PUBLIC_ANONYMOUS_TELEMETRY === "true" || process.env.NEXT_PUBLIC_TELEMETRY === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
