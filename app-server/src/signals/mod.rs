@@ -41,6 +41,30 @@ pub struct SignalRun {
     pub error_message: Option<String>,
 }
 
+impl SignalRun {
+    pub fn failed(mut self, error: impl Into<String>) -> Self {
+        self.status = RunStatus::Failed;
+        self.error_message = Some(error.into());
+        self
+    }
+
+    pub fn completed(mut self) -> Self {
+        self.status = RunStatus::Completed;
+        self
+    }
+
+    pub fn completed_with_event(mut self, event_id: Uuid) -> Self {
+        self.status = RunStatus::Completed;
+        self.event_id = Some(event_id);
+        self
+    }
+
+    pub fn next_step(mut self) -> Self {
+        self.step += 1;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RunStatus {

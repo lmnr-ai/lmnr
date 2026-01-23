@@ -109,7 +109,7 @@ pub async fn emit_internal_span(
     trace_id: Uuid,
     job_id: Uuid,
     run_id: Uuid,
-    event_name: &str,
+    signal_name: &str,
     parent_span_id: Option<Uuid>,
     span_type: SpanType,
     start_time: chrono::DateTime<Utc>,
@@ -139,7 +139,7 @@ pub async fn emit_internal_span(
         ),
         (
             "trace_analysis.event_name".to_string(),
-            serde_json::json!(event_name),
+            serde_json::json!(signal_name),
         ),
     ]);
 

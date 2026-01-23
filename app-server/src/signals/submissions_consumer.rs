@@ -1,6 +1,6 @@
 //! This module reads LLM batch submissions from RabbitMQ and processes them:
 //! - Makes batch API calls to LLMs (Gemini, etc.)
-//! - Pushes results to the LLM Batch Pending Queue for polling
+//! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -92,7 +92,7 @@ async fn process(
     let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.runs.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
-    let mut successful_runs: Vec<SignalRunPayload> = Vec::new();
+    let mut to_sumbit_runs: Vec<SignalRunPayload> = Vec::new();
 
     for run in msg.runs.iter() {
         match process_run(
@@ -111,7 +111,7 @@ async fn process(
             Ok((request, new_messages)) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
-                successful_runs.push(run.clone());
+                to_sumbit_runs.push(run.clone());
             }
             Err(e) => {
                 log::error!("[SIGNAL JOB] Failed to process run {}: {:?}", run.run_id, e);
@@ -133,27 +133,10 @@ async fn process(
         }
     }
 
-    // Insert failed runs into ClickHouse and delete their messages
-    if !failed_runs.is_empty() {
-        let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
-        if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
-            log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
-        }
-
-        // Delete messages for failed runs since they won't be processed further
-        let failed_run_ids: Vec<uuid::Uuid> = failed_runs.iter().map(|r| r.run_id).collect();
-        if let Err(e) =
-            delete_signal_run_messages(clickhouse.clone(), project_id, &failed_run_ids).await
-        {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-                e
-            );
-        }
-    }
-
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
+        // All runs failed during processing, handle them before returning
+        handle_failed_runs(clickhouse, project_id, failed_runs).await;
         return Err(HandlerError::permanent(anyhow::anyhow!(
             "No requests to submit"
         )));
@@ -169,6 +152,35 @@ async fn process(
     }
 
     // Submit batch to Gemini API
+    let batch_result = submit_batch_to_gemini(&msg, gemini, requests, to_sumbit_runs, queue).await;
+
+    match batch_result {
+        Ok(()) => {
+            // Batch submitted successfully, handle any runs that failed during processing
+            handle_failed_runs(clickhouse, project_id, failed_runs).await;
+            Ok(())
+        }
+        Err((batch_failed_runs, handler_error)) => {
+            // Batch submission failed, combine with runs that failed during processing
+            failed_runs.extend(batch_failed_runs);
+            handle_failed_runs(clickhouse, project_id, failed_runs).await;
+            Err(handler_error)
+        }
+    }
+}
+
+/// Submit batch to Gemini API and push to pending queue on success.
+/// On failure, returns the failed runs and the handler error.
+async fn submit_batch_to_gemini(
+    msg: &SignalJobSubmissionBatchMessage,
+    gemini: Arc<GeminiClient>,
+    requests: Vec<InlineRequestItem>,
+    runs: Vec<SignalRunPayload>,
+    queue: Arc<MessageQueue>,
+) -> Result<(), (Vec<SignalRun>, HandlerError)> {
+    let project_id = msg.project_id;
+    let job_id = msg.job_id;
+
     match gemini
         .create_batch(&msg.model, requests, Some(format!("signal_job_{}", job_id)))
         .await
@@ -180,80 +192,113 @@ async fn process(
             );
 
             let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
-                HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e))
+                // If we can't extract batch ID, mark all runs as failed
+                let batch_failed_runs = create_failed_runs_from_payloads(
+                    &runs,
+                    msg,
+                    format!("Failed to extract batch ID: {}", e),
+                );
+                (
+                    batch_failed_runs,
+                    HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e)),
+                )
             })?;
 
             let pending_message = SignalJobPendingBatchMessage {
                 project_id,
                 job_id,
                 signal_id: msg.signal_id,
-                prompt: msg.prompt,
-                signal_name: msg.signal_name,
-                structured_output_schema: msg.structured_output_schema,
-                model: msg.model,
-                provider: msg.provider,
-                runs: successful_runs,
+                prompt: msg.prompt.clone(),
+                signal_name: msg.signal_name.clone(),
+                structured_output_schema: msg.structured_output_schema.clone(),
+                model: msg.model.clone(),
+                provider: msg.provider.clone(),
+                runs,
                 batch_id,
             };
 
             push_to_pending_queue(queue, &pending_message)
                 .await
-                .map_err(|e| HandlerError::transient(e))?;
+                .map_err(|e| {
+                    // If we can't push to pending queue, mark all runs as failed
+                    let batch_failed_runs = create_failed_runs_from_payloads(
+                        &pending_message.runs,
+                        msg,
+                        format!("Failed to push to pending queue: {}", e),
+                    );
+                    (batch_failed_runs, HandlerError::transient(e))
+                })?;
+
+            Ok(())
         }
         Err(e) => {
             log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
 
-            // Mark all runs as failed since the batch submission failed
-            let batch_failed_runs: Vec<SignalRun> = successful_runs
-                .iter()
-                .map(|run| SignalRun {
-                    run_id: run.run_id,
-                    project_id,
-                    job_id,
-                    signal_id: msg.signal_id,
-                    trace_id: run.trace_id,
-                    status: RunStatus::Failed,
-                    step: run.step,
-                    internal_trace_id: run.internal_trace_id,
-                    internal_span_id: run.internal_span_id,
-                    updated_at: Utc::now(),
-                    event_id: None,
-                    error_message: Some(format!("Batch submission failed: {}", e)),
-                })
-                .collect();
+            let batch_failed_runs = create_failed_runs_from_payloads(
+                &runs,
+                msg,
+                format!("Batch submission failed: {}", e),
+            );
 
-            let batch_failed_runs_ch: Vec<CHSignalRun> =
-                batch_failed_runs.iter().map(CHSignalRun::from).collect();
-            if let Err(insert_err) =
-                insert_signal_runs(clickhouse.clone(), &batch_failed_runs_ch).await
-            {
-                log::error!(
-                    "[SIGNAL JOB] Failed to insert batch-failed runs: {:?}",
-                    insert_err
-                );
-            }
-
-            // Delete messages for batch-failed runs since they won't be processed further
-            let batch_failed_run_ids: Vec<uuid::Uuid> =
-                batch_failed_runs.iter().map(|r| r.run_id).collect();
-            if let Err(delete_err) =
-                delete_signal_run_messages(clickhouse, project_id, &batch_failed_run_ids).await
-            {
-                log::error!(
-                    "[SIGNAL JOB] Failed to delete messages for batch-failed runs: {:?}",
-                    delete_err
-                );
-            }
-
-            if e.is_retryable() {
-                return Err(HandlerError::transient(e));
+            let handler_error = if e.is_retryable() {
+                HandlerError::transient(e)
             } else {
-                return Err(HandlerError::permanent(e));
-            }
+                HandlerError::permanent(e)
+            };
+
+            Err((batch_failed_runs, handler_error))
         }
     }
+}
 
-    Ok(())
+/// Create failed SignalRun instances from SignalRunPayload list
+fn create_failed_runs_from_payloads(
+    runs: &[SignalRunPayload],
+    msg: &SignalJobSubmissionBatchMessage,
+    error_message: String,
+) -> Vec<SignalRun> {
+    runs.iter()
+        .map(|run| SignalRun {
+            run_id: run.run_id,
+            project_id: msg.project_id,
+            job_id: msg.job_id,
+            signal_id: msg.signal_id,
+            trace_id: run.trace_id,
+            status: RunStatus::Failed,
+            step: run.step,
+            internal_trace_id: run.internal_trace_id,
+            internal_span_id: run.internal_span_id,
+            updated_at: Utc::now(),
+            event_id: None,
+            error_message: Some(error_message.clone()),
+        })
+        .collect()
+}
+
+/// Insert failed runs into ClickHouse and delete their messages
+async fn handle_failed_runs(
+    clickhouse: clickhouse::Client,
+    project_id: uuid::Uuid,
+    failed_runs: Vec<SignalRun>,
+) {
+    if failed_runs.is_empty() {
+        return;
+    }
+
+    // Insert failed runs into ClickHouse
+    let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
+    if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
+        log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
+    }
+
+    // Delete messages for failed runs since they won't be processed further
+    let failed_run_ids: Vec<uuid::Uuid> = failed_runs.iter().map(|r| r.run_id).collect();
+    if let Err(e) = delete_signal_run_messages(clickhouse, project_id, &failed_run_ids).await {
+        log::error!(
+            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
+            e
+        );
+    }
 }
 
 async fn process_run(
@@ -394,7 +439,7 @@ async fn process_run(
         })),
     };
 
-    // Internal tracing span with resulting content
+    // Emit internal tracing span
     let mut contents_with_sys = contents.clone();
     if let Some(mut sys) = system_instruction.clone() {
         sys.role = Some("system".to_string());

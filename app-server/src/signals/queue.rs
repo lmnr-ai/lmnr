@@ -59,6 +59,18 @@ pub struct SignalRunPayload {
     pub internal_span_id: Uuid,
 }
 
+impl From<&super::SignalRun> for SignalRunPayload {
+    fn from(run: &super::SignalRun) -> Self {
+        Self {
+            run_id: run.run_id,
+            trace_id: run.trace_id,
+            step: run.step,
+            internal_trace_id: run.internal_trace_id,
+            internal_span_id: run.internal_span_id,
+        }
+    }
+}
+
 pub async fn push_to_submissions_queue(
     message: SignalJobSubmissionBatchMessage,
     queue: Arc<MessageQueue>,
