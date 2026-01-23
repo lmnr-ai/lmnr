@@ -69,14 +69,18 @@ fn truncate_value(value: &Value) -> Value {
         _ => serde_json::to_string(value).unwrap_or_default(),
     };
 
-    if value_str.len() <= TRUNCATE_THRESHOLD {
+    let char_count = value_str.chars().count();
+    if char_count <= TRUNCATE_THRESHOLD {
         return value.clone();
     }
 
-    let start = &value_str[..PREVIEW_LENGTH.min(value_str.len())];
-    let end_start = value_str.len().saturating_sub(PREVIEW_LENGTH);
-    let end = &value_str[end_start..];
-    let omitted = value_str.len().saturating_sub(PREVIEW_LENGTH * 2);
+    // Use character-based slicing to avoid splitting multi-byte UTF-8 characters
+    let start: String = value_str.chars().take(PREVIEW_LENGTH).collect();
+    let end: String = value_str
+        .chars()
+        .skip(char_count.saturating_sub(PREVIEW_LENGTH))
+        .collect();
+    let omitted = char_count.saturating_sub(PREVIEW_LENGTH * 2);
 
     Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
 }
