@@ -4,7 +4,7 @@ import { type z } from "zod/v4";
 
 import { SlackSlashCommandSchema } from "@/lib/actions/slack/types";
 import { db } from "@/lib/db/drizzle";
-import { semanticEventDefinitions, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
+import { signals, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
 
 interface SlackCommandResponse {
   response_type: "ephemeral" | "in_channel";
@@ -12,7 +12,7 @@ interface SlackCommandResponse {
   blocks?: unknown[];
 }
 
-const availableEvents = ["error_trace_analysis", "warning_trace_analysis"];
+const availableSignals = ["error_trace_analysis", "warning_trace_analysis"];
 
 export async function processSlashCommand(
   payload: z.infer<typeof SlackSlashCommandSchema>
@@ -90,17 +90,19 @@ async function handleSubscribeCommand(
 
     const projectIds = integrations.map((i) => i.projectId);
 
-    const dbEvents = await db.query.semanticEventDefinitions.findMany({
-      where: inArray(semanticEventDefinitions.projectId, projectIds),
+    const dbSignals = await db.query.signals.findMany({
+      where: inArray(signals.projectId, projectIds),
       columns: {
         name: true,
         projectId: true,
       },
     });
 
-    const matchedIntegration = availableEvents.includes(eventName)
+    const matchedIntegration = availableSignals.includes(eventName)
       ? integrations[0]
-      : integrations.find((i) => dbEvents.some((event) => event.name === eventName && event.projectId === i.projectId));
+      : integrations.find((i) =>
+          dbSignals.some((event) => event.name === eventName && event.projectId === i.projectId)
+        );
 
     if (!matchedIntegration) {
       return {

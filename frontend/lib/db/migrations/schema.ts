@@ -13,7 +13,6 @@ import {
   boolean,
   integer,
   real,
-  vector,
   primaryKey,
   smallint,
   pgEnum,
@@ -97,6 +96,26 @@ export const agentChats = pgTable(
       to: ["authenticated"],
       using: sql`is_user_id_accessible_for_api_key(api_key(), user_id)`,
     }),
+  ]
+);
+
+export const signals = pgTable(
+  "signals",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    prompt: text().notNull(),
+    structuredOutputSchema: jsonb("structured_output_schema").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signals_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("signals_project_id_name_key").on(table.projectId, table.name),
   ]
 );
 
@@ -350,6 +369,40 @@ export const agentSessions = pgTable(
   (table) => [
     index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
     index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+  ]
+);
+
+export const signalJobs = pgTable(
+  "signal_jobs",
+  {
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+      name: "signal_jobs_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
+    signalId: uuid("signal_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTraces: integer("total_traces").default(0).notNull(),
+    processedTraces: integer("processed_traces").default(0).notNull(),
+    failedTraces: integer("failed_traces").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_jobs_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_jobs_signal_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -1206,6 +1259,24 @@ export const rolloutSessions = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+export const signalTriggers = pgTable(
+  "signal_triggers",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    value: jsonb().notNull(),
+    signalId: uuid("signal_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_triggers_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

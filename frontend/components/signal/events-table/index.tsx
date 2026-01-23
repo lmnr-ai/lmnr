@@ -28,9 +28,8 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, clusterConfig, lastEvent } = useSignalStoreContext((state) => ({
+  const { signal, lastEvent } = useSignalStoreContext((state) => ({
     signal: state.signal,
-    clusterConfig: state.clusterConfig,
     lastEvent: state.lastEvent,
   }));
   const searchParams = useSearchParams();
@@ -178,7 +177,7 @@ function PureEventsTable() {
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("pastHours", "24");
+      params.set("pastHours", "72");
       router.replace(`${pathName}?${params.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
@@ -191,20 +190,17 @@ function PureEventsTable() {
 
   return (
     <div className="flex flex-col gap-2 flex-1">
-      <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold">Events</span>
-        <span className="text-xs text-muted-foreground font-medium">
-          Last event:{" "}
-          <span
-            title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-            className={cn("text-xs", {
-              "text-foreground": lastEvent,
-            })}
-          >
-            {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-          </span>
+      <span className="text-xs text-muted-foreground font-medium">
+        Last event:{" "}
+        <span
+          title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
+          className={cn("text-xs", {
+            "text-foreground": lastEvent,
+          })}
+        >
+          {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
         </span>
-      </div>
+      </span>
 
       <InfiniteDataTable<EventRow>
         className="w-full"

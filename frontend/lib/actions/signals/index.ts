@@ -1,14 +1,13 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
-import { difference } from "lodash";
 import { z } from "zod/v4";
 
-import { parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { cache, SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { semanticEventDefinitions, semanticEventTriggerSpans } from "@/lib/db/migrations/schema";
+import { signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type SignalRow = Omit<Signal, "prompt" | "structuredOutput">;
 
@@ -19,7 +18,7 @@ export type Signal = {
   projectId: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
-  triggerSpans: string[];
+  triggers: Filter[];
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -38,7 +37,7 @@ export const CreateSignalSchema = z.object({
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggerSpans: z.array(z.string()).optional().default([]),
+  triggers: z.array(FilterSchema).optional().default([]),
 });
 
 export const UpdateSignalSchema = z.object({
@@ -46,7 +45,7 @@ export const UpdateSignalSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggerSpans: z.array(z.string()).optional().default([]),
+  triggers: z.array(FilterSchema).optional().default([]),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -65,74 +64,74 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const whereConditions = [eq(semanticEventDefinitions.projectId, projectId)];
+  const whereConditions = [eq(signals.projectId, projectId)];
 
   if (pastHours || (startDate && endDate)) {
     const timeRange = getTimeRange(pastHours, startDate, endDate);
 
     if ("start" in timeRange && timeRange.start) {
-      whereConditions.push(gte(semanticEventDefinitions.createdAt, timeRange.start.toISOString()));
+      whereConditions.push(gte(signals.createdAt, timeRange.start.toISOString()));
     }
     if ("end" in timeRange && timeRange.end) {
-      whereConditions.push(lte(semanticEventDefinitions.createdAt, timeRange.end.toISOString()));
+      whereConditions.push(lte(signals.createdAt, timeRange.end.toISOString()));
     }
     if ("pastHours" in timeRange && typeof timeRange.pastHours === "number") {
       const start = new Date(Date.now() - timeRange.pastHours * 60 * 60 * 1000);
-      whereConditions.push(gte(semanticEventDefinitions.createdAt, start.toISOString()));
+      whereConditions.push(gte(signals.createdAt, start.toISOString()));
     }
   }
 
   if (search) {
-    whereConditions.push(ilike(semanticEventDefinitions.name, `%${search}%`));
+    whereConditions.push(ilike(signals.name, `%${search}%`));
   }
 
   const filterConditions = parseFilters(filter, {
-    name: { type: "string", column: semanticEventDefinitions.name },
-    id: { type: "string", column: semanticEventDefinitions.id },
+    name: { type: "string", column: signals.name },
+    id: { type: "string", column: signals.id },
   } as const);
 
   whereConditions.push(...filterConditions);
 
   const results = await db
     .select({
-      id: semanticEventDefinitions.id,
-      createdAt: semanticEventDefinitions.createdAt,
-      name: semanticEventDefinitions.name,
-      projectId: semanticEventDefinitions.projectId,
+      id: signals.id,
+      createdAt: signals.createdAt,
+      name: signals.name,
+      projectId: signals.projectId,
     })
-    .from(semanticEventDefinitions)
+    .from(signals)
     .where(and(...whereConditions))
-    .orderBy(desc(semanticEventDefinitions.createdAt))
+    .orderBy(desc(signals.createdAt))
     .limit(limit)
     .offset(offset);
 
-  const triggerSpans = await db
+  const triggerSpans = (await db
     .select({
-      eventDefinitionId: semanticEventTriggerSpans.eventDefinitionId,
-      name: semanticEventTriggerSpans.spanName,
+      signalId: signalTriggers.signalId,
+      value: signalTriggers.value,
     })
-    .from(semanticEventTriggerSpans)
+    .from(signalTriggers)
     .where(
       and(
-        eq(semanticEventTriggerSpans.projectId, projectId),
+        eq(signalTriggers.projectId, projectId),
         inArray(
-          semanticEventTriggerSpans.eventDefinitionId,
+          signalTriggers.signalId,
           results.map((r) => r.id)
         )
       )
-    );
+    )) as { signalId: string; value: Filter[] }[];
 
-  const triggerSpansByEvent = triggerSpans.reduce(
+  const triggerSpansBySignal = triggerSpans.reduce(
     (acc, span) => ({
       ...acc,
-      [span.eventDefinitionId]: [...(acc[span.eventDefinitionId] || []), span.name],
+      [span.signalId]: span.value,
     }),
-    {} as Record<string, string[]>
+    {} as Record<string, Filter[]>
   );
 
-  const items = results.map((eventDef) => ({
-    ...eventDef,
-    triggerSpans: triggerSpansByEvent[eventDef.id] || [],
+  const items = results.map((signal) => ({
+    ...signal,
+    triggers: triggerSpansBySignal[signal.id] || [],
   }));
 
   return {
@@ -145,38 +144,34 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 
   const [result] = await db
     .select()
-    .from(semanticEventDefinitions)
-    .where(and(eq(semanticEventDefinitions.projectId, projectId), eq(semanticEventDefinitions.id, id)))
+    .from(signals)
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .limit(1);
 
   if (!result) {
     return result;
   }
 
-  const triggerSpans = await db
+  const [triggerRow] = (await db
     .select({
-      name: semanticEventTriggerSpans.spanName,
+      value: signalTriggers.value,
     })
-    .from(semanticEventTriggerSpans)
-    .where(
-      and(
-        eq(semanticEventTriggerSpans.projectId, projectId),
-        eq(semanticEventTriggerSpans.eventDefinitionId, result.id)
-      )
-    );
+    .from(signalTriggers)
+    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)))
+    .limit(1)) as { value: Filter[] }[];
 
   return {
     ...result,
     structuredOutput: result.structuredOutputSchema,
-    triggerSpans: triggerSpans.map((s) => s.name),
+    triggers: triggerRow?.value ?? [],
   };
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, triggerSpans } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, triggers } = CreateSignalSchema.parse(input);
 
   const [result] = await db
-    .insert(semanticEventDefinitions)
+    .insert(signals)
     .values({
       projectId,
       name,
@@ -185,97 +180,63 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
     })
     .returning();
 
-  if (triggerSpans.length > 0) {
-    await db.insert(semanticEventTriggerSpans).values(
-      triggerSpans.map((spanName) => ({
-        projectId,
-        eventDefinitionId: result.id,
-        spanName,
-      }))
-    );
-    await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  if (triggers.length > 0) {
+    await db.insert(signalTriggers).values({
+      projectId,
+      signalId: result.id,
+      value: triggers,
+    });
+
+    await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
   }
 
   return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, triggerSpans } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, triggers } = UpdateSignalSchema.parse(input);
 
   const result = await db.transaction(async (tx) => {
     const [result] = await tx
-      .update(semanticEventDefinitions)
+      .update(signals)
       .set({ prompt, structuredOutputSchema: structuredOutput })
-      .where(and(eq(semanticEventDefinitions.projectId, projectId), eq(semanticEventDefinitions.id, id)))
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
       .returning();
 
     if (!result) {
       return undefined;
     }
 
-    await syncTriggerSpans(tx, projectId, result.id, triggerSpans);
+    // Delete existing triggers and insert new ones (overwrite approach)
+    await tx
+      .delete(signalTriggers)
+      .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)));
+
+    if (triggers.length > 0) {
+      await tx.insert(signalTriggers).values({
+        projectId,
+        signalId: result.id,
+        value: triggers,
+      });
+    }
 
     return result;
   });
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
-
-const syncTriggerSpans = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  projectId: string,
-  eventDefinitionId: string,
-  targetSpans: string[]
-) => {
-  const currentSpans = await tx
-    .select({ spanName: semanticEventTriggerSpans.spanName })
-    .from(semanticEventTriggerSpans)
-    .where(
-      and(
-        eq(semanticEventTriggerSpans.eventDefinitionId, eventDefinitionId),
-        eq(semanticEventTriggerSpans.projectId, projectId)
-      )
-    );
-
-  const currentSpanNames = currentSpans.map((s) => s.spanName);
-
-  const toAdd = difference(targetSpans, currentSpanNames);
-  const toRemove = difference(currentSpanNames, targetSpans);
-
-  const deletions =
-    toRemove.length > 0
-      ? tx
-          .delete(semanticEventTriggerSpans)
-          .where(
-            and(
-              eq(semanticEventTriggerSpans.projectId, projectId),
-              eq(semanticEventTriggerSpans.eventDefinitionId, eventDefinitionId),
-              inArray(semanticEventTriggerSpans.spanName, toRemove)
-            )
-          )
-      : Promise.resolve();
-
-  const insertions =
-    toAdd.length > 0
-      ? tx
-          .insert(semanticEventTriggerSpans)
-          .values(toAdd.map((spanName) => ({ projectId, eventDefinitionId, spanName })))
-      : Promise.resolve();
-
-  await Promise.all([deletions, insertions]);
-};
 
 export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
   const [result] = await db
-    .delete(semanticEventDefinitions)
-    .where(and(eq(semanticEventDefinitions.projectId, projectId), eq(semanticEventDefinitions.id, id)))
+    .delete(signals)
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
 }
@@ -284,8 +245,8 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
   const events = await db
-    .delete(semanticEventDefinitions)
-    .where(and(eq(semanticEventDefinitions.projectId, projectId), inArray(semanticEventDefinitions.id, ids)))
+    .delete(signals)
+    .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
     .returning();
 
   if (events.length > 0) {
@@ -307,7 +268,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
     }
   }
 
-  await cache.remove(`${SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY}:${projectId}`);
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return { success: true };
 }

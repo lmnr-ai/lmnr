@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import ClustersTable from "@/components/signal/clusters-table";
 import EventsTable from "@/components/signal/events-table";
 import SignalJobsTable from "@/components/signal/jobs-table";
+import SignalRunsTable from "@/components/signal/runs-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
@@ -65,7 +66,7 @@ function SignalContent() {
         ...signal,
         prompt: form.prompt,
         structuredOutput: form.structuredOutput,
-        triggerSpans: form.triggerSpans,
+        triggers: form.triggers,
       });
     },
     [signal, setSignal]
@@ -109,6 +110,9 @@ function SignalContent() {
             <TabsTrigger className="text-xs" value="jobs">
               Jobs
             </TabsTrigger>
+            <TabsTrigger className="text-xs" value="runs">
+              Runs
+            </TabsTrigger>
           </TabsList>
           {!isFreeTier && (
             <ManageSignalSheet
@@ -129,8 +133,11 @@ function SignalContent() {
           <ClustersTable />
           <EventsTable />
         </TabsContent>
-        <TabsContent value="jobs" className="flex flex-col gap-2 px-4 pb-4 overflow-hidden">
+        <TabsContent value="jobs" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
           <SignalJobsTable />
+        </TabsContent>
+        <TabsContent value="runs" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
+          <SignalRunsTable />
         </TabsContent>
       </Tabs>
       {traceId && (

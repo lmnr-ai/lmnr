@@ -1,6 +1,5 @@
 "use client";
 
-import { History } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { useEffect } from "react";
@@ -21,7 +20,7 @@ const JobsTableContent = () => {
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { data, isLoading, error } = useSWR<{ items: SignalJobRow[] }>(
-    `/api/projects/${params.projectId}/signal-jobs?signalId=${signal.id}`,
+    `/api/projects/${params.projectId}/signals/${signal.id}/jobs`,
     swrFetcher
   );
 
@@ -38,15 +37,9 @@ const JobsTableContent = () => {
 
   return (
     <>
-      <div className="flex items-center gap-4">
-        <span className="text-lg font-semibold">Jobs</span>
-        <Link href={`/project/${params.projectId}/signals/${signal.id}/job`} passHref>
-          <Button variant="secondary">
-            <History className="mr-1 size-3.5" />
-            Create Job
-          </Button>
-        </Link>
-      </div>
+      <Link className="w-fit" href={`/project/${params.projectId}/signals/${signal.id}/job`} passHref>
+        <Button icon="plus">Create Job</Button>
+      </Link>
       <InfiniteDataTable<SignalJobRow>
         className="w-full"
         columns={signalJobsColumns}

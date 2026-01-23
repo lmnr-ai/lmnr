@@ -3,14 +3,14 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { createTraceAnalysisJob, getSignalJobs } from "@/lib/actions/signal-jobs";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
+  const { projectId, id: signalId } = params;
 
   try {
-    const { searchParams } = new URL(req.url);
-    const signalId = searchParams.get("signalId") ?? undefined;
-
     const result = await getSignalJobs({
       projectId,
       signalId,
@@ -30,15 +30,19 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   }
 }
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
   const params = await props.params;
-  const projectId = params.projectId;
+  const { projectId, id: signalId } = params;
 
   try {
     const body = await req.json();
     const result = await createTraceAnalysisJob({
       ...body,
       projectId,
+      signalId,
     });
 
     return Response.json(result);

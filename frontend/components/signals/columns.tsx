@@ -4,6 +4,7 @@ import React from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
+import { type Filter } from "@/lib/actions/common/filters";
 import { type SignalRow } from "@/lib/actions/signals";
 
 export const signalsTableFilters: ColumnFilter[] = [
@@ -23,17 +24,17 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
   },
   {
     header: "Trigger Spans",
-    id: "triggerSpans",
-    accessorFn: (row) => row.triggerSpans,
+    id: "triggers",
+    accessorFn: (row) => row.triggers,
     cell: (row) => {
-      const spans = row.getValue() as string[];
+      const triggers = row.getValue() as Filter[];
 
-      if (spans?.length > 0) {
+      if (triggers?.length > 0) {
         return (
           <>
-            {spans.map((span) => (
-              <Badge key={span} className="rounded-3xl mr-1" variant="outline">
-                <span>{span}</span>
+            {triggers.map((trigger, idx) => (
+              <Badge key={idx} className="rounded-3xl mr-1" variant="outline">
+                <span>{trigger.value}</span>
               </Badge>
             ))}
           </>
@@ -50,4 +51,4 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
   },
 ];
 
-export const defaultSignalsColumnsOrder = ["__row_selection", "name", "triggerSpans", "createdAt"];
+export const defaultSignalsColumnsOrder = ["__row_selection", "name", "triggers", "createdAt"];

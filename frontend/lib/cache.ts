@@ -164,7 +164,7 @@ export const WORKSPACE_LIMITS_CACHE_KEY = "workspace_limits";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
-export const SEMANTIC_EVENT_TRIGGER_SPANS_CACHE_KEY = "semantic_event_trigger_spans";
+export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;

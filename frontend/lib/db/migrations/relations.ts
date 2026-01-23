@@ -6,6 +6,7 @@ import {
   agentSessions,
   agentChats,
   users,
+  signals,
   userUsage,
   tracesAgentMessages,
   evaluators,
@@ -18,6 +19,7 @@ import {
   tracesAgentChats,
   labelingQueues,
   labelingQueueItems,
+  signalJobs,
   agentMessages,
   summaryTriggerSpans,
   apiKeys,
@@ -46,6 +48,7 @@ import {
   projectSettings,
   eventClusters,
   rolloutSessions,
+  signalTriggers,
   tagClasses,
   semanticEventTriggerSpans,
   clusters,
@@ -76,6 +79,7 @@ export const datasetsRelations = relations(datasets, ({ one, many }) => ({
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   datasetParquets: many(datasetParquets),
+  signals: many(signals),
   tracesAgentMessages: many(tracesAgentMessages),
   evaluators: many(evaluators),
   evaluatorSpanPaths: many(evaluatorSpanPaths),
@@ -83,6 +87,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   slackIntegrations: many(slackIntegrations),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
+  signalJobs: many(signalJobs),
   summaryTriggerSpans: many(summaryTriggerSpans),
   labelingQueues: many(labelingQueues),
   datasets: many(datasets),
@@ -106,6 +111,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   projectSettings: many(projectSettings),
   eventClusters: many(eventClusters),
   rolloutSessions: many(rolloutSessions),
+  signalTriggers: many(signalTriggers),
   tagClasses: many(tagClasses),
   semanticEventDefinitions: many(semanticEventDefinitions),
   clusters: many(clusters),
@@ -135,6 +141,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   userSubscriptionInfos: many(userSubscriptionInfo),
   membersOfWorkspaces: many(membersOfWorkspaces),
+}));
+
+export const signalsRelations = relations(signals, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [signals.projectId],
+    references: [projects.id],
+  }),
+  signalJobs: many(signalJobs),
 }));
 
 export const userUsageRelations = relations(userUsage, ({ one }) => ({
@@ -229,6 +243,17 @@ export const labelingQueuesRelations = relations(labelingQueues, ({ one, many })
   project: one(projects, {
     fields: [labelingQueues.projectId],
     references: [projects.id],
+  }),
+}));
+
+export const signalJobsRelations = relations(signalJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [signalJobs.projectId],
+    references: [projects.id],
+  }),
+  signal: one(signals, {
+    fields: [signalJobs.signalId],
+    references: [signals.id],
   }),
 }));
 
@@ -437,6 +462,13 @@ export const eventClustersRelations = relations(eventClusters, ({ one }) => ({
 export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
   project: one(projects, {
     fields: [rolloutSessions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const signalTriggersRelations = relations(signalTriggers, ({ one }) => ({
+  project: one(projects, {
+    fields: [signalTriggers.projectId],
     references: [projects.id],
   }),
 }));
