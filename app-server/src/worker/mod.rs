@@ -88,7 +88,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::BrowserEvents => write!(f, "browser_events"),
             WorkerType::Evaluators => write!(f, "evaluators"),
             WorkerType::Payloads => write!(f, "payloads"),
-            WorkerType::Signals => write!(f, "semantic_events"),
+            WorkerType::Signals => write!(f, "signals"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::LLMBatchSubmissions => write!(f, "trace_analysis_llm_batch_submissions"),

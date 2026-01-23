@@ -11,7 +11,7 @@ use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::{signals::push_to_signals_queue, trigger::get_signal_triggers_cachced};
+use super::{signals::push_to_signals_queue, trigger::get_signal_triggers_cached};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
@@ -454,7 +454,7 @@ async fn check_and_push_signals(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
-    match get_signal_triggers_cachced(db.clone(), cache.clone(), project_id).await {
+    match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
         Ok(trigger_spans) => {
             // Check each span against its project's trigger spans
             for span in spans {

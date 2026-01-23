@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Get signal triggers for a project with read-through cache
-pub async fn get_signal_triggers_cachced(
+pub async fn get_signal_triggers_cached(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,
