@@ -30,14 +30,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Operator } from "@/lib/actions/common/operators.ts";
 import { type Signal } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
 
-export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput" | "triggerSpans"> & {
+export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput"> & {
   id?: string;
   structuredOutput: string;
-  triggerSpans: { name: string }[];
   testTraceId?: string;
 };
 
@@ -62,7 +62,7 @@ export const getDefaultValues = (projectId: string): ManageSignalForm => ({
     "  ]\n" +
     "}",
   projectId,
-  triggerSpans: [],
+  triggers: [],
   testTraceId: "",
 });
 
@@ -75,7 +75,7 @@ const TriggerSpansField = ({
 }) => {
   const { fields, append, remove } = useFieldArray({
     control,
-    name: "triggerSpans",
+    name: "triggers",
   });
 
   return (
@@ -85,7 +85,7 @@ const TriggerSpansField = ({
           <Label>Trigger Spans</Label>
           <p className="text-xs text-muted-foreground mt-1">Span names that will trigger this event.</p>
         </div>
-        <Button icon="plus" variant="outline" onClick={() => append({ name: "" })}>
+        <Button icon="plus" variant="outline" onClick={() => append({ column: "", value: "", operator: Operator.Eq })}>
           Add Span
         </Button>
       </div>
@@ -99,7 +99,7 @@ const TriggerSpansField = ({
           <div key={field.id}>
             <div className="flex gap-2 items-start">
               <Controller
-                name={`triggerSpans.${index}.name`}
+                name={`triggers.${index}.value`}
                 control={control}
                 rules={{ required: "Span name is required" }}
                 render={({ field }) => <Input {...field} placeholder="Enter span name" className="flex-1" />}
@@ -108,8 +108,8 @@ const TriggerSpansField = ({
                 <X className="w-3.5 h-3.5" />
               </Button>
             </div>
-            {errors.triggerSpans?.[index] && (
-              <p className="text-destructive text-xs mt-1">{errors.triggerSpans?.[index]?.name?.message}</p>
+            {errors.triggers?.[index] && (
+              <p className="text-destructive text-xs mt-1">{errors.triggers?.[index]?.value?.message}</p>
             )}
           </div>
         ))}
@@ -299,7 +299,7 @@ function ManageSignalSheetContent({
           name: data.name,
           prompt: data.prompt,
           structuredOutput: tryParseJson(data.structuredOutput),
-          triggerSpans: data.triggerSpans.map((ts) => ts.name).filter((name) => name.trim().length > 0),
+          triggers: data.triggers,
         };
 
         const isUpdate = !!data.id;

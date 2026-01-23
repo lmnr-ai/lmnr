@@ -9,7 +9,7 @@ import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/ac
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { traceAnalysisJobs } from "@/lib/db/migrations/schema";
+import { signalJobs } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
@@ -21,15 +21,15 @@ export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) 
   const { projectId, signalId } = GetSignalJobsSchema.parse(input);
 
   const whereConditions = [
-    eq(traceAnalysisJobs.projectId, projectId),
-    ...(signalId ? [eq(traceAnalysisJobs.eventDefinitionId, signalId)] : []),
+    eq(signalJobs.projectId, projectId),
+    ...(signalId ? [eq(signalJobs.signalId, signalId)] : []),
   ];
 
   const jobs = await db
     .select()
-    .from(traceAnalysisJobs)
+    .from(signalJobs)
     .where(and(...whereConditions))
-    .orderBy(desc(traceAnalysisJobs.updatedAt), desc(traceAnalysisJobs.createdAt));
+    .orderBy(desc(signalJobs.updatedAt), desc(signalJobs.createdAt));
 
   return {
     items: jobs,

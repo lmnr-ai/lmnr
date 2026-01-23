@@ -72,7 +72,7 @@ export const createEventsStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       structuredOutput: JSON.stringify(initProps.signal.structuredOutput, null, 2),
-      triggerSpans: initProps.signal.triggerSpans.map((name) => ({ name })),
+      triggers: initProps.signal.triggers,
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),

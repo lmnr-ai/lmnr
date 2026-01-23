@@ -3,11 +3,10 @@ import {
   datasets,
   datasetParquets,
   projects,
-  eventDefinitions,
-  traceAnalysisJobs,
   agentSessions,
   agentChats,
   users,
+  signals,
   userUsage,
   tracesAgentMessages,
   evaluators,
@@ -20,6 +19,7 @@ import {
   tracesAgentChats,
   labelingQueues,
   labelingQueueItems,
+  signalJobs,
   agentMessages,
   summaryTriggerSpans,
   apiKeys,
@@ -30,6 +30,8 @@ import {
   userSubscriptionInfo,
   sharedTraces,
   datasetExportJobs,
+  semanticEventDefinitions,
+  traceAnalysisJobs,
   tracesSummaries,
   slackChannelToEvents,
   datasetDatapoints,
@@ -40,13 +42,14 @@ import {
   sqlTemplates,
   eventClusterConfigs,
   playgrounds,
+  eventDefinitions,
   dashboardCharts,
   sharedPayloads,
   projectSettings,
   eventClusters,
   rolloutSessions,
+  signalTriggers,
   tagClasses,
-  semanticEventDefinitions,
   semanticEventTriggerSpans,
   clusters,
   spans,
@@ -76,7 +79,7 @@ export const datasetsRelations = relations(datasets, ({ one, many }) => ({
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   datasetParquets: many(datasetParquets),
-  traceAnalysisJobs: many(traceAnalysisJobs),
+  signals: many(signals),
   tracesAgentMessages: many(tracesAgentMessages),
   evaluators: many(evaluators),
   evaluatorSpanPaths: many(evaluatorSpanPaths),
@@ -84,6 +87,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   slackIntegrations: many(slackIntegrations),
   renderTemplates: many(renderTemplates),
   tracesAgentChats: many(tracesAgentChats),
+  signalJobs: many(signalJobs),
   summaryTriggerSpans: many(summaryTriggerSpans),
   labelingQueues: many(labelingQueues),
   datasets: many(datasets),
@@ -94,6 +98,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   providerApiKeys: many(providerApiKeys),
   sharedTraces: many(sharedTraces),
   datasetExportJobs: many(datasetExportJobs),
+  traceAnalysisJobs: many(traceAnalysisJobs),
   tracesSummaries: many(tracesSummaries),
   evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
@@ -106,30 +111,12 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   projectSettings: many(projectSettings),
   eventClusters: many(eventClusters),
   rolloutSessions: many(rolloutSessions),
+  signalTriggers: many(signalTriggers),
   tagClasses: many(tagClasses),
   semanticEventDefinitions: many(semanticEventDefinitions),
   clusters: many(clusters),
   spans: many(spans),
   traces: many(traces),
-}));
-
-export const traceAnalysisJobsRelations = relations(traceAnalysisJobs, ({ one }) => ({
-  eventDefinition: one(eventDefinitions, {
-    fields: [traceAnalysisJobs.eventDefinitionId],
-    references: [eventDefinitions.id],
-  }),
-  project: one(projects, {
-    fields: [traceAnalysisJobs.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const eventDefinitionsRelations = relations(eventDefinitions, ({ one, many }) => ({
-  traceAnalysisJobs: many(traceAnalysisJobs),
-  project: one(projects, {
-    fields: [eventDefinitions.projectId],
-    references: [projects.id],
-  }),
 }));
 
 export const agentChatsRelations = relations(agentChats, ({ one }) => ({
@@ -154,6 +141,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   userSubscriptionInfos: many(userSubscriptionInfo),
   membersOfWorkspaces: many(membersOfWorkspaces),
+}));
+
+export const signalsRelations = relations(signals, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [signals.projectId],
+    references: [projects.id],
+  }),
+  signalJobs: many(signalJobs),
 }));
 
 export const userUsageRelations = relations(userUsage, ({ one }) => ({
@@ -251,6 +246,17 @@ export const labelingQueuesRelations = relations(labelingQueues, ({ one, many })
   }),
 }));
 
+export const signalJobsRelations = relations(signalJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [signalJobs.projectId],
+    references: [projects.id],
+  }),
+  signal: one(signals, {
+    fields: [signalJobs.signalId],
+    references: [signals.id],
+  }),
+}));
+
 export const agentMessagesRelations = relations(agentMessages, ({ one }) => ({
   agentSession: one(agentSessions, {
     fields: [agentMessages.sessionId],
@@ -319,6 +325,26 @@ export const datasetExportJobsRelations = relations(datasetExportJobs, ({ one })
   }),
   project: one(projects, {
     fields: [datasetExportJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const traceAnalysisJobsRelations = relations(traceAnalysisJobs, ({ one }) => ({
+  semanticEventDefinition: one(semanticEventDefinitions, {
+    fields: [traceAnalysisJobs.eventDefinitionId],
+    references: [semanticEventDefinitions.id],
+  }),
+  project: one(projects, {
+    fields: [traceAnalysisJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const semanticEventDefinitionsRelations = relations(semanticEventDefinitions, ({ one, many }) => ({
+  traceAnalysisJobs: many(traceAnalysisJobs),
+  semanticEventTriggerSpans: many(semanticEventTriggerSpans),
+  project: one(projects, {
+    fields: [semanticEventDefinitions.projectId],
     references: [projects.id],
   }),
 }));
@@ -398,6 +424,13 @@ export const playgroundsRelations = relations(playgrounds, ({ one }) => ({
   }),
 }));
 
+export const eventDefinitionsRelations = relations(eventDefinitions, ({ one }) => ({
+  project: one(projects, {
+    fields: [eventDefinitions.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => ({
   project: one(projects, {
     fields: [dashboardCharts.projectId],
@@ -433,6 +466,13 @@ export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => 
   }),
 }));
 
+export const signalTriggersRelations = relations(signalTriggers, ({ one }) => ({
+  project: one(projects, {
+    fields: [signalTriggers.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export const tagClassesRelations = relations(tagClasses, ({ one }) => ({
   project: one(projects, {
     fields: [tagClasses.projectId],
@@ -444,14 +484,6 @@ export const semanticEventTriggerSpansRelations = relations(semanticEventTrigger
   semanticEventDefinition: one(semanticEventDefinitions, {
     fields: [semanticEventTriggerSpans.projectId],
     references: [semanticEventDefinitions.id],
-  }),
-}));
-
-export const semanticEventDefinitionsRelations = relations(semanticEventDefinitions, ({ one, many }) => ({
-  semanticEventTriggerSpans: many(semanticEventTriggerSpans),
-  project: one(projects, {
-    fields: [semanticEventDefinitions.projectId],
-    references: [projects.id],
   }),
 }));
 

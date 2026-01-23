@@ -182,10 +182,9 @@ const CreateSignalJobContent = () => {
       const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
       const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-      await fetch(`/api/projects/${projectId}/signal-jobs`, {
+      await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
         method: "POST",
         body: JSON.stringify({
-          signalId: signal.id,
           filters: filters.filters,
           search: filters.search || undefined,
           pastHours: dateRange.pastHours,
