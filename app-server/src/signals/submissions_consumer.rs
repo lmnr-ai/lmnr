@@ -7,13 +7,18 @@ use chrono::Utc;
 use std::sync::Arc;
 
 use crate::{
-    ch::signal_run_messages::{
-        CHSignalRunMessage, get_signal_run_messages, insert_signal_run_messages,
+    ch::{
+        signal_run_messages::{
+            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
+            insert_signal_run_messages,
+        },
+        signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRunMessage,
+        RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
+        SignalRunPayload,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -86,6 +91,8 @@ async fn process(
 
     let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.runs.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
+    let mut failed_runs: Vec<SignalRun> = Vec::new();
+    let mut successful_runs: Vec<SignalRunPayload> = Vec::new();
 
     for run in msg.runs.iter() {
         match process_run(
@@ -104,10 +111,44 @@ async fn process(
             Ok((request, new_messages)) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
+                successful_runs.push(run.clone());
             }
             Err(e) => {
                 log::error!("[SIGNAL JOB] Failed to process run {}: {:?}", run.run_id, e);
+                failed_runs.push(SignalRun {
+                    run_id: run.run_id,
+                    project_id,
+                    job_id,
+                    signal_id: msg.signal_id,
+                    trace_id: run.trace_id,
+                    status: RunStatus::Failed,
+                    step: run.step,
+                    internal_trace_id: run.internal_trace_id,
+                    internal_span_id: run.internal_span_id,
+                    updated_at: Utc::now(),
+                    event_id: None,
+                    error_message: Some(format!("Failed to process run: {}", e)),
+                });
             }
+        }
+    }
+
+    // Insert failed runs into ClickHouse and delete their messages
+    if !failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
+        if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
+            log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
+        }
+
+        // Delete messages for failed runs since they won't be processed further
+        let failed_run_ids: Vec<uuid::Uuid> = failed_runs.iter().map(|r| r.run_id).collect();
+        if let Err(e) =
+            delete_signal_run_messages(clickhouse.clone(), project_id, &failed_run_ids).await
+        {
+            log::error!(
+                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
+                e
+            );
         }
     }
 
@@ -120,7 +161,7 @@ async fn process(
 
     // Insert new messages into ClickHouse
     if !all_new_messages.is_empty() {
-        insert_signal_run_messages(clickhouse, &all_new_messages)
+        insert_signal_run_messages(clickhouse.clone(), &all_new_messages)
             .await
             .map_err(|e| {
                 HandlerError::Transient(anyhow::anyhow!("Failed to insert messages: {}", e))
@@ -151,7 +192,7 @@ async fn process(
                 structured_output_schema: msg.structured_output_schema,
                 model: msg.model,
                 provider: msg.provider,
-                runs: msg.runs,
+                runs: successful_runs,
                 batch_id,
             };
 
@@ -161,6 +202,49 @@ async fn process(
         }
         Err(e) => {
             log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
+
+            // Mark all runs as failed since the batch submission failed
+            let batch_failed_runs: Vec<SignalRun> = successful_runs
+                .iter()
+                .map(|run| SignalRun {
+                    run_id: run.run_id,
+                    project_id,
+                    job_id,
+                    signal_id: msg.signal_id,
+                    trace_id: run.trace_id,
+                    status: RunStatus::Failed,
+                    step: run.step,
+                    internal_trace_id: run.internal_trace_id,
+                    internal_span_id: run.internal_span_id,
+                    updated_at: Utc::now(),
+                    event_id: None,
+                    error_message: Some(format!("Batch submission failed: {}", e)),
+                })
+                .collect();
+
+            let batch_failed_runs_ch: Vec<CHSignalRun> =
+                batch_failed_runs.iter().map(CHSignalRun::from).collect();
+            if let Err(insert_err) =
+                insert_signal_runs(clickhouse.clone(), &batch_failed_runs_ch).await
+            {
+                log::error!(
+                    "[SIGNAL JOB] Failed to insert batch-failed runs: {:?}",
+                    insert_err
+                );
+            }
+
+            // Delete messages for batch-failed runs since they won't be processed further
+            let batch_failed_run_ids: Vec<uuid::Uuid> =
+                batch_failed_runs.iter().map(|r| r.run_id).collect();
+            if let Err(delete_err) =
+                delete_signal_run_messages(clickhouse, project_id, &batch_failed_run_ids).await
+            {
+                log::error!(
+                    "[SIGNAL JOB] Failed to delete messages for batch-failed runs: {:?}",
+                    delete_err
+                );
+            }
+
             if e.is_retryable() {
                 return Err(HandlerError::transient(e));
             } else {
@@ -174,7 +258,7 @@ async fn process(
 
 async fn process_run(
     message: &SignalJobSubmissionBatchMessage,
-    run: &SignalRunMessage,
+    run: &SignalRunPayload,
     project_id: uuid::Uuid,
     job_id: uuid::Uuid,
     prompt: &str,

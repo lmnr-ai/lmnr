@@ -17,33 +17,13 @@ pub struct CHSignalRun {
     pub job_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub run_id: Uuid,
-    /// Time in nanoseconds since Unix epoch
-    pub time: i64,
-    pub status: String,
+    /// Status: 0 = Pending, 1 = Completed, 2 = Failed
+    pub status: u8,
     #[serde(with = "clickhouse::serde::uuid")]
     pub event_id: Uuid,
-}
-
-impl CHSignalRun {
-    pub fn new(
-        project_id: Uuid,
-        signal_id: Uuid,
-        job_id: Uuid,
-        run_id: Uuid,
-        time: chrono::DateTime<chrono::Utc>,
-        status: String,
-        event_id: Uuid,
-    ) -> Self {
-        Self {
-            project_id,
-            signal_id,
-            job_id,
-            run_id,
-            time: chrono_to_nanoseconds(time),
-            status,
-            event_id,
-        }
-    }
+    pub error_message: String,
+    /// Time in nanoseconds since Unix epoch
+    pub updated_at: i64,
 }
 
 impl From<&SignalRun> for CHSignalRun {
@@ -53,9 +33,10 @@ impl From<&SignalRun> for CHSignalRun {
             signal_id: run.signal_id,
             job_id: run.job_id,
             run_id: run.run_id,
-            time: chrono_to_nanoseconds(run.time),
-            status: run.status.to_string(),
+            status: run.status.as_u8(),
             event_id: run.event_id.unwrap_or(Uuid::nil()),
+            error_message: run.error_message.clone().unwrap_or_default(),
+            updated_at: chrono_to_nanoseconds(run.updated_at),
         }
     }
 }
@@ -70,10 +51,10 @@ pub async fn get_signal_runs_for_job(
 ) -> Result<Vec<CHSignalRun>> {
     let runs = clickhouse
         .query(
-            "SELECT project_id, signal_id, job_id, run_id, time, status, event_id
+            "SELECT project_id, signal_id, job_id, run_id, status, event_id, error_message, updated_at
              FROM signal_runs FINAL
              WHERE project_id = ? AND signal_id = ? AND job_id = ?
-             ORDER BY time ASC",
+             ORDER BY updated_at ASC",
         )
         .bind(project_id)
         .bind(signal_id)

@@ -33,7 +33,7 @@ pub struct SignalJobSubmissionBatchMessage {
     pub signal_name: String,
     pub model: String,
     pub provider: String,
-    pub runs: Vec<SignalRunMessage>,
+    pub runs: Vec<SignalRunPayload>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -46,12 +46,12 @@ pub struct SignalJobPendingBatchMessage {
     pub signal_name: String,
     pub model: String,
     pub provider: String,
-    pub runs: Vec<SignalRunMessage>,
+    pub runs: Vec<SignalRunPayload>,
     pub batch_id: String, // LLM Request Batch ID that can be used to track the completion of the batch
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct SignalRunMessage {
+pub struct SignalRunPayload {
     pub run_id: Uuid,
     pub trace_id: Uuid,
     pub step: usize,

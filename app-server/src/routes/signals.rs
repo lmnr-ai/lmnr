@@ -10,7 +10,7 @@ use crate::{
     db::{DB, semantic_event_definitions, signal_jobs},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::{self, RunStatus, SignalRunMessage, utils::emit_internal_span},
+    signals::{self, RunStatus, SignalRun, SignalRunPayload, utils::emit_internal_span},
     sql::{self, ClickhouseReadonlyClient},
 };
 
@@ -145,7 +145,7 @@ pub async fn submit_trace_analysis_job(
         )
         .await;
 
-        runs.push(SignalRunMessage {
+        runs.push(SignalRunPayload {
             run_id,
             trace_id: trace_id.parse::<Uuid>().unwrap(),
             internal_trace_id,
@@ -156,20 +156,24 @@ pub async fn submit_trace_analysis_job(
 
     // Insert runs into ClickHouse with pending status
     let now = chrono::Utc::now();
-    let ch_runs: Vec<CHSignalRun> = runs
+    let signal_runs: Vec<SignalRun> = runs
         .iter()
-        .map(|r| {
-            CHSignalRun::new(
-                project_id,
-                signal_id,
-                job.id,
-                r.run_id,
-                now,
-                RunStatus::Pending.to_string(),
-                Uuid::nil(),
-            )
+        .map(|r| SignalRun {
+            run_id: r.run_id,
+            project_id,
+            job_id: job.id,
+            signal_id,
+            trace_id: r.trace_id,
+            step: 0,
+            status: RunStatus::Pending,
+            internal_trace_id: r.internal_trace_id,
+            internal_span_id: r.internal_span_id,
+            updated_at: now,
+            event_id: None,
+            error_message: None,
         })
         .collect();
+    let ch_runs: Vec<CHSignalRun> = signal_runs.iter().map(CHSignalRun::from).collect();
 
     insert_signal_runs(clickhouse.get_ref().clone(), &ch_runs)
         .await

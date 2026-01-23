@@ -33,7 +33,7 @@ use crate::{
 
 use super::{
     RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
-    SignalRunMessage,
+    SignalRunPayload,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient, utils::parse_inline_response,
@@ -207,7 +207,7 @@ async fn process_succeeded_batch(
     // Keep track of succeeded, failed and pending runs
     let mut succeeded_runs: Vec<SignalRun> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
-    let mut pending_runs: Vec<SignalRunMessage> = Vec::new();
+    let mut pending_runs: Vec<SignalRunPayload> = Vec::new();
 
     // Build a map of run_id -> payload for efficient lookup
     let run_map: HashMap<Uuid, SignalRun> = message
@@ -226,8 +226,9 @@ async fn process_succeeded_batch(
                     step: r.step,
                     internal_trace_id: r.internal_trace_id,
                     internal_span_id: r.internal_span_id,
-                    time: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
                     event_id: None,
+                    error_message: None,
                 },
             )
         })
@@ -253,7 +254,7 @@ async fn process_succeeded_batch(
 
         // Find the corresponding run
         let run = match run_map.get(&run_id) {
-            Some(p) => *p,
+            Some(p) => p.clone(),
             None => {
                 failed_runs.push(SignalRun {
                     run_id,
@@ -265,8 +266,9 @@ async fn process_succeeded_batch(
                     step: 0,
                     internal_trace_id: Uuid::nil(),
                     internal_span_id: Uuid::nil(),
-                    time: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
                     event_id: None,
+                    error_message: Some("No payload found for run_id".to_string()),
                 });
                 log::error!("No payload found for run_id {}, skipping", run_id);
                 continue;
@@ -277,7 +279,8 @@ async fn process_succeeded_batch(
         if response.has_error {
             failed_runs.push(SignalRun {
                 status: RunStatus::Failed,
-                ..run
+                error_message: Some("Response contains error".to_string()),
+                ..run.clone()
             });
             log::error!(
                 "Response contains error, marking run as failed for run_id: {}",
@@ -344,13 +347,14 @@ async fn process_succeeded_batch(
                 ToolCallResponseStatus::Failed => {
                     failed_runs.push(SignalRun {
                         status: RunStatus::Failed,
-                        ..run
+                        error_message: Some("Tool call failed".to_string()),
+                        ..run.clone()
                     });
                 }
                 ToolCallResponseStatus::CompletedNoEvent => {
                     succeeded_runs.push(SignalRun {
                         status: RunStatus::Completed,
-                        ..run
+                        ..run.clone()
                     });
                 }
                 ToolCallResponseStatus::CompletedWithEvent { attributes } => {
@@ -369,14 +373,15 @@ async fn process_succeeded_batch(
                             succeeded_runs.push(SignalRun {
                                 status: RunStatus::Completed,
                                 event_id: Some(event_id),
-                                ..run
+                                ..run.clone()
                             });
                         }
                         Err(e) => {
                             log::error!("Failed to generate event: {}", e);
                             failed_runs.push(SignalRun {
                                 status: RunStatus::Failed,
-                                ..run
+                                error_message: Some(format!("Failed to generate event: {}", e)),
+                                ..run.clone()
                             });
                         }
                     }
@@ -407,7 +412,8 @@ async fn process_succeeded_batch(
                     if run.step > MAX_ALLOWED_STEPS {
                         failed_runs.push(SignalRun {
                             status: RunStatus::Failed,
-                            ..run
+                            error_message: Some("Maximum step count exceeded".to_string()),
+                            ..run.clone()
                         });
                         log::error!(
                             "Run {} has step number greater than maximum allowed, marking as failed",
@@ -417,7 +423,7 @@ async fn process_succeeded_batch(
                     }
 
                     // Add to pending runs list for next submission
-                    pending_runs.push(SignalRunMessage {
+                    pending_runs.push(SignalRunPayload {
                         run_id: run.run_id,
                         trace_id: run.trace_id,
                         internal_trace_id: run.internal_trace_id,
@@ -430,10 +436,14 @@ async fn process_succeeded_batch(
             log::warn!(
                 "Response for run {} has no function_call, got text: {}",
                 run.run_id,
-                response.text.unwrap_or_default(),
+                response.text.clone().unwrap_or_default(),
             );
             failed_runs.push(SignalRun {
                 status: RunStatus::Failed,
+                error_message: Some(format!(
+                    "No function_call in response, got text: {}",
+                    response.text.unwrap_or_default()
+                )),
                 ..run
             });
         }
@@ -460,8 +470,9 @@ async fn process_succeeded_batch(
                 step: run.step,
                 internal_trace_id: run.internal_trace_id,
                 internal_span_id: run.internal_span_id,
-                time: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
                 event_id: None,
+                error_message: Some("No response received for run".to_string()),
             });
         }
     }

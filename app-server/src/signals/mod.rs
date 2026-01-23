@@ -19,13 +19,13 @@ pub use queue::{
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalJobPendingBatchMessage,
-    SignalJobSubmissionBatchMessage, SignalRunMessage, push_to_pending_queue,
+    SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_pending_queue,
     push_to_submissions_queue,
 };
 
 /// Represents a signal run with its current state and metadata.
 /// Used to track individual runs.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SignalRun {
     pub run_id: Uuid,
     pub project_id: Uuid,
@@ -36,15 +36,23 @@ pub struct SignalRun {
     pub status: RunStatus,
     pub internal_trace_id: Uuid,
     pub internal_span_id: Uuid,
-    pub time: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub event_id: Option<Uuid>,
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[repr(u8)]
 pub enum RunStatus {
-    Completed,
-    Failed,
-    Pending,
+    Pending = 0,
+    Completed = 1,
+    Failed = 2,
+}
+
+impl RunStatus {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
 }
 
 impl fmt::Display for RunStatus {
