@@ -18,12 +18,13 @@ export type SignalRun = {
   jobId: string;
   triggerId: string;
   runId: string;
+  traceId: string;
   status: "PENDING" | "COMPLETED" | "FAILED" | "UNKNOWN";
   eventId: string;
   updatedAt: string;
 };
 
-export type SignalRunRow = Pick<SignalRun, "jobId" | "runId" | "triggerId" | "status" | "eventId" | "updatedAt">;
+export type SignalRunRow = Pick<SignalRun, "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt">;
 
 export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) => {
   const { projectId, pageSize, pageNumber, pastHours, startDate, endDate, filter, signalId } = input;

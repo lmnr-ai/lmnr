@@ -16,6 +16,13 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
     id: "runId",
   },
   {
+    accessorKey: "traceId",
+    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    header: "Trace ID",
+    size: 300,
+    id: "traceId",
+  },
+  {
     accessorKey: "jobId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "Job ID",
@@ -52,7 +59,7 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "jobId", "triggerId", "status", "eventId", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "jobId", "triggerId", "status", "eventId", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {
@@ -63,6 +70,11 @@ export const signalRunsFilters: ColumnFilter[] = [
   {
     name: "Run ID",
     key: "run_id",
+    dataType: "string",
+  },
+  {
+    name: "Trace ID",
+    key: "trace_id",
     dataType: "string",
   },
   {

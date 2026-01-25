@@ -5,14 +5,19 @@ CREATE TABLE IF NOT EXISTS signal_runs
     job_id UUID,
     trigger_id UUID,
     run_id UUID,
+    trace_id UUID,
     status UInt8,
     event_id UUID,
     error_message String,
     updated_at DateTime64(9, 'UTC'),
 )
 ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY (project_id, signal_id, job_id, run_id)
+ORDER BY (project_id, signal_id, run_id)
 SETTINGS index_granularity = 8192;
+
+ALTER TABLE signal_runs ADD INDEX IF NOT EXISTS signal_runs_job_id_bf_idx job_id TYPE bloom_filter;
+ALTER TABLE signal_runs ADD INDEX IF NOT EXISTS signal_runs_trigger_id_bf_idx trigger_id TYPE bloom_filter;
+ALTER TABLE signal_runs ADD INDEX IF NOT EXISTS signal_runs_trace_id_bf_idx trace_id TYPE bloom_filter;
 
 CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -21,6 +26,7 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
         job_id,
         trigger_id,
         run_id,
+        trace_id,
         CASE
             WHEN status = 0 THEN 'PENDING'
             WHEN status = 1 THEN 'COMPLETED'

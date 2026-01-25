@@ -67,7 +67,7 @@ class TableRegistry:
         }
 
         signal_runs_columns = {
-            "project_id", "signal_id", "job_id", "trigger_id", "run_id", "status", "event_id", "updated_at",
+            "project_id", "signal_id", "job_id", "trigger_id", "trace_id","run_id", "status", "event_id", "updated_at",
         }
 
         self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')

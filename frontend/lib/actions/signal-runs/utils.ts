@@ -12,6 +12,7 @@ import {
 const signalRunsSelectColumns = [
   "job_id jobId",
   "run_id runId",
+  "trace_id traceId",
   "trigger_id triggerId",
   "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
   "status",
@@ -22,6 +23,7 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["job_id", createStringFilter],
     ["run_id", createStringFilter],
+    ["trace_id", createStringFilter],
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
     ["status", createNumberFilter("Int64")],
