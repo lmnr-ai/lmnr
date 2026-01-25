@@ -55,7 +55,7 @@ pub async fn push_to_signals_queue(
     let serialized = serde_json::to_vec(&message)?;
 
     queue
-        .publish(&serialized, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY)
+        .publish(&serialized, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY, None)
         .await?;
 
     log::debug!(

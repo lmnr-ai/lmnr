@@ -22,6 +22,8 @@ pub struct SignalWorkerConfig {
     pub max_allowed_steps: usize,
     /// Project ID for internal tracing (None = internal tracing disabled)
     pub internal_project_id: Option<Uuid>,
+    /// TTL for waiting queue (in milliseconds)
+    pub waiting_queue_ttl_ms: u64,
 }
 
 impl SignalWorkerConfig {
@@ -29,7 +31,8 @@ impl SignalWorkerConfig {
     ///
     /// Environment variables:
     /// - `SIGNAL_JOB_MAX_ALLOWED_STEPS`: Maximum steps per run (default: 5)
-    /// - `SIGNAL_JOBS_INTERNAL_PROJECT_ID`: Project ID for internal tracing (optional)
+    /// - `SIGNAL_JOB_INTERNAL_PROJECT_ID`: Project ID for internal tracing (optional)
+    /// - `SIGNAL_JOB_WAITING_QUEUE_TTL_MS`: TTL for waiting queue in milliseconds (default: 60000)
     pub fn from_env() -> Self {
         let max_allowed_steps = env::var("SIGNAL_JOB_MAX_ALLOWED_STEPS")
             .ok()
@@ -40,9 +43,15 @@ impl SignalWorkerConfig {
             .ok()
             .and_then(|s| s.parse().ok());
 
+        let waiting_queue_ttl_ms = env::var("SIGNAL_JOB_WAITING_QUEUE_TTL_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60_000);
+
         Self {
             max_allowed_steps,
             internal_project_id,
+            waiting_queue_ttl_ms,
         }
     }
 }

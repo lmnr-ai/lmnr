@@ -142,7 +142,7 @@ async fn process(
             process_failed_batch(&message, state, db, clickhouse).await?;
         }
         JobState::BATCH_STATE_PENDING | JobState::BATCH_STATE_RUNNING => {
-            process_pending_batch(&message, queue).await?;
+            process_pending_batch(&message, queue, config.clone()).await?;
         }
         JobState::BATCH_STATE_SUCCEEDED => {
             process_succeeded_batch(&message, result.response, db, queue, clickhouse, config)
@@ -218,9 +218,10 @@ async fn process_failed_batch(
 async fn process_pending_batch(
     message: &SignalJobPendingBatchMessage,
     queue: Arc<MessageQueue>,
+    config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     // Push to waiting queue which has a TTL; after expiry it dead-letters to the pending queue
-    push_to_waiting_queue(queue, message)
+    push_to_waiting_queue(queue, message, Some(config.waiting_queue_ttl_ms))
         .await
         .map_err(|e| HandlerError::transient(e))
 }

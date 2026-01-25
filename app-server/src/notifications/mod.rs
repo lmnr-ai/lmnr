@@ -42,6 +42,7 @@ pub async fn push_to_notification_queue(
             &serialized,
             NOTIFICATIONS_EXCHANGE,
             NOTIFICATIONS_ROUTING_KEY,
+            None,
         )
         .await?;
 

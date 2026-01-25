@@ -114,6 +114,7 @@ pub async fn push_to_submissions_queue(
                 &serialized,
                 SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
                 SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+                None,
             )
             .await?;
     }
@@ -132,6 +133,7 @@ pub async fn push_to_pending_queue(
             &mq_message,
             SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
             SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
+            None,
         )
         .await?;
 
@@ -141,6 +143,7 @@ pub async fn push_to_pending_queue(
 pub(crate) async fn push_to_waiting_queue(
     queue: Arc<MessageQueue>,
     message: &SignalJobPendingBatchMessage, // Same message as for pending queue
+    ttl_ms: Option<u64>,
 ) -> Result<()> {
     let mq_message = serde_json::to_vec(message)?;
 
@@ -149,6 +152,7 @@ pub(crate) async fn push_to_waiting_queue(
             &mq_message,
             SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
             SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
+            ttl_ms,
         )
         .await?;
 

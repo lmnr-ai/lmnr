@@ -66,6 +66,7 @@ impl MessageQueueTrait for TokioMpscQueue {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        _ttl_ms: Option<u64>, // TTL is ignored for in-memory queue (local dev only)
     ) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
 

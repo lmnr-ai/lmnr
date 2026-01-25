@@ -45,6 +45,7 @@ pub async fn push_to_event_clustering_queue(
             &serialized,
             EVENT_CLUSTERING_EXCHANGE,
             EVENT_CLUSTERING_ROUTING_KEY,
+            None,
         )
         .await?;
 

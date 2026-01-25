@@ -201,7 +201,12 @@ pub async fn emit_internal_span(
 
     if let Ok(payload) = serde_json::to_vec(&vec![message]) {
         let _ = queue
-            .publish(&payload, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .publish(
+                &payload,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+                None,
+            )
             .await;
     }
 
