@@ -2,19 +2,8 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
-use std::{collections::HashMap, env, sync::Arc, sync::OnceLock};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
-
-/// Cached internal tracing project ID (read once from env var)
-static INTERNAL_PROJECT_ID: OnceLock<Option<Uuid>> = OnceLock::new();
-
-fn get_internal_project_id() -> Option<Uuid> {
-    *INTERNAL_PROJECT_ID.get_or_init(|| {
-        env::var("SIGNAL_JOBS_INTERNAL_PROJECT_ID")
-            .ok()
-            .and_then(|s| s.parse().ok())
-    })
-}
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -103,7 +92,7 @@ pub fn replace_span_tags_with_links(
 
 /// Emits an internal tracing span for observability.
 /// This is used for internal tracing of trace analysis workers.
-/// Returns Uuid::nil() if TRACE_ANALYSIS_INTERNAL_PROJECT_ID is not set.
+/// Returns Uuid::nil() if internal_project_id is None.
 pub async fn emit_internal_span(
     name: &str,
     trace_id: Uuid,
@@ -120,8 +109,9 @@ pub async fn emit_internal_span(
     model: Option<String>,
     provider: Option<String>,
     queue: Arc<MessageQueue>,
+    internal_project_id: Option<Uuid>,
 ) -> Uuid {
-    let project_id = match get_internal_project_id() {
+    let project_id = match internal_project_id {
         Some(id) => id,
         None => return Uuid::nil(), // Internal tracing disabled
     };

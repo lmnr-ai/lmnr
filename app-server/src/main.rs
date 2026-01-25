@@ -40,8 +40,8 @@ use signals::{
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
-    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, pendings_consumer::LLMBatchPendingHandler,
-    submissions_consumer::LLMBatchSubmissionsHandler,
+    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
+    pendings_consumer::LLMBatchPendingHandler, submissions_consumer::LLMBatchSubmissionsHandler,
 };
 use tonic::transport::Server;
 use traces::{
@@ -1085,6 +1085,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let gemini_clone = gemini.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchSubmissions,
                             num_trace_analysis_llm_batch_submissions_workers as usize,
@@ -1094,6 +1095,7 @@ fn main() -> anyhow::Result<()> {
                                     queue.clone(),
                                     clickhouse.clone(),
                                     gemini_clone.clone(),
+                                    config.clone(),
                                 )
                             },
                             QueueConfig {
@@ -1114,6 +1116,7 @@ fn main() -> anyhow::Result<()> {
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let gemini_clone = gemini.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::LLMBatchPending,
                             num_trace_analysis_llm_batch_pending_workers as usize,
@@ -1123,6 +1126,7 @@ fn main() -> anyhow::Result<()> {
                                     queue.clone(),
                                     clickhouse.clone(),
                                     gemini_clone.clone(),
+                                    config.clone(),
                                 )
                             },
                             QueueConfig {

@@ -18,7 +18,7 @@ use crate::{
     mq::MessageQueue,
     signals::{
         RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
-        SignalRunPayload,
+        SignalRunPayload, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -37,6 +37,7 @@ pub struct LLMBatchSubmissionsHandler {
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
     pub gemini: Arc<GeminiClient>,
+    pub config: Arc<SignalWorkerConfig>,
 }
 
 impl LLMBatchSubmissionsHandler {
@@ -45,12 +46,14 @@ impl LLMBatchSubmissionsHandler {
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
         gemini: Arc<GeminiClient>,
+        config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
             db,
             queue,
             clickhouse,
             gemini,
+            config,
         }
     }
 }
@@ -72,6 +75,7 @@ impl MessageHandler for LLMBatchSubmissionsHandler {
             self.clickhouse.clone(),
             self.queue.clone(),
             self.gemini.clone(),
+            self.config.clone(),
         )
         .await
     }
@@ -83,6 +87,7 @@ async fn process(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
+    config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     let project_id = msg.project_id;
     let job_id = msg.job_id;
@@ -105,6 +110,7 @@ async fn process(
             structured_output_schema,
             clickhouse.clone(),
             queue.clone(),
+            config.internal_project_id,
         )
         .await
         {
@@ -319,6 +325,7 @@ async fn process_run(
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    internal_project_id: Option<uuid::Uuid>,
 ) -> Result<(InlineRequestItem, Vec<CHSignalRunMessage>), HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -469,6 +476,7 @@ async fn process_run(
         Some(message.model.clone()),
         Some(message.provider.clone()),
         queue.clone(),
+        internal_project_id,
     )
     .await;
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use crate::{
     db::{self, DB, signal_jobs},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::{self, RunStatus, SignalRun, SignalRunPayload, utils::emit_internal_span},
+    signals::{self, RunStatus, SignalRun, SignalRunPayload, emit_internal_span},
     sql::{self, ClickhouseReadonlyClient},
 };
 
@@ -118,6 +118,9 @@ pub async fn submit_trace_analysis_job(
         let internal_trace_id = Uuid::new_v4();
 
         // Emit root span for internal tracing of a run
+        let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok());
         let internal_span_id = emit_internal_span(
             "signal.run",
             internal_trace_id,
@@ -139,6 +142,7 @@ pub async fn submit_trace_analysis_job(
             Some(LLM_MODEL.to_string()),
             Some(LLM_PROVIDER.to_string()),
             queue.as_ref().clone(),
+            internal_project_id,
         )
         .await;
 

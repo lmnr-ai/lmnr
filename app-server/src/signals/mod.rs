@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::fmt;
+use std::{env, fmt};
 use uuid::Uuid;
 
 pub mod filters;
@@ -14,6 +14,38 @@ pub mod tools;
 pub mod utils;
 
 pub(crate) use queue::push_to_waiting_queue;
+
+/// Configuration for signal workers, initialized from environment variables.
+#[derive(Debug, Clone)]
+pub struct SignalWorkerConfig {
+    /// Maximum number of LLM tool-calling steps allowed per run
+    pub max_allowed_steps: usize,
+    /// Project ID for internal tracing (None = internal tracing disabled)
+    pub internal_project_id: Option<Uuid>,
+}
+
+impl SignalWorkerConfig {
+    /// Creates a new SignalWorkerConfig from environment variables.
+    ///
+    /// Environment variables:
+    /// - `SIGNAL_JOB_MAX_ALLOWED_STEPS`: Maximum steps per run (default: 5)
+    /// - `SIGNAL_JOBS_INTERNAL_PROJECT_ID`: Project ID for internal tracing (optional)
+    pub fn from_env() -> Self {
+        let max_allowed_steps = env::var("SIGNAL_JOB_MAX_ALLOWED_STEPS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5);
+
+        let internal_project_id = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok());
+
+        Self {
+            max_allowed_steps,
+            internal_project_id,
+        }
+    }
+}
 pub use filters::{Filter, evaluate_filters};
 pub use queue::{
     SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
@@ -24,6 +56,7 @@ pub use queue::{
     SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_pending_queue,
     push_to_submissions_queue,
 };
+pub use utils::emit_internal_span;
 
 /// Represents a signal run with its current state and metadata.
 /// Used to track individual runs.

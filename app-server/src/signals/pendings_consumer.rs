@@ -35,7 +35,7 @@ use crate::{
 
 use super::{
     RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
-    SignalRunPayload,
+    SignalRunPayload, SignalWorkerConfig,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
@@ -46,8 +46,6 @@ use super::{
     tools::get_full_span_info,
     utils::{emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links},
 };
-
-const MAX_ALLOWED_STEPS: usize = 5;
 
 #[derive(Debug, Serialize)]
 enum StepResult {
@@ -62,6 +60,7 @@ pub struct LLMBatchPendingHandler {
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
     pub gemini: Arc<GeminiClient>,
+    pub config: Arc<SignalWorkerConfig>,
 }
 
 impl LLMBatchPendingHandler {
@@ -70,12 +69,14 @@ impl LLMBatchPendingHandler {
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
         gemini: Arc<GeminiClient>,
+        config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
             db,
             queue,
             clickhouse,
             gemini,
+            config,
         }
     }
 }
@@ -91,6 +92,7 @@ impl MessageHandler for LLMBatchPendingHandler {
             self.clickhouse.clone(),
             self.queue.clone(),
             self.gemini.clone(),
+            self.config.clone(),
         )
         .await
     }
@@ -102,6 +104,7 @@ async fn process(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
+    config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     log::debug!(
         "[SIGNAL JOB] Processing batch. job_id: {}, batch_id: {}, runs: {}",
@@ -142,7 +145,8 @@ async fn process(
             process_pending_batch(&message, queue).await?;
         }
         JobState::BATCH_STATE_SUCCEEDED => {
-            process_succeeded_batch(&message, result.response, db, queue, clickhouse).await?;
+            process_succeeded_batch(&message, result.response, db, queue, clickhouse, config)
+                .await?;
         }
     };
 
@@ -228,6 +232,7 @@ async fn process_succeeded_batch(
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
+    config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     let response = response.ok_or_else(|| {
         HandlerError::permanent(anyhow::anyhow!(
@@ -312,9 +317,15 @@ async fn process_succeeded_batch(
         };
 
         // Process inline response, now 'run' contains the updated SignalRun instance
-        let (step_result, new_run_messages) =
-            process_single_response(&response, message, &run, clickhouse.clone(), queue.clone())
-                .await;
+        let (step_result, new_run_messages) = process_single_response(
+            &response,
+            message,
+            &run,
+            clickhouse.clone(),
+            queue.clone(),
+            config.clone(),
+        )
+        .await;
 
         new_messages.extend(new_run_messages);
 
@@ -337,6 +348,7 @@ async fn process_succeeded_batch(
                     db.clone(),
                     queue.clone(),
                     run.internal_span_id,
+                    config.internal_project_id,
                 )
                 .await
                 {
@@ -447,6 +459,7 @@ async fn process_single_response(
     run: &SignalRun,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    config: Arc<SignalWorkerConfig>,
 ) -> (StepResult, Vec<CHSignalRunMessage>) {
     let mut new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
@@ -473,6 +486,7 @@ async fn process_single_response(
         Some(message.model.clone()),
         Some(message.provider.clone()),
         queue.clone(),
+        config.internal_project_id,
     )
     .await;
 
@@ -507,6 +521,7 @@ async fn process_single_response(
             Some(message.model.clone()),
             Some(message.provider.clone()),
             queue.clone(),
+            config.internal_project_id,
         )
         .await;
 
@@ -544,7 +559,7 @@ async fn process_single_response(
                 new_messages.push(tool_output_msg);
 
                 // If step number is greater than maximum allowed, mark run as failed
-                if run.step > MAX_ALLOWED_STEPS {
+                if run.step > config.max_allowed_steps {
                     let error = "Maximum step count exceeded".to_string();
                     return (StepResult::Failed { error }, new_messages);
                 }
@@ -651,6 +666,7 @@ async fn handle_create_event(
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     parent_span_id: Uuid,
+    internal_project_id: Option<Uuid>,
 ) -> anyhow::Result<Uuid> {
     let create_event_start_time = chrono::Utc::now();
 
@@ -732,6 +748,7 @@ async fn handle_create_event(
         Some(message.model.clone()),
         Some(message.provider.clone()),
         queue,
+        internal_project_id,
     )
     .await;
 
