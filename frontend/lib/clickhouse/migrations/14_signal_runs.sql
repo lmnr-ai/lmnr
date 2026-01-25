@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS signal_runs
     updated_at DateTime64(9, 'UTC'),
 )
 ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY (project_id, signal_id, run_id)
+ORDER BY (project_id, signal_id, updated_at, run_id)
 SETTINGS index_granularity = 8192;
 
 ALTER TABLE signal_runs ADD INDEX IF NOT EXISTS signal_runs_job_id_bf_idx job_id TYPE bloom_filter;
