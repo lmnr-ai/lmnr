@@ -391,15 +391,6 @@ async fn process_succeeded_batch(
     // Insert new messages into ClickHouse
     insert_signal_run_messages(clickhouse.clone(), &new_messages).await?;
 
-    // Update job stats
-    update_signal_job_stats(
-        &db.pool,
-        message.job_id,
-        succeeded_runs.len() as i32,
-        failed_runs.len() as i32,
-    )
-    .await?;
-
     // Update run statuses in Clickhouse (succeeded/failed)
     let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs
         .iter()
@@ -436,6 +427,15 @@ async fn process_succeeded_batch(
         .collect();
 
     delete_signal_run_messages(clickhouse, message.project_id, &finished_run_ids).await?;
+
+    // Update job stats
+    update_signal_job_stats(
+        &db.pool,
+        message.job_id,
+        succeeded_runs.len() as i32,
+        failed_runs.len() as i32,
+    )
+    .await?;
 
     Ok(())
 }
