@@ -107,6 +107,18 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
+    [
+      "span_names",
+      createCustomFilter(
+        (filter, paramKey) => {
+          if (filter.operator === Operator.Includes) {
+            return `has(span_names, {${paramKey}:String})`;
+          }
+          return "";
+        },
+        (filter, paramKey) => ({ [paramKey]: filter.value })
+      ),
+    ],
   ]),
 };
 

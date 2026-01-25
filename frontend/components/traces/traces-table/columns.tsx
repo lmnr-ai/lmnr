@@ -233,6 +233,11 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
   {
+    name: "Span names",
+    key: "span_names",
+    dataType: "array",
+  },
+  {
     name: "Input cost",
     key: "input_cost",
     dataType: "number",

@@ -6,13 +6,14 @@ import {
   text,
   index,
   pgPolicy,
-  bigint,
-  jsonb,
-  doublePrecision,
   unique,
+  jsonb,
+  bigint,
+  doublePrecision,
   boolean,
   integer,
   real,
+  vector,
   primaryKey,
   smallint,
   pgEnum,
@@ -369,40 +370,6 @@ export const agentSessions = pgTable(
   (table) => [
     index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
     index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
-  ]
-);
-
-export const signalJobs = pgTable(
-  "signal_jobs",
-  {
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-      name: "signal_jobs_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
-    signalId: uuid("signal_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    totalTraces: integer("total_traces").default(0).notNull(),
-    processedTraces: integer("processed_traces").default(0).notNull(),
-    failedTraces: integer("failed_traces").default(0).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "signal_jobs_project_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.signalId],
-      foreignColumns: [signals.id],
-      name: "signal_jobs_signal_id_fkey",
-    }).onDelete("cascade"),
   ]
 );
 
@@ -773,37 +740,6 @@ export const datasetExportJobs = pgTable(
   ]
 );
 
-export const traceAnalysisJobs = pgTable(
-  "trace_analysis_jobs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    eventDefinitionId: uuid("event_definition_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    totalTraces: integer("total_traces").default(0).notNull(),
-    processedTraces: integer("processed_traces").default(0).notNull(),
-    failedTraces: integer("failed_traces").default(0).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("trace_analysis_jobs_event_definition_id_idx").using(
-      "btree",
-      table.eventDefinitionId.asc().nullsLast().op("uuid_ops")
-    ),
-    index("trace_analysis_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.eventDefinitionId, table.projectId],
-      foreignColumns: [semanticEventDefinitions.id, semanticEventDefinitions.projectId],
-      name: "trace_analysis_jobs_event_definition_id_project_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "trace_analysis_jobs_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
 export const tracesSummaries = pgTable(
   "traces_summaries",
   {
@@ -1135,6 +1071,34 @@ export const playgrounds = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+export const signalJobs = pgTable(
+  "signal_jobs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    signalId: uuid("signal_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTraces: integer("total_traces").default(0).notNull(),
+    processedTraces: integer("processed_traces").default(0).notNull(),
+    failedTraces: integer("failed_traces").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_jobs_event_definition_id_idx").using("btree", table.signalId.asc().nullsLast().op("uuid_ops")),
+    index("signal_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_jobs_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_jobs_signal_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -1486,8 +1450,14 @@ export const traces = pgTable(
     topSpanType: smallint("top_span_type"),
     traceType: traceType("trace_type"),
     type: smallint(),
+    spanNames: jsonb("span_names"),
   },
   (table) => [
+    index("traces_pkey").using(
+      "btree",
+      table.id.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
     index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
     index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
     foreignKey({
@@ -1497,7 +1467,7 @@ export const traces = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    primaryKey({ columns: [table.id, table.projectId], name: "traces_pkey" }),
+    primaryKey({ columns: [table.id, table.projectId], name: "traces_pkey_constraint" }),
     pgPolicy("select_by_next_api_key", {
       as: "permissive",
       for: "select",

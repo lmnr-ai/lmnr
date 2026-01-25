@@ -39,7 +39,6 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::evaluate_filters,
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -235,6 +234,7 @@ async fn process_batch(
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+
     // Upsert trace statistics in PostgreSQL
     match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
         Ok(updated_traces) => {
@@ -492,7 +492,7 @@ async fn check_and_push_signals(
         });
 
         for trigger in &triggers {
-            if !evaluate_filters(trace, spans, &trigger.filters) {
+            if !trace.matches_filters(spans, &trigger.filters) {
                 continue;
             }
 

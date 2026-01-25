@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::signals::Signal;
-use crate::signals::Filter;
+use super::utils::Filter;
 
 /// Signal trigger with pre-parsed filters
 #[derive(Debug, Clone, Serialize, Deserialize)]

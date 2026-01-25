@@ -7,6 +7,10 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::ch::traces::TraceAggregation;
+use crate::db::spans::Span;
+use crate::db::utils::{
+    Filter, evaluate_array_contains_filter, evaluate_number_filter, evaluate_string_filter,
+};
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[sqlx(type_name = "trace_type")]
@@ -45,6 +49,7 @@ pub struct Trace {
     tags: Vec<String>,
     num_spans: i64,
     has_browser_session: Option<bool>,
+    span_names: Option<Value>,
 }
 
 impl Trace {
@@ -112,6 +117,82 @@ impl Trace {
     pub fn has_browser_session(&self) -> Option<bool> {
         self.has_browser_session.clone()
     }
+
+    pub fn span_names(&self) -> Vec<String> {
+        self.span_names
+            .as_ref()
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+    pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
+        if filters.is_empty() {
+            return false;
+        }
+
+        filters
+            .iter()
+            .all(|filter| self.evaluate_single_filter(spans, filter))
+    }
+
+    fn evaluate_single_filter(&self, spans: &[Span], filter: &Filter) -> bool {
+        match filter.column.as_str() {
+            "input_token_count" => evaluate_number_filter(
+                self.input_token_count as f64,
+                &filter.operator,
+                &filter.value,
+            ),
+            "output_token_count" => evaluate_number_filter(
+                self.output_token_count as f64,
+                &filter.operator,
+                &filter.value,
+            ),
+            "total_token_count" => evaluate_number_filter(
+                self.total_token_count as f64,
+                &filter.operator,
+                &filter.value,
+            ),
+            "input_cost" => {
+                evaluate_number_filter(self.input_cost, &filter.operator, &filter.value)
+            }
+            "output_cost" => {
+                evaluate_number_filter(self.output_cost, &filter.operator, &filter.value)
+            }
+            "cost" => evaluate_number_filter(self.cost, &filter.operator, &filter.value),
+            "num_spans" => {
+                evaluate_number_filter(self.num_spans as f64, &filter.operator, &filter.value)
+            }
+
+            // String columns (set once on first span, won't change)
+            "top_span_name" => {
+                let name = self.top_span_name.clone().unwrap_or_default();
+                evaluate_string_filter(&name, &filter.operator, &filter.value)
+            }
+            "session_id" => {
+                let session_id = self.session_id.clone().unwrap_or_default();
+                evaluate_string_filter(&session_id, &filter.operator, &filter.value)
+            }
+            "user_id" => {
+                let user_id = self.user_id.clone().unwrap_or_default();
+                evaluate_string_filter(&user_id, &filter.operator, &filter.value)
+            }
+
+            "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
+            "span_name" => {
+                let span_names: Vec<String> = spans
+                    .iter()
+                    .filter(|s| s.trace_id == self.id)
+                    .map(|s| s.name.clone())
+                    .collect();
+                evaluate_array_contains_filter(&span_names, &filter.operator, &filter.value)
+            }
+
+            _ => {
+                log::warn!("Unknown filter column: {}", filter.column);
+                false
+            }
+        }
+    }
 }
 
 /// Upsert trace statistics from aggregated span data
@@ -128,6 +209,13 @@ pub async fn upsert_trace_statistics_batch(
     let mut traces = Vec::new();
 
     for agg in aggregations {
+        let span_names_jsonb: Value = agg
+            .span_names
+            .iter()
+            .map(|name| (name.clone(), Value::Bool(true)))
+            .collect::<serde_json::Map<String, Value>>()
+            .into();
+
         let trace = sqlx::query_as::<_, Trace>(
             r#"
             INSERT INTO traces (
@@ -151,9 +239,10 @@ pub async fn upsert_trace_statistics_batch(
                 status,
                 tags,
                 num_spans,
-                has_browser_session
+                has_browser_session,
+                span_names
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -174,7 +263,9 @@ pub async fn upsert_trace_statistics_batch(
                 status = COALESCE(EXCLUDED.status, traces.status),
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
                 num_spans = traces.num_spans + EXCLUDED.num_spans,
-                has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session)
+                has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),
+                -- `||` operator merges span_names objects to keep unique names
+                span_names = COALESCE(traces.span_names || EXCLUDED.span_names, EXCLUDED.span_names, traces.span_names)
             RETURNING 
                 id, 
                 project_id, 
@@ -196,7 +287,8 @@ pub async fn upsert_trace_statistics_batch(
                 status,
                 tags,
                 num_spans,
-                has_browser_session
+                has_browser_session,
+                span_names
             "#,
         )
         .bind(agg.trace_id)
@@ -220,6 +312,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(&agg.tags.iter().collect::<Vec<_>>())
         .bind(agg.num_spans)
         .bind(agg.has_browser_session)
+        .bind(&span_names_jsonb)
         .fetch_one(pool)
         .await?;
 

@@ -3,7 +3,6 @@ use serde::Serialize;
 use std::{env, fmt};
 use uuid::Uuid;
 
-pub mod filters;
 pub mod gemini;
 pub mod pendings_consumer;
 pub mod prompts;
@@ -55,7 +54,7 @@ impl SignalWorkerConfig {
         }
     }
 }
-pub use filters::{Filter, evaluate_filters};
+
 pub use queue::{
     SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,

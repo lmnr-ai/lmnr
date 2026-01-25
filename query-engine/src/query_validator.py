@@ -45,7 +45,7 @@ class TableRegistry:
             'id', 'trace_type', 'metadata', 'start_time', 'end_time',
             'duration', 'input_tokens', 'output_tokens', 'total_tokens',
             'input_cost', 'output_cost', 'total_cost', 'status', 'user_id',
-            'session_id', 'top_span_id', 'top_span_name', 'top_span_type', 'tags',
+            'session_id', 'top_span_id', 'top_span_name', 'top_span_type', 'tags', 'span_names'
         }
 
         dataset_datapoints_columns = {

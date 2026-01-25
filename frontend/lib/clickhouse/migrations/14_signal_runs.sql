@@ -38,8 +38,6 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
     FROM signal_runs FINAL
     WHERE project_id={project_id:UUID};
 
-GRANT SELECT ON signal_runs TO sql_readonly_scoped;
-
 CREATE TABLE IF NOT EXISTS signal_run_messages
 (
     project_id UUID,
