@@ -174,24 +174,21 @@ function SignalContent() {
   );
 }
 
-export default function Signal({ spanId, traceId }: { spanId?: string; traceId?: string }) {
-  const { setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+export default function Signal({ traceId }: { traceId?: string }) {
+  const { setTraceId } = useSignalStoreContext((state) => ({
     setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
   }));
 
   const handleNavigate = useCallback(
     (item: EventNavigationItem | null) => {
       if (item) {
         setTraceId(item.traceId);
-        setSpanId(item.spanId);
       }
     },
-    [setTraceId, setSpanId]
+    [setTraceId]
   );
 
   useEffect(() => {
-    if (spanId) setSpanId(spanId);
     if (traceId) setTraceId(traceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

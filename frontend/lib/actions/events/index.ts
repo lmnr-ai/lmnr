@@ -6,7 +6,7 @@ import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { type Event, type EventRow } from "@/lib/events/types";
 
-import { buildEventsCountQueryWithParams, buildEventsQueryWithParams, resolveClusterFilters } from "./utils";
+import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 const GetEventsSchema = z.object({
   spanId: z.string(),
@@ -58,36 +58,31 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   eventName: z.string(),
-  eventSource: z.enum(["CODE", "SEMANTIC"]),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
-  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter, eventSource } = input;
+  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const processedFilters = await resolveClusterFilters({ filters, projectId, eventName });
-
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
     eventName,
-    filters: processedFilters,
+    filters,
     limit,
     offset,
     startTime: startDate,
     endTime: endDate,
     pastHours,
-    eventSource,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
     eventName,
-    filters: processedFilters,
+    filters,
     startTime: startDate,
     endTime: endDate,
     pastHours,
-    eventSource,
   });
 
   const [items, [countResult]] = await Promise.all([

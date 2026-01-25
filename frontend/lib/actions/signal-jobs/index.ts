@@ -79,12 +79,12 @@ export async function createTraceAnalysisJob(
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startDate, endDate),
-        searchType: [] as SpanSearchType[],
-      })
+      projectId,
+      traceId: undefined,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startDate, endDate),
+      searchType: [] as SpanSearchType[],
+    })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];
 
@@ -104,7 +104,7 @@ export async function createTraceAnalysisJob(
     pastHours,
   });
 
-  const response = await fetcherJSON<{ success: boolean; message: string }>(`/projects/${projectId}/trace-analysis`, {
+  const response = await fetcherJSON<{ success: boolean; message: string }>(`/projects/${projectId}/signal-job`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

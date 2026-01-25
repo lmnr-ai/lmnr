@@ -21,7 +21,7 @@ const LLM_PROVIDER: &str = "gemini";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SubmitTraceAnalysisJobRequest {
+pub struct SubmitSignalJobRequest {
     pub query: String,
     pub signal_id: Uuid,
     #[serde(default)]
@@ -30,16 +30,16 @@ pub struct SubmitTraceAnalysisJobRequest {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SubmitTraceAnalysisJobResponse {
+pub struct SubmitSignalJobResponse {
     pub job_id: Uuid,
     pub total_traces: i32,
     pub signal_id: Uuid,
 }
 
-#[post("trace-analysis")]
-pub async fn submit_trace_analysis_job(
+#[post("signal-job")]
+pub async fn submit_signal_job(
     project_id: web::Path<Uuid>,
-    request: web::Json<SubmitTraceAnalysisJobRequest>,
+    request: web::Json<SubmitSignalJobRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
@@ -47,7 +47,13 @@ pub async fn submit_trace_analysis_job(
     queue: web::Data<Arc<MessageQueue>>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
-    let SubmitTraceAnalysisJobRequest {
+
+    // get internal project id for tracing
+    let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
+        .ok()
+        .and_then(|s| s.parse().ok());
+
+    let SubmitSignalJobRequest {
         query,
         parameters,
         signal_id,
@@ -108,8 +114,8 @@ pub async fn submit_trace_analysis_job(
     let job = signal_jobs::create_signal_job(&db.pool, signal_id, project_id, total_traces)
         .await
         .map_err(|e| {
-            log::error!("Failed to create trace analysis job: {:?}", e);
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to create trace analysis job"))
+            log::error!("Failed to create signal job: {:?}", e);
+            Error::InternalAnyhowError(anyhow::anyhow!("Failed to create signal job"))
         })?;
 
     let mut runs = Vec::with_capacity(trace_ids.len());
@@ -118,9 +124,6 @@ pub async fn submit_trace_analysis_job(
         let internal_trace_id = Uuid::new_v4();
 
         // Emit root span for internal tracing of a run
-        let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
-            .ok()
-            .and_then(|s| s.parse().ok());
         let internal_span_id = emit_internal_span(
             "signal.run",
             internal_trace_id,
@@ -203,11 +206,11 @@ pub async fn submit_trace_analysis_job(
     signals::push_to_submissions_queue(message, queue.as_ref().clone())
         .await
         .map_err(|e| {
-            log::error!("Failed to push trace analysis to queue: {:?}", e);
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to queue trace analysis job"))
+            log::error!("Failed to push signal job to queue: {:?}", e);
+            Error::InternalAnyhowError(anyhow::anyhow!("Failed to queue signal job"))
         })?;
 
-    let response = SubmitTraceAnalysisJobResponse {
+    let response = SubmitSignalJobResponse {
         job_id: job.id,
         total_traces: job.total_traces,
         signal_id: job.signal_id,

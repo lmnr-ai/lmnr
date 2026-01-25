@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   title: "Events",
 };
 
-export default async function SignalPage(props: { searchParams: Promise<{ traceId?: string; spanId?: string }> }) {
-  const { traceId, spanId } = await props.searchParams;
+export default async function SignalPage(props: { searchParams: Promise<{ traceId?: string }> }) {
+  const { traceId } = await props.searchParams;
 
-  return <Signal spanId={spanId} traceId={traceId} />;
+  return <Signal traceId={traceId} />;
 }

@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// Signal with prompt and schema
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Signal {
+    pub id: Uuid,
     pub name: String,
     pub prompt: String,
     pub structured_output_schema: Value,
@@ -18,7 +19,7 @@ pub async fn get_signal(
     project_id: Uuid,
 ) -> Result<Option<Signal>> {
     let signal = sqlx::query_as::<_, Signal>(
-        "SELECT name, prompt, structured_output_schema
+        "SELECT id, name, prompt, structured_output_schema
         FROM signals
         WHERE id = $1 AND project_id = $2",
     )

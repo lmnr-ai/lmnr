@@ -16,18 +16,13 @@ use uuid::Uuid;
 
 use crate::{
     ch::{
-        events::{CHEvent, insert_events},
+        signal_events::{CHSignalEvent, insert_signal_events},
         signal_run_messages::{
             CHSignalRunMessage, delete_signal_run_messages, insert_signal_run_messages,
         },
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
-    db::{
-        DB,
-        events::{Event, EventSource},
-        signal_jobs::update_signal_job_stats,
-        spans::SpanType,
-    },
+    db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     traces::signals::process_event_notifications_and_clustering,
     worker::{HandlerError, MessageHandler},
@@ -680,7 +675,9 @@ async fn handle_create_event(
         anyhow::bail!("No spans found for trace {}", run.trace_id);
     }
 
+    // Use root span's end_time as event timestamp
     let root_span = &ch_spans[0];
+    let timestamp = nanoseconds_to_datetime(root_span.end_time);
 
     // Replace span tags with markdown links
     let seq_to_uuid: HashMap<usize, Uuid> = uuid_to_seq
@@ -691,27 +688,24 @@ async fn handle_create_event(
     let attrs =
         replace_span_tags_with_links(attributes, &seq_to_uuid, message.project_id, run.trace_id)?;
 
-    // Use root span's end_time as event timestamp
-    let timestamp = nanoseconds_to_datetime(root_span.end_time);
-
-    // Create event
-    let event = Event {
-        id: Uuid::new_v4(),
-        span_id: root_span.span_id,
-        project_id: message.project_id,
+    // Create signal event
+    let event_id = Uuid::new_v4();
+    let signal_event = CHSignalEvent::new(
+        event_id,
+        message.project_id,
+        message.signal_id,
+        run.trace_id,
+        run.run_id,
+        message.signal_name.clone(),
+        attrs.clone(),
         timestamp,
-        name: message.signal_name.clone(),
-        attributes: attrs.clone(),
-        trace_id: run.trace_id,
-        source: EventSource::Semantic,
-    };
+    );
 
-    // Insert into ClickHouse
-    let ch_events = vec![CHEvent::from_db_event(&event)];
-    insert_events(clickhouse, ch_events).await?;
+    // Insert into ClickHouse signal_events table
+    insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
     log::debug!(
-        "[SIGNAL JOB] Created event '{}' for trace {} (run {})",
+        "[SIGNAL JOB] Created signal event '{}' for trace {} (run {})",
         message.signal_name,
         run.trace_id,
         run.run_id
@@ -723,14 +717,9 @@ async fn handle_create_event(
         queue.clone(),
         message.project_id,
         run.trace_id,
-        root_span.span_id,
-        &message.signal_name,
-        attrs,
-        event.clone(),
+        signal_event,
     )
     .await?;
-
-    let event_id = event.id;
 
     // Internal tracing span for event creation
     emit_internal_span(
@@ -742,7 +731,13 @@ async fn handle_create_event(
         Some(parent_span_id),
         SpanType::Default,
         create_event_start_time,
-        Some(serde_json::json!(event)),
+        Some(serde_json::json!({
+            "id": event_id,
+            "signal_id": message.signal_id,
+            "trace_id": run.trace_id,
+            "run_id": run.run_id,
+            "name": message.signal_name,
+        })),
         None,
         None,
         None,

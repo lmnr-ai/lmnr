@@ -16,6 +16,7 @@ pub struct SignalTrigger {
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct DBSignalTrigger {
     value: serde_json::Value,
+    signal_id: Uuid,
     signal_name: String,
     prompt: String,
     structured_output_schema: Value,
@@ -30,6 +31,7 @@ pub async fn get_signal_triggers(
         r#"
         SELECT 
             st.value,
+            s.id as signal_id,
             s.name as signal_name,
             s.prompt as prompt,
             s.structured_output_schema as structured_output_schema
@@ -64,6 +66,7 @@ pub async fn get_signal_triggers(
             Some(SignalTrigger {
                 filters,
                 signal: Signal {
+                    id: db_trigger.signal_id,
                     name: db_trigger.signal_name,
                     prompt: db_trigger.prompt,
                     structured_output_schema: db_trigger.structured_output_schema,

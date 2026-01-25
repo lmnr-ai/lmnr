@@ -70,6 +70,10 @@ class TableRegistry:
             "project_id", "signal_id", "job_id", "trigger_id", "trace_id","run_id", "status", "event_id", "updated_at",
         }
 
+        signal_events_columns = {
+            "id", "project_id", "signal_id", "trace_id", "run_id", "name", "payload", "timestamp",
+        }
+
         self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')
         self.tables['traces'] = TableSchema('traces', traces_columns, 'start_time')
         self.tables['dataset_datapoints'] = TableSchema('dataset_datapoints', dataset_datapoints_columns, 'created_at')
@@ -80,6 +84,7 @@ class TableRegistry:
         self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
         self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')
         self.tables['signal_runs'] = TableSchema('signal_runs', signal_runs_columns, 'updated_at')
+        self.tables['signal_events'] = TableSchema('signal_events', signal_events_columns, 'timestamp')
 
     def is_table_allowed(self, table_name: str) -> bool:
         """Check if a table is allowed"""

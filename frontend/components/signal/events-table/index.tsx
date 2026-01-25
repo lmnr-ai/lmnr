@@ -90,18 +90,15 @@ function PureEventsTable() {
     (row: Row<EventRow>) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.original.traceId);
-      params.set("spanId", row.original.spanId);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
   );
 
-  const { traceId, spanId, setTraceId, setSpanId, fetchStats, setChartContainerWidth, chartContainerWidth } =
+  const { traceId, setTraceId, fetchStats, setChartContainerWidth, chartContainerWidth } =
     useSignalStoreContext((state) => ({
       traceId: state.traceId,
-      spanId: state.spanId,
       setTraceId: state.setTraceId,
-      setSpanId: state.setSpanId,
       fetchStats: state.fetchStats,
       setChartContainerWidth: state.setChartContainerWidth,
       chartContainerWidth: state.chartContainerWidth,
@@ -110,9 +107,8 @@ function PureEventsTable() {
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
       setTraceId(row.original.traceId);
-      setSpanId(row.original.spanId);
     },
-    [setTraceId, setSpanId]
+    [setTraceId]
   );
 
   const statsUrl = useTimeSeriesStatsUrl({
@@ -142,16 +138,15 @@ function PureEventsTable() {
   });
 
   const focusedRowId = useMemo(() => {
-    if (!traceId || !spanId) return undefined;
-    return events?.find((event) => event.traceId === traceId && event.spanId === spanId)?.id;
-  }, [events, traceId, spanId]);
+    if (!traceId) return undefined;
+    return events?.find((event) => event.traceId === traceId)?.id;
+  }, [events, traceId]);
 
   useEffect(() => {
     if (events) {
       setNavigationRefList(
         events.map((event) => ({
           traceId: event.traceId,
-          spanId: event.spanId,
         }))
       );
     }

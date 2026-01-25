@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { compact, keyBy } from "lodash";
 
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
@@ -18,30 +17,17 @@ import { eventClusters } from "@/lib/db/migrations/schema";
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
     ["id", createStringFilter],
-    ["user_id", createStringFilter],
-    ["session_id", createStringFilter],
+    ["trace_id", createStringFilter],
+    ["run_id", createStringFilter],
     [
-      "cluster",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(clusters, {${paramKey}:UUID})`;
-          } else {
-            return `NOT has(clusters, {${paramKey}:UUID})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
-    [
-      "attributes",
+      "payload",
       createCustomFilter(
         (filter, paramKey) => {
           const [key, val] = String(filter.value).split("=", 2);
           if (key && val) {
             return (
-              `(simpleJSONExtractString(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-              ` OR simpleJSONExtractRaw(attributes, {${paramKey}_key:String}) = {${paramKey}_val:String})`
+              `(simpleJSONExtractString(payload, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
+              ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) = {${paramKey}_val:String})`
             );
           }
           return "";
@@ -63,13 +49,12 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
 
 const eventsSelectColumns = [
   "id",
-  "span_id spanId",
+  "signal_id signalId",
   "trace_id traceId",
+  "run_id runId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "name",
-  "attributes",
-  "user_id userId",
-  "session_id sessionId",
+  "payload",
 ];
 
 export interface BuildEventsQueryOptions {
@@ -80,39 +65,31 @@ export interface BuildEventsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
-  eventSource?: "CODE" | "SEMANTIC";
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { eventName, filters, limit, offset, startTime, endTime, pastHours, eventSource } = options;
+  const { eventName, filters, limit, offset, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: "name = {eventName:String}",
-      params: { eventName },
-    },
-  ];
-
-  if (eventSource) {
-    customConditions.push({
-      condition: "source = {eventSource:String}",
-      params: { eventSource },
-    });
-  }
+      {
+        condition: "name = {eventName:String}",
+        params: { eventName },
+      },
+    ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: eventsSelectColumns,
-      table: "events",
+      table: "signal_events",
     },
     timeRange: {
       startTime,
       endTime,
       pastHours,
-      timeColumn: "events.timestamp",
+      timeColumn: "signal_events.timestamp",
     },
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
@@ -135,29 +112,22 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { eventName, filters, startTime, endTime, pastHours, eventSource } = options;
+  const { eventName, filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: "name = {eventName:String}",
-      params: { eventName },
-    },
-  ];
-
-  if (eventSource) {
-    customConditions.push({
-      condition: "source = {eventSource:String}",
-      params: { eventSource },
-    });
-  }
+      {
+        condition: "name = {eventName:String}",
+        params: { eventName },
+      },
+    ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: ["COUNT(*) as count"],
-      table: "events",
+      table: "signal_events",
     },
     timeRange: {
       startTime,

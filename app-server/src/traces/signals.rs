@@ -7,9 +7,9 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
-use crate::ch::{self, events::CHEvent};
+use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::db;
-use crate::db::events::{Event, EventSource};
+use crate::db::events::EventSource;
 use crate::db::signals::Signal;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::{MessageQueue, MessageQueueTrait};
@@ -145,31 +145,27 @@ async fn process_signal(
 
     // if response has attributes it means we identified the event
     if let Some(attributes) = response.attributes.clone() {
-        // create a new event if we have attributes
-        let event = Event {
-            id: uuid::Uuid::new_v4(),
-            span_id: message.trigger_span_id,
-            project_id: message.project_id,
-            timestamp: chrono::Utc::now(),
-            name: signal.name.clone(),
-            attributes: attributes.clone(),
-            trace_id: message.trace_id,
-            source: EventSource::Semantic,
-        };
+        // Create signal event
+        // Note: Legacy path doesn't have signal_id or run_id, use nil UUIDs
+        let signal_event = CHSignalEvent::new(
+            Uuid::new_v4(),
+            message.project_id,
+            message.event_definition.id,
+            message.trace_id,
+            Uuid::new_v4(),
+            signal.name.clone(),
+            attributes.clone(),
+            chrono::Utc::now(),
+        );
 
-        let ch_events = vec![CHEvent::from_db_event(&event)];
-
-        ch::events::insert_events(clickhouse, ch_events).await?;
+        insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
         process_event_notifications_and_clustering(
             db,
             queue,
             message.project_id,
             message.trace_id,
-            message.trigger_span_id,
-            &signal.name,
-            attributes,
-            event,
+            signal_event,
         )
         .await?;
     }
@@ -177,21 +173,21 @@ async fn process_signal(
     Ok(())
 }
 
-/// Process notifications and clustering for an identified event
+/// Process notifications and clustering for an identified signal event
 pub async fn process_event_notifications_and_clustering(
     db: Arc<db::DB>,
     queue: Arc<MessageQueue>,
     project_id: Uuid,
     trace_id: Uuid,
-    span_id: Uuid,
-    event_name: &str,
-    attributes: Value,
-    event: Event,
+    signal_event: CHSignalEvent,
 ) -> anyhow::Result<()> {
+    let event_name = signal_event.name().to_string();
+    let attributes = signal_event.payload_value().unwrap_or_default();
+
     // Check for Slack notifications
     // It's ok to not check for feature flag here, because channels can't be added without Slack integration
     let channels =
-        db::slack_channel_to_events::get_channels_for_event(&db.pool, project_id, event_name)
+        db::slack_channel_to_events::get_channels_for_event(&db.pool, project_id, &event_name)
             .await?;
 
     // Push a notification for each configured channel
@@ -206,7 +202,6 @@ pub async fn process_event_notifications_and_clustering(
         let notification_message = notifications::NotificationMessage {
             project_id,
             trace_id,
-            span_id,
             notification_type: NotificationType::Slack,
             event_name: event_name.to_string(),
             payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
@@ -228,14 +223,14 @@ pub async fn process_event_notifications_and_clustering(
         if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
             &db.pool,
             project_id,
-            event_name,
+            &event_name,
             EventSource::Semantic,
         )
         .await
         {
             if let Err(e) = clustering::push_to_event_clustering_queue(
                 project_id,
-                event,
+                signal_event,
                 cluster_config.value_template,
                 queue.clone(),
             )

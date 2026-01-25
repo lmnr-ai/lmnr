@@ -6,6 +6,7 @@ pub mod evaluation_scores;
 pub mod evaluator_scores;
 pub mod events;
 pub mod limits;
+pub mod signal_events;
 pub mod signal_run_messages;
 pub mod signal_runs;
 pub mod spans;

@@ -38,6 +38,9 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
     FROM signal_runs FINAL
     WHERE project_id={project_id:UUID};
 
+GRANT SELECT ON signal_runs TO sql_readonly_scoped;
+GRANT SELECT ON signal_runs_v0 TO sql_readonly_scoped;
+
 CREATE TABLE IF NOT EXISTS signal_run_messages
 (
     project_id UUID,
@@ -48,3 +51,34 @@ CREATE TABLE IF NOT EXISTS signal_run_messages
 ENGINE = MergeTree
 ORDER BY (project_id, run_id, time)
 SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS signal_events
+(
+    id UUID,
+    project_id UUID,
+    signal_id UUID,
+    trace_id UUID,
+    run_id UUID,
+    name String,
+    payload String,
+    timestamp DateTime64(9, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY (project_id, signal_id, timestamp, trace_id, run_id)
+SETTINGS index_granularity = 8192;
+
+CREATE VIEW IF NOT EXISTS signal_events_v0 SQL SECURITY INVOKER AS
+    SELECT
+        id,
+        project_id,
+        signal_id,
+        trace_id,
+        run_id,
+        name,
+        payload,
+        timestamp
+    FROM signal_events
+    WHERE project_id={project_id:UUID};
+
+GRANT SELECT ON signal_events TO sql_readonly_scoped;
+GRANT SELECT ON signal_events_v0 TO sql_readonly_scoped;

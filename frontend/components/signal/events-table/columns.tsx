@@ -16,10 +16,10 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     id: "id",
   },
   {
-    id: "attributes",
-    accessorKey: "attributes",
-    header: "Attributes",
-    accessorFn: (row) => row.attributes,
+    id: "payload",
+    accessorKey: "payload",
+    header: "Payload",
+    accessorFn: (row) => row.payload,
     cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
   },
   {
@@ -37,29 +37,15 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     id: "traceId",
   },
   {
-    accessorKey: "spanId",
-    header: "Span ID",
+    accessorKey: "runId",
+    header: "Run ID",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     size: 300,
-    id: "spanId",
-  },
-  {
-    accessorKey: "userId",
-    cell: (row) => <span>{String(row.getValue()) || "-"}</span>,
-    header: "User ID",
-    size: 200,
-    id: "userId",
-  },
-  {
-    id: "sessionId",
-    accessorKey: "sessionId",
-    cell: (row) => <span>{String(row.getValue()) || "-"}</span>,
-    header: "Session ID",
-    size: 200,
+    id: "runId",
   },
 ];
 
-export const defaultEventsColumnOrder = ["id", "attributes", "timestamp", "traceId", "spanId", "userId", "sessionId"];
+export const defaultEventsColumnOrder = ["id", "payload", "timestamp", "traceId", "runId"];
 
 export const eventsTableFilters: ColumnFilter[] = [
   {
@@ -68,23 +54,18 @@ export const eventsTableFilters: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    name: "User ID",
-    key: "user_id",
+    name: "Trace ID",
+    key: "trace_id",
     dataType: "string",
   },
   {
-    name: "Session ID",
-    key: "session_id",
+    name: "Run ID",
+    key: "run_id",
     dataType: "string",
   },
   {
-    name: "Cluster",
-    key: "cluster",
-    dataType: "string",
-  },
-  {
-    name: "Attributes",
-    key: "attributes",
+    name: "Payload",
+    key: "payload",
     dataType: "json",
   },
 ];
