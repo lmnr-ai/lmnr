@@ -1,11 +1,12 @@
 import { google } from "@ai-sdk/google";
-import { getTracer } from "@lmnr-ai/lmnr";
+import YAML from "yaml";
+import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { convertToModelMessages, smoothStream, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 
-import { generateTraceSummary, getSpansDataAsYAML, getTraceStructureAsYAML } from "./index";
 import { findOrCreateChatSession, saveChatMessage } from "./messages";
 import { TraceChatPrompt } from "./prompt";
+import { getSpansByIds, getTraceStructureAsString } from "./spans";
 
 export const TraceStreamChatSchema = z.object({
   messages: z.array(z.any()).describe("Array of UI messages"),
@@ -13,7 +14,12 @@ export const TraceStreamChatSchema = z.object({
   projectId: z.string().describe("The project ID"),
 });
 
-export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchema>) {
+
+export const streamTraceChat = observe({
+  name: 'streamTraceChat',
+  rolloutEntrypoint: true,
+}, async (input: z.infer<typeof TraceStreamChatSchema>) => {
+
   const { messages: uiMessages, traceId, projectId } = input;
 
   const chatId = await findOrCreateChatSession(traceId, projectId);
@@ -28,27 +34,17 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
     parts: userMessage?.parts,
   });
 
-  const { summary, status, analysis, analysisPreview } = await generateTraceSummary({
-    traceId,
-    projectId,
-  });
+  const { traceString } = await getTraceStructureAsString(projectId, traceId);
 
-  const traceStructure = await getTraceStructureAsYAML({
-    projectId,
-    traceId,
-  });
-
-  const prompt = TraceChatPrompt.replace("{{structure}}", traceStructure)
-    .replace("{{summary}}", summary)
-    .replace("{{analysis}}", analysis);
+  const systemPrompt = TraceChatPrompt
+    .replace("{{fullTraceData}}", traceString)
 
   const result = streamText({
     model: google("gemini-2.5-flash"),
-    // model: anthropic('claude-sonnet-4-5'),
     messages: convertToModelMessages(uiMessages as UIMessage[]),
     stopWhen: stepCountIs(10),
     maxRetries: 5,
-    system: prompt,
+    system: systemPrompt,
     tools: {
       getSpansData: tool({
         description:
@@ -57,15 +53,10 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
           spanIds: z.array(z.int()).describe("List of span ids to get the data for"),
         }),
         execute: async ({ spanIds }) => {
-          const spansData = await getSpansDataAsYAML(
-            {
-              projectId,
-              traceId,
-            },
-            spanIds
-          );
 
-          return spansData;
+          const spans = await getSpansByIds(projectId, traceId, spanIds);
+          return YAML.stringify(spans);
+
         },
       }),
     },
@@ -77,4 +68,4 @@ export async function streamTraceChat(input: z.infer<typeof TraceStreamChatSchem
   });
 
   return result;
-}
+});
