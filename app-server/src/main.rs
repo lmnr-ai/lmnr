@@ -41,7 +41,8 @@ use signals::{
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
-    pendings_consumer::LLMBatchPendingHandler, submissions_consumer::LLMBatchSubmissionsHandler,
+    pendings_consumer::SignalJobPendingBatchHandler,
+    submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
 use traces::{
@@ -871,17 +872,16 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_trace_analysis_llm_batch_submissions_workers =
-            env::var("NUM_TRACE_ANALYSIS_LLM_BATCH_SUBMISSIONS_WORKERS")
+        let num_signal_job_submission_batch_workers =
+            env::var("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS")
                 .unwrap_or(String::from("4"))
                 .parse::<u8>()
                 .unwrap_or(4);
 
-        let num_trace_analysis_llm_batch_pending_workers =
-            env::var("NUM_TRACE_ANALYSIS_LLM_BATCH_PENDING_WORKERS")
-                .unwrap_or(String::from("4"))
-                .parse::<u8>()
-                .unwrap_or(4);
+        let num_signal_job_pending_batch_workers = env::var("NUM_SIGNAL_JOB_PENDING_BATCH_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
 
         log::info!(
             "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}",
@@ -893,8 +893,8 @@ fn main() -> anyhow::Result<()> {
             num_signals_workers,
             num_notification_workers,
             num_clustering_workers,
-            num_trace_analysis_llm_batch_submissions_workers,
-            num_trace_analysis_llm_batch_pending_workers
+            num_signal_job_submission_batch_workers,
+            num_signal_job_pending_batch_workers
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -1087,10 +1087,10 @@ fn main() -> anyhow::Result<()> {
                         let gemini_clone = gemini.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
-                            WorkerType::LLMBatchSubmissions,
-                            num_trace_analysis_llm_batch_submissions_workers as usize,
+                            WorkerType::SignalJobSubmissionBatch,
+                            num_signal_job_submission_batch_workers as usize,
                             move || {
-                                LLMBatchSubmissionsHandler::new(
+                                SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
@@ -1118,10 +1118,10 @@ fn main() -> anyhow::Result<()> {
                         let gemini_clone = gemini.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
-                            WorkerType::LLMBatchPending,
-                            num_trace_analysis_llm_batch_pending_workers as usize,
+                            WorkerType::SignalJobPendingBatch,
+                            num_signal_job_pending_batch_workers as usize,
                             move || {
-                                LLMBatchPendingHandler::new(
+                                SignalJobPendingBatchHandler::new(
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),

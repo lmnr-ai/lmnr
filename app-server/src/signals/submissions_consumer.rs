@@ -32,7 +32,7 @@ use crate::{
     worker::{HandlerError, MessageHandler},
 };
 
-pub struct LLMBatchSubmissionsHandler {
+pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
@@ -40,7 +40,7 @@ pub struct LLMBatchSubmissionsHandler {
     pub config: Arc<SignalWorkerConfig>,
 }
 
-impl LLMBatchSubmissionsHandler {
+impl SignalJobSubmissionBatchHandler {
     pub fn new(
         db: Arc<DB>,
         queue: Arc<MessageQueue>,
@@ -59,7 +59,7 @@ impl LLMBatchSubmissionsHandler {
 }
 
 #[async_trait]
-impl MessageHandler for LLMBatchSubmissionsHandler {
+impl MessageHandler for SignalJobSubmissionBatchHandler {
     type Message = SignalJobSubmissionBatchMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {

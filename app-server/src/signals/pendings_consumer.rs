@@ -55,7 +55,7 @@ enum StepResult {
     Failed { error: String },
 }
 
-pub struct LLMBatchPendingHandler {
+pub struct SignalJobPendingBatchHandler {
     pub db: Arc<DB>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
@@ -63,7 +63,7 @@ pub struct LLMBatchPendingHandler {
     pub config: Arc<SignalWorkerConfig>,
 }
 
-impl LLMBatchPendingHandler {
+impl SignalJobPendingBatchHandler {
     pub fn new(
         db: Arc<DB>,
         queue: Arc<MessageQueue>,
@@ -82,7 +82,7 @@ impl LLMBatchPendingHandler {
 }
 
 #[async_trait]
-impl MessageHandler for LLMBatchPendingHandler {
+impl MessageHandler for SignalJobPendingBatchHandler {
     type Message = SignalJobPendingBatchMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
