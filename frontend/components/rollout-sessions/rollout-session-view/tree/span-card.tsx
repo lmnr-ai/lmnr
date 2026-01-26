@@ -70,6 +70,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
+  const isExpandable = hasChildren || span.spanType === "LLM" || span.spanType === "TOOL";
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
@@ -149,15 +150,17 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
               cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
             />
           )}
-          <button
-            className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCollapse(span.spanId);
-            }}
-          >
-            {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          {isExpandable && (
+            <button
+              className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCollapse(span.spanId);
+              }}
+            >
+              {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          )}
           {/* Rollout-specific cache buttons */}
           {(span.spanType === "LLM" || span.spanType === "CACHED") && (
             <Tooltip>
@@ -202,10 +205,10 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
         </div>
 
         {/* Expandable content */}
-        {!span.collapsed && !(isNil(output) && span.spanType === "DEFAULT") && (
+        {!span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL") && (
           <div className="px-2 pb-2 pt-0">
             {isLoadingOutput && <Skeleton className="h-12 w-full" />}
-            {!isLoadingOutput && isNil(output) && span.spanType !== "DEFAULT" && (
+            {!isLoadingOutput && isNil(output) && (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             )}
             {!isLoadingOutput && !isNil(output) && (
