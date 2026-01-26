@@ -136,8 +136,16 @@ function StatsShieldsContent({
 }: PropsWithChildren<{
   stats: Pick<
     TraceViewSpan,
-    "startTime" | "endTime" | "inputTokens" | "outputTokens" | "totalTokens" | "inputCost" | "outputCost" | "totalCost"
-  > & { cacheReadInputTokens?: number };
+    | "startTime"
+    | "endTime"
+    | "inputTokens"
+    | "outputTokens"
+    | "totalTokens"
+    | "inputCost"
+    | "outputCost"
+    | "totalCost"
+    | "cacheReadInputTokens"
+  >;
   className?: string;
 }>) {
   return (

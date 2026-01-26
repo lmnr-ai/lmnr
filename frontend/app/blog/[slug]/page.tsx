@@ -28,8 +28,7 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
         images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
       },
     };
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (error) {
+  } catch {
     return {
       title: "Post Not Found",
     };
@@ -87,8 +86,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
         </article>
       </div>
     );
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (error) {
+  } catch {
     notFound();
   }
 }
