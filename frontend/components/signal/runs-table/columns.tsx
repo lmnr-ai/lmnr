@@ -54,9 +54,9 @@ export const getSignalRunsColumns = ({
         </Badge>
       );
     },
-    header: "Run from",
+    header: "Source",
     size: 120,
-    id: "run_from",
+    id: "source",
   },
   {
     accessorKey: "status",
@@ -87,7 +87,7 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "run_from", "status", "eventId", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

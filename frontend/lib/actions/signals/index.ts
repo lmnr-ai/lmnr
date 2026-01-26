@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
@@ -15,7 +15,7 @@ export type SignalRow = {
   name: string;
   createdAt: string;
   projectId: string;
-  triggersCount: number;
+  eventsCount: number;
 };
 
 export type Signal = {
@@ -121,35 +121,41 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     .limit(limit)
     .offset(offset);
 
-  // Get trigger counts per signal
-  const triggerCounts = (await db
-    .select({
-      signalId: signalTriggers.signalId,
-      count: sql`count(*)`.mapWith(Number),
-    })
-    .from(signalTriggers)
-    .where(
-      and(
-        eq(signalTriggers.projectId, projectId),
-        inArray(
-          signalTriggers.signalId,
-          results.map((r) => r.id)
-        )
-      )
-    )
-    .groupBy(signalTriggers.signalId)) as { signalId: string; count: number }[];
+  const signalIds = results.map((r) => r.id);
+  let eventCountBySignal: Record<string, number> = {};
 
-  const triggerCountBySignal = triggerCounts.reduce(
-    (acc, row) => ({
-      ...acc,
-      [row.signalId]: row.count,
-    }),
-    {} as Record<string, number>
-  );
+  if (signalIds.length > 0) {
+    const eventCountsResult = await clickhouseClient.query({
+      query: `
+        SELECT
+          signal_id,
+          count(*) as count
+        FROM signal_events
+        WHERE project_id = {projectId: UUID}
+          AND signal_id IN ({signalIds: Array(UUID)})
+        GROUP BY signal_id
+      `,
+      query_params: {
+        projectId,
+        signalIds,
+      },
+      format: "JSONEachRow",
+    });
+
+    const eventCounts = (await eventCountsResult.json()) as { signal_id: string; count: string }[];
+
+    eventCountBySignal = eventCounts.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signal_id]: parseInt(row.count, 10),
+      }),
+      {} as Record<string, number>
+    );
+  }
 
   const items: SignalRow[] = results.map((signal) => ({
     ...signal,
-    triggersCount: triggerCountBySignal[signal.id] || 0,
+    eventsCount: eventCountBySignal[signal.id] || 0,
   }));
 
   return {

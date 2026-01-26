@@ -28,7 +28,7 @@ export const triggersTableColumns: ColumnDef<TriggerRow>[] = [
       return (
         <div className="flex flex-wrap gap-1.5">
           {filters.map((filter, index) => (
-            <Badge key={index} variant="secondary" className="font-mono text-xs">
+            <Badge key={index} variant="outline" className="text-xs text-secondary-foreground rounded-md">
               {formatFilter(filter)}
             </Badge>
           ))}

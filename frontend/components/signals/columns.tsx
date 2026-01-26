@@ -21,10 +21,10 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
     id: "name",
   },
   {
-    header: "Triggers",
-    id: "triggersCount",
-    accessorFn: (row) => row.triggersCount,
-    cell: ({ row }) => <span className="truncate">{row.original.triggersCount}</span>,
+    header: "Events",
+    id: "eventsCount",
+    accessorFn: (row) => row.eventsCount,
+    cell: ({ row }) => <span className="truncate">{row.original.eventsCount}</span>,
   },
   {
     header: "Created",
@@ -34,4 +34,4 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
   },
 ];
 
-export const defaultSignalsColumnsOrder = ["__row_selection", "name", "triggersCount", "createdAt"];
+export const defaultSignalsColumnsOrder = ["__row_selection", "name", "triggersCount", "eventsCount", "createdAt"];
