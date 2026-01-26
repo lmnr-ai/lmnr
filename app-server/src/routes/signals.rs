@@ -170,6 +170,7 @@ pub async fn submit_signal_job(
             run_id: r.run_id,
             project_id,
             job_id: job.id,
+            trigger_id: Uuid::nil(),
             signal_id,
             trace_id: r.trace_id,
             step: 0,

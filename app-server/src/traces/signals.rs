@@ -2,12 +2,14 @@ use std::env;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
+use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
 use crate::db;
 use crate::db::events::EventSource;
 use crate::db::signals::Signal;
@@ -16,6 +18,7 @@ use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
+use crate::signals::{RunStatus, SignalRun};
 use crate::traces::clustering;
 use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
@@ -24,7 +27,7 @@ use crate::worker::{HandlerError, MessageHandler};
 pub struct SignalMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    pub trigger_span_id: Uuid,
+    pub trigger_id: Uuid,
     pub event_definition: Signal, // should stay "event_definition" for backward compatibility
 }
 
@@ -48,7 +51,7 @@ pub async fn push_to_signals_queue(
     let message = SignalMessage {
         trace_id,
         project_id,
-        trigger_span_id,
+        trigger_id: trigger_span_id,
         event_definition: signal.clone(),
     };
 
@@ -118,6 +121,23 @@ async fn process_signal(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
+    // Create signal run instance
+    let mut run: SignalRun = SignalRun {
+        run_id: Uuid::new_v4(),
+        project_id: message.project_id,
+        job_id: Uuid::nil(),
+        trigger_id: message.trigger_id,
+        signal_id: message.event_definition.id,
+        trace_id: message.trace_id,
+        step: 0,
+        status: RunStatus::Pending,
+        internal_trace_id: Uuid::nil(),
+        internal_span_id: Uuid::nil(),
+        updated_at: Utc::now(),
+        event_id: None,
+        error_message: None,
+    };
+
     let signal = &message.event_definition;
 
     let service_url = env::var("SEMANTIC_EVENT_SERVICE_URL")
@@ -127,7 +147,7 @@ async fn process_signal(
         anyhow::anyhow!("SEMANTIC_EVENT_SERVICE_SECRET_KEY environment variable not set")
     })?;
 
-    let request_body = serde_json::json!({
+    let request_body: Value = serde_json::json!({
         "project_id": message.project_id.to_string(),
         "trace_id": message.trace_id.to_string(),
         "event_definition": serde_json::to_value(signal).unwrap(), // shall stay "event_definition" until modal service is updated
@@ -137,6 +157,17 @@ async fn process_signal(
         call_service_with_retry(client, &service_url, &auth_token, &request_body).await?;
 
     if !response.success {
+        let error_msg = response
+            .error
+            .clone()
+            .unwrap_or_else(|| "Unknown error".to_string());
+        run = run.failed(&error_msg);
+
+        let ch_run = CHSignalRun::from(&run);
+        if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
+            log::error!("Failed to insert failed signal run to ClickHouse: {:?}", e);
+        }
+
         return Err(anyhow::anyhow!(
             "Semantic event identification failed: {:?}",
             response.error
@@ -145,20 +176,21 @@ async fn process_signal(
 
     // if response has attributes it means we identified the event
     if let Some(attributes) = response.attributes.clone() {
+        let event_id = Uuid::new_v4();
+
         // Create signal event
-        // Note: Legacy path doesn't have signal_id or run_id, use nil UUIDs
         let signal_event = CHSignalEvent::new(
-            Uuid::new_v4(),
+            event_id,
             message.project_id,
             message.event_definition.id,
             message.trace_id,
-            Uuid::new_v4(),
+            run.run_id,
             signal.name.clone(),
             attributes.clone(),
-            chrono::Utc::now(),
+            Utc::now(),
         );
 
-        insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
+        insert_signal_events(clickhouse.clone(), vec![signal_event.clone()]).await?;
 
         process_event_notifications_and_clustering(
             db,
@@ -168,6 +200,21 @@ async fn process_signal(
             signal_event,
         )
         .await?;
+
+        // Mark run as completed with event
+        run = run.completed_with_event(event_id);
+    } else {
+        // No event identified, but still completed successfully
+        run = run.completed();
+    }
+
+    // Insert completed signal run to ClickHouse
+    let ch_run = CHSignalRun::from(&run);
+    if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
+        log::error!(
+            "Failed to insert completed signal run to ClickHouse: {:?}",
+            e
+        );
     }
 
     Ok(())

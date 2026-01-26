@@ -482,15 +482,6 @@ async fn check_and_push_signals(
     }
 
     for trace in traces {
-        // Find the trigger span ID (prefer top_span_id, fall back to first span of trace)
-        let trigger_span_id = trace.top_span_id().unwrap_or_else(|| {
-            spans
-                .iter()
-                .find(|s| s.trace_id == trace.id())
-                .map(|s| s.span_id)
-                .unwrap_or_else(Uuid::nil)
-        });
-
         for trigger in &triggers {
             if !trace.matches_filters(spans, &trigger.filters) {
                 continue;
@@ -544,7 +535,7 @@ async fn check_and_push_signals(
             if let Err(e) = push_to_signals_queue(
                 trace.id(),
                 trace.project_id(),
-                trigger_span_id,
+                trigger.id,
                 trigger.signal.clone(),
                 queue.clone(),
             )

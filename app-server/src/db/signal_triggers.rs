@@ -9,12 +9,14 @@ use super::utils::Filter;
 /// Signal trigger with pre-parsed filters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalTrigger {
+    pub id: Uuid,
     pub filters: Vec<Filter>,
     pub signal: Signal,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct DBSignalTrigger {
+    id: Uuid,
     value: serde_json::Value,
     signal_id: Uuid,
     signal_name: String,
@@ -30,6 +32,7 @@ pub async fn get_signal_triggers(
     let results = sqlx::query_as::<_, DBSignalTrigger>(
         r#"
         SELECT 
+            st.id,
             st.value,
             s.id as signal_id,
             s.name as signal_name,
@@ -64,6 +67,7 @@ pub async fn get_signal_triggers(
             };
 
             Some(SignalTrigger {
+                id: db_trigger.id,
                 filters,
                 signal: Signal {
                     id: db_trigger.signal_id,

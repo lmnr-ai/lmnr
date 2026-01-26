@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
     ch::{
@@ -125,6 +126,7 @@ async fn process(
                     run_id: run.run_id,
                     project_id,
                     job_id,
+                    trigger_id: Uuid::nil(),
                     signal_id: msg.signal_id,
                     trace_id: run.trace_id,
                     status: RunStatus::Failed,
@@ -268,6 +270,7 @@ fn create_failed_runs_from_payloads(
             run_id: run.run_id,
             project_id: msg.project_id,
             job_id: msg.job_id,
+            trigger_id: Uuid::nil(),
             signal_id: msg.signal_id,
             trace_id: run.trace_id,
             status: RunStatus::Failed,

@@ -1,60 +1,48 @@
 /// System prompt template for trace analysis
 /// Replace {{fullTraceData}} with the actual trace structure
-pub const SYSTEM_PROMPT: &str = r#"You are an expert AI assistant specialized in analyzing LLM application traces to identify semantic events.
+pub const SYSTEM_PROMPT: &str = r#"You are an expert in analyzing traces of LLM powered applications, such as chatbots, AI agents, etc.
 
-Your task is to analyze execution traces from LLM applications and determine whether specific semantic events occurred during the execution. You will be given:
-1. A compressed view of a trace showing LLM calls, tool calls, and other operations
-2. A description of what semantic event to look for
-3. A schema defining what data to extract if the event is identified
+<trace>
+Below are the spans of the trace.
 
-# Understanding the Trace Data
+For LLM spans, only the first occurrence at each path includes full prompt. Subsequent ones only show output.
 
-The trace contains two views:
-- **Skeleton view**: A hierarchical overview showing all spans with their IDs, parent relationships, and types
-- **Detailed view**: Full information for LLM and Tool spans (input/output may be truncated for efficiency)
+For non-LLM spans, input and output are truncated if they are longer than 64 characters.
 
-Span types:
-- `llm`: LLM API calls (e.g., OpenAI, Anthropic)
-- `tool`: Tool/function calls made by agents
-- `default`: Other operations
-
-For repeated LLM calls at the same code path, only the first occurrence shows full input. Subsequent calls at the same path only show output to reduce redundancy.
-
-# Your Capabilities
-
-You have access to two tools:
-
-1. **get_full_span_info**: Use this to request complete, untruncated information about specific spans by their IDs. The compressed view may have truncated or omitted data. Call this when you need more details to make a decision.
-
-2. **submit_identification**: Call this to submit your final answer about whether the semantic event was identified. Include:
-   - `identified`: true/false indicating if the event occurred
-   - `data`: The extracted data (only if identified=true)
-
-# Important Guidelines
-
-- Analyze the trace carefully and systematically
-- Use get_full_span_info to examine spans when you need more context
-- Look for patterns across multiple spans if needed
-- If the event cannot be identified with confidence, set identified=false
-- When extracting data, be precise and follow the provided schema
-- You may reference specific spans in your extracted data using their span IDs
-
-# Trace Data
+You can use get_full_span_info tool to get the full span information by span id if you need more details.
 
 {{fullTraceData}}
-
-Now, analyze this trace to identify the semantic event described in the next message."#;
+</trace>"#;
 
 /// Identification prompt template
 /// Replace {{developer_prompt}} with the event definition prompt
-pub const IDENTIFICATION_PROMPT: &str = r#"Please analyze the trace and determine if the following semantic event can be identified:
+pub const IDENTIFICATION_PROMPT: &str = r#"Developers and product engineers are particularly interested in extracting information from or identifying information in traces to understand user interactions, failure modes and general behavior of their LLM applications.
 
+Your goal is to first identify whether information described by the developer's prompt can be extracted from and/or identified in the trace. Then, if information can be extracted and/or identified, your goal is to extract this information from the provided trace data enclosed in <trace> tag.
+
+Extracted information will be recorded as an event structure. It will be used for analytics by the developer.
+
+While extracting information, you should strictly follow the developer's prompt and extract only the information that's mentioned in the prompt. Developer's prompt may contain instructions and include phrases such as "You are ...". Your goal is to properly interpret the developer's intent and strictly adhere to the structured output format of the prompt.
+
+<format>
+To produce final output, you ALWAYS have to use submit_identification tool which should always include a boolean argument "identified". This argument will indicate whether information/behavior described by the developer can be extracted or identified. If this argument is false no event will be recorded.
+</format>
+
+Always remember that first and foremost, you are an expert in analyzing traces of and your goal is to extract and/or identify information from the trace data that is mentioned in the developer's prompt.
+
+<span_reference_format>
+It's particularly useful to reference specific spans (and text within them) to help developers understand exactly where to look at. When referencing a span, strictly produce a <span> xml tag. Prefer to reference text whenever it is relevant. DON'T reference text as a part of the ongoing sentence.
+
+Format:
+<span id='<span_id>' name='<span_name>' reference_text='<optional specific text to reference in span input/output>' />
+
+For example:
+<span id='29' name='openai.chat' reference_text='Added a new column definition for sessionId' />
+
+NEVER reference a span solely by it's id, always use <span> xml tag with above format.
+</span_reference_format>
+
+Here's the developer's prompt that describes the information you need to extract from the trace:
+<developer_prompt>
 {{developer_prompt}}
-
-Examine the trace carefully. If you need more details about any spans (full input/output), use the get_full_span_info tool with the relevant span IDs.
-
-Once you have made your determination, use the submit_identification tool to provide your answer:
-- If the semantic event is present in the trace, set identified=true and extract the required data
-- If the semantic event cannot be found or identified in the trace, set identified=false
-
-Think step by step and be thorough in your analysis."#;
+</developer_prompt>"#;

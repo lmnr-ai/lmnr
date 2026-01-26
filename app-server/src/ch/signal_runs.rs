@@ -36,7 +36,7 @@ impl From<&SignalRun> for CHSignalRun {
             project_id: run.project_id,
             signal_id: run.signal_id,
             job_id: run.job_id,
-            trigger_id: Uuid::nil(), // TODO: Add trigger_id to SignalRun when triggers are implemented
+            trigger_id: run.trigger_id,
             run_id: run.run_id,
             trace_id: run.trace_id,
             status: run.status.as_u8(),
