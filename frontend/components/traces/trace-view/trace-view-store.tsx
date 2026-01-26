@@ -4,9 +4,8 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
-  buildParentChain,
-  buildPathInfo,
   buildSpanNameMap,
+  computePathInfoMap,
   groupIntoSections,
   type MinimapSpan,
   type TimelineData,
@@ -209,7 +208,11 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
-        getTreeSpans: () => transformSpansToTree(get().spans),
+        getTreeSpans: () => {
+          const spans = get().spans;
+          const pathInfoMap = computePathInfoMap(spans);
+          return transformSpansToTree(spans, pathInfoMap);
+        },
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
@@ -233,40 +236,23 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         getTimelineData: () => transformSpansToTimeline(get().spans),
         getListData: () => {
           const spans = get().spans;
-
           const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+          const pathInfoMap = computePathInfoMap(spans);
 
-          const spanMap = new Map(
-            spans.map((span) => [
-              span.spanId,
-              {
-                spanId: span.spanId,
-                name: span.name,
-                parentSpanId: span.parentSpanId,
-              },
-            ])
-          );
-
-          const sections = groupIntoSections(listSpans);
-          const spanNameMap = buildSpanNameMap(sections, spanMap);
-
-          const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => {
-            const parentChain = buildParentChain(span, spanMap);
-            return {
-              spanId: span.spanId,
-              parentSpanId: span.parentSpanId,
-              spanType: span.spanType,
-              name: span.name,
-              model: span.model,
-              startTime: span.startTime,
-              endTime: span.endTime,
-              totalTokens: span.totalTokens,
-              cacheReadInputTokens: span.cacheReadInputTokens,
-              totalCost: span.totalCost,
-              pending: span.pending,
-              pathInfo: buildPathInfo(parentChain, spanNameMap),
-            };
-          });
+          const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
+            spanId: span.spanId,
+            parentSpanId: span.parentSpanId,
+            spanType: span.spanType,
+            name: span.name,
+            model: span.model,
+            startTime: span.startTime,
+            endTime: span.endTime,
+            totalTokens: span.totalTokens,
+            cacheReadInputTokens: span.cacheReadInputTokens,
+            totalCost: span.totalCost,
+            pending: span.pending,
+            pathInfo: pathInfoMap.get(span.spanId) ?? null,
+          }));
 
           return lightweightListSpans;
         },

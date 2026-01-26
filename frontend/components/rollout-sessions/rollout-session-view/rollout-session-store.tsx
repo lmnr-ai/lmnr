@@ -8,6 +8,7 @@ import {
   buildParentChain,
   buildPathInfo,
   buildSpanNameMap,
+  computePathInfoMap,
   groupIntoSections,
   type MinimapSpan,
   type TimelineData,
@@ -197,6 +198,11 @@ const createRolloutSessionStore = ({
         paramValues: "" as string, // Empty JSON string initially
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
+        getTreeSpans: () => {
+          const spans = get().spans;
+          const pathInfoMap = computePathInfoMap(spans);
+          return transformSpansToTree(spans, pathInfoMap);
+        },
         setTrace: (trace) => {
           if (typeof trace === "function") {
             const prevTrace = get().trace;
@@ -243,7 +249,6 @@ const createRolloutSessionStore = ({
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
-        getTreeSpans: () => transformSpansToTree(get().spans),
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {

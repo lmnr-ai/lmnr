@@ -4,12 +4,20 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-st
 import { type SpanType } from "@/lib/traces/types.ts";
 import { getDuration } from "@/lib/utils";
 
+export type PathInfo = {
+  display: Array<{ spanId: string; name: string; count?: number }>;
+  full: Array<{ spanId: string; name: string }>;
+} | null;
+
 export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
+  branchMask: boolean[];  // branchMask[d] = true if ancestor at depth d has more children below
+  pending: boolean;
+  pathInfo: PathInfo;
+  // Keep yOffset/parentY for backward compatibility (minimap uses them)
   yOffset: number;
   parentY: number;
-  pending: boolean;
 }
 
 export interface SegmentEvent {
@@ -55,12 +63,39 @@ export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: s
   return childSpans;
 };
 
-export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
+export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo> => {
+  // Build spanMap for parent lookups (needs ALL spans)
+  const spanMap = new Map(
+    spans.map((span) => [
+      span.spanId,
+      { spanId: span.spanId, name: span.name, parentSpanId: span.parentSpanId },
+    ])
+  );
+
+  // Sections needed for display counts
+  const nonDefaultSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+  const sections = groupIntoSections(nonDefaultSpans);
+  const spanNameMap = buildSpanNameMap(sections, spanMap);
+
+  // Compute pathInfo for each span
+  const pathInfoMap = new Map<string, PathInfo>();
+  for (const span of spans) {
+    const parentChain = buildParentChain(span, spanMap);
+    pathInfoMap.set(span.spanId, buildPathInfo(parentChain, spanNameMap));
+  }
+
+  return pathInfoMap;
+};
+
+export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<string, PathInfo>): TreeSpan[] => {
   const topLevelSpans = spans.filter((span) => !span.parentSpanId);
   const childSpans = getChildSpansMap(spans);
 
   const spanItems: TreeSpan[] = [];
   const maxY = { current: 0 };
+
+  // Track which ancestor depths have more children to render
+  const activeAncestors: boolean[] = [];
 
   const buildTreeWithCollapse = (
     items: TreeSpan[],
@@ -71,19 +106,43 @@ export const transformSpansToTree = (spans: TraceViewSpan[]): TreeSpan[] => {
   ) => {
     const yOffset = maxY.current + 36;
 
+    // Capture branchMask as snapshot of active ancestors for depths 0 to depth-1
+    const branchMask = activeAncestors.slice(0, depth);
+
     items.push({
       span,
       depth,
+      branchMask,
       yOffset,
       parentY,
       pending: span.pending || false,
+      pathInfo: pathInfoMap?.get(span.spanId) ?? null,
     });
 
     maxY.current = maxY.current + 36;
 
     if (!span.collapsed) {
+      const children = childSpans[span.spanId] || [];
       const py = maxY.current;
-      childSpans[span.spanId]?.forEach((child) => buildTreeWithCollapse(items, child, depth + 1, maxY, py));
+
+      children.forEach((child, index) => {
+        const isLastChild = index === children.length - 1;
+
+        // Ensure array is long enough
+        while (activeAncestors.length <= depth) {
+          activeAncestors.push(false);
+        }
+
+        // Set whether this depth has more siblings coming
+        activeAncestors[depth] = !isLastChild;
+
+        buildTreeWithCollapse(items, child, depth + 1, maxY, py);
+      });
+
+      // Clear this depth when done
+      if (activeAncestors.length > depth) {
+        activeAncestors[depth] = false;
+      }
     }
   };
 
@@ -267,9 +326,11 @@ export const transformSpansToFlatMinimap = (spans: TraceViewSpan[], traceDuratio
     return {
       span,
       depth: 0,
+      branchMask: [],
       yOffset: 0,
       parentY: 0,
       pending: span.pending || false,
+      pathInfo: null,
       y: relativeStart * pixelsPerSecond,
       height: Math.max(MIN_H, spanDuration * pixelsPerSecond),
       status: span.attributes?.status,

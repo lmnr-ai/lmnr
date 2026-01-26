@@ -18,7 +18,7 @@ import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/se
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
-import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
+import Tree from "@/components/rollout-sessions/rollout-session-view/tree/index";
 import {
   onRealtimeStartSpan,
   onRealtimeUpdateSpans,
@@ -557,7 +557,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                   </div>
                 ) : (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
+                    <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
                     <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 ))}

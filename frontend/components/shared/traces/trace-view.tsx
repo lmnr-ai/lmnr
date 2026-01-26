@@ -211,7 +211,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                     {tab === "timeline" && <Timeline />}
                     {tab === "tree" && (
                       <div className="flex flex-1 overflow-hidden relative">
-                        <Tree onSpanSelect={handleSpanSelect} />
+                        <Tree traceId={trace.id} onSpanSelect={handleSpanSelect} />
                         <Minimap onSpanSelect={handleSpanSelect} />
                       </div>
                     )}
