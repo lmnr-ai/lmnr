@@ -246,12 +246,10 @@ async fn process_succeeded_batch(
     clickhouse: clickhouse::Client,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
-    let response = response.ok_or_else(|| {
-        HandlerError::permanent(anyhow::anyhow!(
-            "Batch succeeded but response is missing for batch_id: {}",
-            message.batch_id
-        ))
-    })?;
+    let response = response.ok_or(HandlerError::permanent(anyhow::anyhow!(
+        "Batch succeeded but response is missing for batch_id: {}",
+        message.batch_id
+    )))?;
 
     let inlined_responses = &response.inlined_responses.inlined_responses;
 
