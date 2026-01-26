@@ -127,7 +127,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
               {...field}
               type={dataType === "number" ? "number" : "text"}
               placeholder="Enter value..."
-              className="flex-1"
+              className="flex-1 hide-arrow"
               value={field.value as string}
             />
           )}
@@ -152,12 +152,7 @@ export function TriggerFiltersField() {
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <div>
-          <Label>Filter Conditions</Label>
-          <p className="text-xs text-muted-foreground mt-1">
-            All conditions must match (AND) for this trigger to fire.
-          </p>
-        </div>
+        <Label>All conditions must match (AND) for this trigger to fire.</Label>
         <Button type="button" icon="plus" variant="outline" onClick={() => append(getDefaultFilter())}>
           Add Filter
         </Button>

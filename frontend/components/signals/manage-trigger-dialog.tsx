@@ -59,9 +59,7 @@ function ManageTriggerDialogContent({ setOpen, onSave, isNew }: ManageTriggerDia
     <DialogContent className="max-w-2xl">
       <DialogHeader>
         <DialogTitle>{isNew ? "Add Trigger" : "Edit Trigger"}</DialogTitle>
-        <DialogDescription>
-          Configure the filter conditions for this trigger. All filters are combined with AND (all must match).
-        </DialogDescription>
+        <DialogDescription>Configure the filter conditions for this trigger.</DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit(submit)} className="grid gap-4">
         <TriggerFiltersField />

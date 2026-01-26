@@ -3,7 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import {
   createSignalTrigger,
-  deleteSignalTrigger,
+  deleteSignalTriggers,
   getSignalTriggers,
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
@@ -97,23 +97,19 @@ export async function DELETE(
 
   try {
     const body = await req.json();
-    const result = await deleteSignalTrigger({
+    const result = await deleteSignalTriggers({
       projectId,
       signalId,
-      triggerId: body.triggerId,
+      triggerIds: body.triggerIds,
     });
 
-    if (!result) {
-      return Response.json({ error: "Trigger not found" }, { status: 404 });
-    }
-
-    return Response.json({ success: true });
+    return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete trigger." },
+      { error: error instanceof Error ? error.message : "Failed to delete triggers." },
       { status: 500 }
     );
   }

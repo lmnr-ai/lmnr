@@ -30,10 +30,10 @@ export const UpdateSignalTriggerSchema = z.object({
   filters: z.array(FilterSchema),
 });
 
-export const DeleteSignalTriggerSchema = z.object({
+export const DeleteSignalTriggersSchema = z.object({
   projectId: z.string(),
   signalId: z.string(),
-  triggerId: z.string(),
+  triggerIds: z.array(z.string()).min(1, "At least one trigger ID is required"),
 });
 
 export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersSchema>) {
@@ -111,21 +111,25 @@ export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTrig
   };
 }
 
-export async function deleteSignalTrigger(input: z.infer<typeof DeleteSignalTriggerSchema>) {
-  const { projectId, signalId, triggerId } = DeleteSignalTriggerSchema.parse(input);
+export async function deleteSignalTriggers(input: z.infer<typeof DeleteSignalTriggersSchema>) {
+  const { projectId, signalId, triggerIds } = DeleteSignalTriggersSchema.parse(input);
 
-  const [result] = await db
-    .delete(signalTriggers)
-    .where(
-      and(
-        eq(signalTriggers.projectId, projectId),
-        eq(signalTriggers.signalId, signalId),
-        eq(signalTriggers.id, triggerId)
-      )
+  const results = await Promise.all(
+    triggerIds.map((triggerId) =>
+      db
+        .delete(signalTriggers)
+        .where(
+          and(
+            eq(signalTriggers.projectId, projectId),
+            eq(signalTriggers.signalId, signalId),
+            eq(signalTriggers.id, triggerId)
+          )
+        )
+        .returning()
     )
-    .returning();
+  );
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
-  return result;
+  return { deletedCount: results.flat().length };
 }
