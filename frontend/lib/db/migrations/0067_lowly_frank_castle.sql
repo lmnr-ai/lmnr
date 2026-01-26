@@ -1,0 +1,1 @@
+ALTER TABLE "traces" ADD COLUMN "span_names" jsonb;--> statement-breakpoint

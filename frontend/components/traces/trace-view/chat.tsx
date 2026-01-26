@@ -1,15 +1,21 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, Loader2, RotateCcw } from "lucide-react";
+import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { type TraceViewTrace, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
+
+const EXAMPLE_QUESTIONS = [
+  "What happened in this trace? Give me a summary.",
+  "Are there any errors or failures in this trace?",
+  "What was the LLM's reasoning in this trace?",
+];
 
 interface ChatProps {
   trace: TraceViewTrace;
@@ -18,15 +24,37 @@ interface ChatProps {
 
 export default function Chat({ trace, onSetSpanId }: ChatProps) {
   const [input, setInput] = useState("");
-  const [summary, setSummary] = useState<string | null>(null);
-  const [spanIdsMap, setSpanIdsMap] = useState<Record<string, string> | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
   const [newChatLoading, setNewChatLoading] = useState(false);
   const { setSearch } = useTraceViewStoreContext((state) => ({
     setSearch: state.setSearch,
   }));
+  const projectId = useParams().projectId;
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Resolve sequential span ID to UUID on-demand
+  const resolveSpanId = useCallback(
+    async (sequentialId: string): Promise<string | null> => {
+      try {
+        const response = await fetch(
+          `/api/projects/${projectId}/traces/${trace.id}/agent/resolve-span?id=${sequentialId}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          return data.spanId;
+        }
+      } catch (error) {
+        console.error("Error resolving span ID:", error);
+      }
+      return null;
+    },
+    [projectId, trace.id]
+  );
+
+  const handleExampleClick = (question: string) => {
+    sendMessage({
+      role: "user",
+      parts: [{ type: "text", text: question }],
+    });
+  };
 
   const components = useMemo(
     () => ({
@@ -36,11 +64,13 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s*\/>/);
         if (xmlSpanMatch) {
           const [, spanId, spanName] = xmlSpanMatch;
-          const spanUuid = spanIdsMap?.[spanId];
           return (
             <button
-              onClick={() => {
-                onSetSpanId(spanUuid || "");
+              onClick={async () => {
+                const spanUuid = await resolveSpanId(spanId);
+                if (spanUuid) {
+                  onSetSpanId(spanUuid);
+                }
               }}
             >
               <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
@@ -56,7 +86,6 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           const [, spanId, spanName, referenceText] = xmlSpanWithReferenceTextMatch;
           // Unescape any escaped quotes in the reference text
           const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
-          const spanUuid = spanIdsMap?.[spanId];
 
           const previewLength = 24;
           const textPreview =
@@ -66,9 +95,12 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
 
           return (
             <button
-              onClick={() => {
+              onClick={async () => {
                 setSearch(unescapedReferenceText);
-                onSetSpanId(spanUuid || "");
+                const spanUuid = await resolveSpanId(spanId);
+                if (spanUuid) {
+                  onSetSpanId(spanUuid);
+                }
               }}
             >
               <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
@@ -81,9 +113,8 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [spanIdsMap, onSetSpanId, setSearch]
+    [resolveSpanId, onSetSpanId, setSearch]
   );
-  const projectId = useParams().projectId;
 
   const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
@@ -162,58 +193,35 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
     loadExistingMessages();
   }, [trace.id, projectId, setMessages]);
 
-  // Fetch summary on component mount
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        setSummaryLoading(true);
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/summary`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            traceStartTime: new Date(trace.startTime).toISOString(),
-            traceEndTime: new Date(trace.endTime).toISOString(),
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          const { summary, analysis, spanIdsMap } = data;
-
-          const summaryAndAnalysis = `
-${summary}
-
----
-
-${analysis}`;
-
-          setSummary(summaryAndAnalysis);
-          setSpanIdsMap(spanIdsMap);
-        } else {
-          console.error("Failed to fetch summary");
-        }
-      } catch (error) {
-        console.error("Error fetching summary:", error);
-      } finally {
-        setSummaryLoading(false);
-      }
-    };
-
-    fetchSummary();
-  }, [trace.id, trace.startTime, trace.endTime, projectId]);
-
   return (
     <div className="grow flex flex-col overflow-auto">
       <Conversation>
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
-          <div className="p-4">
-            <div className="">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-foreground">Trace Summary</span>
-                {messages.length > 0 && (
+          {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
+            <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+              <p className="text-sm text-muted-foreground text-center mb-6 max-w-sm">
+                Ask questions about this trace to understand what happened, find errors, or get insights.
+              </p>
+              <div className="w-full max-w-md space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageCircleQuestion className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium">Try asking</span>
+                </div>
+                {EXAMPLE_QUESTIONS.map((question, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleExampleClick(question)}
+                    className="w-full text-left px-3 py-2 text-sm rounded-md border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-colors text-foreground/80 hover:text-foreground"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.length > 0 && (
+                <div className="px-4 flex justify-end">
                   <Button
                     onClick={handleNewChat}
                     variant="outline"
@@ -228,57 +236,48 @@ ${analysis}`;
                     )}
                     New Chat
                   </Button>
-                )}
-              </div>
-              {summaryLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating summary...</span>
                 </div>
-              ) : summary ? (
-                <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                  <Response components={components}>{summary}</Response>
-                </div>
-              ) : null}
-            </div>
-          </div>
+              )}
 
-          {messages.map((message) => (
-            <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
-              <div
-                className={cn(
-                  "w-full",
-                  message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background"
-                )}
-              >
-                <div className="text-sm text-foreground leading-relaxed space-y-2">
-                  {message.parts.map((part, i) => {
-                    switch (part.type) {
-                      case "text":
-                        return (
-                          <div key={`${message.id}-${i}`}>
-                            <Response components={components}>{part.text}</Response>
-                          </div>
-                        );
-                      case "tool-getSpansData":
-                        return (
-                          <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-muted-foreground">Fetching spans data</span>
-                            </div>
-                          </div>
-                        );
-                    }
-                  })}
+              {messages.map((message) => (
+                <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
+                  <div
+                    className={cn(
+                      "w-full",
+                      message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background"
+                    )}
+                  >
+                    <div className="text-sm text-foreground leading-relaxed space-y-2">
+                      {message.parts.map((part, i) => {
+                        switch (part.type) {
+                          case "text":
+                            return (
+                              <div key={`${message.id}-${i}`}>
+                                <Response components={components}>{part.text}</Response>
+                              </div>
+                            );
+                          case "tool-getSpansData":
+                            return (
+                              <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-muted-foreground">Fetching spans data</span>
+                                </div>
+                              </div>
+                            );
+                        }
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-          {status === "submitted" && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Thinking...</span>
-            </div>
+              ))}
+
+              {status === "submitted" && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              )}
+            </>
           )}
         </ConversationContent>
       </Conversation>
@@ -296,11 +295,9 @@ ${analysis}`;
                 setInput("");
               }
             }}
-            className="py-1 pr-1"
           >
-            <div className="relative">
-              <Input
-                ref={inputRef}
+            <div className="relative p-0 flex w-full py-1">
+              <DefaultTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -315,15 +312,15 @@ ${analysis}`;
                     }
                   }
                 }}
-                placeholder="Ask about performance, errors, or trace insights..."
-                className="pr-12 bg-transparent border-none focus-visible:ring-0"
+                placeholder="Ask about logical errors, insights, or anything else..."
+                className="bg-transparent border-none focus-visible:ring-0 resize-none w-full"
               />
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 top-0 h-7 w-7 rounded-full border bg-primary"
+                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border bg-primary"
                 variant="ghost"
-                disabled={input.trim() === "" || summary === null || status === "streaming"}
+                disabled={input.trim() === "" || status === "streaming"}
                 onClick={() => {
                   if (input.trim()) {
                     sendMessage({

@@ -460,8 +460,22 @@
     {
       "idx": 65,
       "version": "7",
-      "when": 1769360024448,
-      "tag": "0065_stormy_mantis",
+      "when": 1768833620880,
+      "tag": "0065_magical_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1768843438222,
+      "tag": "0066_sturdy_quasimodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1769442895267,
+      "tag": "0067_lowly_frank_castle",
       "breakpoints": true
     }
   ]
