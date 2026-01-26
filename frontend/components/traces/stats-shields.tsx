@@ -106,6 +106,25 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
     }
   }
 
+  const genAiToolDefinitions = get(attributes, "gen_ai.tool.definitions");
+  // TODO: add strong typing here, make it flexible for non-OpenAI tool typing, potentially
+  // moving the schema parsing to provider-specific types, i.e. @/lib/spans/types
+  if (genAiToolDefinitions) {
+    try {
+      const parsed = JSON.parse(genAiToolDefinitions)
+      return parsed.map((tool: any) => {
+        const func = tool.function ?? tool;
+        return {
+          name: func.name,
+          description: func.description,
+          parameters: typeof func.parameters === "string" ? func.parameters : JSON.stringify(func.parameters || {}),
+        }
+      });
+    } catch (e) {
+      console.error("Failed to parse gen_ai.tool.definitions:", e);
+    }
+  }
+
   const functionIndices = uniq(
     Object.keys(attributes)
       .map((key) => key.match(/^llm\.request\.functions\.(\d+)\.name$/)?.[1])

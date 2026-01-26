@@ -119,23 +119,51 @@ export const parseTools = (tools?: string) => {
   );
 };
 
-export const parseToolsFromSpan = (
+const parseAiSdkToolsFromSpan = (
   tools?: { name: string; type: string; description?: string; parameters: Record<string, any> }[]
 ) =>
   tools
     ? JSON.stringify(
-        tools.reduce(
-          (acc, tool) => ({
-            ...acc,
-            [tool.name]: {
-              description: tool.description || "",
-              parameters: tool.parameters,
-            },
-          }),
-          {}
-        )
+      tools.reduce(
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
       )
+    )
     : undefined;
+
+
+const parseGenAiToolsDefinitionsFromSpan = (
+  tools?: string
+) => {
+  try {
+    if (!tools) {
+      return undefined;
+    }
+    const parsedTools = JSON.parse(tools) as { type: "function"; name?: string; function: { name: string; description?: string; parameters: Record<string, any> } }[];
+    return JSON.stringify(parsedTools.reduce(
+      (acc, tool) => {
+        const func = tool.function ?? tool;
+        return {
+          ...acc,
+          [func.name]: {
+            description: func.description || "",
+            parameters: func.parameters,
+          },
+        };
+      },
+      {}
+    ));
+  } catch (e) {
+    console.error(`Failed to parse gen_ai.tool.definitions:`, e);
+    return undefined;
+  }
+};
 
 export const parseToolChoiceFromSpan = (toolChoice?: string) => {
   if (!toolChoice) {
@@ -196,17 +224,17 @@ export const parseToolsFromLLMRequest = (span: Span) => {
   // If we found any functions, format them the same way as parseToolsFromSpan
   return functions.length > 0
     ? JSON.stringify(
-        functions.reduce(
-          (acc, tool) => ({
-            ...acc,
-            [tool.name]: {
-              description: tool.description || "",
-              parameters: tool.parameters,
-            },
-          }),
-          {}
-        )
+      functions.reduce(
+        (acc, tool) => ({
+          ...acc,
+          [tool.name]: {
+            description: tool.description || "",
+            parameters: tool.parameters,
+          },
+        }),
+        {}
       )
+    )
     : undefined;
 };
 
@@ -225,8 +253,12 @@ export const getPlaygroundConfig = (
   const existingModels = providers.flatMap((p) => p.models).map((p) => p.name);
   const models = providers.flatMap((p) => p.models);
 
-  const tools = get(span, ["attributes", "ai.prompt.tools"]);
-  const parsedTools = tools ? parseToolsFromSpan(tools) : parseToolsFromLLMRequest(span);
+  // TODO: unify this logic with the one in StatsShields
+  const aiSdkTools = get(span, ["attributes", "ai.prompt.tools"]);
+  const genAiTools = get(span, ["attributes", "gen_ai.tool.definitions"]);
+  const parsedTools = aiSdkTools ? parseAiSdkToolsFromSpan(aiSdkTools) : (
+    genAiTools ? parseGenAiToolsDefinitionsFromSpan(genAiTools) : parseToolsFromLLMRequest(span)
+  );
 
   const toolChoice = get(span, ["attributes", "ai.prompt.toolChoice"]);
   const parsedToolChoice = parseToolChoiceFromSpan(toolChoice);

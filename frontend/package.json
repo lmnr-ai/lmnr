@@ -58,7 +58,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.1",
     "@lezer/highlight": "^1.2.1",
-    "@lmnr-ai/lmnr": "^0.7.8",
+    "@lmnr-ai/lmnr": "^0.8.6",
     "@mux/mux-player-react": "^3.5.3",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
