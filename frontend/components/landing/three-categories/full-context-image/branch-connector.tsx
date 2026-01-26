@@ -19,12 +19,23 @@ const connectorVariants = {
   tree: {
     width: TREE_GUTTER_WIDTH,
     opacity: 1,
-    transition: { duration: 0.3, ease: "easeInOut" },
+    transition: { duration: 0.6, ease: "easeInOut" },
   },
   reader: {
     width: 0,
     opacity: 0,
-    transition: { duration: 0.3, ease: "easeInOut" },
+    transition: { duration: 1.2, ease: "easeInOut" },
+  },
+};
+
+const lineVariants = {
+  tree: {
+    borderColor: "var(--color-landing-surface-400)",
+    transition: { duration: 0.6, ease: "easeInOut" },
+  },
+  reader: {
+    borderColor: "var(--color-landing-text-600)",
+    transition: { duration: 1.2, ease: "easeInOut" },
   },
 };
 
@@ -44,21 +55,27 @@ export function BranchConnector({ depth, branchMask, mode }: BranchConnectorProp
           >
             {/* L-connector for the last column */}
             {isLastColumn && (
-              <div
-                className="absolute border-l-2 border-b-2 rounded-bl-md border-landing-surface-400"
+              <motion.div
+                className="absolute border-l-2 border-b-2 rounded-bl-md"
                 style={{
                   height: ROW_HEIGHT / 2,
                   left: TREE_LINE_LEFT_BASE,
                   width: TREE_LINE_WIDTH,
                 }}
+                variants={lineVariants}
+                animate={mode}
+                initial={false}
               />
             )}
 
             {/* Vertical continuation line if more siblings at this depth */}
             {branchMask[d] && (
-              <div
-                className="absolute h-full border-l-2 border-landing-surface-400"
+              <motion.div
+                className="absolute h-full border-l-2"
                 style={{ left: TREE_LINE_LEFT_BASE }}
+                variants={lineVariants}
+                animate={mode}
+                initial={false}
               />
             )}
           </motion.div>

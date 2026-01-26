@@ -34,7 +34,7 @@ const FullContextImage = ({ className }: Props) => {
   });
 
   const opacity = useTransform(scrollYProgress, [0, 0.5, 1], [0, 0.8, 1]);
-  const translateY = useTransform(scrollYProgress, [0, 1], [containerHeight % -1, containerHeight * -1.4]);
+  const translateY = useTransform(scrollYProgress, [0, 1], [containerHeight % -0.2, containerHeight * -0.6]);
 
   // Determine mode based on scroll progress (tree -> reader at 50%)
   const [mode, setMode] = useState<"tree" | "reader">("tree");
