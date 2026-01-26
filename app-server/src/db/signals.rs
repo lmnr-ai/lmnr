@@ -7,6 +7,7 @@ use uuid::Uuid;
 /// Signal with prompt and schema
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Signal {
+    #[serde(default)]
     pub id: Uuid,
     pub name: String,
     pub prompt: String,
