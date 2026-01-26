@@ -506,7 +506,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     </div>
                   ) : (
                     <div className="flex flex-1 h-full overflow-hidden relative">
-                      <Tree onSpanSelect={handleSpanSelect} />
+                      <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
                       <Minimap onSpanSelect={handleSpanSelect} />
                     </div>
                   ))}

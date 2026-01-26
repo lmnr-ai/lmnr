@@ -260,21 +260,28 @@ export const transformSpanWithEvents = (
   spanEventsMap: Record<string, any[]>,
   parentRewiring: Map<string, string | undefined>,
   projectId: string
-): TraceViewSpan => ({
-  ...span,
-  attributes: tryParseJson(span.attributes) || {},
-  parentSpanId: applyParentRewiring(span, parentRewiring),
-  name: span.name,
-  events: (spanEventsMap[span.spanId] || []).map((event) => ({
-    ...event,
-    projectId,
-  })),
-  collapsed: false,
-});
+): TraceViewSpan => {
+  const parsedAttributes = tryParseJson(span.attributes) || {};
+  const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
+
+  return {
+    ...span,
+    attributes: parsedAttributes,
+    cacheReadInputTokens,
+    parentSpanId: applyParentRewiring(span, parentRewiring),
+    name: span.name,
+    events: (spanEventsMap[span.spanId] || []).map((event) => ({
+      ...event,
+      projectId,
+    })),
+    collapsed: false,
+  };
+};
 
 interface AggregatedMetrics {
   totalCost: number;
   totalTokens: number;
+  cacheReadInputTokens: number;
   hasLLMDescendants: boolean;
 }
 
@@ -304,10 +311,12 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       if (span.spanType === "LLM") {
         const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
         const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+        const cacheTokens = span.cacheReadInputTokens ?? 0;
 
         const metrics = {
           totalCost: cost,
           totalTokens: tokens,
+          cacheReadInputTokens: cacheTokens,
           hasLLMDescendants: true,
         };
         metricsCache.set(spanId, metrics);
@@ -319,6 +328,7 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
 
     let totalCost = 0;
     let totalTokens = 0;
+    let cacheReadInputTokens = 0;
     let hasLLMDescendants = false;
 
     for (const childId of children) {
@@ -326,6 +336,7 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       if (childMetrics) {
         totalCost += childMetrics.totalCost;
         totalTokens += childMetrics.totalTokens;
+        cacheReadInputTokens += childMetrics.cacheReadInputTokens;
         hasLLMDescendants = true;
       }
     }
@@ -334,6 +345,7 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       const metrics = {
         totalCost,
         totalTokens,
+        cacheReadInputTokens,
         hasLLMDescendants: true,
       };
       metricsCache.set(spanId, metrics);

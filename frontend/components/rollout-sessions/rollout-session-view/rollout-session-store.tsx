@@ -3,10 +3,12 @@ import { createContext, type PropsWithChildren, useContext, useRef } from "react
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
   buildParentChain,
   buildPathInfo,
   buildSpanNameMap,
+  computePathInfoMap,
   groupIntoSections,
   type MinimapSpan,
   type TimelineData,
@@ -17,7 +19,6 @@ import {
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
-import { type Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { SpanType } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils.ts";
@@ -29,34 +30,6 @@ export const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 export const MIN_SIDEBAR_WIDTH = 450;
 
-export type TraceViewSpan = {
-  spanId: string;
-  parentSpanId?: string;
-  traceId: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  attributes: Record<string, any>;
-  spanType: SpanType;
-  path: string;
-  events: Event[];
-  status?: string;
-  model?: string;
-  pending?: boolean;
-  collapsed: boolean;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  aggregatedMetrics?: {
-    totalCost: number;
-    totalTokens: number;
-    hasLLMDescendants: boolean;
-  };
-};
-
 export type TraceViewListSpan = {
   spanId: string;
   parentSpanId?: string;
@@ -67,28 +40,12 @@ export type TraceViewListSpan = {
   endTime: string;
   totalTokens: number;
   totalCost: number;
+  cacheReadInputTokens?: number;
   pending?: boolean;
   pathInfo: {
     display: Array<{ spanId: string; name: string; count?: number }>;
     full: Array<{ spanId: string; name: string }>;
   } | null;
-};
-
-export type TraceViewTrace = {
-  id: string;
-  startTime: string;
-  endTime: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  metadata: string;
-  status: string;
-  traceType: string;
-  visibility: "public" | "private";
-  hasBrowserSession: boolean;
 };
 
 interface RolloutSessionStoreState {
@@ -241,6 +198,11 @@ const createRolloutSessionStore = ({
         paramValues: "" as string, // Empty JSON string initially
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
+        getTreeSpans: () => {
+          const spans = get().spans;
+          const pathInfoMap = computePathInfoMap(spans);
+          return transformSpansToTree(spans, pathInfoMap);
+        },
         setTrace: (trace) => {
           if (typeof trace === "function") {
             const prevTrace = get().trace;
@@ -287,7 +249,6 @@ const createRolloutSessionStore = ({
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
-        getTreeSpans: () => transformSpansToTree(get().spans),
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
@@ -340,6 +301,7 @@ const createRolloutSessionStore = ({
               endTime: span.endTime,
               totalTokens: span.totalTokens,
               totalCost: span.totalCost,
+              cacheReadInputTokens: span.cacheReadInputTokens,
               pending: span.pending,
               pathInfo: buildPathInfo(parentChain, spanNameMap),
             };
