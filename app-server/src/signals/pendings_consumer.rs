@@ -555,14 +555,14 @@ async fn process_single_response(
                 // Add tool result to new messages
                 let function_response_content = Content {
                     role: Some("user".to_string()),
-                    parts: vec![Part {
+                    parts: Some(vec![Part {
                         function_response: Some(FunctionResponse {
                             name: function_call.name.clone(),
                             response: tool_result.clone(),
                             id: function_call.id.clone(),
                         }),
                         ..Default::default()
-                    }],
+                    }]),
                 };
 
                 let tool_output_msg = CHSignalRunMessage::new(

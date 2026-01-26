@@ -365,18 +365,18 @@ async fn process_run(
         // Create Content objects (used for both storage and API request)
         let system_content = Content {
             role: Some("system".to_string()), // Stored as "system", converted to None for Gemini API
-            parts: vec![Part {
+            parts: Some(vec![Part {
                 text: Some(system_prompt.clone()),
                 ..Default::default()
-            }],
+            }]),
         };
 
         let user_content = Content {
             role: Some("user".to_string()),
-            parts: vec![Part {
+            parts: Some(vec![Part {
                 text: Some(user_prompt.clone()),
                 ..Default::default()
-            }],
+            }]),
         };
 
         // Store as serialized Content for consistent format

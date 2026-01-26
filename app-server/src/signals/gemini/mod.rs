@@ -95,7 +95,8 @@ impl GeminiError {
 pub struct Content {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
-    pub parts: Vec<Part>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<Part>>,
 }
 
 /// A part of a multi-part content message.
