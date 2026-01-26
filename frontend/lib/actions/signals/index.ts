@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
@@ -9,7 +9,13 @@ import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signals, signalTriggers } from "@/lib/db/migrations/schema";
 
-export type SignalRow = Omit<Signal, "prompt" | "structuredOutput">;
+export type SignalRow = {
+  id: string;
+  name: string;
+  createdAt: string;
+  projectId: string;
+  triggersCount: number;
+};
 
 export type Signal = {
   id: string;
@@ -18,7 +24,6 @@ export type Signal = {
   projectId: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
-  triggers: Filter[];
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -32,12 +37,17 @@ export const GetSignalSchema = z.object({
   id: z.string(),
 });
 
+export const TriggerSchema = z.object({
+  id: z.string().optional(),
+  filters: z.array(FilterSchema),
+});
+
 export const CreateSignalSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(FilterSchema).optional().default([]),
+  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 export const UpdateSignalSchema = z.object({
@@ -45,7 +55,7 @@ export const UpdateSignalSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(FilterSchema).optional().default([]),
+  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -105,10 +115,11 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     .limit(limit)
     .offset(offset);
 
-  const triggerSpans = (await db
+  // Get trigger counts per signal
+  const triggerCounts = (await db
     .select({
       signalId: signalTriggers.signalId,
-      value: signalTriggers.value,
+      count: sql`count(*)`.mapWith(Number),
     })
     .from(signalTriggers)
     .where(
@@ -119,19 +130,20 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           results.map((r) => r.id)
         )
       )
-    )) as { signalId: string; value: Filter[] }[];
+    )
+    .groupBy(signalTriggers.signalId)) as { signalId: string; count: number }[];
 
-  const triggerSpansBySignal = triggerSpans.reduce(
-    (acc, span) => ({
+  const triggerCountBySignal = triggerCounts.reduce(
+    (acc, row) => ({
       ...acc,
-      [span.signalId]: span.value,
+      [row.signalId]: row.count,
     }),
-    {} as Record<string, Filter[]>
+    {} as Record<string, number>
   );
 
-  const items = results.map((signal) => ({
+  const items: SignalRow[] = results.map((signal) => ({
     ...signal,
-    triggers: triggerSpansBySignal[signal.id] || [],
+    triggersCount: triggerCountBySignal[signal.id] || 0,
   }));
 
   return {
@@ -152,18 +164,27 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     return result;
   }
 
-  const [triggerRow] = (await db
+  const triggerRows = (await db
     .select({
+      id: signalTriggers.id,
       value: signalTriggers.value,
+      createdAt: signalTriggers.createdAt,
     })
     .from(signalTriggers)
-    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)))
-    .limit(1)) as { value: Filter[] }[];
+    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)))) as {
+    id: string;
+    value: Filter[];
+    createdAt: string;
+  }[];
 
   return {
     ...result,
     structuredOutput: result.structuredOutputSchema,
-    triggers: triggerRow?.value ?? [],
+    triggers: triggerRows.map((row) => ({
+      id: row.id,
+      filters: row.value,
+      createdAt: row.createdAt,
+    })),
   };
 }
 
@@ -181,11 +202,13 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
     .returning();
 
   if (triggers.length > 0) {
-    await db.insert(signalTriggers).values({
-      projectId,
-      signalId: result.id,
-      value: triggers,
-    });
+    await db.insert(signalTriggers).values(
+      triggers.map((trigger) => ({
+        projectId,
+        signalId: result.id,
+        value: trigger.filters,
+      }))
+    );
 
     await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
   }
@@ -213,11 +236,13 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
       .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)));
 
     if (triggers.length > 0) {
-      await tx.insert(signalTriggers).values({
-        projectId,
-        signalId: result.id,
-        value: triggers,
-      });
+      await tx.insert(signalTriggers).values(
+        triggers.map((trigger) => ({
+          projectId,
+          signalId: result.id,
+          value: trigger.filters,
+        }))
+      );
     }
 
     return result;

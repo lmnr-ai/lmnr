@@ -1,7 +1,8 @@
 "use client";
 
+import { type Row } from "@tanstack/react-table";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 import useSWR from "swr";
 
@@ -11,13 +12,17 @@ import { Button } from "@/components/ui/button.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context.tsx";
+import { Operator } from "@/lib/actions/common/operators.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 
 const JobsTableContent = () => {
   const { toast } = useToast();
+  const router = useRouter();
   const params = useParams<{ projectId: string }>();
-
+  const searchParams = useParams<{ projectId: string }>();
+  const pathName = usePathname();
   const signal = useSignalStoreContext((state) => state.signal);
   const { data, isLoading, error } = useSWR<{ items: SignalJobRow[] }>(
     `/api/projects/${params.projectId}/signals/${signal.id}/jobs`,
@@ -25,6 +30,15 @@ const JobsTableContent = () => {
   );
 
   const jobs = data?.items || [];
+
+  const { onChange } = useFiltersContextProvider();
+
+  const handleRowClick = (row: Row<SignalJobRow>) => {
+    onChange([{ value: row.id, operator: Operator.Eq, column: "job_id" }]);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "runs");
+    router.push(`${pathName}?${params.toString()}`);
+  };
 
   useEffect(() => {
     if (error) {
@@ -47,9 +61,10 @@ const JobsTableContent = () => {
         getRowId={(job) => job.id}
         lockedColumns={["id"]}
         hasMore={false}
-        isFetching={false}
+        isFetching={isLoading}
         isLoading={isLoading}
         fetchNextPage={() => {}}
+        onRowClick={handleRowClick}
       >
         <div className="flex flex-1 w-full space-x-2">
           <ColumnsMenu

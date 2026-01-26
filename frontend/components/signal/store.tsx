@@ -4,6 +4,7 @@ import { createStore, useStore } from "zustand";
 
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
 import { type SignalClusterConfig } from "@/lib/actions/cluster-configs";
+import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
@@ -22,6 +23,7 @@ export type SignalState = {
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
   clusterConfig?: SignalClusterConfig;
+  runFilters: Filter[];
   initialTraceViewWidth?: number;
   lastEvent?: {
     name: string;
@@ -55,13 +57,14 @@ export interface EventsProps {
 
 export type Store = SignalState & SignalActions;
 
-export type SignalStoreApi = ReturnType<typeof createEventsStore>;
+export type SignalStoreApi = ReturnType<typeof createSignalStore>;
 
-export const createEventsStore = (initProps: EventsProps) =>
+export const createSignalStore = (initProps: EventsProps) =>
   createStore<Store>()((set, get) => ({
     totalCount: 0,
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
+    runFilters: [],
     lastEvent: initProps.lastEvent,
     initialTraceViewWidth: initProps.initialTraceViewWidth,
     stats: undefined,
@@ -72,7 +75,6 @@ export const createEventsStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       structuredOutput: JSON.stringify(initProps.signal.structuredOutput, null, 2),
-      triggers: initProps.signal.triggers,
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
@@ -124,7 +126,7 @@ export const useSignalStoreContext = <T,>(selector: (state: Store) => T): T => {
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {
   const storeRef = useRef<SignalStoreApi | undefined>(undefined);
   if (!storeRef.current) {
-    storeRef.current = createEventsStore(props);
+    storeRef.current = createSignalStore(props);
   }
 
   return <SignalContext.Provider value={storeRef.current}>{children}</SignalContext.Provider>;

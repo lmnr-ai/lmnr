@@ -2,7 +2,7 @@
 
 import type { Row } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -30,6 +30,7 @@ const FETCH_SIZE = 50;
 const CreateSignalJobContent = () => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
+  const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
 
@@ -194,9 +195,10 @@ const CreateSignalJobContent = () => {
         }),
       });
 
+      router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
       toast({
-        title: "Analysis started",
-        description: `Retroactive analysis for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+        title: "Signal job created",
+        description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
       });
     } catch (error) {
       toast({

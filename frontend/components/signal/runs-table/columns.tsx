@@ -31,7 +31,9 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   },
   {
     accessorKey: "triggerId",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    cell: (row) => (
+      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
+    ),
     header: "Trigger ID",
     size: 300,
     id: "triggerId",
@@ -40,12 +42,14 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
     accessorKey: "status",
     header: "Status",
     cell: (row) => <span className={cn("font-medium")}>{row.row.original.status}</span>,
-    size: 100,
+    size: 120,
     id: "status",
   },
   {
     accessorKey: "eventId",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    cell: (row) => (
+      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
+    ),
     header: "Event ID",
     size: 300,
     id: "eventId",

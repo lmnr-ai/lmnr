@@ -5,15 +5,13 @@ import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import Ajv from "ajv";
 import { get } from "lodash";
-import { BookMarked, ChevronRight, Loader2, PlayIcon, X } from "lucide-react";
+import { BookMarked, ChevronRight, Loader2, PlayIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import {
   type Control,
   Controller,
-  type FieldErrors,
   FormProvider,
-  useFieldArray,
   useForm,
   useFormContext,
   type UseFormGetValues,
@@ -24,34 +22,15 @@ import templates from "@/components/signals/prompts";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { theme } from "@/components/ui/content-renderer/utils";
-import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { type Filter } from "@/lib/actions/common/filters";
 import { type Signal } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
-
-// Allowed filter columns based on app-server/src/db/trace.rs evaluate_single_filter
-const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
-  // Number columns
-  { name: "Input token count", key: "input_token_count", dataType: "number" },
-  { name: "Output token count", key: "output_token_count", dataType: "number" },
-  { name: "Total token count", key: "total_token_count", dataType: "number" },
-  { name: "Input cost", key: "input_cost", dataType: "number" },
-  { name: "Output cost", key: "output_cost", dataType: "number" },
-  { name: "Cost", key: "cost", dataType: "number" },
-  { name: "Num spans", key: "num_spans", dataType: "number" },
-  { name: "Top span name", key: "top_span_name", dataType: "string" },
-  { name: "Session ID", key: "session_id", dataType: "string" },
-  { name: "User ID", key: "user_id", dataType: "string" },
-  { name: "Tags", key: "tags", dataType: "array" },
-  { name: "Span name", key: "span_name", dataType: "array" },
-];
 
 export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput"> & {
   id?: string;
@@ -80,165 +59,8 @@ export const getDefaultValues = (projectId: string): ManageSignalForm => ({
     "  ]\n" +
     "}",
   projectId,
-  triggers: [],
   testTraceId: "",
 });
-
-const getDefaultFilter = (): Filter => {
-  const firstColumn = SIGNAL_TRIGGER_COLUMNS[0];
-  const defaultOperator = dataTypeOperationsMap[firstColumn.dataType][0].key;
-  return {
-    column: firstColumn.key,
-    operator: defaultOperator,
-    value: "",
-  };
-};
-
-const TriggerFilterRow = ({
-  index,
-  control,
-  errors,
-  onRemove,
-}: {
-  index: number;
-  control: Control<ManageSignalForm, any, ManageSignalForm>;
-  errors: FieldErrors<ManageSignalForm>;
-  onRemove: () => void;
-}) => {
-  const { watch, setValue } = useFormContext<ManageSignalForm>();
-  const currentColumn = watch(`triggers.${index}.column`);
-
-  const column = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === currentColumn);
-  const dataType = column?.dataType || "string";
-  const operations = dataTypeOperationsMap[dataType] || dataTypeOperationsMap.string;
-
-  const handleColumnChange = (newColumn: string) => {
-    const newColumnDef = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === newColumn);
-    const newDataType = newColumnDef?.dataType || "string";
-    const newOperations = dataTypeOperationsMap[newDataType];
-    const defaultOperator = newOperations[0].key;
-
-    setValue(`triggers.${index}.column`, newColumn);
-    setValue(`triggers.${index}.operator`, defaultOperator);
-    setValue(`triggers.${index}.value`, "");
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex gap-2 items-start">
-        <Controller
-          name={`triggers.${index}.column`}
-          control={control}
-          rules={{ required: "Column is required" }}
-          render={({ field }) => (
-            <Select value={field.value} onValueChange={handleColumnChange}>
-              <SelectTrigger className="w-40 truncate">
-                <span className="truncate">
-                  {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {SIGNAL_TRIGGER_COLUMNS.map((col) => (
-                  <SelectItem key={col.key} value={col.key}>
-                    {col.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
-        <Controller
-          name={`triggers.${index}.operator`}
-          control={control}
-          rules={{ required: "Operator is required" }}
-          render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-24">
-                <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {operations.map((op) => (
-                  <SelectItem key={op.key} value={op.key}>
-                    {op.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
-        <Controller
-          name={`triggers.${index}.value`}
-          control={control}
-          rules={{ required: "Value is required" }}
-          render={({ field }) => (
-            <Input
-              {...field}
-              type={dataType === "number" ? "number" : "text"}
-              placeholder="Enter value..."
-              className="flex-1"
-              value={field.value as string}
-            />
-          )}
-        />
-        <Button type="button" variant="ghost" onClick={onRemove} className="py-[7px] shrink-0">
-          <X className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-      {errors.triggers?.[index] && (
-        <p className="text-destructive text-xs">
-          {errors.triggers?.[index]?.column?.message ||
-            errors.triggers?.[index]?.operator?.message ||
-            errors.triggers?.[index]?.value?.message}
-        </p>
-      )}
-    </div>
-  );
-};
-
-const TriggerFiltersField = ({
-  control,
-  errors,
-}: {
-  control: Control<ManageSignalForm, any, ManageSignalForm>;
-  errors: FieldErrors<ManageSignalForm>;
-}) => {
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "triggers",
-  });
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <Label>Triggers</Label>
-          <p className="text-xs text-muted-foreground mt-1">
-            Filters that will trigger this signal. All filters are combined with AND.
-          </p>
-        </div>
-        <Button icon="plus" variant="outline" onClick={() => append(getDefaultFilter())}>
-          Add Filter
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {fields.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
-            No triggers configured. Click "Add Filter" to add one.
-          </div>
-        )}
-        {fields.map((field, index) => (
-          <TriggerFilterRow
-            key={field.id}
-            index={index}
-            control={control}
-            errors={errors}
-            onRemove={() => remove(index)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
 
 const TestSignalField = ({
   control,
@@ -421,7 +243,6 @@ function ManageSignalSheetContent({
           name: data.name,
           prompt: data.prompt,
           structuredOutput: tryParseJson(data.structuredOutput),
-          triggers: data.triggers,
         };
 
         const isUpdate = !!data.id;
@@ -580,7 +401,6 @@ function ManageSignalSheetContent({
             />
             {errors.structuredOutput && <p className="text-xs text-destructive">{errors.structuredOutput.message}</p>}
           </div>
-          <TriggerFiltersField control={control} errors={errors} />
 
           <TestSignalField control={control} watch={watch} getValues={getValues} projectId={String(projectId)} />
 
