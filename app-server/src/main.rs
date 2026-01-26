@@ -549,16 +549,7 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let waiting_queue_ttl_sec = env::var("SIGNAL_JOB_WAITING_QUEUE_TTL")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(60);
-
             let mut waiting_queue_args = quorum_queue_args.clone();
-            waiting_queue_args.insert(
-                "x-message-ttl".into(),
-                lapin::types::AMQPValue::LongInt(waiting_queue_ttl_sec * 1000),
-            );
             waiting_queue_args.insert(
                 "x-dead-letter-exchange".into(),
                 lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
