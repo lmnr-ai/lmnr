@@ -40,11 +40,22 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
 
     let text = candidate.and_then(|c| c.content.parts.iter().find_map(|p| p.text.clone()));
 
+    // Include thoughts tokens in output tokens.
+    // Divide by 2 with ceiling to account for discounted batching price.
+    // TODO: remove division once batching price is supported on cost calculation side.
     let (input_tokens, output_tokens) = inline_response
         .response
         .as_ref()
         .and_then(|r| r.usage_metadata.as_ref())
-        .map(|u| (u.prompt_token_count, u.candidates_token_count))
+        .map(|u| {
+            let input = u.prompt_token_count.map(|t| (t + 1) / 2);
+            let output = u
+                .candidates_token_count
+                .unwrap_or(0)
+                .saturating_add(u.thoughts_token_count.unwrap_or(0));
+            let output = (output + 1) / 2; // ceiling division
+            (input, Some(output))
+        })
         .unwrap_or((None, None));
 
     ParsedInlineResponse {

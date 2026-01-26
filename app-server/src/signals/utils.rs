@@ -91,7 +91,7 @@ pub fn replace_span_tags_with_links(
 }
 
 /// Emits an internal tracing span for observability.
-/// This is used for internal tracing of trace analysis workers.
+/// This is used for internal tracing of signal workers.
 /// Returns Uuid::nil() if internal_project_id is None.
 pub async fn emit_internal_span(
     name: &str,
@@ -120,15 +120,15 @@ pub async fn emit_internal_span(
 
     let mut attrs = HashMap::from([
         (
-            "trace_analysis.job_id".to_string(),
+            "signal.job_id".to_string(),
             serde_json::json!(job_id.to_string()),
         ),
         (
-            "trace_analysis.run_id".to_string(),
+            "signal.run_id".to_string(),
             serde_json::json!(run_id.to_string()),
         ),
         (
-            "trace_analysis.event_name".to_string(),
+            "signal.event_name".to_string(),
             serde_json::json!(signal_name),
         ),
     ]);
