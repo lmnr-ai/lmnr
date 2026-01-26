@@ -48,7 +48,7 @@ use crate::{
     worker::{HandlerError, MessageHandler},
 };
 
-const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 7200;
+const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 
 /// Handler for span processing
 pub struct SpanHandler {
@@ -488,10 +488,11 @@ async fn check_and_push_signals(
 
             // Filters matched - try to acquire lock to prevent duplicate triggers
             let lock_key = format!(
-                "{}:{}:{}",
+                "{}:{}:{}:{}",
                 SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-                trigger.signal.name,
-                trace.id()
+                project_id,
+                trigger.signal.id,
+                trace.id(),
             );
 
             match cache.exists(&lock_key).await {

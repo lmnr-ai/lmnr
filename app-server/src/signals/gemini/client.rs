@@ -17,7 +17,7 @@ impl GeminiClient {
         })?;
 
         let api_base_url = env::var("GEMINI_API_BASE_URL")
-            .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta".to_string());
+            .unwrap_or("https://generativelanguage.googleapis.com/v1beta".to_string());
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
