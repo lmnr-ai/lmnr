@@ -534,7 +534,7 @@ async fn check_and_push_signals(
             if let Err(e) = push_to_signals_queue(
                 trace.id(),
                 trace.project_id(),
-                trigger.id,
+                Some(trigger.id),
                 trigger.signal.clone(),
                 queue.clone(),
             )

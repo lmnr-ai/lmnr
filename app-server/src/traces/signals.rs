@@ -27,7 +27,7 @@ use crate::worker::{HandlerError, MessageHandler};
 pub struct SignalMessage {
     pub trace_id: Uuid,
     pub project_id: Uuid,
-    pub trigger_id: Uuid,
+    pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
     pub event_definition: Signal, // should stay "event_definition" for backward compatibility
 }
 
@@ -44,14 +44,14 @@ pub struct SignalEventResponse {
 pub async fn push_to_signals_queue(
     trace_id: Uuid,
     project_id: Uuid,
-    trigger_span_id: Uuid,
+    trigger_id: Option<Uuid>,
     signal: Signal,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = SignalMessage {
         trace_id,
         project_id,
-        trigger_id: trigger_span_id,
+        trigger_id,
         event_definition: signal.clone(),
     };
 
@@ -62,10 +62,10 @@ pub async fn push_to_signals_queue(
         .await?;
 
     log::debug!(
-        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_span_id={}, event={}",
+        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_id={}, event={}",
         trace_id,
         project_id,
-        trigger_span_id,
+        trigger_id.unwrap_or_default(),
         signal.name
     );
 
@@ -126,7 +126,7 @@ async fn process_signal(
         run_id: Uuid::new_v4(),
         project_id: message.project_id,
         job_id: Uuid::nil(),
-        trigger_id: message.trigger_id,
+        trigger_id: message.trigger_id.unwrap_or_default(),
         signal_id: message.event_definition.id,
         trace_id: message.trace_id,
         step: 0,
@@ -163,9 +163,12 @@ async fn process_signal(
             .unwrap_or_else(|| "Unknown error".to_string());
         run = run.failed(&error_msg);
 
-        let ch_run = CHSignalRun::from(&run);
-        if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
-            log::error!("Failed to insert failed signal run to ClickHouse: {:?}", e);
+        if !run.trigger_id.is_nil() {
+            // don't insert runs for old queue messages with no trigger id
+            let ch_run = CHSignalRun::from(&run);
+            if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
+                log::error!("Failed to insert failed signal run to ClickHouse: {:?}", e);
+            }
         }
 
         return Err(anyhow::anyhow!(
@@ -209,12 +212,15 @@ async fn process_signal(
     }
 
     // Insert completed signal run to ClickHouse
-    let ch_run = CHSignalRun::from(&run);
-    if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
-        log::error!(
-            "Failed to insert completed signal run to ClickHouse: {:?}",
-            e
-        );
+    if !run.trigger_id.is_nil() {
+        // don't insert runs for old queue messages with no trigger id
+        let ch_run = CHSignalRun::from(&run);
+        if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
+            log::error!(
+                "Failed to insert completed signal run to ClickHouse: {:?}",
+                e
+            );
+        }
     }
 
     Ok(())

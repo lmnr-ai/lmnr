@@ -574,7 +574,7 @@ async fn process_single_response(
                 new_messages.push(tool_output_msg);
 
                 // If step number is greater than maximum allowed, mark run as failed
-                if run.step > config.max_allowed_steps {
+                if run.step >= config.max_allowed_steps {
                     let error = "Maximum step count exceeded".to_string();
                     return (StepResult::Failed { error }, new_messages);
                 }
