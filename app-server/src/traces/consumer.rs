@@ -15,10 +15,7 @@ use super::{signals::push_to_signals_queue, trigger::get_signal_triggers_cached}
 use crate::cache::autocomplete::populate_autocomplete_cache;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::{
-        Cache, CacheTrait,
-        keys::{SIGNAL_TRIGGER_LOCK_CACHE_KEY, SIGNAL_TRIGGER_LOCK_TTL_SECONDS},
-    },
+    cache::{Cache, CacheTrait, keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY},
     ch::{
         self,
         spans::CHSpan,
@@ -50,6 +47,8 @@ use crate::{
     },
     worker::{HandlerError, MessageHandler},
 };
+
+const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 7200;
 
 /// Handler for span processing
 pub struct SpanHandler {
