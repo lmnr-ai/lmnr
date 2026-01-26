@@ -4,6 +4,7 @@ import React from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { getColumnName, getOperatorLabel } from "@/components/signals/manage-trigger-dialog";
 import { Badge } from "@/components/ui/badge";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 
 export type TriggerRow = Trigger;
@@ -47,3 +48,11 @@ export const triggersTableColumns: ColumnDef<TriggerRow>[] = [
 ];
 
 export const defaultTriggersColumnOrder = ["filters", "createdAt"];
+
+export const triggersFilters: ColumnFilter[] = [
+  {
+    name: "Trigger ID",
+    key: "trigger_id",
+    dataType: "string",
+  },
+];

@@ -1,4 +1,4 @@
-import { type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 import React from "react";
 
@@ -9,7 +9,13 @@ import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
-export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
+export const getSignalRunsColumns = ({
+  onJobNav,
+  onTriggerNav,
+}: {
+  onJobNav: (row: Row<SignalRunRow>) => void;
+  onTriggerNav: (row: Row<SignalRunRow>) => void;
+}): ColumnDef<SignalRunRow>[] => [
   {
     accessorKey: "runId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -25,20 +31,32 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
     id: "traceId",
   },
   {
-    accessorKey: "jobId",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-    header: "Job ID",
-    size: 300,
-    id: "jobId",
-  },
-  {
-    accessorKey: "triggerId",
-    cell: (row) => (
-      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
-    ),
-    header: "Trigger ID",
-    size: 300,
-    id: "triggerId",
+    cell: (row) => {
+      if (row.row.original.jobId !== "00000000-0000-0000-0000-000000000000") {
+        return (
+          <Badge
+            onClick={() => onJobNav(row.row)}
+            className="rounded-3xl mr-1 hover:underline cursor-pointer"
+            variant="outline"
+          >
+            Job
+          </Badge>
+        );
+      }
+
+      return (
+        <Badge
+          onClick={() => onTriggerNav(row.row)}
+          className="rounded-3xl mr-1 hover:underline cursor-pointer"
+          variant="outline"
+        >
+          Trigger
+        </Badge>
+      );
+    },
+    header: "Run from",
+    size: 120,
+    id: "run_from",
   },
   {
     accessorKey: "status",
@@ -69,7 +87,7 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "jobId", "triggerId", "status", "eventId", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "run_from", "status", "eventId", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

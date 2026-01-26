@@ -201,9 +201,7 @@ export default function Signal({ traceId }: { traceId?: string }) {
 
   return (
     <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <FiltersContextProvider>
-        <SignalContent />
-      </FiltersContextProvider>
+      <SignalContent />
     </TraceViewNavigationProvider>
   );
 }

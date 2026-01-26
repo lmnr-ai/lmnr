@@ -1,22 +1,34 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
+import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import {
   createSignalTrigger,
   deleteSignalTriggers,
   getSignalTriggers,
+  GetSignalTriggersSchema,
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const { projectId, id: signalId } = params;
 
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    GetSignalTriggersSchema.omit({ projectId: true, signalId: true })
+  );
+
+  if (!parseResult.success) {
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
+
   try {
-    const result = await getSignalTriggers({ projectId, signalId });
+    const result = await getSignalTriggers({ ...parseResult.data, projectId, signalId });
+
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {

@@ -1,14 +1,16 @@
 "use client";
 
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
+import { isEqual } from "lodash";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import {
   defaultTriggersColumnOrder,
   type TriggerRow,
+  triggersFilters,
   triggersTableColumns,
 } from "@/components/signal/triggers-table/columns.tsx";
 import ManageTriggerDialog from "@/components/signals/manage-trigger-dialog";
@@ -17,6 +19,8 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
+import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -25,9 +29,24 @@ function TriggersTableContent() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const signal = useSignalStoreContext((state) => state.signal);
+  const {
+    signal,
+    triggersFilters: storeTriggersFilters,
+    setTriggersFilters,
+  } = useSignalStoreContext((state) => ({
+    signal: state.signal,
+    triggersFilters: state.triggersFilters,
+    setTriggersFilters: state.setTriggersFilters,
+  }));
 
-  const triggersUrl = `/api/projects/${params.projectId}/signals/${signal.id}/triggers`;
+  const triggersUrl = useMemo(() => {
+    const urlParams = new URLSearchParams();
+    storeTriggersFilters.forEach((f) => urlParams.append("filter", JSON.stringify(f)));
+    const queryString = urlParams.toString();
+    return `/api/projects/${params.projectId}/signals/${signal.id}/triggers${queryString ? `?${queryString}` : ""}`;
+  }, [params.projectId, signal.id, storeTriggersFilters]);
+
+  const triggersBaseUrl = `/api/projects/${params.projectId}/signals/${signal.id}/triggers`;
 
   const { data, isLoading, error } = useSWR<{ items: Trigger[] }>(triggersUrl, swrFetcher);
 
@@ -37,6 +56,20 @@ function TriggersTableContent() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const triggers: TriggerRow[] = data?.items || [];
+
+  const handleAddFilter = useCallback(
+    (filter: Filter) => {
+      setTriggersFilters((prev) => [...prev, filter]);
+    },
+    [setTriggersFilters]
+  );
+
+  const handleRemoveFilter = useCallback(
+    (filter: Filter) => {
+      setTriggersFilters((prev) => prev.filter((f) => !isEqual(f, filter)));
+    },
+    [setTriggersFilters]
+  );
 
   useEffect(() => {
     if (error) {
@@ -55,7 +88,7 @@ function TriggersTableContent() {
   const handleAddTrigger = useCallback(
     async (newTrigger: Trigger) => {
       try {
-        const response = await fetch(triggersUrl, {
+        const response = await fetch(triggersBaseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ filters: newTrigger.filters }),
@@ -77,7 +110,7 @@ function TriggersTableContent() {
         throw error;
       }
     },
-    [triggersUrl, toast]
+    [triggersBaseUrl, triggersUrl, toast]
   );
 
   const handleEditTrigger = useCallback(
@@ -85,7 +118,7 @@ function TriggersTableContent() {
       if (editingTrigger === null) return;
 
       try {
-        const response = await fetch(triggersUrl, {
+        const response = await fetch(triggersBaseUrl, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -111,13 +144,13 @@ function TriggersTableContent() {
         throw error;
       }
     },
-    [editingTrigger, triggersUrl, toast]
+    [editingTrigger, triggersBaseUrl, triggersUrl, toast]
   );
 
   const handleDeleteTriggers = useCallback(
     async (selectedRowIds: string[]) => {
       try {
-        const response = await fetch(triggersUrl, {
+        const response = await fetch(triggersBaseUrl, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ triggerIds: selectedRowIds }),
@@ -142,7 +175,7 @@ function TriggersTableContent() {
         });
       }
     },
-    [triggersUrl, toast]
+    [triggersBaseUrl, triggersUrl, toast]
   );
 
   return (
@@ -171,6 +204,7 @@ function TriggersTableContent() {
         )}
       >
         <div className="flex flex-1 w-full space-x-2">
+          <FilterPopover columns={triggersFilters} filters={storeTriggersFilters} onAddFilter={handleAddFilter} />
           <ColumnsMenu
             lockedColumns={["__row_selection"]}
             columnLabels={triggersTableColumns.map((column) => ({
@@ -179,6 +213,11 @@ function TriggersTableContent() {
             }))}
           />
         </div>
+        <FilterList
+          className="py-[3px] text-xs px-1"
+          filters={storeTriggersFilters}
+          onRemoveFilter={handleRemoveFilter}
+        />
       </InfiniteDataTable>
 
       <ManageTriggerDialog

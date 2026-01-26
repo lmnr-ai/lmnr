@@ -1,8 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
@@ -15,15 +16,28 @@ import { fetcherJSON } from "@/lib/utils";
 export const GetSignalJobsSchema = z.object({
   projectId: z.string(),
   signalId: z.string().optional(),
+  ...FiltersSchema.shape,
 });
 
 export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) {
-  const { projectId, signalId } = GetSignalJobsSchema.parse(input);
+  const { projectId, signalId, filter } = input;
+
+  const filters = compact(filter);
 
   const whereConditions = [
     eq(signalJobs.projectId, projectId),
     ...(signalId ? [eq(signalJobs.signalId, signalId)] : []),
   ];
+
+  for (const f of filters) {
+    if (f.column === "job_id") {
+      if (f.operator === Operator.Eq) {
+        whereConditions.push(eq(signalJobs.id, String(f.value)));
+      } else if (f.operator === Operator.Ne) {
+        whereConditions.push(ne(signalJobs.id, String(f.value)));
+      }
+    }
+  }
 
   const jobs = await db
     .select()
@@ -79,12 +93,12 @@ export async function createTraceAnalysisJob(
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startDate, endDate),
-      searchType: [] as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startDate, endDate),
+        searchType: [] as SpanSearchType[],
+      })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];
 

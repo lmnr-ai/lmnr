@@ -1,7 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
+import { FiltersSchema } from "@/lib/actions/common/types";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { signalTriggers } from "@/lib/db/migrations/schema";
@@ -15,6 +18,7 @@ export type Trigger = {
 export const GetSignalTriggersSchema = z.object({
   projectId: z.string(),
   signalId: z.string(),
+  ...FiltersSchema.shape,
 });
 
 export const CreateSignalTriggerSchema = z.object({
@@ -37,7 +41,21 @@ export const DeleteSignalTriggersSchema = z.object({
 });
 
 export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersSchema>) {
-  const { projectId, signalId } = GetSignalTriggersSchema.parse(input);
+  const { projectId, signalId, filter } = input;
+
+  const filters = compact(filter);
+
+  const whereConditions = [eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, signalId)];
+
+  for (const f of filters) {
+    if (f.column === "trigger_id") {
+      if (f.operator === Operator.Eq) {
+        whereConditions.push(eq(signalTriggers.id, String(f.value)));
+      } else if (f.operator === Operator.Ne) {
+        whereConditions.push(ne(signalTriggers.id, String(f.value)));
+      }
+    }
+  }
 
   const rows = (await db
     .select({
@@ -46,7 +64,7 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
       createdAt: signalTriggers.createdAt,
     })
     .from(signalTriggers)
-    .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, signalId)))
+    .where(and(...whereConditions))
     .orderBy(desc(signalTriggers.createdAt))) as {
     id: string;
     value: Filter[];

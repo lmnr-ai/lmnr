@@ -1,17 +1,28 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createTraceAnalysisJob, getSignalJobs } from "@/lib/actions/signal-jobs";
+import { parseUrlParams } from "@/lib/actions/common/utils.ts";
+import { createTraceAnalysisJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const { projectId, id: signalId } = params;
 
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    GetSignalJobsSchema.omit({ projectId: true, signalId: true })
+  );
+
+  if (!parseResult.success) {
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
+
   try {
     const result = await getSignalJobs({
+      ...parseResult.data,
       projectId,
       signalId,
     });

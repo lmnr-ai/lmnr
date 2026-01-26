@@ -1,5 +1,5 @@
 "use client";
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
@@ -23,7 +23,9 @@ export type SignalState = {
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
   clusterConfig?: SignalClusterConfig;
-  runFilters: Filter[];
+  runsFilters: Filter[];
+  jobsFilters: Filter[];
+  triggersFilters: Filter[];
   initialTraceViewWidth?: number;
   lastEvent?: {
     name: string;
@@ -40,6 +42,9 @@ export type SignalActions = {
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
   setClusterConfig: (config?: SignalClusterConfig) => void;
+  setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
+  setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
+  setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
 };
 
 export interface EventsProps {
@@ -64,7 +69,9 @@ export const createSignalStore = (initProps: EventsProps) =>
     totalCount: 0,
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
-    runFilters: [],
+    runsFilters: [],
+    jobsFilters: [],
+    triggersFilters: [],
     lastEvent: initProps.lastEvent,
     initialTraceViewWidth: initProps.initialTraceViewWidth,
     stats: undefined,
@@ -81,6 +88,18 @@ export const createSignalStore = (initProps: EventsProps) =>
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
     setClusterConfig: (clusterConfig) => set({ clusterConfig }),
+    setRunsFilters: (filters) =>
+      set((state) => ({
+        runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
+      })),
+    setJobsFilters: (filters) =>
+      set((state) => ({
+        jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
+      })),
+    setTriggersFilters: (filters) =>
+      set((state) => ({
+        triggersFilters: typeof filters === "function" ? filters(state.triggersFilters) : filters,
+      })),
     fetchEvents: async (params: URLSearchParams) => {
       const { signal } = get();
 
