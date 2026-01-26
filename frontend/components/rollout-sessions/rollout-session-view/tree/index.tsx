@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
-import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet";
+import MustacheTemplateSheet from "@/components/rollout-sessions/rollout-session-view/list/mustache-template-sheet";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
