@@ -20,7 +20,8 @@ pub enum Feature {
     ClickhouseReadOnly,
     Tracing,
     Clustering,
-    SemanticEvents,
+    Signals,
+    TraceAnalysis,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -49,10 +50,11 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("CLUSTERING_SERVICE_URL").is_ok()
                 && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
-        Feature::SemanticEvents => {
+        Feature::Signals => {
             env::var("SEMANTIC_EVENT_SERVICE_URL").is_ok()
                 && env::var("SEMANTIC_EVENT_SERVICE_SECRET_KEY").is_ok()
         }
+        Feature::TraceAnalysis => env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok(),
     }
 }
 

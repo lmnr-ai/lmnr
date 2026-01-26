@@ -5,6 +5,7 @@ export enum Operator {
   Gt = "gt",
   Lte = "lte",
   Gte = "gte",
+  Includes = "includes",
 }
 
 export const STRING_OPERATORS = [Operator.Eq, Operator.Ne] as const;
@@ -21,3 +22,5 @@ export const NUMBER_OPERATORS = [
 export const BOOLEAN_OPERATORS = [Operator.Eq, Operator.Ne] as const;
 
 export const JSON_OPERATORS = [Operator.Eq] as const;
+
+export const ARRAY_OPERATORS = [Operator.Includes] as const;

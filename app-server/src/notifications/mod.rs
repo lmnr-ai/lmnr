@@ -23,7 +23,6 @@ pub enum NotificationType {
 pub struct NotificationMessage {
     pub project_id: Uuid,
     pub trace_id: Uuid,
-    pub span_id: Uuid,
     #[serde(rename = "type")]
     pub notification_type: NotificationType,
     pub event_name: String,
@@ -42,14 +41,14 @@ pub async fn push_to_notification_queue(
             &serialized,
             NOTIFICATIONS_EXCHANGE,
             NOTIFICATIONS_ROUTING_KEY,
+            None,
         )
         .await?;
 
     log::debug!(
-        "Pushed notification message to queue: project_id={}, trace_id={}, span_id={}, event_name={}",
+        "Pushed notification message to queue: project_id={}, trace_id={}, event_name={}",
         message.project_id,
         message.trace_id,
-        message.span_id,
         message.event_name
     );
 
@@ -100,7 +99,6 @@ impl MessageHandler for NotificationHandler {
                 &slack_payload,
                 &message.project_id.to_string(),
                 &message.trace_id.to_string(),
-                &message.span_id.to_string(),
                 &message.event_name,
             );
 

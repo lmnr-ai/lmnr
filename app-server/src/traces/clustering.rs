@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_ROUTING_KEY};
 use crate::cache::{Cache, CacheTrait, keys};
-use crate::db::events::Event;
+use crate::ch::signal_events::CHSignalEvent;
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::utils::{call_service_with_retry, render_mustache_template};
 use crate::worker::{HandlerError, MessageHandler};
@@ -16,7 +16,7 @@ use crate::worker::{HandlerError, MessageHandler};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusteringMessage {
     pub project_id: Uuid,
-    pub event: Event,
+    pub signal_event: CHSignalEvent,
     pub value_template: String,
 }
 
@@ -28,13 +28,13 @@ struct ClusterResponse {
 /// Push an event clustering message to the event clustering queue
 pub async fn push_to_event_clustering_queue(
     project_id: Uuid,
-    event: Event,
+    signal_event: CHSignalEvent,
     value_template: String,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = ClusteringMessage {
         project_id,
-        event,
+        signal_event,
         value_template,
     };
 
@@ -45,6 +45,7 @@ pub async fn push_to_event_clustering_queue(
             &serialized,
             EVENT_CLUSTERING_EXCHANGE,
             EVENT_CLUSTERING_ROUTING_KEY,
+            None,
         )
         .await?;
 
@@ -170,14 +171,15 @@ async fn call_clustering_endpoint(
     })?;
 
     // Render the value_template with event attributes
-    let content = render_mustache_template(&message.value_template, &message.event.attributes)?;
+    let attributes = message.signal_event.payload_value().unwrap_or_default();
+    let content = render_mustache_template(&message.value_template, &attributes)?;
 
     let request_body = serde_json::json!({
         "project_id": message.project_id.to_string(),
-        "event_name": message.event.name,
-        "event_id": message.event.id.to_string(),
+        "event_name": message.signal_event.name,
+        "event_id": message.signal_event.id.to_string(),
         "content": content,
-        "event_source": message.event.source.to_string(),
+        "event_source": message.signal_event.source().to_string(),
     });
 
     let cluster_response: ClusterResponse = call_service_with_retry(

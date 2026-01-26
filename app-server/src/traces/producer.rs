@@ -66,7 +66,12 @@ pub async fn push_spans_to_queue(
         // Don't return error for now, skip publishing
     } else {
         queue
-            .publish(&mq_message, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .publish(
+                &mq_message,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+                None,
+            )
             .await?;
     }
 

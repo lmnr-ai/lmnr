@@ -40,6 +40,7 @@ pub struct CHTrace {
     pub tags: Vec<String>,
     pub num_spans: u64,
     pub has_browser_session: bool,
+    pub span_names: Vec<String>,
 }
 
 impl CHTrace {
@@ -77,6 +78,7 @@ impl CHTrace {
             tags: trace.tags().clone(),
             num_spans: trace.num_spans() as u64,
             has_browser_session: trace.has_browser_session().unwrap_or(false),
+            span_names: trace.span_names(),
         }
     }
 }
@@ -104,6 +106,7 @@ pub struct TraceAggregation {
     pub top_span_type: u8,
     pub trace_type: u8,
     pub has_browser_session: Option<bool>,
+    pub span_names: HashSet<String>,
 }
 
 impl TraceAggregation {
@@ -139,6 +142,7 @@ impl TraceAggregation {
                         top_span_type: 0,
                         trace_type: 0,
                         has_browser_session: None,
+                        span_names: HashSet::new(),
                     });
 
             // Aggregate min start_time
@@ -214,6 +218,9 @@ impl TraceAggregation {
             for tag in span.attributes.tags() {
                 entry.tags.insert(tag);
             }
+
+            // Collect unique span names
+            entry.span_names.insert(span.name.clone());
 
             if entry.has_browser_session.is_none() {
                 if let Some(has_browser_session) = span.attributes.has_browser_session() {

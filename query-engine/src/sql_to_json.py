@@ -246,6 +246,25 @@ class SqlToJsonConverter:
                 walk(e.right)
                 return
 
+            # Handle has(field, value) function for array containment (includes operator)
+            if isinstance(e, sqlglot.exp.Anonymous) and str(e.this).lower() == 'has':
+                if len(e.expressions) >= 2:
+                    col_expr = e.expressions[0]
+                    val_expr = e.expressions[1]
+                    col = col_expr.name if isinstance(col_expr, sqlglot.exp.Column) else str(col_expr)
+                    
+                    if col and col != time_col:
+                        if isinstance(val_expr, sqlglot.exp.Placeholder):
+                            val = self._normalize_value(val_expr)
+                        elif isinstance(val_expr, sqlglot.exp.Literal):
+                            val = str(val_expr.this)
+                        else:
+                            val = str(val_expr)
+
+                        filter_dict = {'field': col, 'op': 'includes', 'string_value': val}
+                        filters.append(filter_dict)
+                return
+
             for expr_type, op in comparison_map.items():
                 if isinstance(e, expr_type):
                     col = e.left.name if isinstance(e.left, sqlglot.exp.Column) else None

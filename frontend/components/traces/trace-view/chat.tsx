@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -31,20 +31,23 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
   const projectId = useParams().projectId;
 
   // Resolve sequential span ID to UUID on-demand
-  const resolveSpanId = useCallback(async (sequentialId: string): Promise<string | null> => {
-    try {
-      const response = await fetch(
-        `/api/projects/${projectId}/traces/${trace.id}/agent/resolve-span?id=${sequentialId}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        return data.spanId;
+  const resolveSpanId = useCallback(
+    async (sequentialId: string): Promise<string | null> => {
+      try {
+        const response = await fetch(
+          `/api/projects/${projectId}/traces/${trace.id}/agent/resolve-span?id=${sequentialId}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          return data.spanId;
+        }
+      } catch (error) {
+        console.error("Error resolving span ID:", error);
       }
-    } catch (error) {
-      console.error("Error resolving span ID:", error);
-    }
-    return null;
-  }, [projectId, trace.id]);
+      return null;
+    },
+    [projectId, trace.id]
+  );
 
   const handleExampleClick = (question: string) => {
     sendMessage({

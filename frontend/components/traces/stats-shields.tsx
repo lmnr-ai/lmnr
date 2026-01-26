@@ -111,14 +111,14 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
   // moving the schema parsing to provider-specific types, i.e. @/lib/spans/types
   if (genAiToolDefinitions) {
     try {
-      const parsed = JSON.parse(genAiToolDefinitions)
+      const parsed = JSON.parse(genAiToolDefinitions);
       return parsed.map((tool: any) => {
         const func = tool.function ?? tool;
         return {
           name: func.name,
           description: func.description,
           parameters: typeof func.parameters === "string" ? func.parameters : JSON.stringify(func.parameters || {}),
-        }
+        };
       });
     } catch (e) {
       console.error("Failed to parse gen_ai.tool.definitions:", e);

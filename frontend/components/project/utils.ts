@@ -24,8 +24,8 @@ export const getSidebarMenus = (projectId: string) => [
     icon: Rows4,
   },
   {
-    name: "events",
-    href: `/project/${projectId}/events/semantic`,
+    name: "signals",
+    href: `/project/${projectId}/signals`,
     icon: Layers,
   },
   {

@@ -9,13 +9,10 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const { projectId, name: eventName } = await params;
-    const searchParams = req.nextUrl.searchParams;
-    const eventSource = searchParams.get("eventSource") as "SEMANTIC" | "CODE";
 
     const result = await getEventClusters({
       projectId,
       eventName,
-      eventSource,
     });
 
     return NextResponse.json(result);

@@ -47,6 +47,7 @@ impl super::StorageTrait for S3Storage {
                 &serde_json::to_vec(&message)?,
                 PAYLOADS_EXCHANGE,
                 PAYLOADS_ROUTING_KEY,
+                None,
             )
             .await?;
 
