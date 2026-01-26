@@ -83,7 +83,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
       <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
       {/* Icon column */}
-      <div className="flex flex-col items-center shrink-0 pt-2 relative h-full">
+      <div className="flex flex-col items-center shrink-0 pt-2 self-stretch">
         <SpanTypeIcon
           iconClassName="min-w-4 min-h-4"
           spanType={span.spanType}
@@ -96,7 +96,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
         {/* Tiny connector if there are children and not collapsed */}
         {hasChildren && !span.collapsed && (
           <div
-            className={cn(" h-full  border-l-2 group-hover:border-[hsl(240_6%_26%)]", {
+            className={cn("h-full flex-1 border-l-2 group-hover:border-[hsl(240_6%_26%)]", {
               "border-[hsl(240_6%_34%)] group-hover:border-[hsl(240_6%_40%)] ": isSelected,
             })}
           />
