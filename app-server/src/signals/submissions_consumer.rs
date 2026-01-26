@@ -169,9 +169,11 @@ async fn process(
             Ok(())
         }
         Err((batch_failed_runs, handler_error)) => {
-            // Batch submission failed, combine with runs that failed during processing
-            failed_runs.extend(batch_failed_runs);
-            handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+            // Only handle failed runs for permanent errors (transient errors will be retried)
+            if matches!(handler_error, HandlerError::Permanent(_)) {
+                failed_runs.extend(batch_failed_runs);
+                handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+            }
             Err(handler_error)
         }
     }

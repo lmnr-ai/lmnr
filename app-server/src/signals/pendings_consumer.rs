@@ -109,17 +109,30 @@ async fn process(
     );
 
     // Get batch state from Gemini
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let result = gemini
-        .get_batch(&message.batch_id.to_string())
-        .await
-        .map_err(|e| {
+    let result = match gemini.get_batch(&message.batch_id.to_string()).await {
+        Ok(result) => result,
+        Err(e) => {
             if e.is_retryable() {
-                HandlerError::transient(e)
-            } else {
-                HandlerError::permanent(e)
+                return Err(HandlerError::transient(e));
             }
-        })?;
+
+            // Permanent error - treat batch as failed
+            log::error!(
+                "[SIGNAL JOB] Permanent error getting batch {}: {:?}",
+                message.batch_id,
+                e
+            );
+            process_failed_batch(
+                &message,
+                JobState::BATCH_STATE_FAILED,
+                db,
+                clickhouse,
+                Some(format!("Failed to get batch response: {}", e)),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
 
     let state = result
         .metadata
@@ -134,7 +147,7 @@ async fn process(
         | JobState::BATCH_STATE_FAILED
         | JobState::BATCH_STATE_CANCELLED
         | JobState::BATCH_STATE_EXPIRED => {
-            process_failed_batch(&message, state, db, clickhouse).await?;
+            process_failed_batch(&message, state, db, clickhouse, None).await?;
         }
         JobState::BATCH_STATE_PENDING | JobState::BATCH_STATE_RUNNING => {
             process_pending_batch(&message, queue, config.clone()).await?;
@@ -154,8 +167,10 @@ async fn process_failed_batch(
     state: JobState,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
+    custom_error: Option<String>,
 ) -> Result<(), HandlerError> {
-    let error_message = format!("Batch failed with state: {:?}", state);
+    let error_message =
+        custom_error.unwrap_or_else(|| format!("Batch failed with state: {:?}", state));
 
     // Create failed SignalRun instances for all runs
     let failed_runs: Vec<SignalRun> = message

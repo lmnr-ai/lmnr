@@ -149,6 +149,5 @@ pub async fn get_full_span_info(
         result_spans.push(span_info);
     }
 
-    log::info!("Retrieved full info for {} spans", result_spans.len());
     Ok(result_spans)
 }
