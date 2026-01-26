@@ -1,0 +1,64 @@
+---
+title: "Signals: Events, Relaunched"
+date: "2026-01-26"
+description: "Define a signal once and extract it from any trace, past or present."
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["signals", "events", "tracing", "analysis"]
+---
+
+When we first launched Events, the use case was simple: track what's happening in production and alert when patterns show up. Teams used them to catch errors, monitor deployments, and surface behaviors worth investigating. That part worked, and it still does.
+
+But we kept hearing the same feedback. Events only worked forward. You had to define what to look for before you could learn from it. The traces you collected last month? To extract anything new from them, you'd need to ship code and wait for fresh traffic.
+
+Signals is our answer. Define a signal once, then run it against any trace, past or present.
+
+![Signals events and clusters view](/blog/2026-01-26-signals-page.png)
+
+## Definitions, not just emissions
+
+A signal starts as a definition: a name, a prompt, and a structured output schema. From there, it can be produced two ways:
+
+- **Code-emitted events** you're already sending
+- **LLM-extracted signals** that read trace context and return structured data
+
+Manual instrumentation and LLM extraction work together. Keep the events you already emit. Add new signals without shipping code.
+
+![Create signal sheet with prompt, schema, and test trace](/blog/2026-01-26-create-new.png)
+
+## Backfill first, live second
+
+Signals aren't tied to live traffic. Run a signal over existing traces, validate it, then decide whether it should run continuously.
+
+The workflow:
+
+1. **Test** the signal on a known trace to verify output.
+2. **Backfill** a time range or filtered slice of your trace history. Select thousands of traces using filters and run them as a background job. We built dedicated infrastructure for this, using Gemini's batch API for large-scale processing.
+3. **Trigger** on new traces to keep it running. Triggers now support custom filters: match traces by span name, trace status, and more. We're adding filters based on feedback, like "trace duration exceeds 100s."
+
+![Add trigger dialog with custom filters](/blog/2026-01-26-add-trigger.png)
+
+Every signal run is logged. You can see exactly which runs produced events and which didn't.
+
+This inverts the old model. Instead of waiting for behavior to appear in production, you discover it in the traces you already have.
+
+![Signal jobs list showing backfill progress](/blog/2026-01-26-run-jobs.png)
+
+## From signal to event to action
+
+When a signal runs against a trace, it produces an event: a structured payload with a timestamp. Once you have events, you can:
+
+- **Cluster** similar events to surface patterns and regressions
+- **Export** into datasets for evaluations
+- **Track** volume over time and watch for shifts
+
+## Why this matters
+
+Signals make behavior searchable and repeatable. Mine your historical traces for answers, then keep those same definitions running in production to catch future changes.
+
+The goal: spend less time reading traces, more time acting on what's inside them.
+
+If you relied on Events, you still have tracking and alerting, plus the power to analyze your entire backlog with the same definitions.
+
+Try Signals today and let us know what you think.
