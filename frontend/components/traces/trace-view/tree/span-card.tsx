@@ -83,7 +83,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
       <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
       {/* Icon column */}
-      <div className="flex flex-col items-center shrink-0 pt-2 relative bg-red-500h-full">
+      <div className="flex flex-col items-center shrink-0 pt-2 relative h-full">
         <SpanTypeIcon
           iconClassName="min-w-4 min-h-4"
           spanType={span.spanType}
