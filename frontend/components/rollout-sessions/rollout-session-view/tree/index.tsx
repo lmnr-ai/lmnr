@@ -39,7 +39,12 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
 
   const items = virtualizer?.getVirtualItems() || [];
 
-  const visibleSpanIds = compact(items.map((item) => treeSpans[item.index]?.span.spanId)) as string[];
+  const visibleSpanIds = compact(
+    items.map((item) => {
+      const spanItem = treeSpans[item.index];
+      return spanItem && !spanItem.pending ? spanItem.span.spanId : null;
+    })
+  ) as string[];
 
   const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
     id: traceId ?? "-",
