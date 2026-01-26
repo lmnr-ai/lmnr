@@ -1,25 +1,34 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { isEmpty } from "lodash";
-import React, { memo, useCallback, useEffect, useMemo } from "react";
+import { compact, isEmpty } from "lodash";
+import { useParams } from "next/navigation";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet";
+import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type PathInfo } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
+  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
 }
 
-const Tree = ({ onSpanSelect }: TreeProps) => {
+const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
+  const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans } = useRolloutSessionStoreContext((state) => ({
+  const { getTreeSpans, spans, trace } = useRolloutSessionStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
+    trace: state.trace,
   }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans]);
+
+  const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
   const virtualizer = useVirtualizer({
     count: treeSpans.length,
@@ -29,6 +38,14 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
   });
 
   const items = virtualizer?.getVirtualItems() || [];
+
+  const visibleSpanIds = compact(items.map((item) => treeSpans[item.index]?.span.spanId)) as string[];
+
+  const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
+    id: traceId ?? "-",
+    startTime: trace?.startTime,
+    endTime: trace?.endTime,
+  });
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -63,7 +80,7 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
 
   return (
     <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
-      <div className="flex flex-col pb-4 pt-1">
+      <div className="flex flex-col pb-[100px] pt-1">
         <div
           className="relative"
           style={{
@@ -89,10 +106,12 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
                 <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
                   <SpanCard
                     span={spanItem.span}
-                    parentY={spanItem.parentY}
-                    yOffset={spanItem.yOffset}
+                    branchMask={spanItem.branchMask}
+                    output={outputs[spanItem.span.spanId]}
                     depth={spanItem.depth}
+                    pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}
+                    onOpenSettings={setSettingsSpan}
                   />
                 </div>
               );
@@ -100,6 +119,12 @@ const Tree = ({ onSpanSelect }: TreeProps) => {
           </div>
         </div>
       </div>
+      <MustacheTemplateSheet
+        span={settingsSpan}
+        output={outputs[settingsSpan?.spanId ?? ""]}
+        open={!!settingsSpan}
+        onOpenChange={(open) => !open && setSettingsSpan(null)}
+      />
     </div>
   );
 };
