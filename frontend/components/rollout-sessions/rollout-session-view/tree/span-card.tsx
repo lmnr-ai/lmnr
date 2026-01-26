@@ -70,7 +70,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
-  const isExpandable = hasChildren || span.spanType === "LLM" || span.spanType === "TOOL";
+  const isExpandable = hasChildren || span.spanType !== "DEFAULT";
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
@@ -206,10 +206,14 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
         {/* Expandable content */}
         {!span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL") && (
-          <div className="px-2 pb-2 pt-0">
-            {isLoadingOutput && <Skeleton className="h-12 w-full" />}
+          <div className="px-2 pt-0">
+            {isLoadingOutput && (
+              <div className="w-full pb-2">
+                <Skeleton className="h-12 w-full" />
+              </div>
+            )}
             {!isLoadingOutput && isNil(output) && (
-              <div className="text-sm text-muted-foreground italic">No output available</div>
+              <div className="text-sm text-muted-foreground italic pb-2">No output available</div>
             )}
             {!isLoadingOutput && !isNil(output) && (
               <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
