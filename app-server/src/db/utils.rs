@@ -28,8 +28,14 @@ pub struct Filter {
 
 pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Value) -> bool {
     let target = match value {
-        Value::Number(n) => n.as_f64().unwrap_or(0.0),
-        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+        Value::Number(n) => match n.as_f64() {
+            Some(f) => f,
+            None => return false,
+        },
+        Value::String(s) => match s.parse::<f64>() {
+            Ok(f) => f,
+            Err(_) => return false,
+        },
         _ => return false,
     };
 
