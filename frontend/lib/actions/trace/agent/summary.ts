@@ -1,8 +1,8 @@
-import { observe } from '@lmnr-ai/lmnr';
-import { z } from 'zod';
+import { observe } from "@lmnr-ai/lmnr";
+import { z } from "zod";
 
-import { clickhouseClient } from '@/lib/clickhouse/client';
-import { tryParseJson } from '@/lib/utils';
+import { clickhouseClient } from "@/lib/clickhouse/client";
+import { tryParseJson } from "@/lib/utils";
 
 export const GenerateTraceSummaryRequestSchema = z.object({
   traceId: z.string(),
@@ -17,7 +17,9 @@ const TraceSummarySchema = z.object({
   spanIdsMap: z.record(z.string(), z.string()),
 });
 
-export async function getTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema> | undefined> {
+export async function getTraceSummary(
+  input: z.infer<typeof GenerateTraceSummaryRequestSchema>
+): Promise<z.infer<typeof TraceSummarySchema> | undefined> {
   const { traceId, projectId } = input;
 
   // Check ClickHouse for existing summary
@@ -38,7 +40,7 @@ export async function getTraceSummary(input: z.infer<typeof GenerateTraceSummary
     query_params: {
       projectId,
       traceId,
-    }
+    },
   });
 
   const data = await result.json<{
@@ -63,27 +65,29 @@ export async function getTraceSummary(input: z.infer<typeof GenerateTraceSummary
   return undefined;
 }
 
-export async function generateTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
+export async function generateTraceSummary(
+  input: z.infer<typeof GenerateTraceSummaryRequestSchema>
+): Promise<z.infer<typeof TraceSummarySchema>> {
   const { traceId, projectId } = input;
 
   const traceSummarizerUrl = process.env.TRACE_SUMMARIZER_URL;
   const authToken = process.env.TRACE_SUMMARIZER_SECRET_KEY;
 
   if (!traceSummarizerUrl) {
-    throw new Error('TRACE_SUMMARIZER_URL environment variable is not set');
+    throw new Error("TRACE_SUMMARIZER_URL environment variable is not set");
   }
 
   if (!authToken) {
-    throw new Error('TRACE_SUMMARIZER_SECRET_KEY environment variable is not set');
+    throw new Error("TRACE_SUMMARIZER_SECRET_KEY environment variable is not set");
   }
 
   // Call the external trace summarizer service
   const response = await observe({ name: "callTraceSummarizerService" }, async () => {
     const res = await fetch(traceSummarizerUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         project_id: projectId,
@@ -110,13 +114,13 @@ export async function generateTraceSummary(input: z.infer<typeof GenerateTraceSu
   };
 }
 
-export async function generateOrGetTraceSummary(input: z.infer<typeof GenerateTraceSummaryRequestSchema>): Promise<z.infer<typeof TraceSummarySchema>> {
-
+export async function generateOrGetTraceSummary(
+  input: z.infer<typeof GenerateTraceSummaryRequestSchema>
+): Promise<z.infer<typeof TraceSummarySchema>> {
   const existingSummary = await getTraceSummary(input);
   if (existingSummary) {
     return existingSummary;
   }
 
   return await generateTraceSummary(input);
-
 }

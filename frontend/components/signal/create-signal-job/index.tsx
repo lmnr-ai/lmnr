@@ -234,7 +234,7 @@ const CreateSignalJobContent = () => {
         path={[
           { name: "signals", href: `/project/${projectId}/signals` },
           { name: signal.name, href: `/project/${projectId}/signals/${signal.id}?tab=jobs` },
-          { name: "signal job" },
+          { name: "create signal job" },
         ]}
       />
       <div className="flex gap-2 px-4 pt-2 pb-4">

@@ -9,7 +9,8 @@ use uuid::Uuid;
 use crate::ch::traces::TraceAggregation;
 use crate::db::spans::Span;
 use crate::db::utils::{
-    Filter, evaluate_array_contains_filter, evaluate_number_filter, evaluate_string_filter,
+    Filter, FilterOperator, evaluate_array_contains_filter, evaluate_number_filter,
+    evaluate_string_filter,
 };
 
 #[derive(sqlx::Type, Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
@@ -179,12 +180,26 @@ impl Trace {
 
             "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
             "span_name" => {
-                let span_names: Vec<String> = spans
+                let target_name = filter.value.as_str().unwrap_or("");
+                let has_span = spans
                     .iter()
                     .filter(|s| s.trace_id == self.id)
-                    .map(|s| s.name.clone())
-                    .collect();
-                evaluate_array_contains_filter(&span_names, &filter.operator, &filter.value)
+                    .any(|s| s.name == target_name);
+                match filter.operator {
+                    FilterOperator::Eq => has_span,
+                    FilterOperator::Ne => !has_span,
+                    _ => {
+                        log::warn!(
+                            "Invalid operator {:?} for span_name filter, only eq/ne supported",
+                            filter.operator
+                        );
+                        false
+                    }
+                }
+            }
+            "status" => {
+                let status = self.status.clone().unwrap_or_default();
+                evaluate_string_filter(&status, &filter.operator, &filter.value)
             }
 
             _ => {

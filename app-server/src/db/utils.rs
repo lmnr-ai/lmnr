@@ -17,7 +17,6 @@ pub enum FilterOperator {
     Gte,
     Lt,
     Lte,
-    Includes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,10 +40,6 @@ pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Va
         FilterOperator::Gte => actual >= target,
         FilterOperator::Lt => actual < target,
         FilterOperator::Lte => actual <= target,
-        FilterOperator::Includes => {
-            log::warn!("Invalid operator Includes for number filter");
-            false
-        }
     }
 }
 
@@ -72,7 +67,7 @@ pub fn evaluate_array_contains_filter(
     let target = value.as_str().unwrap_or("");
 
     match operator {
-        FilterOperator::Eq | FilterOperator::Includes => array.iter().any(|item| item == target),
+        FilterOperator::Eq => array.iter().any(|item| item == target),
         _ => {
             log::warn!(
                 "Invalid operator {:?} for array containment filter, only eq/includes supported",

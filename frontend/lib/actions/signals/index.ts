@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -32,7 +33,7 @@ export const GetSignalsSchema = PaginationFiltersSchema.extend({
   search: z.string().nullable().optional(),
 });
 
-export const GetSignalSchema = z.object({
+const GetSignalSchema = z.object({
   projectId: z.string(),
   id: z.string(),
 });
@@ -42,7 +43,7 @@ export const TriggerSchema = z.object({
   filters: z.array(FilterSchema),
 });
 
-export const CreateSignalSchema = z.object({
+const CreateSignalSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
@@ -50,7 +51,7 @@ export const CreateSignalSchema = z.object({
   triggers: z.array(TriggerSchema).optional().default([]),
 });
 
-export const UpdateSignalSchema = z.object({
+const UpdateSignalSchema = z.object({
   projectId: z.string(),
   id: z.string(),
   prompt: z.string(),
@@ -63,9 +64,14 @@ export const DeleteSignalSchema = z.object({
   id: z.string(),
 });
 
-export const DeleteSignalsSchema = z.object({
+const DeleteSignalsSchema = z.object({
   projectId: z.string(),
   ids: z.array(z.string()).min(1, "At least one signal ID is required"),
+});
+
+const GetLastEventSchema = z.object({
+  projectId: z.string(),
+  name: z.string(),
 });
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
@@ -299,3 +305,29 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 }
 
 export { executeSignal } from "./execute";
+
+export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
+  const { projectId, name } = GetLastEventSchema.parse(input);
+
+  const query = `
+      SELECT
+          id,
+          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
+      name
+      FROM signal_events
+      WHERE name = {name: String}
+      ORDER BY timestamp DESC
+      LIMIT 1
+  `;
+
+  const [result] = await executeQuery<{ name: string; id: string; timestamp: string }>({
+    projectId,
+    query,
+    parameters: {
+      name,
+      projectId,
+    },
+  });
+
+  return result;
+};

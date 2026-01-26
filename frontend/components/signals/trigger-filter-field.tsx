@@ -4,25 +4,20 @@ import { X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import {
+  type ColumnFilter,
+  dataTypeOperationsMap,
+  OperatorLabelMap,
+} from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators.ts";
 
 export const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
-  { name: "Input token count", key: "input_token_count", dataType: "number" },
-  { name: "Output token count", key: "output_token_count", dataType: "number" },
-  { name: "Total token count", key: "total_token_count", dataType: "number" },
-  { name: "Input cost", key: "input_cost", dataType: "number" },
-  { name: "Output cost", key: "output_cost", dataType: "number" },
-  { name: "Cost", key: "cost", dataType: "number" },
-  { name: "Num spans", key: "num_spans", dataType: "number" },
-  { name: "Top span name", key: "top_span_name", dataType: "string" },
-  { name: "Session ID", key: "session_id", dataType: "string" },
-  { name: "User ID", key: "user_id", dataType: "string" },
-  { name: "Tags", key: "tags", dataType: "array" },
-  { name: "Span name", key: "span_name", dataType: "array" },
+  { name: "Trace has span with name", key: "span_name", dataType: "string" },
+  { name: "Status", key: "status", dataType: "enum", options: [{ label: "Error", value: "error" }] },
 ];
 
 export const getDefaultFilter = (): Filter => {
@@ -60,7 +55,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
 
   const column = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === currentColumn);
   const dataType = column?.dataType || "string";
-  const operations = dataTypeOperationsMap[dataType] || dataTypeOperationsMap.string;
+  const operations = [{ key: Operator.Eq, label: OperatorLabelMap[Operator.Eq] }];
 
   const handleColumnChange = (newColumn: string, onChange: (value: string) => void) => {
     const newColumnDef = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === newColumn);
@@ -70,7 +65,12 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
 
     onChange(newColumn);
     setValue(`filters.${index}.operator`, defaultOperator);
-    setValue(`filters.${index}.value`, "");
+
+    if (newDataType === "enum" && newColumnDef && "options" in newColumnDef && newColumnDef.options.length > 0) {
+      setValue(`filters.${index}.value`, newColumnDef.options[0].value);
+    } else {
+      setValue(`filters.${index}.value`, "");
+    }
   };
 
   const filterErrors = errors.filters?.[index];
@@ -84,7 +84,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           rules={{ required: "Column is required" }}
           render={({ field }) => (
             <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
-              <SelectTrigger className="w-40 truncate">
+              <SelectTrigger className="w-48 truncate">
                 <span className="truncate">
                   {SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === field.value)?.name || "Select column..."}
                 </span>
@@ -105,7 +105,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           rules={{ required: "Operator is required" }}
           render={({ field }) => (
             <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-24">
+              <SelectTrigger className="w-12">
                 <span>{operations.find((op) => op.key === field.value)?.label || field.value}</span>
               </SelectTrigger>
               <SelectContent>
@@ -122,15 +122,30 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
           name={`filters.${index}.value`}
           control={control}
           rules={{ required: "Value is required" }}
-          render={({ field }) => (
-            <Input
-              {...field}
-              type={dataType === "number" ? "number" : "text"}
-              placeholder="Enter value..."
-              className="flex-1 hide-arrow"
-              value={field.value as string}
-            />
-          )}
+          render={({ field }) =>
+            dataType === "enum" && column && "options" in column ? (
+              <Select value={field.value as string} onValueChange={field.onChange}>
+                <SelectTrigger className="flex-1">
+                  <span>{column.options.find((opt) => opt.value === field.value)?.label || "Select value..."}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {column.options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                {...field}
+                type={dataType === "number" ? "number" : "text"}
+                placeholder="Enter value..."
+                className="flex-1 hide-arrow"
+                value={field.value as string}
+              />
+            )
+          }
         />
         <Button type="button" variant="ghost" onClick={onRemove} className="py-[7px] shrink-0">
           <X className="w-3.5 h-3.5" />
@@ -152,7 +167,7 @@ export function TriggerFiltersField() {
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <Label>All conditions must match (AND) for this trigger to fire.</Label>
+        <Label>The signal will fire only when all of the following conditions are met.</Label>
         <Button type="button" icon="plus" variant="outline" onClick={() => append(getDefaultFilter())}>
           Add Filter
         </Button>

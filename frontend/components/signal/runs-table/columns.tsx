@@ -1,11 +1,13 @@
 import { type ColumnDef } from "@tanstack/react-table";
+import { capitalize } from "lodash";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
-import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   {
@@ -41,7 +43,11 @@ export const signalRunsColumns: ColumnDef<SignalRunRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: (row) => <span className={cn("font-medium")}>{row.row.original.status}</span>,
+    cell: (row) => (
+      <Badge className="rounded-3xl mr-1" variant="outline">
+        {capitalize(row.row.original.status)}
+      </Badge>
+    ),
     size: 120,
     id: "status",
   },
@@ -94,6 +100,7 @@ export const signalRunsFilters: ColumnFilter[] = [
   {
     name: "Status",
     key: "status",
-    dataType: "number",
+    dataType: "enum",
+    options: ["PENDING", "COMPLETED", "FAILED"].map((value) => ({ value, label: capitalize(value) })),
   },
 ];

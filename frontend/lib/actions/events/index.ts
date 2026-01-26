@@ -14,11 +14,6 @@ const GetEventsSchema = z.object({
   traceId: z.string().optional(),
 });
 
-const GetLastEventSchema = z.object({
-  projectId: z.string(),
-  name: z.string(),
-});
-
 export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise<Event[]> {
   const { spanId, traceId, projectId } = GetEventsSchema.parse(input);
 
@@ -95,29 +90,3 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     count: countResult?.count || 0,
   };
 }
-
-export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, name } = GetLastEventSchema.parse(input);
-
-  const query = `
-      SELECT
-          id,
-          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
-      name
-      FROM events
-      WHERE name = {name: String} AND source = 'SEMANTIC'
-      ORDER BY timestamp DESC
-      LIMIT 1
-  `;
-
-  const [result] = await executeQuery<{ name: string; id: string; timestamp: string }>({
-    projectId,
-    query,
-    parameters: {
-      name,
-      projectId,
-    },
-  });
-
-  return result;
-};

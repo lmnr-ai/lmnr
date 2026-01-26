@@ -2,7 +2,6 @@ import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
-  createNumberFilter,
   createStringFilter,
   type QueryParams,
   type QueryResult,
@@ -26,7 +25,7 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
     ["trace_id", createStringFilter],
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
-    ["status", createNumberFilter("Int64")],
+    ["status", createStringFilter],
   ]),
 };
 

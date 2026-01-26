@@ -4,8 +4,7 @@ import React, { type PropsWithChildren } from "react";
 
 import { SignalStoreProvider } from "@/components/signal/store.tsx";
 import { getClusterConfig } from "@/lib/actions/cluster-configs";
-import { getLastEvent } from "@/lib/actions/events";
-import { getSignal, type Signal } from "@/lib/actions/signals";
+import { getLastEvent, getSignal, type Signal } from "@/lib/actions/signals";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 
 const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: string; id: string }> }>) => {
