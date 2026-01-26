@@ -621,6 +621,21 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
+        // ==== 3.8 Signal Job Submission Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+            SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+        );
+        // ==== 3.9 Signal Job Pending Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+            SIGNAL_JOB_PENDING_BATCH_QUEUE,
+        );
+        // ==== 3.10 Signal Job Waiting Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+            SIGNAL_JOB_WAITING_BATCH_QUEUE,
+        );
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };

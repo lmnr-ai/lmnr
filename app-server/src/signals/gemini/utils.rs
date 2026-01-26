@@ -32,13 +32,17 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
     let candidate = get_first_candidate(inline_response);
 
     let content = candidate
-        .map(|c| serde_json::to_string(&c.content).unwrap_or_default())
+        .and_then(|c| c.content.as_ref())
+        .map(|c| serde_json::to_string(c).unwrap_or_default())
         .unwrap_or_default();
 
-    let function_call =
-        candidate.and_then(|c| c.content.parts.iter().find_map(|p| p.function_call.clone()));
+    let function_call = candidate
+        .and_then(|c| c.content.as_ref())
+        .and_then(|c| c.parts.iter().find_map(|p| p.function_call.clone()));
 
-    let text = candidate.and_then(|c| c.content.parts.iter().find_map(|p| p.text.clone()));
+    let text = candidate
+        .and_then(|c| c.content.as_ref())
+        .and_then(|c| c.parts.iter().find_map(|p| p.text.clone()));
 
     // Include thoughts tokens in output tokens.
     // Divide by 2 with ceiling to account for discounted batching price.

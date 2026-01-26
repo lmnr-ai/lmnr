@@ -28,7 +28,6 @@ impl GeminiErrorStatus {
             GeminiErrorStatus::Internal
                 | GeminiErrorStatus::Unavailable
                 | GeminiErrorStatus::DeadlineExceeded
-                | GeminiErrorStatus::ResourceExhausted
         )
     }
 
@@ -415,9 +414,12 @@ pub struct Operation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
-    pub content: Content,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub safety_ratings: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
