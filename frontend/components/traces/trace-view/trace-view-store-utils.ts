@@ -12,7 +12,7 @@ export type PathInfo = {
 export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
-  branchMask: boolean[];  // branchMask[d] = true if ancestor at depth d has more children below
+  branchMask: boolean[]; // branchMask[d] = true if ancestor at depth d has more children below
   pending: boolean;
   pathInfo: PathInfo;
   // Keep yOffset/parentY for backward compatibility (minimap uses them)
@@ -66,10 +66,7 @@ export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: s
 export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo> => {
   // Build spanMap for parent lookups (needs ALL spans)
   const spanMap = new Map(
-    spans.map((span) => [
-      span.spanId,
-      { spanId: span.spanId, name: span.name, parentSpanId: span.parentSpanId },
-    ])
+    spans.map((span) => [span.spanId, { spanId: span.spanId, name: span.name, parentSpanId: span.parentSpanId }])
   );
 
   // Sections needed for display counts

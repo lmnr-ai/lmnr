@@ -95,14 +95,15 @@ function PureEventsTable() {
     [pathName, searchParams]
   );
 
-  const { traceId, setTraceId, fetchStats, setChartContainerWidth, chartContainerWidth } =
-    useSignalStoreContext((state) => ({
+  const { traceId, setTraceId, fetchStats, setChartContainerWidth, chartContainerWidth } = useSignalStoreContext(
+    (state) => ({
       traceId: state.traceId,
       setTraceId: state.setTraceId,
       fetchStats: state.fetchStats,
       setChartContainerWidth: state.setChartContainerWidth,
       chartContainerWidth: state.chartContainerWidth,
-    }));
+    })
+  );
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {

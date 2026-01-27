@@ -59,7 +59,7 @@ export async function register() {
             process.env.CLICKHOUSE_PASSWORD || "ch_passwd",
             process.env.CLICKHOUSE_DB || "default",
             "ENGINE=Atomic", // db_engine
-            String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000), // timeout as string
+            String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
