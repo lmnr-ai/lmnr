@@ -10,10 +10,10 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import fullLogo from "@/assets/logo/logo.svg";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
-import ViewDropdown from "@/components/shared/traces/view-dropdown";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import List from "@/components/traces/trace-view/list";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import Timeline from "@/components/traces/trace-view/timeline";
@@ -27,6 +27,7 @@ import TraceViewStoreProvider, {
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,7 +46,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
 
   const {
     tab,
-    setTab,
     setSpans,
     setTrace,
     selectedSpan,
@@ -61,7 +61,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setHasBrowserSession,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
-    setTab: state.setTab,
     setSpans: state.setSpans,
     setTrace: state.setTrace,
     selectedSpan: state.selectedSpan,
@@ -211,7 +210,13 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                     {tab === "timeline" && <Timeline />}
                     {tab === "tree" && (
                       <div className="flex flex-1 overflow-hidden relative">
-                        <Tree traceId={trace.id} onSpanSelect={handleSpanSelect} />
+                        <Tree traceId={trace.id} onSpanSelect={handleSpanSelect} isShared />
+                        <Minimap onSpanSelect={handleSpanSelect} />
+                      </div>
+                    )}
+                    {tab === "reader" && (
+                      <div className="flex flex-1 overflow-hidden relative">
+                        <List traceId={trace.id} onSpanSelect={handleSpanSelect} isShared />
                         <Minimap onSpanSelect={handleSpanSelect} />
                       </div>
                     )}
@@ -253,7 +258,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider>
+    <TraceViewStoreProvider storeKey="shared-trace-view">
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );

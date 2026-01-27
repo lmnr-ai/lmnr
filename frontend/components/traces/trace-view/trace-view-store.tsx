@@ -154,7 +154,7 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace) =>
+const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace, storeKey?: string) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
@@ -397,7 +397,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         },
       }),
       {
-        name: "trace-view-state",
+        name: storeKey ?? "trace-view-state",
         partialize: (state) => ({
           treeWidth: state.treeWidth,
           spanPath: state.spanPath,
@@ -414,11 +414,12 @@ const TraceViewStoreProvider = ({
   children,
   initialSearch,
   initialTrace,
-}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
+  storeKey,
+}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace; storeKey?: string }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialSearch, initialTrace);
+    storeRef.current = createTraceViewStore(initialSearch, initialTrace, storeKey);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;
