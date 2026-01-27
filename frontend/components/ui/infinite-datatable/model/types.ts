@@ -37,6 +37,7 @@ export interface InfiniteDataTableProps<TData extends RowData>
   error?: Error | null;
   getRowHref?: (row: Row<TData>) => string;
   loadMoreButton?: boolean | ((props: LoadMoreButtonProps) => ReactNode);
+  hideSelectionPanel?: boolean;
 }
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {

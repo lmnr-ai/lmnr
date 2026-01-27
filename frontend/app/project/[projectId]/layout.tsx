@@ -38,9 +38,10 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
 
   const posthog = PostHogClient();
-  posthog.identify({
-    distinctId: user.email ?? "",
-  });
+
+  if (posthog) {
+    posthog.identify({ distinctId: user.email ?? "" });
+  }
 
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(projectSidebarCookieName)

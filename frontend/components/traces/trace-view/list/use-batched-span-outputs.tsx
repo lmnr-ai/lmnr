@@ -6,29 +6,30 @@ import { SimpleLRU } from "@/lib/simple-lru.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedOutputsHook {
-  getOutput: (spanId: string) => any | undefined;
+  outputs: Record<string, any>;
   clearCache: () => void;
 }
 
 interface UseBatchedSpanOutputsOptions {
   debounceMs?: number;
   maxEntries?: number;
+  isShared?: boolean;
 }
 
 export function useBatchedSpanOutputs(
-  projectId: string,
+  projectId: string | undefined,
   visibleSpanIds: string[],
   trace: { id: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanOutputsOptions = {}
 ): BatchedOutputsHook {
-  const { debounceMs = 150, maxEntries = 100 } = options;
+  const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
-  const [, setUpdateTrigger] = useState(0);
+  const [outputs, setOutputs] = useState<Record<string, any>>({});
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
@@ -46,7 +47,11 @@ export function useBatchedSpanOutputs(
           body.endDate = params.end_time;
         }
 
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+        const url = isShared
+          ? `/api/shared/traces/${trace.id}/spans/outputs`
+          : `/api/projects/${projectId}/traces/${trace.id}/spans/outputs`;
+
+        const response = await fetch(url, {
           method: "POST",
           body: JSON.stringify(body),
         });
@@ -63,7 +68,13 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setUpdateTrigger((prev) => prev + 1);
+        setOutputs((prev) => {
+          const next = { ...prev };
+          spanIds.forEach((id) => {
+            next[id] = cache.current.get(id);
+          });
+          return next;
+        });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -76,10 +87,16 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setUpdateTrigger((prev) => prev + 1);
+        setOutputs((prev) => {
+          const next = { ...prev };
+          spanIds.forEach((id) => {
+            next[id] = null;
+          });
+          return next;
+        });
       }
     },
-    [projectId, toast, trace]
+    [projectId, toast, trace, isShared]
   );
 
   const scheduleFetch = useCallback(async () => {
@@ -115,13 +132,11 @@ export function useBatchedSpanOutputs(
     }
   }, [visibleSpanIds, scheduleFetch, debounceMs]);
 
-  const getOutput = useCallback((spanId: string) => cache.current.get(spanId), []);
-
   const clearCache = useCallback(() => {
     cache.current.clear();
     fetching.current.clear();
-    setUpdateTrigger((prev) => prev + 1);
+    setOutputs({});
   }, []);
 
-  return { getOutput, clearCache };
+  return { outputs, clearCache };
 }

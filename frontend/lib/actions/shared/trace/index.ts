@@ -10,7 +10,7 @@ export const GetSharedTraceSchema = z.object({
   traceId: z.string(),
 });
 
-export const getSharedTrace = async (input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace> => {
+export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
@@ -18,15 +18,18 @@ export const getSharedTrace = async (input: z.infer<typeof GetSharedTraceSchema>
   });
 
   if (!sharedTrace) {
-    throw new Error("No shared trace found.");
+    return undefined;
   }
 
-  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
-    query: `
+  const projectId = sharedTrace.projectId;
+
+  const [[trace], [cacheTokens]] = await Promise.all([
+    executeQuery<Omit<TraceViewTrace, "visibility">>({
+      query: `
       SELECT
         id,
-        start_time as startTime,
-        end_time as endTime,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,
@@ -41,15 +44,33 @@ export const getSharedTrace = async (input: z.infer<typeof GetSharedTraceSchema>
       WHERE id = {traceId: UUID}
       LIMIT 1
     `,
-    projectId: sharedTrace.projectId,
-    parameters: {
-      traceId,
-    },
-  });
+      projectId,
+      parameters: {
+        traceId,
+      },
+    }),
+    executeQuery<{ cacheReadInputTokens: number }>({
+      query: `
+      SELECT 
+          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+        AND span_type = 'LLM'  
+      `,
+      projectId,
+      parameters: {
+        traceId,
+      },
+    }),
+  ]);
 
   if (!trace) {
-    throw new Error("Trace not found.");
+    return undefined;
   }
 
-  return { ...trace, visibility: "public" };
-};
+  return {
+    ...trace,
+    cacheReadInputTokens: cacheTokens?.cacheReadInputTokens ?? 0,
+    visibility: "public",
+  };
+}

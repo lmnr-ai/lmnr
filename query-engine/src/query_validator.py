@@ -38,14 +38,14 @@ class TableRegistry:
             'start_time', 'end_time', 'duration', 'input', 'output', 'request_model',
             'response_model', 'model', 'provider', 'input_tokens', 'output_tokens',
             'total_tokens', 'input_cost', 'output_cost', 'total_cost', 'attributes',
-            'trace_id', 'tags',
+            'trace_id', 'tags'
         }
 
         traces_columns = {
             'id', 'trace_type', 'metadata', 'start_time', 'end_time',
             'duration', 'input_tokens', 'output_tokens', 'total_tokens',
             'input_cost', 'output_cost', 'total_cost', 'status', 'user_id',
-            'session_id', 'top_span_id', 'top_span_name', 'top_span_type', 'tags',
+            'session_id', 'top_span_id', 'top_span_name', 'top_span_type', 'tags', 'span_names'
         }
 
         dataset_datapoints_columns = {
@@ -66,6 +66,14 @@ class TableRegistry:
             "id", "span_id", "name", "created_at", "source",
         }
 
+        signal_runs_columns = {
+            "project_id", "signal_id", "job_id", "trigger_id", "trace_id","run_id", "status", "event_id", "updated_at",
+        }
+
+        signal_events_columns = {
+            "id", "project_id", "signal_id", "trace_id", "run_id", "name", "payload", "timestamp",
+        }
+
         self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')
         self.tables['traces'] = TableSchema('traces', traces_columns, 'start_time')
         self.tables['dataset_datapoints'] = TableSchema('dataset_datapoints', dataset_datapoints_columns, 'created_at')
@@ -75,6 +83,8 @@ class TableRegistry:
         self.tables['evaluation_datapoints'] = TableSchema('evaluation_datapoints', evaluation_datapoints_columns, 'created_at')
         self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
         self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')
+        self.tables['signal_runs'] = TableSchema('signal_runs', signal_runs_columns, 'updated_at')
+        self.tables['signal_events'] = TableSchema('signal_events', signal_events_columns, 'timestamp')
 
     def is_table_allowed(self, table_name: str) -> bool:
         """Check if a table is allowed"""

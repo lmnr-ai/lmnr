@@ -14,58 +14,56 @@ export const TraceStreamChatSchema = z.object({
   projectId: z.string().describe("The project ID"),
 });
 
+export const streamTraceChat = observe(
+  {
+    name: "streamTraceChat",
+    rolloutEntrypoint: true,
+  },
+  async (input: z.infer<typeof TraceStreamChatSchema>) => {
+    const { messages: uiMessages, traceId, projectId } = input;
 
-export const streamTraceChat = observe({
-  name: 'streamTraceChat',
-  rolloutEntrypoint: true,
-}, async (input: z.infer<typeof TraceStreamChatSchema>) => {
+    const chatId = await findOrCreateChatSession(traceId, projectId);
 
-  const { messages: uiMessages, traceId, projectId } = input;
+    const userMessage = uiMessages.filter((message) => message.role === "user").at(-1);
 
-  const chatId = await findOrCreateChatSession(traceId, projectId);
+    await saveChatMessage({
+      chatId,
+      traceId,
+      projectId,
+      role: "user",
+      parts: userMessage?.parts,
+    });
 
-  const userMessage = uiMessages.filter((message) => message.role === "user").at(-1);
+    const { traceString } = await getTraceStructureAsString(projectId, traceId);
 
-  await saveChatMessage({
-    chatId,
-    traceId,
-    projectId,
-    role: "user",
-    parts: userMessage?.parts,
-  });
+    const systemPrompt = TraceChatPrompt.replace("{{fullTraceData}}", traceString);
 
-  const { traceString } = await getTraceStructureAsString(projectId, traceId);
-
-  const systemPrompt = TraceChatPrompt
-    .replace("{{fullTraceData}}", traceString)
-
-  const result = streamText({
-    model: google("gemini-2.5-flash"),
-    messages: convertToModelMessages(uiMessages as UIMessage[]),
-    stopWhen: stepCountIs(10),
-    maxRetries: 5,
-    system: systemPrompt,
-    tools: {
-      getSpansData: tool({
-        description:
-          "Get the data (input, output, start time, end time, status, events) of spans in the trace by span ids",
-        inputSchema: z.object({
-          spanIds: z.array(z.int()).describe("List of span ids to get the data for"),
+    const result = streamText({
+      model: google("gemini-2.5-flash"),
+      messages: convertToModelMessages(uiMessages as UIMessage[]),
+      stopWhen: stepCountIs(10),
+      maxRetries: 5,
+      system: systemPrompt,
+      tools: {
+        getSpansData: tool({
+          description:
+            "Get the data (input, output, start time, end time, status, events) of spans in the trace by span ids",
+          inputSchema: z.object({
+            spanIds: z.array(z.int()).describe("List of span ids to get the data for"),
+          }),
+          execute: async ({ spanIds }) => {
+            const spans = await getSpansByIds(projectId, traceId, spanIds);
+            return YAML.stringify(spans);
+          },
         }),
-        execute: async ({ spanIds }) => {
+      },
+      experimental_transform: smoothStream(),
+      experimental_telemetry: {
+        isEnabled: true,
+        tracer: getTracer(),
+      },
+    });
 
-          const spans = await getSpansByIds(projectId, traceId, spanIds);
-          return YAML.stringify(spans);
-
-        },
-      }),
-    },
-    experimental_transform: smoothStream(),
-    experimental_telemetry: {
-      isEnabled: true,
-      tracer: getTracer(),
-    },
-  });
-
-  return result;
-});
+    return result;
+  }
+);

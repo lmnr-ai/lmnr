@@ -1,7 +1,4 @@
-import { differenceInHours, differenceInMinutes, subHours } from "date-fns";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { type DateRange as ReactDateRange } from "react-day-picker";
+import { differenceInHours, differenceInMinutes } from "date-fns";
 
 export type DateRange = {
   name: string;
@@ -27,61 +24,4 @@ export const getTimeDifference = (from: Date, to: Date): string => {
   if (days > 0) return `${days}d`;
   if (hours > 0) return `${hours}h`;
   return `${minutes}m`;
-};
-
-export const useDateRangeState = () => {
-  const searchParams = useSearchParams();
-  const pastHours = searchParams.get("pastHours");
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-
-  const [calendarDate, setCalendarDate] = useState<ReactDateRange | undefined>(undefined);
-  const [startTime, setStartTime] = useState<string>("00:00");
-  const [endTime, setEndTime] = useState<string>("00:00");
-
-  const getDisplayRange = () => {
-    if (startDate && endDate) {
-      return { from: new Date(startDate), to: new Date(endDate) };
-    }
-    if (pastHours) {
-      const parsedHours = parseInt(pastHours);
-      if (!isNaN(parsedHours)) {
-        const to = new Date();
-        const from = subHours(to, parsedHours);
-        return { from, to };
-      }
-    }
-    const to = new Date();
-    const from = subHours(to, 24);
-    return { from, to };
-  };
-
-  useEffect(() => {
-    if (startDate && endDate) {
-      const urlFrom = new Date(startDate);
-      const urlTo = new Date(endDate);
-      setCalendarDate({ from: urlFrom, to: urlTo });
-
-      const startHour = urlFrom.getHours().toString().padStart(2, "0");
-      const startMinute = urlFrom.getMinutes().toString().padStart(2, "0");
-      setStartTime(`${startHour}:${startMinute}`);
-
-      const endHour = urlTo.getHours().toString().padStart(2, "0");
-      const endMinute = urlTo.getMinutes().toString().padStart(2, "0");
-      setEndTime(`${endHour}:${endMinute}`);
-    } else if (pastHours) {
-      setCalendarDate(undefined);
-    }
-  }, [startDate, endDate, pastHours]);
-
-  return {
-    pastHours,
-    getDisplayRange,
-    calendarDate,
-    setCalendarDate,
-    startTime,
-    setStartTime,
-    endTime,
-    setEndTime,
-  };
 };

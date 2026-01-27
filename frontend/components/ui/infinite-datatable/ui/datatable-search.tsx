@@ -1,14 +1,10 @@
 import { debounce } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
 
 import { Button } from "@/components/ui/button.tsx";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import { Input } from "@/components/ui/input.tsx";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 interface DataTableSearchProps {
@@ -20,13 +16,8 @@ export const DataTableSearch = ({ className, placeholder = "Search in table..." 
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
-  const posthog = usePostHog();
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
-  const store = useDataTableStore();
-  const { getStorageKey } = useStore(store, (state) => ({
-    getStorageKey: state.getStorageKey,
-  }));
 
   const submit = useCallback(
     (searchValue: string) => {
@@ -41,15 +32,9 @@ export const DataTableSearch = ({ className, placeholder = "Search in table..." 
         }
 
         router.push(`${pathName}?${params.toString()}`);
-
-        if (isFeatureEnabled(Feature.POSTHOG)) {
-          posthog.capture(`${getStorageKey()}_list_searched`, {
-            searchParams: params.toString(),
-          });
-        }
       }
     },
-    [searchParams, pathName, router, posthog, getStorageKey]
+    [searchParams, pathName, router]
   );
 
   const debouncedSubmit = useMemo(() => debounce(submit, 300), [submit]);

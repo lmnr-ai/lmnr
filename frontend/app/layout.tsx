@@ -2,14 +2,14 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
-import { Suspense } from "react";
+import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
+import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
-import PostHogPageView from "./posthog-pageview";
-import { PHProvider } from "./providers";
+import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.lmnr.ai"),
@@ -48,17 +48,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: PropsWithChildren) {
+  const telemetryEnabled = isFeatureEnabled(Feature.POSTHOG);
+
   return (
     <html
       lang="en"
       className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}
     >
-      <PHProvider>
+      <PostHogProvider telemetryEnabled={telemetryEnabled}>
         <body className="flex flex-col h-full">
-          <Suspense fallback={null}>
-            <PostHogPageView />
-          </Suspense>
           <div className="flex">
             <div className="flex flex-col grow max-w-full min-h-screen">
               <main className="z-10 flex flex-col grow">{children}</main>
@@ -66,7 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </div>
         </body>
-      </PHProvider>
+      </PostHogProvider>
     </html>
   );
 }

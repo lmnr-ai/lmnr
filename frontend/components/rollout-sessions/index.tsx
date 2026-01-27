@@ -3,9 +3,8 @@
 import React from "react";
 
 import RolloutSessionView from "@/components/rollout-sessions/rollout-session-view";
-import RolloutSessionStoreProvider, {
-  type TraceViewTrace,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import RolloutSessionStoreProvider from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Header from "@/components/ui/header";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { type RolloutSession as RolloutSessionType, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";

@@ -85,11 +85,19 @@ pub trait MessageQueueDeliveryTrait {
 
 #[enum_dispatch(MessageQueue)]
 pub trait MessageQueueTrait {
+    /// Publish a message to an exchange with optional per-message TTL.
+    ///
+    /// # Arguments
+    /// * `message` - The message payload
+    /// * `exchange` - The exchange to publish to
+    /// * `routing_key` - The routing key
+    /// * `ttl_ms` - Optional message TTL in milliseconds. If None, no TTL is set.
     async fn publish(
         &self,
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        ttl_ms: Option<u64>,
     ) -> anyhow::Result<()>;
 
     async fn get_receiver(

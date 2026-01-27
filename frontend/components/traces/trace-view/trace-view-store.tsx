@@ -4,9 +4,8 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
-  buildParentChain,
-  buildPathInfo,
   buildSpanNameMap,
+  computePathInfoMap,
   groupIntoSections,
   type MinimapSpan,
   type TimelineData,
@@ -43,12 +42,14 @@ export type TraceViewSpan = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
   aggregatedMetrics?: {
     totalCost: number;
     totalTokens: number;
+    cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
 };
@@ -62,6 +63,7 @@ export type TraceViewListSpan = {
   startTime: string;
   endTime: string;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
   pathInfo: {
@@ -77,6 +79,7 @@ export type TraceViewTrace = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
@@ -151,7 +154,7 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace) =>
+const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace, storeKey?: string) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
@@ -205,7 +208,11 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           }
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
-        getTreeSpans: () => transformSpansToTree(get().spans),
+        getTreeSpans: () => {
+          const spans = get().spans;
+          const pathInfoMap = computePathInfoMap(spans);
+          return transformSpansToTree(spans, pathInfoMap);
+        },
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
@@ -229,39 +236,23 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         getTimelineData: () => transformSpansToTimeline(get().spans),
         getListData: () => {
           const spans = get().spans;
-
           const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+          const pathInfoMap = computePathInfoMap(spans);
 
-          const spanMap = new Map(
-            spans.map((span) => [
-              span.spanId,
-              {
-                spanId: span.spanId,
-                name: span.name,
-                parentSpanId: span.parentSpanId,
-              },
-            ])
-          );
-
-          const sections = groupIntoSections(listSpans);
-          const spanNameMap = buildSpanNameMap(sections, spanMap);
-
-          const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => {
-            const parentChain = buildParentChain(span, spanMap);
-            return {
-              spanId: span.spanId,
-              parentSpanId: span.parentSpanId,
-              spanType: span.spanType,
-              name: span.name,
-              model: span.model,
-              startTime: span.startTime,
-              endTime: span.endTime,
-              totalTokens: span.totalTokens,
-              totalCost: span.totalCost,
-              pending: span.pending,
-              pathInfo: buildPathInfo(parentChain, spanNameMap),
-            };
-          });
+          const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
+            spanId: span.spanId,
+            parentSpanId: span.parentSpanId,
+            spanType: span.spanType,
+            name: span.name,
+            model: span.model,
+            startTime: span.startTime,
+            endTime: span.endTime,
+            totalTokens: span.totalTokens,
+            cacheReadInputTokens: span.cacheReadInputTokens,
+            totalCost: span.totalCost,
+            pending: span.pending,
+            pathInfo: pathInfoMap.get(span.spanId) ?? null,
+          }));
 
           return lightweightListSpans;
         },
@@ -406,7 +397,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         },
       }),
       {
-        name: "trace-view-state",
+        name: storeKey ?? "trace-view-state",
         partialize: (state) => ({
           treeWidth: state.treeWidth,
           spanPath: state.spanPath,
@@ -423,11 +414,12 @@ const TraceViewStoreProvider = ({
   children,
   initialSearch,
   initialTrace,
-}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace }>) => {
+  storeKey,
+}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace; storeKey?: string }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialSearch, initialTrace);
+    storeRef.current = createTraceViewStore(initialSearch, initialTrace, storeKey);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;

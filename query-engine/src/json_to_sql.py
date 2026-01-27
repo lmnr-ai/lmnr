@@ -206,6 +206,9 @@ class JsonToSqlConverter:
         if op_lower in self.COMPARISON_OPS:
             return f"{field} {self.COMPARISON_OPS[op_lower]} {self._format_value(value)}"
 
+        if op_lower == 'includes':
+            return f"has({field}, {self._format_value(value)})"
+
         raise QueryBuilderError(f"Unsupported operator: {op}")
 
 

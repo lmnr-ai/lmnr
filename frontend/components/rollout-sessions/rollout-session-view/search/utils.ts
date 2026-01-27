@@ -1,6 +1,6 @@
 import { get, isArray } from "lodash";
 
-import { type TraceViewSpan } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { SpanType } from "@/lib/traces/types.ts";
 

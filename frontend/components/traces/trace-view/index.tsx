@@ -476,7 +476,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
           ) : (
-            <ResizablePanelGroup id="trace-view-panels" direction="vertical">
+            <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
@@ -506,7 +506,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                     </div>
                   ) : (
                     <div className="flex flex-1 h-full overflow-hidden relative">
-                      <Tree onSpanSelect={handleSpanSelect} />
+                      <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
                       <Minimap onSpanSelect={handleSpanSelect} />
                     </div>
                   ))}

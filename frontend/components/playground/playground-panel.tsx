@@ -185,13 +185,13 @@ export default function PlaygroundPanel({
           </Button>
         )}
       </div>
-      <ResizablePanelGroup autoSaveId={`playground:${id}`} direction="vertical" className="flex flex-1">
+      <ResizablePanelGroup orientation="vertical" className="flex flex-1">
         <ResizablePanel minSize={30} className="flex flex-col pb-4">
-          <ResizablePanelGroup autoSaveId={`playground-main:${id}`} direction="horizontal" className="flex flex-1">
+          <ResizablePanelGroup orientation="horizontal" className="flex flex-1">
             <ResizablePanel minSize={30} className="flex flex-col flex-1">
               <Messages />
             </ResizablePanel>
-            <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
+            <ResizableHandle withHandle />
             <ResizablePanel minSize={20} className="flex-1 flex flex-col gap-2 px-4">
               {!isEmpty(reasoning) && (
                 <Collapsible defaultOpen className="group flex overflow-hidden flex-col border rounded divide-y">

@@ -30,6 +30,7 @@ pub async fn publish_for_indexing(
             &serialized_payload,
             SPANS_INDEXER_EXCHANGE,
             SPANS_INDEXER_ROUTING_KEY,
+            None,
         )
         .await
         .context("Failed to publish spans/events to Quickwit indexer queue")?;

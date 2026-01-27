@@ -11,8 +11,6 @@ import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.
 import {
   MAX_ZOOM,
   MIN_ZOOM,
-  type TraceViewSpan,
-  type TraceViewTrace,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SearchRolloutSessionSpansInput from "@/components/rollout-sessions/rollout-session-view/search";
@@ -20,7 +18,7 @@ import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/se
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
 import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
-import Tree from "@/components/rollout-sessions/rollout-session-view/tree";
+import Tree from "@/components/rollout-sessions/rollout-session-view/tree/index";
 import {
   onRealtimeStartSpan,
   onRealtimeUpdateSpans,
@@ -31,6 +29,7 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button.tsx";
 import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
@@ -539,7 +538,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
         ) : (
-          <ResizablePanelGroup id="rollout-session-view-panels" direction="vertical">
+          <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
               {tab === "metadata" && trace && <Metadata trace={trace} />}
               {tab === "timeline" && <Timeline />}
@@ -558,7 +557,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                   </div>
                 ) : (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
+                    <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
                     <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 ))}

@@ -47,10 +47,7 @@ export interface Span extends SpanInfo {
   exception?: unknown;
 }
 
-const fetchSpanInfos = async (
-  projectId: string,
-  traceId: string
-): Promise<SpanInfo[]> => {
+const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
   const spans = await executeQuery({
     projectId,
     query: `
@@ -78,11 +75,7 @@ const fetchSpanInfos = async (
 /**
  * Fetches full span details for specific span IDs.
  */
-const fetchSpans = async (
-  projectId: string,
-  traceId: string,
-  spanIds: string[]
-): Promise<Map<string, Span>> => {
+const fetchSpans = async (projectId: string, traceId: string, spanIds: string[]): Promise<Map<string, Span>> => {
   if (spanIds.length === 0) {
     return new Map();
   }
@@ -148,16 +141,10 @@ const fetchSpans = async (
 /**
  * Fetches full span data for specific sequential IDs (1-indexed).
  */
-export const getSpansByIds = async (
-  projectId: string,
-  traceId: string,
-  ids: number[]
-): Promise<Span[]> => {
+export const getSpansByIds = async (projectId: string, traceId: string, ids: number[]): Promise<Span[]> => {
   const spanInfos = await fetchSpanInfos(projectId, traceId);
 
-  const requestedSpanIds = ids
-    .filter((id) => id >= 1 && id <= spanInfos.length)
-    .map((id) => spanInfos[id - 1].spanId);
+  const requestedSpanIds = ids.filter((id) => id >= 1 && id <= spanInfos.length).map((id) => spanInfos[id - 1].spanId);
 
   if (requestedSpanIds.length === 0) {
     return [];
@@ -175,15 +162,12 @@ function calculateDuration(start: string, end: string): number {
   return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
 }
 
-function spanInfosToSkeletonString(
-  spanInfos: SpanInfo[],
-  spanIdToSeqId: Record<string, number>
-): string {
+function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
   let result = "legend: span_name (id, parent_id, type)\n";
   for (let i = 0; i < spanInfos.length; i++) {
     const info = spanInfos[i];
     const seqId = i + 1;
-    const parentSeqId = info.parent ? spanIdToSeqId[info.parent] ?? null : null;
+    const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
     result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type})\n`;
   }
   return result;
@@ -206,10 +190,7 @@ export interface TraceStructureResult {
   traceString: string;
 }
 
-export const getTraceStructureAsString = async (
-  projectId: string,
-  traceId: string
-): Promise<TraceStructureResult> => {
+export const getTraceStructureAsString = async (projectId: string, traceId: string): Promise<TraceStructureResult> => {
   const spanInfos = await fetchSpanInfos(projectId, traceId);
 
   const spanIdToSeqId: Record<string, number> = {};
@@ -218,9 +199,7 @@ export const getTraceStructureAsString = async (
   });
 
   // Only fetch full details for LLM and TOOL spans
-  const detailedSpanIds = spanInfos
-    .filter((s) => s.type === "LLM" || s.type === "TOOL")
-    .map((s) => s.spanId);
+  const detailedSpanIds = spanInfos.filter((s) => s.type === "LLM" || s.type === "TOOL").map((s) => s.spanId);
 
   const spansMap = await fetchSpans(projectId, traceId, detailedSpanIds);
 
@@ -240,7 +219,7 @@ export const getTraceStructureAsString = async (
     if (!span) continue;
 
     const seqId = i + 1;
-    const parentSeqId = info.parent ? spanIdToSeqId[info.parent] ?? null : null;
+    const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
 
     const spanView: DetailedSpanView = {
       id: seqId,

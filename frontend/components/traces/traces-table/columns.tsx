@@ -165,13 +165,30 @@ export const columns: ColumnDef<TraceRow, any>[] = [
 
       if (tags?.length > 0) {
         return (
-          <>
-            {tags.map((tag) => (
-              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                <span>{tag}</span>
-              </Badge>
-            ))}
-          </>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="truncate">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                      <span>{tag}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border max-w-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} className="rounded-3xl" variant="outline">
+                        <span>{tag}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
       return "-";
@@ -231,6 +248,11 @@ export const filters: ColumnFilter[] = [
     name: "Top span name",
     key: "top_span_name",
     dataType: "string",
+  },
+  {
+    name: "Span names",
+    key: "span_names",
+    dataType: "array",
   },
   {
     name: "Input cost",
