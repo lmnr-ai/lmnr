@@ -9,7 +9,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { toFixedIfFloat } from "@/lib/utils";
 
 import PricingCard from "./pricing-card";
@@ -289,8 +288,8 @@ export default function Pricing() {
   const posthog = usePostHog();
 
   const handleQuestionClick = (question: string) => {
-    if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-      posthog?.capture("faq_question_clicked", { question });
+    if (posthog?.__loaded) {
+      posthog.capture("faq_question_clicked", { question });
     }
   };
 

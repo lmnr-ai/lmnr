@@ -10,12 +10,6 @@ export async function register() {
 
   // prevent this from running in the edge runtime for the second time
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    if (process.env.NEXT_PUBLIC_ANONYMOUS_TELEMETRY === "true") {
-      console.log(
-        "Telemetry is enabled. To opt out, set NEXT_PUBLIC_ANONYMOUS_TELEMETRY=false in your .env file or remove the variable entirely."
-      );
-    }
-
     const { Feature, isFeatureEnabled } = await import("@/lib/features/features.ts");
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");

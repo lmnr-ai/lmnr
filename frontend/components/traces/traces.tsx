@@ -1,16 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import { Resizable, type ResizeCallback } from "re-resizable";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
-import { useUserContext } from "@/contexts/user-context";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -36,8 +33,6 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
-  const user = useUserContext();
-  const posthog = usePostHog();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const ref = useRef<Resizable>(null);
@@ -55,12 +50,6 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
       setDefaultTraceViewWidth(getDefaultTraceViewWidth());
     }
   }, []);
-
-  useEffect(() => {
-    if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-      posthog?.identify(user.email);
-    }
-  }, [posthog, user.email]);
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);

@@ -2,8 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
@@ -15,10 +14,8 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
-import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -108,8 +105,6 @@ function EvaluationsContent() {
   const params = useParams();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const posthog = usePostHog();
-  const user = useUserContext();
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -205,12 +200,6 @@ function EvaluationsContent() {
       });
     }
   };
-
-  useEffect(() => {
-    if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-      posthog?.identify(user.email);
-    }
-  }, [posthog, user.email]);
 
   return (
     <>
