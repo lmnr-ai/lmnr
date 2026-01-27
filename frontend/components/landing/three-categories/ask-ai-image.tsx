@@ -18,36 +18,25 @@ const AskAIImage = ({ className }: Props) => {
     offset: ["start end", "end start"],
   });
 
-  // Messages data with unique properties
+  // All transforms at top level (hooks can't be in callbacks)
+  const opacity1 = useTransform(scrollYProgress, [0.0, 0.2], [0, 1]);
+  const x1 = useTransform(scrollYProgress, [0.0, 0.3], [100 + 360, 360]);
+
+  const opacity2 = useTransform(scrollYProgress, [0.1, 0.3], [0, 1]);
+  const x2 = useTransform(scrollYProgress, [0.1, 0.4], [100 + 400, 400]);
+
+  const opacity3 = useTransform(scrollYProgress, [0.2, 0.5], [0, 1]);
+  const x3 = useTransform(scrollYProgress, [0.2, 0.6], [100 + 440, 440]);
+
+  const opacity4 = useTransform(scrollYProgress, [0, 0.3], [0, 1]);
+  const x4 = useTransform(scrollYProgress, [0.2, 0.4], [-40, 0]);
+
+  // Messages data with references to pre-computed transforms
   const messages = [
-    {
-      text: "Explain the error that's happening",
-      xOffset: 360,
-      hasButton: false,
-      opacity: useTransform(scrollYProgress, [0.0, 0.2], [0, 1]),
-      x: useTransform(scrollYProgress, [0.0, 0.3], [100, 0]),
-    },
-    {
-      text: "Diagnose the core cause of the issue",
-      xOffset: 400,
-      hasButton: false,
-      opacity: useTransform(scrollYProgress, [0.1, 0.3], [0, 1]),
-      x: useTransform(scrollYProgress, [0.1, 0.4], [100, 0]),
-    },
-    {
-      text: "Summarize my trace for me and explain the root cause of the error",
-      xOffset: 440,
-      hasButton: false,
-      opacity: useTransform(scrollYProgress, [0.2, 0.5], [0, 1]),
-      x: useTransform(scrollYProgress, [0.2, 0.6], [100, 0]),
-    },
-    {
-      text: "Summarize my trace for me and explain the root cause of the error",
-      xOffset: 0,
-      hasButton: true,
-      opacity: useTransform(scrollYProgress, [0, 0.3], [0, 1]),
-      x: useTransform(scrollYProgress, [0.2, 0.4], [-40, 0]),
-    },
+    { text: "Explain the error that's happening", hasButton: false, opacity: opacity1, x: x1 },
+    { text: "Diagnose the core cause of the issue", hasButton: false, opacity: opacity2, x: x2 },
+    { text: "Summarize my trace for me and explain the root cause of the error", hasButton: false, opacity: opacity3, x: x3 },
+    { text: "Summarize my trace for me and explain the root cause of the error", hasButton: true, opacity: opacity4, x: x4 },
   ];
 
   return (
@@ -69,7 +58,7 @@ const AskAIImage = ({ className }: Props) => {
             )}
             style={{
               opacity: message.opacity,
-              x: useTransform(message.x, (val) => val + message.xOffset),
+              x: message.x,
             }}
           >
             <p className={cn(

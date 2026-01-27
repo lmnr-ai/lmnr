@@ -1,9 +1,8 @@
 "use client";
 
-import type MuxPlayerElement from "@mux/mux-player";
 import MuxPlayer from "@mux/mux-player-react";
 import { Loader2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { type ElementRef, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,7 +16,7 @@ const chapters = [
 ];
 
 const DebuggerVideo = () => {
-  const playerRef = useRef<MuxPlayerElement>(null);
+  const playerRef = useRef<ElementRef<typeof MuxPlayer>>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,7 +50,6 @@ const DebuggerVideo = () => {
       setCurrentTime(playerRef.current.currentTime);
     }
   };
-
 
   return (
     <div className="w-full flex flex-col gap-9">
