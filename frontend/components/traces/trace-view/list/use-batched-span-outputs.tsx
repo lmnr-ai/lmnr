@@ -13,15 +13,16 @@ export interface BatchedOutputsHook {
 interface UseBatchedSpanOutputsOptions {
   debounceMs?: number;
   maxEntries?: number;
+  isShared?: boolean;
 }
 
 export function useBatchedSpanOutputs(
-  projectId: string,
+  projectId: string | undefined,
   visibleSpanIds: string[],
   trace: { id: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanOutputsOptions = {}
 ): BatchedOutputsHook {
-  const { debounceMs = 150, maxEntries = 100 } = options;
+  const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
   const fetching = useRef(new Set<string>());
@@ -46,7 +47,11 @@ export function useBatchedSpanOutputs(
           body.endDate = params.end_time;
         }
 
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+        const url = isShared
+          ? `/api/shared/traces/${trace.id}/spans/outputs`
+          : `/api/projects/${projectId}/traces/${trace.id}/spans/outputs`;
+
+        const response = await fetch(url, {
           method: "POST",
           body: JSON.stringify(body),
         });
@@ -91,7 +96,7 @@ export function useBatchedSpanOutputs(
         });
       }
     },
-    [projectId, toast, trace]
+    [projectId, toast, trace, isShared]
   );
 
   const scheduleFetch = useCallback(async () => {

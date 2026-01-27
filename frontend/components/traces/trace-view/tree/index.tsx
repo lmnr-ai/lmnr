@@ -14,9 +14,10 @@ import { SpanCard } from "./span-card";
 interface TreeProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
+  isShared?: boolean;
 }
 
-const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
+const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, spans, trace } = useTraceViewStoreContext((state) => ({
@@ -45,11 +46,16 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
     })
   ) as string[];
 
-  const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
-    id: traceId,
-    startTime: trace?.startTime,
-    endTime: trace?.endTime,
-  });
+  const { outputs } = useBatchedSpanOutputs(
+    projectId,
+    visibleSpanIds,
+    {
+      id: traceId,
+      startTime: trace?.startTime,
+      endTime: trace?.endTime,
+    },
+    { isShared }
+  );
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
