@@ -27,7 +27,7 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
         trigger_id,
         run_id,
         trace_id,
-        error_message
+        error_message,
         CASE
             WHEN status = 0 THEN 'PENDING'
             WHEN status = 1 THEN 'COMPLETED'
