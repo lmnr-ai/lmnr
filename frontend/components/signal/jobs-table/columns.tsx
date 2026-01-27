@@ -54,8 +54,6 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
               {failed.toLocaleString()}
             </span>
           )}
-          {/* <span className="text-muted-foreground">·</span> */}
-          {/* <span className="text-muted-foreground">{percentage}%</span> */}
         </div>
       );
     },

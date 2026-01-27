@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 import React from "react";
@@ -6,7 +7,6 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
@@ -18,105 +18,108 @@ export const getSignalRunsColumns = ({
   onJobNav: (row: Row<SignalRunRow>) => void;
   onTriggerNav: (row: Row<SignalRunRow>) => void;
 }): ColumnDef<SignalRunRow>[] => [
-    {
-      accessorKey: "runId",
-      cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-      header: "Run ID",
-      size: 300,
-      id: "runId",
-    },
-    {
-      accessorKey: "traceId",
-      cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-      header: "Trace ID",
-      size: 300,
-      id: "traceId",
-    },
-    {
-      cell: (row) => {
-        if (row.row.original.jobId !== "00000000-0000-0000-0000-000000000000") {
-          return (
-            <Badge
-              onClick={() => onJobNav(row.row)}
-              className="rounded-3xl mr-1 hover:underline cursor-pointer"
-              variant="outline"
-            >
-              Job
-            </Badge>
-          );
-        }
-
+  {
+    accessorKey: "runId",
+    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    header: "Run ID",
+    size: 300,
+    id: "runId",
+  },
+  {
+    accessorKey: "traceId",
+    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    header: "Trace ID",
+    size: 300,
+    id: "traceId",
+  },
+  {
+    cell: (row) => {
+      if (row.row.original.jobId !== "00000000-0000-0000-0000-000000000000") {
         return (
           <Badge
-            onClick={() => onTriggerNav(row.row)}
+            onClick={() => onJobNav(row.row)}
             className="rounded-3xl mr-1 hover:underline cursor-pointer"
             variant="outline"
           >
-            Trigger
+            Job
           </Badge>
         );
-      },
-      header: "Source",
-      size: 120,
-      id: "source",
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: (row) => (
-        <Badge className="rounded-3xl mr-1" variant="outline">
-          {capitalize(row.row.original.status)}
+      }
+
+      return (
+        <Badge
+          onClick={() => onTriggerNav(row.row)}
+          className="rounded-3xl mr-1 hover:underline cursor-pointer"
+          variant="outline"
+        >
+          Trigger
         </Badge>
-      ),
-      size: 120,
-      id: "status",
+      );
     },
-    {
-      accessorKey: "eventId",
-      cell: (row) => (
-        <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
-      ),
-      header: "Event ID",
-      size: 300,
-      id: "eventId",
-    },
-    {
-      accessorKey: "updatedAt",
-      header: "Updated At",
-      cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
-      size: 150,
-      id: "updatedAt",
-    },
-    {
-      accessorKey: "errorMessage",
-      header: "Error Message",
-      cell: ({ getValue, column }) => {
-        const value = getValue() as string | null;
-        if (!value) return <span className="text-muted-foreground">-</span>;
+    header: "Source",
+    size: 120,
+    id: "source",
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: (row) => (
+      <Badge className="rounded-3xl mr-1" variant="outline">
+        {capitalize(row.row.original.status)}
+      </Badge>
+    ),
+    size: 120,
+    id: "status",
+  },
+  {
+    accessorKey: "eventId",
+    cell: (row) => (
+      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
+    ),
+    header: "Event ID",
+    size: 300,
+    id: "eventId",
+  },
+  {
+    accessorKey: "errorMessage",
+    header: "Error Message",
+    cell: ({ getValue, column }) => {
+      const value = getValue() as string | null;
+      if (!value) return <span className="text-muted-foreground">-</span>;
 
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div style={{ width: column.getSize() - 32 }} className="truncate">
-                  {value}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="max-w-md p-2 border text-secondary-foreground whitespace-pre-wrap break-words">
-                  {value}
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      },
-      size: 300,
-      id: "errorMessage",
-    }
-  ];
+      return (
+        <TooltipProvider delayDuration={100}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div style={{ width: column.getSize() - 32 }} className="truncate">
+                {value}
+              </div>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent
+                side="bottom"
+                className="max-w-md p-2 border text-secondary-foreground whitespace-pre-wrap break-words"
+              >
+                {value}
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    size: 300,
+    id: "errorMessage",
+  },
+  {
+    accessorKey: "updatedAt",
+    header: "Updated At",
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    size: 150,
+    id: "updatedAt",
+  },
+];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "errorMessage", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {
