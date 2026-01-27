@@ -41,7 +41,6 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
 
   if (posthog) {
     posthog.identify({ distinctId: user.email ?? "" });
-    await posthog.shutdown();
   }
 
   const cookieStore = await cookies();

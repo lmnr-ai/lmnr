@@ -276,8 +276,8 @@ importers:
         specifier: ^1.335.3
         version: 1.335.3
       posthog-node:
-        specifier: ^5.21.2
-        version: 5.21.2
+        specifier: ^5.24.2
+        version: 5.24.2
       re-resizable:
         specifier: ^6.11.2
         version: 6.11.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2496,9 +2496,6 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
-
-  '@posthog/core@1.10.0':
-    resolution: {integrity: sha512-Xk3JQ+cdychsvftrV3G9ZrN9W329lbyFW0pGJXFGKFQf8qr4upw2SgNg9BVorjSrfhoXZRnJGt/uNF4nGFBL5A==}
 
   '@posthog/core@1.14.0':
     resolution: {integrity: sha512-havjGYHwL8Gy6LXIR911h+M/sYlJLQbepxP/cc1M7Cp3v8F92bzpqkbuvUIUyb7/izkxfGwc9wMqKAo0QxMTrg==}
@@ -6572,9 +6569,9 @@ packages:
   posthog-js@1.335.3:
     resolution: {integrity: sha512-ZQg3ozgsPom+SZtAxMN97Zx9Vqkdsv1D4TZU/OqbAZdm27PswV6+ShBurm3nKm9jrlUU1cGHMRn2ZJZf249znQ==}
 
-  posthog-node@5.21.2:
-    resolution: {integrity: sha512-Jehlu0KguL1LLyUczCt86OtA5INmeStK3zcgbv1BSyMcNxs0HP3GQogBrYhwhqHsk6JopiFFVpJyZEoXOUMhGw==}
-    engines: {node: '>=20'}
+  posthog-node@5.24.2:
+    resolution: {integrity: sha512-cywIUYtSIC9BilgLlZd1R2xNk6omKL6tywG/SCPmUJKeG2jhjvJHSrHXYx4x3uQsUjn8aB9UVI8km+W326Zm8g==}
+    engines: {node: ^20.20.0 || >=22.22.0}
 
   preact-render-to-string@5.2.6:
     resolution: {integrity: sha512-JyhErpYOvBV1hEPwIxc/fHWXPfnEGdRKxc8gFdAZ7XV4tlzyzG847XAyEZqoDnynP88akM4eaHcSOzNcLWFguw==}
@@ -10066,10 +10063,6 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
-
-  '@posthog/core@1.10.0':
-    dependencies:
-      cross-spawn: 7.0.6
 
   '@posthog/core@1.14.0':
     dependencies:
@@ -14890,9 +14883,9 @@ snapshots:
       query-selector-shadow-dom: 1.0.1
       web-vitals: 5.1.0
 
-  posthog-node@5.21.2:
+  posthog-node@5.24.2:
     dependencies:
-      '@posthog/core': 1.10.0
+      '@posthog/core': 1.14.0
 
   preact-render-to-string@5.2.6(preact@10.28.2):
     dependencies:
