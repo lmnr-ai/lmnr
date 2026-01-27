@@ -2,7 +2,10 @@
 
 import type MuxPlayerElement from "@mux/mux-player";
 import MuxPlayer from "@mux/mux-player-react";
+import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import ChapterButton from "./chapter-button";
 
@@ -16,6 +19,7 @@ const chapters = [
 const DebuggerVideo = () => {
   const playerRef = useRef<MuxPlayerElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const getChapterDuration = (index: number) => {
     const videoDuration = playerRef.current?.duration ?? 0;
@@ -48,6 +52,7 @@ const DebuggerVideo = () => {
     }
   };
 
+
   return (
     <div className="w-full flex flex-col gap-9">
       <div className="flex md:gap-7 items-end gap-2">
@@ -62,10 +67,15 @@ const DebuggerVideo = () => {
         ))}
       </div>
 
-      <div className="w-full border border-landing-surface-400 rounded-lg overflow-hidden">
+      <div className="relative w-full aspect-[74/45] border border-landing-surface-400 rounded-lg overflow-hidden">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <Loader2 size={40} className="text-landing-text-400 animate-spin" />
+          </div>
+        )}
         <MuxPlayer
           ref={playerRef}
-          className="block"
+          className={cn("block", { invisible: isLoading })}
           playbackId="GHkdcXx8unYRtXWDvuSoY8LDwDgWAx6p5soFBTI02vTU"
           metadata={{
             video_title: "Debugger",
@@ -73,12 +83,16 @@ const DebuggerVideo = () => {
           autoPlay={true}
           muted={true}
           loop={true}
+          preload="auto"
+          minResolution="1080p"
           thumbnailTime={0}
           onTimeUpdate={handleTimeUpdate}
+          onCanPlay={() => setIsLoading(false)}
           style={
             {
               width: "100%",
               height: "auto",
+              "--media-background-color": "transparent",
               "--controls": "none",
               "--dialog": "none",
               "--loading-indicator": "none",
