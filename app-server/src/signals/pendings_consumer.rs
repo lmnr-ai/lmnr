@@ -480,7 +480,10 @@ async fn process_single_response(
 
     // Check if response contains an error
     if response.has_error {
-        let error = "Response contains error".to_string();
+        let error = match &response.error_message {
+            Some(msg) => format!("LLM response contains error:\n {}", msg),
+            None => "LLM response contains error".to_string(),
+        };
         return (StepResult::Failed { error }, vec![]);
     }
 
