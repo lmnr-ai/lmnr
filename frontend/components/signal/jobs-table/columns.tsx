@@ -1,4 +1,5 @@
 import { type ColumnDef } from "@tanstack/react-table";
+import { CheckCircle2, Clock3, XCircle } from "lucide-react";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
@@ -33,21 +34,31 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
       const total = row.original.totalTraces;
       const succeeded = row.original.processedTraces;
       const failed = row.original.failedTraces;
+      const pending = total - succeeded - failed;
       const percentage = total > 0 ? (((succeeded + failed) / total) * 100).toFixed(1) : "0.0";
 
       return (
-        <div className="flex items-center gap-2 font-medium tabular-nums">
-          <span className="text-success">{succeeded.toLocaleString()}</span>
-          {failed > 0 && (
-            <>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-destructive">{failed.toLocaleString()}</span>
-            </>
+        <div className="flex items-center gap-3 font-medium tabular-nums">
+          {succeeded > 0 && (
+            <span className="flex items-center gap-1">
+              <CheckCircle2 size={14} className="text-success" />
+              {succeeded.toLocaleString()}
+            </span>
           )}
-          <span className="text-muted-foreground">/</span>
-          <span className="text-foreground">{total.toLocaleString()}</span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-muted-foreground">{percentage}%</span>
+          {failed > 0 && (
+            <span className="flex items-center gap-1">
+              <XCircle size={14} className="text-destructive" />
+              {failed.toLocaleString()}
+            </span>
+          )}
+          {pending > -1 && (
+            <span className="flex items-center gap-1">
+              <Clock3 size={14} className="text-muted-foreground" />
+              {pending.toLocaleString()}
+            </span>
+          )}
+          {/* <span className="text-muted-foreground">·</span> */}
+          {/* <span className="text-muted-foreground">{percentage}%</span> */}
         </div>
       );
     },
