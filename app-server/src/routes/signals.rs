@@ -16,8 +16,13 @@ use crate::{
 
 use super::{ResponseResult, error::Error};
 
-const LLM_MODEL: &str = "gemini-2.5-pro";
-const LLM_PROVIDER: &str = "gemini";
+fn llm_model() -> String {
+    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string())
+}
+
+fn llm_provider() -> String {
+    env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or_else(|_| "gemini".to_string())
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,8 +147,8 @@ pub async fn submit_signal_job(
             None,
             None,
             None,
-            Some(LLM_MODEL.to_string()),
-            Some(LLM_PROVIDER.to_string()),
+            Some(llm_model()),
+            Some(llm_provider()),
             queue.as_ref().clone(),
             internal_project_id,
         )
@@ -199,8 +204,8 @@ pub async fn submit_signal_job(
         signal_name: signal.name,
         prompt: signal.prompt,
         structured_output_schema: signal.structured_output_schema,
-        model: LLM_MODEL.to_string(),
-        provider: LLM_PROVIDER.to_string(),
+        model: llm_model(),
+        provider: llm_provider(),
         runs,
     };
 
