@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
@@ -245,13 +246,30 @@ export const columns: ColumnDef<SpanRow, any>[] = [
 
       if (tags?.length > 0) {
         return (
-          <>
-            {(row.getValue() as string[]).map((tag) => (
-              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                <span>{tag}</span>
-              </Badge>
-            ))}
-          </>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="truncate">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                      <span>{tag}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border max-w-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} className="rounded-3xl" variant="outline">
+                        <span>{tag}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
       return "-";

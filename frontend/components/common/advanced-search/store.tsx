@@ -2,17 +2,19 @@
 
 import { isEqual, uniqueId } from "lodash";
 import { type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { type ReadonlyURLSearchParams } from "next/navigation";
+import { type ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 
-import { type Filter } from "@/lib/actions/common/filters";
+import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 
 import {
+  type AdvancedSearchMode,
   type AutocompleteCache,
   type ColumnFilter,
   createFilterFromTag,
+  createTagFromFilter,
   type FilterTag,
   type FilterTagFocusState,
   type FilterTagRef,
@@ -33,6 +35,7 @@ interface AdvancedSearchStore {
 
   // Config (from props)
   filters: ColumnFilter[];
+  mode: AdvancedSearchMode;
   onSubmit?: (filters: Filter[], search: string) => void;
 
   // Computed selectors
@@ -87,6 +90,7 @@ const createAdvancedSearchStore = (
   filters: ColumnFilter[],
   initialTags: FilterTag[],
   initialSearch: string,
+  mode: AdvancedSearchMode,
   onSubmit?: (filters: Filter[], search: string) => void
 ) => {
   // Track last submitted state to avoid redundant submits
@@ -108,6 +112,7 @@ const createAdvancedSearchStore = (
 
     // Config
     filters,
+    mode,
     onSubmit,
 
     // Computed selectors
@@ -159,7 +164,7 @@ const createAdvancedSearchStore = (
     },
 
     addCompleteTag: (field, operator, value, router, pathname, searchParams) => {
-      const { filters, onSubmit } = get();
+      const { filters, onSubmit, mode } = get();
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
@@ -184,18 +189,20 @@ const createAdvancedSearchStore = (
       });
 
       queueMicrotask(() => {
-        const params = new URLSearchParams(searchParams.toString());
+        if (mode === "url") {
+          const params = new URLSearchParams(searchParams.toString());
 
-        params.delete("filter");
-        params.delete("search");
-        params.delete("pageNumber");
-        params.set("pageNumber", "0");
+          params.delete("filter");
+          params.delete("search");
+          params.delete("pageNumber");
+          params.set("pageNumber", "0");
 
-        filterObjects.forEach((filter) => {
-          params.append("filter", JSON.stringify(filter));
-        });
+          filterObjects.forEach((filter) => {
+            params.append("filter", JSON.stringify(filter));
+          });
 
-        router.push(`${pathname}?${params.toString()}`);
+          router.push(`${pathname}?${params.toString()}`);
+        }
 
         onSubmit?.(filterObjects, "");
       });
@@ -281,7 +288,7 @@ const createAdvancedSearchStore = (
 
     // Submit/clear actions
     submit: (router, pathname, searchParams) => {
-      const { tags, inputValue, onSubmit } = get();
+      const { tags, inputValue, onSubmit, mode } = get();
       const filterObjects = tags.map(createFilterFromTag);
       const searchValue = inputValue.trim();
 
@@ -289,22 +296,24 @@ const createAdvancedSearchStore = (
         return;
       }
 
-      const params = new URLSearchParams(searchParams.toString());
+      if (mode === "url") {
+        const params = new URLSearchParams(searchParams.toString());
 
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
+        params.delete("filter");
+        params.delete("search");
+        params.delete("pageNumber");
+        params.set("pageNumber", "0");
 
-      filterObjects.forEach((filter) => {
-        params.append("filter", JSON.stringify(filter));
-      });
+        filterObjects.forEach((filter) => {
+          params.append("filter", JSON.stringify(filter));
+        });
 
-      if (searchValue) {
-        params.set("search", searchValue);
+        if (searchValue) {
+          params.set("search", searchValue);
+        }
+
+        router.push(`${pathname}?${params.toString()}`);
       }
-
-      router.push(`${pathname}?${params.toString()}`);
 
       lastSubmitted = { filters: filterObjects, search: searchValue };
 
@@ -312,6 +321,8 @@ const createAdvancedSearchStore = (
     },
 
     clearAll: (router, pathname, searchParams) => {
+      const { mode, onSubmit } = get();
+
       set({
         tags: [],
         inputValue: "",
@@ -320,16 +331,18 @@ const createAdvancedSearchStore = (
         tagFocusStates: new Map<string, FilterTagFocusState>(),
       });
 
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("filter");
-      params.delete("search");
-      params.delete("pageNumber");
-      params.set("pageNumber", "0");
-      router.push(`${pathname}?${params.toString()}`);
+      if (mode === "url") {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("filter");
+        params.delete("search");
+        params.delete("pageNumber");
+        params.set("pageNumber", "0");
+        router.push(`${pathname}?${params.toString()}`);
+      }
 
       lastSubmitted = { filters: [], search: "" };
 
-      get().onSubmit?.([], "");
+      onSubmit?.([], "");
     },
     updateLastSubmitted: (filters, search) => {
       lastSubmitted = { filters, search };
@@ -365,24 +378,65 @@ export const useAdvancedSearchRefsContext = () => {
 // Provider
 interface AdvancedSearchStoreProviderProps {
   filters: ColumnFilter[];
-  tags?: FilterTag[];
-  search?: string;
+  mode?: AdvancedSearchMode;
+  initialFilters?: Filter[];
+  initialSearch?: string;
   onSubmit?: (filters: Filter[], search: string) => void;
 }
 
 export const AdvancedSearchStoreProvider = ({
   children,
   filters,
-  tags = [],
-  search = "",
+  mode = "url",
+  initialFilters = [],
+  initialSearch = "",
   onSubmit,
 }: PropsWithChildren<AdvancedSearchStoreProviderProps>) => {
+  const searchParams = useSearchParams();
+
+  const { tags, search } = useMemo(() => {
+    if (mode === "state") {
+      return {
+        tags: initialFilters.map(createTagFromFilter),
+        search: initialSearch,
+      };
+    }
+
+    const search = searchParams.get("search") ?? "";
+    const filterParams = searchParams.getAll("filter");
+    const tags: FilterTag[] = filterParams.flatMap((f) => {
+      try {
+        const parsed = JSON.parse(f);
+        const result = FilterSchema.safeParse(parsed);
+
+        if (!result.success) {
+          return [];
+        }
+
+        const filter = result.data;
+        const columnFilter = filters.find((col) => col.key === filter.column);
+
+        if (columnFilter) {
+          return [createTagFromFilter(filter)];
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    });
+
+    return {
+      tags,
+      search,
+    };
+  }, [searchParams, filters, mode, initialFilters, initialSearch]);
+
   const storeRef = useRef<StoreApi<AdvancedSearchStore>>(null);
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
 
   if (!storeRef.current) {
-    storeRef.current = createAdvancedSearchStore(filters, tags, search, onSubmit);
+    storeRef.current = createAdvancedSearchStore(filters, tags, search, mode, onSubmit);
   }
 
   const refsValue = useMemo(() => ({ mainInputRef, tagHandlesRef }), []);
@@ -441,5 +495,18 @@ export const useAdvancedSearchNavigation = () => {
       },
     }),
     [tags, tagFocusStates, tagHandlesRef, mainInputRef]
+  );
+};
+
+export const useAdvancedSearchFilters = () => {
+  const tags = useAdvancedSearchContext((state) => state.tags);
+  const inputValue = useAdvancedSearchContext((state) => state.inputValue);
+
+  return useMemo(
+    () => ({
+      filters: tags.map(createFilterFromTag),
+      search: inputValue.trim(),
+    }),
+    [tags, inputValue]
   );
 };

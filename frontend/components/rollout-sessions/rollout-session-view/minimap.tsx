@@ -3,11 +3,11 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
-  type TraceViewSpan,
   useRolloutSessionStore,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils.ts";

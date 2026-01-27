@@ -3,10 +3,8 @@ import { type VirtualItem } from "@tanstack/react-virtual";
 import { CircleDollarSign, Coins } from "lucide-react";
 import React, { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import {
-  type TraceViewSpan,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type TimelineData } from "@/components/traces/trace-view/trace-view-store-utils.ts";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -90,8 +88,10 @@ const TimelineElement = ({
             <span className={"text-white/70 inline-flex items-center gap-1"}>
               <Coins className="min-w-1" size={12} />
               {numberFormatter.format(llmMetrics.tokens)}
+              {!!llmMetrics.cacheReadInputTokens && (
+                <span className="text-success-bright">({numberFormatter.format(llmMetrics.cacheReadInputTokens)})</span>
+              )}
             </span>
-
             <span className={"text-white/70 flex w-fit items-center gap-1"}>
               <CircleDollarSign className="min-w-1" size={12} />
               {llmMetrics.cost.toFixed(3)}

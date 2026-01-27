@@ -126,6 +126,7 @@ export type TraceRow = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
 
   inputCost: number;
   outputCost: number;
@@ -197,6 +198,7 @@ export type SessionRow = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
 
   inputCost: number;
   outputCost: number;

@@ -1,7 +1,7 @@
 import { eq, gt, gte, lt, lte, ne, type SQL } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS } from "./operators";
+import { ARRAY_OPERATORS, BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS } from "./operators";
 
 const BaseFilterSchema = z.object({
   column: z.string(),
@@ -29,13 +29,24 @@ export const JsonFilterSchema = BaseFilterSchema.extend({
   operator: z.enum(JSON_OPERATORS),
 });
 
-export const FilterSchema = z.union([StringFilterSchema, NumberFilterSchema, BooleanFilterSchema, JsonFilterSchema]);
+export const ArrayFilterSchema = BaseFilterSchema.extend({
+  operator: z.enum(ARRAY_OPERATORS),
+});
+
+export const FilterSchema = z.union([
+  StringFilterSchema,
+  NumberFilterSchema,
+  BooleanFilterSchema,
+  JsonFilterSchema,
+  ArrayFilterSchema,
+]);
 
 export const FilterSchemaRelaxed = z.union([
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(STRING_OPERATORS) }),
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(NUMBER_OPERATORS) }),
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(BOOLEAN_OPERATORS) }),
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(JSON_OPERATORS) }),
+  BaseFilterSchemaRelaxed.extend({ operator: z.enum(ARRAY_OPERATORS) }),
 ]);
 
 export type Filter = z.infer<typeof FilterSchema>;
@@ -43,6 +54,7 @@ export type StringFilter = z.infer<typeof StringFilterSchema>;
 export type NumberFilter = z.infer<typeof NumberFilterSchema>;
 export type BooleanFilter = z.infer<typeof BooleanFilterSchema>;
 export type JsonFilter = z.infer<typeof JsonFilterSchema>;
+export type ArrayFilter = z.infer<typeof ArrayFilterSchema>;
 
 type OperatorHandler<TFilter> = (column: any, filter: TFilter) => SQL<unknown>;
 

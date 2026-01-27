@@ -5,7 +5,7 @@ use lapin::{
     BasicProperties, Channel, Connection, Consumer,
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
-    types::FieldTable,
+    types::{FieldTable, ShortString},
 };
 use std::sync::Arc;
 
@@ -143,7 +143,15 @@ impl MessageQueueTrait for RabbitMQ {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        ttl_ms: Option<u64>,
     ) -> anyhow::Result<()> {
+        // Build properties with delivery_mode=2 (persistent) and optional TTL
+        let properties = BasicProperties::default().with_delivery_mode(2);
+        let properties = match ttl_ms {
+            Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
+            None => properties,
+        };
+
         let publish_with_retry = || async {
             let channel = match self.publisher_channel_pool.get().await {
                 Ok(channel) => channel,
@@ -177,7 +185,7 @@ impl MessageQueueTrait for RabbitMQ {
                     routing_key,
                     BasicPublishOptions::default(),
                     message,
-                    BasicProperties::default().with_delivery_mode(2),
+                    properties.clone(),
                 )
                 .await
             {

@@ -1,160 +1,65 @@
-import { get, groupBy } from "lodash";
-import { z } from "zod/v4";
+import { groupBy } from "lodash";
+import YAML from "yaml";
 
 import { executeQuery } from "@/lib/actions/sql";
-import { convertToLocalTimeWithMillis, tryParseJson } from "@/lib/utils";
+import { tryParseJson } from "@/lib/utils";
 
-import { type GetTraceStructureSchema } from "./index";
+const TRUNCATE_THRESHOLD = 64;
+const PREVIEW_LENGTH = 24;
 
-const ClickHouseToSpanSchema = z
-  .object({
-    span_id: z.string(),
-    start_time: z.string(),
-    end_time: z.string(),
-    name: z.string(),
-    span_type: z.string(),
-    input_cost: z.number(),
-    output_cost: z.number(),
-    total_cost: z.number(),
-    model: z.string(),
-    trace_id: z.string(),
-    provider: z.string(),
-    input_tokens: z.number(),
-    output_tokens: z.number(),
-    total_tokens: z.number(),
-    path: z.string(),
-    input: z.string(),
-    output: z.string(),
-    status: z.string(),
-    attributes: z.string(),
-    request_model: z.string(),
-    response_model: z.string(),
-    parent_span_id: z.string(),
-    events: z.array(
-      z.object({
-        timestamp: z.string(),
-        name: z.string(),
-        attributes: z.string(),
-      })
-    ),
-  })
-  .transform((span) => {
-    let input = span.input;
-    let output = span.output;
-    try {
-      input = JSON.parse(input);
-    } catch {
-      // Input is not valid JSON, keep as string
-    }
-    try {
-      output = JSON.parse(output);
-    } catch {
-      // Output is not valid JSON, keep as string
-    }
-    return {
-      spanId: span.span_id,
-      type: span.span_type,
-      start: convertToLocalTimeWithMillis(span.start_time),
-      end: convertToLocalTimeWithMillis(span.end_time),
-      parent: span.parent_span_id,
-      name: span.name,
-      status: span.status === "error" ? "error" : "success",
-      attributes: tryParseJson(span.attributes),
-      input,
-      output,
-      requestModel: span.request_model,
-      responseModel: span.response_model,
-      inputCost: span.input_cost,
-      outputCost: span.output_cost,
-      totalCost: span.total_cost,
-      inputTokens: span.input_tokens,
-      outputTokens: span.output_tokens,
-      totalTokens: span.total_tokens,
-      model: span.model,
-      traceId: span.trace_id,
-      provider: span.provider,
-      path: span.path,
-      events: span.events.map((event) => ({
-        timestamp: convertToLocalTimeWithMillis(event.timestamp),
-        name: event.name,
-        attributes: JSON.parse(event.attributes) as Record<string, any>,
-      })),
-    };
-  });
+/**
+ * Truncates a value if its string representation exceeds TRUNCATE_THRESHOLD.
+ * Shows preview of start and end for long values.
+ */
+function truncateValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
 
-interface SpanEvent {
-  timestamp: string;
-  name: string;
-  attributes: Record<string, any>;
+  const valueStr = typeof value === "string" ? value : JSON.stringify(value);
+
+  if (valueStr.length <= TRUNCATE_THRESHOLD) {
+    return value;
+  }
+
+  const start = valueStr.slice(0, PREVIEW_LENGTH);
+  const end = valueStr.slice(-PREVIEW_LENGTH);
+  const omitted = valueStr.length - PREVIEW_LENGTH * 2;
+  return `${start}...(${omitted} chars omitted)...${end}`;
 }
 
-const isErrorEvent = (event: SpanEvent) =>
-  event.name === "exception" && Object.keys(event.attributes).some((key) => key.startsWith("exception."));
-
-export interface Span {
+// Lightweight span info for skeleton view (no input/output)
+interface SpanInfo {
   spanId: string;
+  name: string;
   type: string;
-  start: string;
-  end: string;
-  parent: string;
-  name: string;
-  status: string;
-  attributes: Record<string, any>;
-  input: any;
-  output: any;
-  requestModel: string;
-  responseModel: string;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  model: string;
-  traceId: string;
-  provider: string;
   path: string;
-  events: SpanEvent[];
-}
-
-interface SpanStructure {
-  id: number;
   start: string;
   end: string;
-  parent: number;
-  name: string;
   status: string;
+  parent: string;
 }
 
-const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<Span[]> => {
-  const { projectId, traceId } = input;
+// Full span with input/output details
+export interface Span extends SpanInfo {
+  input: unknown;
+  output: unknown;
+  exception?: unknown;
+}
 
+const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
   const spans = await executeQuery({
     projectId,
     query: `
       SELECT
-        span_id,
+        span_id as spanId,
         name,
-        span_type,
-        start_time,
-        end_time,
-        input_cost,
-        output_cost,
-        total_cost,
-        model,
-        trace_id,
-        provider,
-        input_tokens,
-        output_tokens,
-        total_tokens,
+        span_type as type,
         path,
-        input,
-        output,
+        start_time as start,
+        end_time as end,
         status,
-        attributes,
-        request_model,
-        response_model,
-        parent_span_id
+        parent_span_id as parent
       FROM spans
       WHERE trace_id = {trace_id: UUID}
       ORDER BY start_time ASC
@@ -164,75 +69,231 @@ const fetchFullTraceSpans = async (input: z.infer<typeof GetTraceStructureSchema
     },
   });
 
-  const spanIdsMap = groupBy(spans, "span_id");
+  return spans as SpanInfo[];
+};
+
+/**
+ * Fetches full span details for specific span IDs.
+ */
+const fetchSpans = async (projectId: string, traceId: string, spanIds: string[]): Promise<Map<string, Span>> => {
+  if (spanIds.length === 0) {
+    return new Map();
+  }
+
+  const spans = await executeQuery({
+    projectId,
+    query: `
+      SELECT
+        span_id as spanId,
+        name,
+        span_type as type,
+        path,
+        start_time as start,
+        end_time as end,
+        status,
+        parent_span_id as parent,
+        input,
+        output
+      FROM spans
+      WHERE trace_id = {trace_id: UUID}
+        AND span_id IN {span_ids: Array(UUID)}
+    `,
+    parameters: {
+      trace_id: traceId,
+      span_ids: spanIds,
+    },
+  });
 
   const events = await executeQuery({
     projectId,
     query: `
-      SELECT span_id, timestamp, name, attributes FROM events
-      WHERE span_id IN {span_ids:Array(UUID)}
-      ORDER BY timestamp ASC
+      SELECT span_id, attributes
+      FROM events
+      WHERE span_id IN {span_ids: Array(UUID)}
+        AND name = 'exception'
     `,
     parameters: {
-      span_ids: Object.keys(spanIdsMap),
+      span_ids: spanIds,
     },
   });
 
-  const eventsMap = groupBy(events, "span_id");
+  const exceptionsMap = groupBy(events, "span_id");
+  const spansMap = new Map<string, Span>();
 
-  const spansWithEvents = spans.map((span) => ({
-    ...span,
-    events: eventsMap[get(span, "span_id", "")] || [],
-  }));
+  for (const span of spans as Array<SpanInfo & { input: string; output: string }>) {
+    const fullSpan: Span = {
+      ...span,
+      input: tryParseJson(span.input),
+      output: tryParseJson(span.output),
+    };
 
-  const spansWithEventsParsed = ClickHouseToSpanSchema.array().parse(spansWithEvents);
+    const exceptionEvents = exceptionsMap[span.spanId];
+    if (exceptionEvents?.length > 0) {
+      fullSpan.exception = tryParseJson((exceptionEvents[0] as { attributes: string }).attributes);
+    }
 
-  return spansWithEventsParsed;
+    spansMap.set(span.spanId, fullSpan);
+  }
+
+  return spansMap;
 };
 
-export const getTraceStructure = async (input: z.infer<typeof GetTraceStructureSchema>): Promise<SpanStructure[]> => {
-  const allData = await fetchFullTraceSpans(input);
+/**
+ * Fetches full span data for specific sequential IDs (1-indexed).
+ */
+export const getSpansByIds = async (projectId: string, traceId: string, ids: number[]): Promise<Span[]> => {
+  const spanInfos = await fetchSpanInfos(projectId, traceId);
 
-  const spanIdToId = allData.reduce(
-    (acc, span, index) => {
-      acc[span.spanId] = index + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const requestedSpanIds = ids.filter((id) => id >= 1 && id <= spanInfos.length).map((id) => spanInfos[id - 1].spanId);
 
-  return allData.map((span, index) => ({
-    id: index + 1,
-    start: span.start,
-    end: span.end,
-    parent: spanIdToId[span.parent],
-    name: span.name,
-    status: span.status,
-  }));
+  if (requestedSpanIds.length === 0) {
+    return [];
+  }
+
+  const spansMap = await fetchSpans(projectId, traceId, requestedSpanIds);
+
+  return ids
+    .filter((id) => id >= 1 && id <= spanInfos.length)
+    .map((id) => spansMap.get(spanInfos[id - 1].spanId)!)
+    .filter(Boolean);
 };
 
-interface SpanData {
-  id: number;
-  input: any;
-  output: any;
-  errorEvents: SpanEvent[];
+function calculateDuration(start: string, end: string): number {
+  return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
 }
 
-export const getSpansData = async (
-  input: z.infer<typeof GetTraceStructureSchema>,
-  ids: number[]
-): Promise<SpanData[]> => {
-  const allData = await fetchFullTraceSpans(input);
+function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
+  let result = "legend: span_name (id, parent_id, type)\n";
+  for (let i = 0; i < spanInfos.length; i++) {
+    const info = spanInfos[i];
+    const seqId = i + 1;
+    const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
+    result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type})\n`;
+  }
+  return result;
+}
 
-  const processedData = allData;
+interface DetailedSpanView {
+  id: number;
+  name: string;
+  path: string;
+  type: string;
+  duration: number;
+  parent: number | null;
+  status?: string;
+  input?: unknown;
+  output?: unknown;
+  exception?: unknown;
+}
 
-  return processedData
-    .map((span, index) => ({
-      name: span.name,
-      id: index + 1,
-      input: span.input,
-      output: span.output,
-      errorEvents: span.events.filter(isErrorEvent),
-    }))
-    .filter((span) => ids.includes(span.id));
+export interface TraceStructureResult {
+  traceString: string;
+}
+
+export const getTraceStructureAsString = async (projectId: string, traceId: string): Promise<TraceStructureResult> => {
+  const spanInfos = await fetchSpanInfos(projectId, traceId);
+
+  const spanIdToSeqId: Record<string, number> = {};
+  spanInfos.forEach((info, index) => {
+    spanIdToSeqId[info.spanId] = index + 1;
+  });
+
+  // Only fetch full details for LLM and TOOL spans
+  const detailedSpanIds = spanInfos.filter((s) => s.type === "LLM" || s.type === "TOOL").map((s) => s.spanId);
+
+  const spansMap = await fetchSpans(projectId, traceId, detailedSpanIds);
+
+  const skeletonString = spanInfosToSkeletonString(spanInfos, spanIdToSeqId);
+
+  // Build detailed views with path-based compression
+  const seenPaths = new Set<string>();
+  const detailedSpans: DetailedSpanView[] = [];
+
+  for (let i = 0; i < spanInfos.length; i++) {
+    const info = spanInfos[i];
+    if (info.type !== "LLM" && info.type !== "TOOL") {
+      continue;
+    }
+
+    const span = spansMap.get(info.spanId);
+    if (!span) continue;
+
+    const seqId = i + 1;
+    const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
+
+    const spanView: DetailedSpanView = {
+      id: seqId,
+      name: info.name,
+      path: info.path,
+      type: info.type.toLowerCase(),
+      duration: calculateDuration(info.start, info.end),
+      parent: parentSeqId,
+    };
+
+    if (info.status === "error") {
+      spanView.status = "error";
+    }
+
+    const isTool = info.type === "TOOL";
+
+    // Only include input for first occurrence at each path
+    if (!seenPaths.has(info.path)) {
+      seenPaths.add(info.path);
+      // Truncate tool span input, keep full LLM input
+      spanView.input = isTool ? truncateValue(span.input) : span.input;
+    }
+    // Truncate tool span output, keep full LLM output
+    spanView.output = isTool ? truncateValue(span.output) : span.output;
+
+    if (span.exception) {
+      spanView.exception = span.exception;
+    }
+
+    detailedSpans.push(spanView);
+  }
+
+  const traceYaml = YAML.stringify(detailedSpans);
+
+  const traceString = `Here is the skeleton view of the trace:
+<trace_skeleton>
+${skeletonString}
+</trace_skeleton>
+
+Here are the detailed views of LLM and Tool spans:
+<spans>
+${traceYaml}
+</spans>
+`;
+
+  return { traceString };
+};
+
+/**
+ * Resolves a sequential span ID (1-indexed) to the actual span UUID.
+ */
+export const resolveSpanId = async (
+  projectId: string,
+  traceId: string,
+  sequentialId: number
+): Promise<string | null> => {
+  const spans = await executeQuery({
+    projectId,
+    query: `
+      SELECT span_id
+      FROM spans
+      WHERE trace_id = {trace_id: UUID}
+      ORDER BY start_time ASC
+      LIMIT 1 OFFSET {offset: UInt32}
+    `,
+    parameters: {
+      trace_id: traceId,
+      offset: sequentialId - 1,
+    },
+  });
+
+  if (spans.length === 0) {
+    return null;
+  }
+
+  return (spans[0] as { span_id: string }).span_id;
 };

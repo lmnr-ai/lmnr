@@ -6,7 +6,7 @@ import { SimpleLRU } from "@/lib/simple-lru.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedOutputsHook {
-  getOutput: (spanId: string) => any | undefined;
+  outputs: Record<string, any>;
   clearCache: () => void;
 }
 
@@ -28,7 +28,7 @@ export function useBatchedSpanOutputs(
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
-  const [, setUpdateTrigger] = useState(0);
+  const [outputs, setOutputs] = useState<Record<string, any>>({});
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
@@ -63,7 +63,13 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setUpdateTrigger((prev) => prev + 1);
+        setOutputs((prev) => {
+          const next = { ...prev };
+          spanIds.forEach((id) => {
+            next[id] = cache.current.get(id);
+          });
+          return next;
+        });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -76,7 +82,13 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setUpdateTrigger((prev) => prev + 1);
+        setOutputs((prev) => {
+          const next = { ...prev };
+          spanIds.forEach((id) => {
+            next[id] = null;
+          });
+          return next;
+        });
       }
     },
     [projectId, toast, trace]
@@ -115,13 +127,11 @@ export function useBatchedSpanOutputs(
     }
   }, [visibleSpanIds, scheduleFetch, debounceMs]);
 
-  const getOutput = useCallback((spanId: string) => cache.current.get(spanId), []);
-
   const clearCache = useCallback(() => {
     cache.current.clear();
     fetching.current.clear();
-    setUpdateTrigger((prev) => prev + 1);
+    setOutputs({});
   }, []);
 
-  return { getOutput, clearCache };
+  return { outputs, clearCache };
 }

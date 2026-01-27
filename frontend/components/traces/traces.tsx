@@ -56,9 +56,11 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     }
   }, []);
 
-  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-    posthog.identify(user.email);
-  }
+  useEffect(() => {
+    if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
+      posthog?.identify(user.email);
+    }
+  }, [posthog, user.email]);
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);

@@ -35,13 +35,21 @@ use query_engine::{
     query_engine_impl::QueryEngineImpl,
 };
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
+use signals::{
+    SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
+    SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+    SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
+    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
+    pendings_consumer::SignalJobPendingBatchHandler,
+    submissions_consumer::SignalJobSubmissionBatchHandler,
+};
 use tonic::transport::Server;
 use traces::{
     EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE, EVENT_CLUSTERING_ROUTING_KEY,
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SEMANTIC_EVENT_EXCHANGE,
-    SEMANTIC_EVENT_QUEUE, SEMANTIC_EVENT_ROUTING_KEY, clustering::ClusteringHandler,
-    consumer::SpanHandler, grpc_service::ProcessTracesService,
-    semantic_events::SemanticEventHandler,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SIGNALS_EXCHANGE,
+    SIGNALS_QUEUE, SIGNALS_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
+    grpc_service::ProcessTracesService, signals::SignalHandler,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -91,6 +99,7 @@ mod quickwit;
 mod realtime;
 mod routes;
 mod runtime;
+mod signals;
 mod sql;
 mod storage;
 mod traces;
@@ -396,10 +405,10 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.5 Semantic event message queue ====
+            // ==== 3.5 Signals message queue ====
             channel
                 .exchange_declare(
-                    SEMANTIC_EVENT_EXCHANGE,
+                    SIGNALS_EXCHANGE,
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -412,7 +421,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SEMANTIC_EVENT_QUEUE,
+                    SIGNALS_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -474,6 +483,102 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
+            channel
+                .exchange_declare(
+                    SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
+            channel
+                .exchange_declare(
+                    SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
+            channel
+                .exchange_declare(
+                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            let mut waiting_queue_args = quorum_queue_args.clone();
+            waiting_queue_args.insert(
+                "x-dead-letter-exchange".into(),
+                lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
+            );
+
+            channel
+                .queue_declare(
+                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    waiting_queue_args,
+                )
+                .await
+                .unwrap();
+
+            // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
+            channel
+                .queue_bind(
+                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
+                    lapin::options::QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -501,12 +606,27 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
         // ==== 3.4 Payloads message queue ====
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
-        // ==== 3.5 Semantic event message queue ====
-        queue.register_queue(SEMANTIC_EVENT_EXCHANGE, SEMANTIC_EVENT_QUEUE);
+        // ==== 3.5 Signals event message queue ====
+        queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
+        // ==== 3.8 Signal Job Submission Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+            SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+        );
+        // ==== 3.9 Signal Job Pending Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+            SIGNAL_JOB_PENDING_BATCH_QUEUE,
+        );
+        // ==== 3.10 Signal Job Waiting Batch message queue ====
+        queue.register_queue(
+            SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+            SIGNAL_JOB_WAITING_BATCH_QUEUE,
+        );
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -638,6 +758,7 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // == HTTP client ==
     let clickhouse_for_http = clickhouse.clone();
     let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
@@ -692,6 +813,24 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
+        // == Gemini client ==
+        let gemini_client = if is_feature_enabled(Feature::TraceAnalysis) {
+            log::info!("Initializing Gemini client for trace analysis");
+            match signals::gemini::GeminiClient::new() {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    log::warn!(
+                        "Failed to create Gemini client (trace analysis will be disabled): {:?}",
+                        e
+                    );
+                    None
+                }
+            }
+        } else {
+            log::info!("Trace analysis feature disabled - skipping Gemini client initialization");
+            None
+        };
+
         let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
             env::var("PYTHON_ONLINE_EVALUATOR_URL")
                 .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
@@ -724,7 +863,7 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_semantic_event_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
+        let num_signals_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
             .unwrap_or(2);
@@ -739,16 +878,29 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_signal_job_submission_batch_workers =
+            env::var("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS")
+                .unwrap_or(String::from("4"))
+                .parse::<u8>()
+                .unwrap_or(4);
+
+        let num_signal_job_pending_batch_workers = env::var("NUM_SIGNAL_JOB_PENDING_BATCH_WORKERS")
+            .unwrap_or(String::from("4"))
+            .parse::<u8>()
+            .unwrap_or(4);
+
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Semantic event workers: {}, Notification workers: {}, Clustering workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_evaluators_workers,
             num_payload_workers,
-            num_semantic_event_workers,
+            num_signals_workers,
             num_notification_workers,
-            num_clustering_workers
+            num_clustering_workers,
+            num_signal_job_submission_batch_workers,
+            num_signal_job_pending_batch_workers
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -875,17 +1027,17 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn semantic event workers using new worker pool
+                    // Spawn signals workers using new worker pool
                     {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
-                            WorkerType::SemanticEvents,
-                            num_semantic_event_workers as usize,
+                            WorkerType::Signals,
+                            num_signals_workers as usize,
                             move || {
-                                SemanticEventHandler::new(
+                                SignalHandler::new(
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
@@ -893,9 +1045,9 @@ fn main() -> anyhow::Result<()> {
                                 )
                             },
                             QueueConfig {
-                                queue_name: SEMANTIC_EVENT_QUEUE,
-                                exchange_name: SEMANTIC_EVENT_EXCHANGE,
-                                routing_key: SEMANTIC_EVENT_ROUTING_KEY,
+                                queue_name: SIGNALS_QUEUE,
+                                exchange_name: SIGNALS_EXCHANGE,
+                                routing_key: SIGNALS_ROUTING_KEY,
                             },
                         );
                     }
@@ -930,6 +1082,68 @@ fn main() -> anyhow::Result<()> {
                                 exchange_name: EVENT_CLUSTERING_EXCHANGE,
                                 routing_key: EVENT_CLUSTERING_ROUTING_KEY,
                             },
+                        );
+                    }
+
+                    // Spawn LLM batch submissions workers
+                    if let Some(gemini) = gemini_client.as_ref() {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let gemini_clone = gemini.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
+                        worker_pool_clone.spawn(
+                            WorkerType::SignalJobSubmissionBatch,
+                            num_signal_job_submission_batch_workers as usize,
+                            move || {
+                                SignalJobSubmissionBatchHandler::new(
+                                    db.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                    gemini_clone.clone(),
+                                    config.clone(),
+                                )
+                            },
+                            QueueConfig {
+                                queue_name: SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                                exchange_name: SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                                routing_key: SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+                            },
+                        );
+                    } else {
+                        log::warn!(
+                            "Gemini client not available - skipping LLM batch submissions workers"
+                        );
+                    }
+
+                    // Spawn LLM batch pending workers
+                    if let Some(gemini) = gemini_client.as_ref() {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let gemini_clone = gemini.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
+                        worker_pool_clone.spawn(
+                            WorkerType::SignalJobPendingBatch,
+                            num_signal_job_pending_batch_workers as usize,
+                            move || {
+                                SignalJobPendingBatchHandler::new(
+                                    db.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                    gemini_clone.clone(),
+                                    config.clone(),
+                                )
+                            },
+                            QueueConfig {
+                                queue_name: SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                                exchange_name: SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                                routing_key: SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
+                            },
+                        );
+                    } else {
+                        log::warn!(
+                            "Gemini client not available - skipping LLM batch pending workers"
                         );
                     }
 
@@ -1056,7 +1270,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
-                                    .service(routes::rollouts::update_status),
+                                    .service(routes::rollouts::update_status)
+                                    .service(routes::signals::submit_signal_job),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

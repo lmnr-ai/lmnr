@@ -66,7 +66,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
+  const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
     id: traceId,
     startTime: trace?.startTime,
     endTime: trace?.endTime,
@@ -126,10 +126,6 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     [spans, onSpanSelect]
   );
 
-  const handleOpenSettings = useCallback((span: TraceViewListSpan) => {
-    setSettingsSpan(span);
-  }, []);
-
   if (isSpansLoading) {
     return (
       <div className="flex flex-1 flex-col">
@@ -186,9 +182,9 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
                   <ListItem
                     isLast={isLast}
                     span={listSpan}
-                    getOutput={getOutput}
+                    output={outputs[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
-                    onOpenSettings={handleOpenSettings}
+                    onOpenSettings={setSettingsSpan}
                   />
                 </div>
               );
@@ -198,7 +194,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
       </div>
       <MustacheTemplateSheet
         span={settingsSpan}
-        output={getOutput(settingsSpan?.spanId ?? "")}
+        output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />

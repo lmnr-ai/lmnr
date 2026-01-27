@@ -40,7 +40,7 @@ const SearchEvaluationInput = ({ className }: { className?: string }) => {
     router.push(`${pathName}?${params.toString()}`);
     inputRef.current?.blur();
     if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-      posthog.capture("evaluation_results_searched", {
+      posthog?.capture("evaluation_results_searched", {
         searchParams: searchParams.toString(),
       });
     }

@@ -76,16 +76,22 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
 
   const spanEventsMap = groupBy(events, (event) => event.spanId);
 
-  const transformedSpans = spans.map((span) => ({
-    ...span,
-    collapsed: false,
-    attributes: tryParseJson(span.attributes) || {},
-    parentSpanId: span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId,
-    events: (spanEventsMap[span.spanId] || []).map((event) => ({
-      ...event,
-      attributes: tryParseJson(event.attributes),
-    })),
-  }));
+  const transformedSpans = spans.map((span) => {
+    const parsedAttributes = tryParseJson(span.attributes) || {};
+    const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
+
+    return {
+      ...span,
+      collapsed: false,
+      attributes: parsedAttributes,
+      cacheReadInputTokens,
+      parentSpanId: span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId,
+      events: (spanEventsMap[span.spanId] || []).map((event) => ({
+        ...event,
+        attributes: tryParseJson(event.attributes),
+      })),
+    };
+  });
 
   return aggregateSpanMetrics(transformedSpans);
 };

@@ -470,6 +470,13 @@
       "when": 1768843438222,
       "tag": "0066_sturdy_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1769442895267,
+      "tag": "0067_lowly_frank_castle",
+      "breakpoints": true
     }
   ]
 }

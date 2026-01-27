@@ -126,6 +126,7 @@ async fn create_session_event(
                 &mq_message,
                 BROWSER_SESSIONS_EXCHANGE,
                 BROWSER_SESSIONS_ROUTING_KEY,
+                None,
             )
             .await?;
     }

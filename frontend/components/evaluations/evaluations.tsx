@@ -3,7 +3,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
@@ -206,9 +206,11 @@ function EvaluationsContent() {
     }
   };
 
-  if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-    posthog.identify(user.email);
-  }
+  useEffect(() => {
+    if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
+      posthog?.identify(user.email);
+    }
+  }, [posthog, user.email]);
 
   return (
     <>

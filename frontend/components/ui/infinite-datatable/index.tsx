@@ -64,6 +64,7 @@ export function InfiniteDataTable<TData extends RowData>({
   error,
   getRowHref,
   loadMoreButton,
+  hideSelectionPanel = false,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -213,12 +214,13 @@ export function InfiniteDataTable<TData extends RowData>({
 
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
-      <SelectionPanel
-        selectedRowIds={selectedRowIds}
-        onClearSelection={handleClearSelection}
-        selectionPanel={selectionPanel}
-      />
-
+      {!hideSelectionPanel && (
+        <SelectionPanel
+          selectedRowIds={selectedRowIds}
+          onClearSelection={handleClearSelection}
+          selectionPanel={selectionPanel}
+        />
+      )}
       {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
       <div
         ref={tableContainerRef}

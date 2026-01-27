@@ -70,6 +70,7 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
+          cacheReadInputTokens: 0,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
@@ -167,6 +168,7 @@ export const onRealtimeUpdateSpans =
 
     const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
     const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
+    const cacheReadInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_read_input_tokens", 0);
     const totalTokens = inputTokens + outputTokens;
     const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
     const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
@@ -187,6 +189,7 @@ export const onRealtimeUpdateSpans =
       newTrace.totalTokens += totalTokens;
       newTrace.inputTokens += inputTokens;
       newTrace.outputTokens += outputTokens;
+      newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
       newTrace.inputCost += inputCost;
       newTrace.outputCost += outputCost;
       newTrace.totalCost += totalCost;
@@ -203,6 +206,7 @@ export const onRealtimeUpdateSpans =
           totalTokens,
           inputTokens,
           outputTokens,
+          cacheReadInputTokens,
           inputCost,
           outputCost,
           totalCost,
@@ -217,6 +221,7 @@ export const onRealtimeUpdateSpans =
           totalTokens,
           inputTokens,
           outputTokens,
+          cacheReadInputTokens,
           inputCost,
           outputCost,
           totalCost,
@@ -275,6 +280,7 @@ export const getLLMMetrics = (span: TraceViewSpan) => {
     return {
       cost: span.aggregatedMetrics.totalCost,
       tokens: span.aggregatedMetrics.totalTokens,
+      cacheReadInputTokens: span.aggregatedMetrics.cacheReadInputTokens,
     };
   }
 
@@ -282,11 +288,13 @@ export const getLLMMetrics = (span: TraceViewSpan) => {
 
   const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
   const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+  const cacheTokensValue = span.cacheReadInputTokens ?? 0;
 
   if (costValue === 0 && tokensValue === 0) return null;
 
   return {
     cost: costValue,
     tokens: tokensValue,
+    cacheReadInputTokens: cacheTokensValue,
   };
 };

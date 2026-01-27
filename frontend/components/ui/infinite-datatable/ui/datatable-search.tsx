@@ -43,7 +43,7 @@ export const DataTableSearch = ({ className, placeholder = "Search in table..." 
         router.push(`${pathName}?${params.toString()}`);
 
         if (isFeatureEnabled(Feature.POSTHOG_IDENTIFY)) {
-          posthog.capture(`${getStorageKey()}_list_searched`, {
+          posthog?.capture(`${getStorageKey()}_list_searched`, {
             searchParams: params.toString(),
           });
         }

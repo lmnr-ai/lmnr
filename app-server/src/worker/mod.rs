@@ -73,9 +73,11 @@ pub enum WorkerType {
     BrowserEvents,
     Evaluators,
     Payloads,
-    SemanticEvents,
+    Signals,
     Notifications,
     Clustering,
+    SignalJobSubmissionBatch,
+    SignalJobPendingBatch,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -86,9 +88,13 @@ impl std::fmt::Display for WorkerType {
             WorkerType::BrowserEvents => write!(f, "browser_events"),
             WorkerType::Evaluators => write!(f, "evaluators"),
             WorkerType::Payloads => write!(f, "payloads"),
-            WorkerType::SemanticEvents => write!(f, "semantic_events"),
+            WorkerType::Signals => write!(f, "signals"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
+            WorkerType::SignalJobSubmissionBatch => {
+                write!(f, "signal_job_submission_batch")
+            }
+            WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
         }
     }
 }
